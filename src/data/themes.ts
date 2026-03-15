@@ -84,6 +84,14 @@ export const THEMES: ThemeInfo[] = [
   { key: 'Echo mates', name: 'Echo Mates', nameJa: 'エコーメイト', description: 'Two or more mating positions that mirror each other in pattern, shifted to different parts of the board.' },
   { key: 'Excelsior', name: 'Excelsior', nameJa: 'エクセルシオール', description: 'A pawn marches from its starting square all the way to promotion during the solution.' },
   { key: 'Duplex', name: 'Duplex', nameJa: 'デュプレックス', description: 'The same position is solved twice — once with White to play and once with Black to play.' },
+  { key: 'Retro', name: 'Retro', nameJa: 'レトロ', description: 'A problem requiring retrograde analysis — reasoning about what previous moves must have been to determine legality of castling, en passant, etc.' },
+  { key: 'Cantcastler', name: 'Cantcastler', nameJa: 'キャスリング不可', description: 'Retrograde analysis proves that castling is illegal in the given position.' },
+  { key: 'En passant as key', name: 'En Passant as Key', nameJa: 'アンパッサンの鍵手', description: 'The key move is an en passant capture, often requiring retro analysis to prove it is legal.' },
+  { key: 'Stalemate avoidance', name: 'Stalemate Avoidance', nameJa: 'ステイルメイト回避', description: 'The solution must avoid stalemating the opponent.' },
+  { key: 'Lost Pieces', name: 'Lost Pieces', nameJa: '失われた駒', description: 'Retrograde analysis of which pieces have been captured to determine move legality.' },
+  { key: 'Unsound', name: 'Unsound', nameJa: '不完全', description: 'The problem has a flaw — the intended solution does not fully work.' },
+  { key: 'Digits', name: 'Digits', nameJa: '数字', description: 'The position or solution forms digit shapes on the board.' },
+  { key: 'Vladimirov', name: 'Vladimirov', nameJa: 'ヴラジミロフ', description: 'A try refutation becomes a defense in the actual solution, but is now met by one of the try threats.' },
 ];
 
 export function findTheme(key: string): ThemeInfo | undefined {
