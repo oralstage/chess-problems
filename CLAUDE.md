@@ -54,13 +54,15 @@
 
 ### Stockfish WASM
 - Uses lite variant (~7MB) to fit Cloudflare Pages 25MB file limit.
+- **CRITICAL**: Stockfish files must be served from `public/stockfish/` (not bundled by Vite). Vite hashes JS and WASM files independently, but the worker JS finds its WASM by replacing `.js→.wasm` in its own URL — mismatched hashes cause 404. The `prebuild`/`predev` scripts copy files from `node_modules/stockfish/bin/` to `public/stockfish/`.
 - Requires COOP/COEP headers for SharedArrayBuffer (multi-threaded). Falls back to single-threaded.
 - Can freeze on mobile. 15-second timeout prevents hangs. Never use Stockfish for validation.
-- `dist/assets/*.wasm` files >25MB must be removed before `wrangler pages deploy`.
+- Lazy-loaded: first call to `analyze()` triggers `ensureReady()`. Don't gate on `readyState === 'ready'`.
 
 ### Deployment
 - Cloudflare Pages: `npx wrangler pages deploy dist --project-name=chess-problems`
-- WASM files >25MB are rejected by CF. The lite Stockfish variant avoids this but sometimes large WASM files from other packages sneak in — always `rm -f dist/assets/*.wasm` if any are >25MB before deploying.
+- Build: `npm run build` (prebuild copies Stockfish to public/, then tsc + vite build)
+- No need to manually remove WASM files — Stockfish is now in `dist/stockfish/` (~7MB each), not in `dist/assets/`.
 
 ### react-chessboard
 - Click-to-move works (click piece, click destination). Drag also works.

@@ -4,7 +4,6 @@ interface FeedbackPanelProps {
   status: SolveStatus;
   feedback: string;
   moveHistory: string[];
-  wrongMoveCount: number;
   hintActive: boolean;
   onReset: () => void;
   onShowSolution: () => void;
@@ -19,7 +18,6 @@ interface FeedbackPanelProps {
 export function FeedbackPanel({
   status,
   moveHistory,
-  wrongMoveCount,
   hintActive,
   onReset,
   onShowSolution,
@@ -79,7 +77,7 @@ export function FeedbackPanel({
       {/* Solving state */}
       {status === 'solving' && (
         <div className="flex gap-2">
-          {wrongMoveCount > 0 && !hintActive && (
+          {!hintActive && (
             <button
               onClick={onShowHint}
               className="px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors font-medium"

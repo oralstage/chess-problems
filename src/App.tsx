@@ -454,7 +454,7 @@ export default function App() {
                 status={problem.status}
                 feedback={problem.feedback}
                 moveHistory={problem.moveHistory}
-                wrongMoveCount={problem.wrongMoveCount}
+
                 hintActive={!!problem.hintSquares}
                 onReset={problem.resetProblem}
                 onShowSolution={problem.showSolution}
