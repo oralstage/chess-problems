@@ -57,45 +57,7 @@ function getUserColor(genre: Genre): 'w' | 'b' {
   return genre === 'help' ? 'b' : 'w';
 }
 
-// ── Stockfish-based helpers ──────────────────────────────
-
-/** Use Stockfish to compute the main line from a position */
-async function computeStockfishLine(
-  fen: string,
-  maxMoves: number,
-  sf: StockfishApi,
-): Promise<PlaybackPosition[]> {
-  const positions: PlaybackPosition[] = [{ fen, lastMove: null, san: '' }];
-  const chess = new Chess(fen);
-  // For a #N problem, we need up to 2*N - 1 half-moves (N white + N-1 black)
-  const maxHalfMoves = maxMoves > 0 ? maxMoves * 2 - 1 : 30;
-
-  for (let i = 0; i < maxHalfMoves; i++) {
-    if (chess.isGameOver()) break;
-    const result = await sf.analyze(chess.fen(), 18);
-    if (!result) break;
-
-    const from = result.bestMove.slice(0, 2);
-    const to = result.bestMove.slice(2, 4);
-    const promo = result.bestMove.length > 4 ? result.bestMove[4] : undefined;
-    let move;
-    try {
-      move = chess.move({ from, to, promotion: promo });
-    } catch {
-      break;
-    }
-    if (!move) break;
-
-    positions.push({
-      fen: chess.fen(),
-      lastMove: { from: move.from, to: move.to },
-      san: move.san,
-    });
-  }
-  return positions;
-}
-
-// ── Solution tree helpers (for helpmate/selfmate) ────────
+// ── Solution tree helpers ─────────────────────────────────
 
 function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
   const line: SolutionNode[] = [];
@@ -207,28 +169,27 @@ function computePositions(initialFen: string, mainLine: SolutionNode[]): Playbac
   return positions;
 }
 
-// ── Build playback from move history (for Stockfish-solved problems) ──
-function buildPlaybackFromHistory(initialFen: string, moveHistory: string[]): PlaybackPosition[] {
-  const positions: PlaybackPosition[] = [{ fen: initialFen, lastMove: null, san: '' }];
-  const chess = new Chess(initialFen);
-  for (const san of moveHistory) {
-    try {
-      const move = chess.move(san);
-      if (move) {
-        positions.push({
-          fen: chess.fen(),
-          lastMove: { from: move.from, to: move.to },
-          san: move.san,
-        });
-      }
-    } catch { break; }
+// ── Match a user move against solution tree nodes ──
+function matchMoveToTree(
+  preFen: string,
+  from: string,
+  to: string,
+  moveSan: string,
+  movePromotion: string | undefined,
+  nodes: SolutionNode[],
+): SolutionNode | null {
+  const uci = from + to + (movePromotion || '');
+  for (const node of nodes) {
+    if (node.moveUci === uci) return node;
+    if (node.moveSan === moveSan) return node;
+    const nodeSanClean = node.moveSan.replace(/[+#]/g, '');
+    const moveSanClean = moveSan.replace(/[+#]/g, '');
+    if (nodeSanClean === moveSanClean) return node;
+    const verifyChess = new Chess(preFen);
+    const verifiedMove = tryExecuteNode(verifyChess, node);
+    if (verifiedMove && verifiedMove.from === from && verifiedMove.to === to) return node;
   }
-  return positions;
-}
-
-// ── Determines if a genre uses Stockfish for validation ──
-function usesStockfish(genre: Genre): boolean {
-  return genre === 'direct' || genre === 'study';
+  return null;
 }
 
 // ──────────────────────────────────────────────────────────
@@ -256,7 +217,6 @@ export function useProblem(stockfish?: StockfishApi) {
   });
 
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const sfBusyRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -330,97 +290,6 @@ export function useProblem(stockfish?: StockfishApi) {
     }, WRONG_MOVE_PAUSE);
   }, []);
 
-  // ── Stockfish auto-play opponent response ──
-  const sfAutoPlayOpponent = useCallback(async (
-    newFen: string,
-    newHistory: string[],
-    from: string,
-    to: string,
-    movesRemaining: number,
-  ) => {
-    if (!stockfish) return;
-
-    setState(prev => ({
-      ...prev,
-      fen: newFen,
-      moveHistory: newHistory,
-      feedback: '',
-      lastMove: { from, to },
-      feedbackSquare: to,
-      feedbackType: 'correct',
-      waitingForAutoPlay: true,
-      hintSquares: null,
-    }));
-
-    // Wait a beat, then get Stockfish's defense
-    await new Promise(r => setTimeout(r, AUTO_PLAY_DELAY));
-
-    const defResult = await stockfish.analyze(newFen, 18);
-    if (!defResult) {
-      setState(prev => ({ ...prev, waitingForAutoPlay: false, feedbackSquare: null, feedbackType: null }));
-      return;
-    }
-
-    const defChess = new Chess(newFen);
-    const dfrom = defResult.bestMove.slice(0, 2);
-    const dto = defResult.bestMove.slice(2, 4);
-    const dpromo = defResult.bestMove.length > 4 ? defResult.bestMove[4] : undefined;
-    let defMove;
-    try {
-      defMove = defChess.move({ from: dfrom, to: dto, promotion: dpromo });
-    } catch { /* */ }
-
-    if (!defMove) {
-      setState(prev => ({ ...prev, waitingForAutoPlay: false, feedbackSquare: null, feedbackType: null }));
-      return;
-    }
-
-    const afterDefFen = defChess.fen();
-    const defLastMove = { from: defMove.from, to: defMove.to };
-
-    // Check if this defense results in checkmate (selfmate scenario)
-    if (defChess.isCheckmate()) {
-      const historyWithDef = [...newHistory, defMove.san];
-      setState(prev => {
-        const positions = buildPlaybackFromHistory(prev.initialFen, historyWithDef);
-        const pb = {
-          positions,
-          mainLine: [] as SolutionNode[],
-          moveIndex: positions.length - 2,
-          exploring: false,
-          exploreFen: '',
-          exploreLastMove: null,
-        };
-        return {
-          ...prev,
-          fen: afterDefFen,
-          moveHistory: historyWithDef,
-          status: 'correct',
-          feedback: '',
-          lastMove: defLastMove,
-          feedbackSquare: null,
-          feedbackType: null,
-          waitingForAutoPlay: false,
-          movesRemaining: 0,
-          playback: pb,
-        };
-      });
-      return;
-    }
-
-    setState(prev => ({
-      ...prev,
-      fen: afterDefFen,
-      moveHistory: [...newHistory, defMove.san],
-      feedback: '',
-      lastMove: defLastMove,
-      feedbackSquare: null,
-      feedbackType: null,
-      waitingForAutoPlay: false,
-      movesRemaining: movesRemaining - 1,
-    }));
-  }, [stockfish]);
-
   // ── Main tryMove ──
   const tryMove = useCallback((from: string, to: string, promotion?: string): boolean => {
     const { problem, currentNodes, status, playback, movesRemaining } = state;
@@ -471,160 +340,55 @@ export function useProblem(stockfish?: StockfishApi) {
     const newHistory = [...state.moveHistory, move.san];
 
     // ══════════════════════════════════════════════
-    // STOCKFISH path: direct mate and study
+    // Check immediate solve (checkmate / stalemate)
     // ══════════════════════════════════════════════
-    if ((problem.genre === 'direct' || problem.genre === 'study') && stockfish) {
-      const isCheckmate = chess.isCheckmate();
+    const isCheckmate = chess.isCheckmate();
 
-      if (isCheckmate) {
-        // User delivered checkmate — solved!
-        const positions = buildPlaybackFromHistory(state.initialFen, newHistory);
-        const pb = {
-          positions,
-          mainLine: [] as SolutionNode[],
-          moveIndex: positions.length - 2,
-          exploring: false,
-          exploreFen: '',
-          exploreLastMove: null,
-        };
-        setState(prev => ({
-          ...prev,
-          fen: newFen,
-          moveHistory: newHistory,
-          status: 'correct',
-          feedback: '',
-          lastMove: { from, to },
-          feedbackSquare: to,
-          feedbackType: 'correct',
-          waitingForAutoPlay: false,
-          hintSquares: null,
-          movesRemaining: 0,
-          playback: pb,
-        }));
-        return true;
-      }
-
-      // For study with draw goal, stalemate is also correct
-      if (problem.stipulation === '=' && chess.isStalemate()) {
-        const positions = buildPlaybackFromHistory(state.initialFen, newHistory);
-        const pb = {
-          positions,
-          mainLine: [] as SolutionNode[],
-          moveIndex: positions.length - 2,
-          exploring: false,
-          exploreFen: '',
-          exploreLastMove: null,
-        };
-        setState(prev => ({
-          ...prev,
-          fen: newFen,
-          moveHistory: newHistory,
-          status: 'correct',
-          feedback: '',
-          lastMove: { from, to },
-          feedbackSquare: to,
-          feedbackType: 'correct',
-          waitingForAutoPlay: false,
-          hintSquares: null,
-          movesRemaining: 0,
-          playback: pb,
-        }));
-        return true;
-      }
-
-      // Save pre-move state for undo
-      const preFen = state.fen;
-      const preMoveHistory = state.moveHistory;
-      const preLastMove = state.lastMove;
-
-      // Show the move on board with neutral state (pending validation)
+    if (isCheckmate && problem.genre !== 'self') {
+      // User delivered checkmate — solved! (direct/study/help)
+      const pb = startPlayback(state.initialFen, problem.solutionTree, true);
       setState(prev => ({
         ...prev,
         fen: newFen,
         moveHistory: newHistory,
+        status: 'correct',
+        feedback: '',
         lastMove: { from, to },
-        feedbackSquare: null,
-        feedbackType: null,
-        waitingForAutoPlay: true,
+        feedbackSquare: to,
+        feedbackType: 'correct',
+        waitingForAutoPlay: false,
         hintSquares: null,
+        movesRemaining: 0,
+        playback: pb,
       }));
+      return true;
+    }
 
-      // Async Stockfish validation with timeout
-      (async () => {
-        if (sfBusyRef.current) return;
-        sfBusyRef.current = true;
-        try {
-          // Wrap analyze in a timeout (8 seconds)
-          const analyzeWithTimeout = Promise.race([
-            stockfish.analyze(newFen, 20),
-            new Promise<null>(resolve => setTimeout(() => resolve(null), 8000)),
-          ]);
-          const result = await analyzeWithTimeout;
-
-          if (!result) {
-            // Stockfish failed or timed out — undo
-            sfBusyRef.current = false;
-            flashWrongMove(to, newFen, from);
-            setState(prev => ({ ...prev, fen: preFen, moveHistory: preMoveHistory, lastMove: preLastMove, waitingForAutoPlay: false, feedback: 'Engine timed out. Try again.' }));
-            return;
-          }
-
-          // Check if forced mate still exists
-          const isMateGenre = problem.genre === 'direct';
-          let isCorrect = false;
-
-          if (isMateGenre) {
-            if (result.mateIn !== null && result.mateIn < 0) {
-              const mateDistance = Math.abs(result.mateIn);
-              isCorrect = mateDistance <= movesRemaining - 1;
-            }
-          } else {
-            // Study: win (+) or draw (=)
-            if (problem.stipulation === '+') {
-              isCorrect = result.eval <= -300;
-            } else {
-              isCorrect = Math.abs(result.eval) < 100;
-            }
-          }
-
-          if (isCorrect) {
-            await sfAutoPlayOpponent(newFen, newHistory, from, to, movesRemaining);
-          } else {
-            flashWrongMove(to, newFen, from);
-            setState(prev => ({
-              ...prev,
-              fen: preFen,
-              moveHistory: preMoveHistory,
-              lastMove: preLastMove,
-              waitingForAutoPlay: false,
-            }));
-          }
-        } finally {
-          sfBusyRef.current = false;
-        }
-      })();
-
+    if (problem.stipulation === '=' && chess.isStalemate()) {
+      // Study draw: stalemate — solved!
+      const pb = startPlayback(state.initialFen, problem.solutionTree, true);
+      setState(prev => ({
+        ...prev,
+        fen: newFen,
+        moveHistory: newHistory,
+        status: 'correct',
+        feedback: '',
+        lastMove: { from, to },
+        feedbackSquare: to,
+        feedbackType: 'correct',
+        waitingForAutoPlay: false,
+        hintSquares: null,
+        movesRemaining: 0,
+        playback: pb,
+      }));
       return true;
     }
 
     // ══════════════════════════════════════════════
-    // SOLUTION TREE path: helpmate, selfmate
+    // SOLUTION TREE path (all genres)
     // ══════════════════════════════════════════════
-    const uci = from + to + (move.promotion || '');
-
     const validNodes = currentNodes.filter(n => n.color === currentTurn);
-    let matchingNode: SolutionNode | null = null;
-
-    for (const node of validNodes) {
-      if (node.moveUci === uci) { matchingNode = node; break; }
-      if (node.moveSan === move.san) { matchingNode = node; break; }
-      const nodeSanClean = node.moveSan.replace(/[+#]/g, '');
-      const moveSanClean = move.san.replace(/[+#]/g, '');
-      if (nodeSanClean === moveSanClean) { matchingNode = node; break; }
-      const verifyChess = new Chess(state.fen);
-      const verifiedMove = tryExecuteNode(verifyChess, node);
-      if (verifiedMove && verifiedMove.from === from && verifiedMove.to === to) { matchingNode = node; break; }
-    }
+    const matchingNode = matchMoveToTree(state.fen, from, to, move.san, move.promotion, validNodes);
 
     if (matchingNode) {
       const isActualCheckmate = chess.isCheckmate();
@@ -636,7 +400,8 @@ export function useProblem(stockfish?: StockfishApi) {
       if (isMateProblem) {
         isSolved = isActualCheckmate;
       } else {
-        isSolved = matchingNode.children.length === 0 || isActualCheckmate;
+        isSolved = matchingNode.children.length === 0 || isActualCheckmate
+          || (problem.stipulation === '=' && chess.isStalemate());
       }
 
       if (isSolved) {
@@ -658,6 +423,7 @@ export function useProblem(stockfish?: StockfishApi) {
       }
 
       if (problem.genre === 'help') {
+        // Help: user plays both sides, no auto-play
         setState(prev => ({
           ...prev,
           fen: newFen,
@@ -677,12 +443,13 @@ export function useProblem(stockfish?: StockfishApi) {
         return true;
       }
 
-      // Self: auto-play opponent
+      // Direct/Self/Study: auto-play opponent from solution tree
       if (realDefenses.length > 0) {
         setState(prev => ({
           ...prev,
           fen: newFen,
           moveHistory: newHistory,
+          currentNodes: matchingNode.children,
           feedback: '',
           lastMove: { from, to },
           feedbackSquare: to,
@@ -694,34 +461,57 @@ export function useProblem(stockfish?: StockfishApi) {
         autoPlayTimerRef.current = setTimeout(() => {
           const defenseNode = realDefenses[0];
           const defenseChess = new Chess(newFen);
-          try {
-            const defMove = tryExecuteNode(defenseChess, defenseNode);
-            if (defMove) {
-              const afterDefenseFen = defenseChess.fen();
-              const defLastMove = { from: defMove.from, to: defMove.to };
-              const isDefCheckmate = defenseChess.isCheckmate();
+          const defMove = tryExecuteNode(defenseChess, defenseNode);
+          if (defMove) {
+            const afterDefenseFen = defenseChess.fen();
+            const defLastMove = { from: defMove.from, to: defMove.to };
+            const isDefCheckmate = defenseChess.isCheckmate();
+            const isDefStalemate = defenseChess.isStalemate();
 
-              if (isDefCheckmate || defenseNode.children.length === 0) {
-                const pb = startPlayback(state.initialFen, problem.solutionTree, true);
-                setState(prev => ({
-                  ...prev, fen: afterDefenseFen, moveHistory: [...newHistory, defMove.san],
-                  currentNodes: [], status: 'correct', feedback: '', lastMove: defLastMove,
-                  feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
-                }));
-              } else {
-                setState(prev => ({
-                  ...prev, fen: afterDefenseFen, moveHistory: [...newHistory, defMove.san],
-                  currentNodes: defenseNode.children, feedback: '', lastMove: defLastMove,
-                  feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false,
-                }));
-              }
+            if (isDefCheckmate || isDefStalemate || defenseNode.children.length === 0) {
+              const pb = startPlayback(state.initialFen, problem.solutionTree, true);
+              setState(prev => ({
+                ...prev, fen: afterDefenseFen, moveHistory: [...newHistory, defMove.san],
+                currentNodes: [], status: 'correct', feedback: '', lastMove: defLastMove,
+                feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
+              }));
+            } else {
+              setState(prev => ({
+                ...prev, fen: afterDefenseFen, moveHistory: [...newHistory, defMove.san],
+                currentNodes: defenseNode.children, feedback: '', lastMove: defLastMove,
+                feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false,
+                movesRemaining: movesRemaining - 1,
+              }));
             }
-          } catch {
-            setState(prev => ({ ...prev, currentNodes: defenseNode.children, waitingForAutoPlay: false, feedbackSquare: null, feedbackType: null }));
+          } else {
+            // Defense move couldn't be parsed — just advance to let user continue
+            setState(prev => ({
+              ...prev, currentNodes: defenseNode.children,
+              waitingForAutoPlay: false, feedbackSquare: null, feedbackType: null,
+            }));
           }
         }, AUTO_PLAY_DELAY);
         return true;
       }
+
+      // Matched node but no defenses listed — advance (tree might be truncated)
+      setState(prev => ({
+        ...prev,
+        fen: newFen,
+        moveHistory: newHistory,
+        currentNodes: matchingNode.children,
+        feedback: '',
+        lastMove: { from, to },
+        feedbackSquare: to,
+        feedbackType: 'correct',
+        waitingForAutoPlay: false,
+        hintSquares: null,
+      }));
+      setTimeout(() => {
+        setState(prev => prev.feedbackType === 'correct' && prev.status === 'solving'
+          ? { ...prev, feedbackSquare: null, feedbackType: null } : prev);
+      }, CORRECT_FLASH);
+      return true;
     }
 
     // Wrong move
@@ -729,7 +519,7 @@ export function useProblem(stockfish?: StockfishApi) {
     chess.undo();
     flashWrongMove(to, wrongFen, from);
     return false;
-  }, [state, startPlayback, stockfish, sfAutoPlayOpponent, flashWrongMove]);
+  }, [state, startPlayback, flashWrongMove]);
 
   // ── Show hint ──
   const showHint = useCallback(() => {
@@ -737,49 +527,48 @@ export function useProblem(stockfish?: StockfishApi) {
     if (!problem) return;
 
     // Helper: get all legal destination squares for a piece at `from`
-    const getAllLegalMoves = (chessFen: string, from: string): string[] => {
+    const getAllLegalMoves = (chessFen: string, fromSq: string): string[] => {
       try {
         const chess = new Chess(chessFen);
-        const moves = chess.moves({ square: from as never, verbose: true });
+        const moves = chess.moves({ square: fromSq as never, verbose: true });
         return moves.map(m => m.to);
       } catch { return []; }
     };
 
-    // Stockfish hint for direct/study
-    if (usesStockfish(problem.genre) && stockfish) {
+    // Solution tree hint (all genres)
+    const currentTurn = fen.split(' ')[1] as 'w' | 'b';
+    const validNodes = currentNodes.filter(n => n.color === currentTurn);
+
+    if (validNodes.length > 0) {
+      const verifiedMoves: { from: string; to: string; isKey: boolean }[] = [];
+      for (const node of validNodes) {
+        const chess = new Chess(fen);
+        const move = tryExecuteNode(chess, node);
+        if (move) {
+          verifiedMoves.push({ from: move.from, to: move.to, isKey: node.isKey });
+        }
+      }
+      if (verifiedMoves.length > 0) {
+        const keyMove = verifiedMoves.find(m => m.isKey) || verifiedMoves[0];
+        const allTargets = getAllLegalMoves(fen, keyMove.from);
+        setState(prev => ({ ...prev, hintSquares: [keyMove.from, ...allTargets] }));
+        return;
+      }
+    }
+
+    // Stockfish hint as fallback (if tree has no parseable moves)
+    if (stockfish && stockfish.readyState === 'ready') {
       (async () => {
         const result = await stockfish.analyze(fen, 18);
         if (!result) return;
 
         const hFrom = result.bestMove.slice(0, 2);
-        // Show the piece to move + ALL its legal moves (not just the answer)
         const allTargets = getAllLegalMoves(fen, hFrom);
         if (allTargets.length > 0) {
           setState(prev => ({ ...prev, hintSquares: [hFrom, ...allTargets] }));
         }
       })();
-      return;
     }
-
-    // Solution tree hint for help/self
-    const currentTurn = fen.split(' ')[1] as 'w' | 'b';
-    const validNodes = currentNodes.filter(n => n.color === currentTurn);
-    if (validNodes.length === 0) return;
-
-    const verifiedMoves: { from: string; to: string; isKey: boolean }[] = [];
-    for (const node of validNodes) {
-      const chess = new Chess(fen);
-      const move = tryExecuteNode(chess, node);
-      if (move) {
-        verifiedMoves.push({ from: move.from, to: move.to, isKey: node.isKey });
-      }
-    }
-    if (verifiedMoves.length === 0) return;
-
-    const keyMove = verifiedMoves.find(m => m.isKey) || verifiedMoves[0];
-    // Show the piece to move + ALL its legal moves (not just the answer)
-    const allTargets = getAllLegalMoves(fen, keyMove.from);
-    setState(prev => ({ ...prev, hintSquares: [keyMove.from, ...allTargets] }));
   }, [state, stockfish]);
 
   const resetProblem = useCallback(() => {
@@ -791,26 +580,7 @@ export function useProblem(stockfish?: StockfishApi) {
     const { problem, initialFen } = state;
     if (!problem) return;
 
-    // For Stockfish genres, compute the line with Stockfish
-    if (usesStockfish(problem.genre) && stockfish) {
-      setState(prev => ({ ...prev, status: 'viewing', feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null, playback: null }));
-
-      (async () => {
-        const positions = await computeStockfishLine(initialFen, problem.moveCount, stockfish);
-        const pb = {
-          positions,
-          mainLine: [] as SolutionNode[],
-          moveIndex: positions.length > 1 ? 0 : -1,
-          exploring: false,
-          exploreFen: '',
-          exploreLastMove: null,
-        };
-        setState(prev => prev.status === 'viewing' ? { ...prev, playback: pb } : prev);
-      })();
-      return;
-    }
-
-    // Solution tree path
+    // Always use solution tree (works for all genres, no Stockfish dependency)
     let pb = startPlayback(initialFen, problem.solutionTree);
     if (pb && pb.positions.length > 1) {
       pb.moveIndex = 0;
@@ -821,7 +591,7 @@ export function useProblem(stockfish?: StockfishApi) {
     setState(prev => ({
       ...prev, status: 'viewing', feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null, playback: pb,
     }));
-  }, [state.problem, state.initialFen, startPlayback, stockfish]);
+  }, [state.problem, state.initialFen, startPlayback]);
 
   // ── Playback navigation ──
   const playbackGoTo = useCallback((index: number) => {

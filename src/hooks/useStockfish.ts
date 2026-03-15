@@ -128,7 +128,8 @@ export function useStockfish() {
         return worker;
       } catch (err) {
         setReadyState('error');
-        initPromiseRef.current = null;
+        // Keep the rejected promise so subsequent calls fail immediately
+        // instead of retrying (important for mobile where WASM never loads)
         workerRef.current?.terminate();
         workerRef.current = null;
         throw err;
