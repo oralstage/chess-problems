@@ -5,7 +5,8 @@
       "name": "chess-problems",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 5183
+      "port": 5183,
+      "cwd": "."
     }
   ]
 }
