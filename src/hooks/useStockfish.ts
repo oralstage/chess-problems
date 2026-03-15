@@ -20,10 +20,12 @@ const DEFAULT_DEPTH = 16;
 /** Resolve the URL for the Stockfish WASM worker script. */
 function getStockfishWorkerUrl(): string {
   // Use Stockfish lite (~7MB WASM) to stay within Cloudflare Pages 25MB file limit.
+  // Files are served from public/stockfish/ (not bundled by Vite) so that the
+  // worker JS can find its companion .wasm file by replacing .js→.wasm in its own URL.
   // Multi-threaded when COOP/COEP headers are present, otherwise single-threaded.
   const hasSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
   const file = hasSharedArrayBuffer ? 'stockfish-18-lite.js' : 'stockfish-18-lite-single.js';
-  return new URL(`../../node_modules/stockfish/bin/${file}`, import.meta.url).href;
+  return `${import.meta.env.BASE_URL}stockfish/${file}`;
 }
 
 /**

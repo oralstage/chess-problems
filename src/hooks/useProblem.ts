@@ -630,7 +630,8 @@ export function useProblem(stockfish?: StockfishApi) {
     }
 
     // Stockfish hint as fallback (if tree has no parseable moves)
-    if (stockfish && stockfish.readyState === 'ready') {
+    // Call analyze() directly — it handles lazy loading via ensureReady()
+    if (stockfish) {
       (async () => {
         const result = await stockfish.analyze(fen, 18);
         if (!result) return;
