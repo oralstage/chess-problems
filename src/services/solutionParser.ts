@@ -4,10 +4,6 @@ import type { SolutionNode } from '../types';
 
 // Long algebraic: Piece + from + sep + to + promo
 const LONG_RE = /([KQRBSNP]?)([a-h][1-8])([-*x])([a-h][1-8])(=[QRBNS])?([+#!?]*)/i;
-// Short algebraic (SAN): Piece + optional disambig + optional capture + dest
-const SAN_RE = /([KQRBSNP])([a-h]?[1-8]?)([x*]?)([a-h][1-8])(=[QRBNS])?([+#!?]*)/;
-// Pawn capture SAN: file + x + dest
-const PAWN_CAP_RE = /([a-h])([x*])([a-h][1-8])(=[QRBNS])?([+#!?]*)/;
 // Any move pattern (for extracting from text)
 const ANY_MOVE_RE = /(?:0-0-0|O-O-O|0-0|O-O|[KQRBSNP]?[a-h][1-8][-*x][a-h][1-8](?:=[QRBNS])?|[KQRBSNP][a-h]?[1-8]?[x*]?[a-h][1-8](?:=[QRBNS])?|[a-h][x*][a-h][1-8](?:=[QRBNS])?|[a-h][1-8](?:=[QRBNS])?)([+#!?]*)/;
 const CASTLING_RE = /^(0-0-0|O-O-O|0-0|O-O)([+#!?]*)/;

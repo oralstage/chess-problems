@@ -277,17 +277,6 @@ export function useProblem(stockfish?: StockfishApi) {
     };
   }, []);
 
-  const startPlaybackFromPositions = useCallback((positions: PlaybackPosition[], startAtEnd: boolean = false) => {
-    return {
-      positions,
-      mainLine: [] as SolutionNode[],
-      moveIndex: startAtEnd ? positions.length - 2 : -1,
-      exploring: false,
-      exploreFen: '',
-      exploreLastMove: null,
-    };
-  }, []);
-
   const loadProblem = useCallback((problem: ChessProblem) => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
 
