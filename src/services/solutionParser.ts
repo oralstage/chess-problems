@@ -1,0 +1,401 @@
+import type { SolutionNode } from '../types';
+
+// ── Move notation conversion ────────────────────────────
+
+// Long algebraic: Piece + from + sep + to + promo
+const LONG_RE = /([KQRBSNP]?)([a-h][1-8])([-*x])([a-h][1-8])(=[QRBNS])?([+#!?]*)/i;
+// Short algebraic (SAN): Piece + optional disambig + optional capture + dest
+const SAN_RE = /([KQRBSNP])([a-h]?[1-8]?)([x*]?)([a-h][1-8])(=[QRBNS])?([+#!?]*)/;
+// Pawn capture SAN: file + x + dest
+const PAWN_CAP_RE = /([a-h])([x*])([a-h][1-8])(=[QRBNS])?([+#!?]*)/;
+// Any move pattern (for extracting from text)
+const ANY_MOVE_RE = /(?:0-0-0|O-O-O|0-0|O-O|[KQRBSNP]?[a-h][1-8][-*x][a-h][1-8](?:=[QRBNS])?|[KQRBSNP][a-h]?[1-8]?[x*]?[a-h][1-8](?:=[QRBNS])?|[a-h][x*][a-h][1-8](?:=[QRBNS])?|[a-h][1-8](?:=[QRBNS])?)([+#!?]*)/;
+const CASTLING_RE = /^(0-0-0|O-O-O|0-0|O-O)([+#!?]*)/;
+
+function yacpdbToUci(move: string): string {
+  const clean = move.replace(/[+#!?]/g, '').trim();
+  if (clean === '0-0' || clean === 'O-O') return 'e1g1';
+  if (clean === '0-0-0' || clean === 'O-O-O') return 'e1c1';
+
+  // Long algebraic: Bf7-g8 → f7g8
+  const mLong = clean.match(/^([KQRBSNP]?)([a-h][1-8])[-*x]?([a-h][1-8])(?:=([QRBN]))?$/i);
+  if (mLong) {
+    return mLong[2].toLowerCase() + mLong[3].toLowerCase() + (mLong[4] ? mLong[4].toLowerCase() : '');
+  }
+
+  // SAN: we can only extract the destination square (no source info)
+  // Return a "san:" prefix so matching can use SAN comparison instead
+  return 'san:' + clean;
+}
+
+function normalizePiece(p: string): string {
+  return p === 'S' || p === 's' ? 'N' : p;
+}
+
+function yacpdbToSanApprox(move: string): string {
+  const clean = move.trim();
+  if (clean.startsWith('0-0-0') || clean.startsWith('O-O-O')) return 'O-O-O';
+  if (clean.startsWith('0-0') || clean.startsWith('O-O')) return 'O-O';
+
+  // Try long algebraic first
+  const mLong = clean.match(LONG_RE);
+  if (mLong) {
+    const piece = normalizePiece(mLong[1]);
+    const capture = mLong[3] === '*' || mLong[3] === 'x' ? 'x' : '';
+    const to = mLong[4];
+    const promo = mLong[5] ? '=' + normalizePiece(mLong[5].slice(1)) : '';
+    const suffix = mLong[6] || '';
+
+    if (!piece || piece === 'P' || piece === 'p') {
+      const fromFile = capture ? mLong[2][0] : '';
+      return fromFile + capture + to + promo + suffix;
+    }
+    return piece + capture + to + suffix;
+  }
+
+  // Already in SAN-like format - just normalize S→N
+  return clean.replace(/S/g, 'N');
+}
+
+// Extract individual move strings from text
+function extractMoveStrings(text: string): string[] {
+  const moves: string[] = [];
+  let remaining = text.trim();
+
+  // Remove common non-move tokens
+  remaining = remaining.replace(/\bzz\b/gi, ''); // zugzwang marker
+  remaining = remaining.replace(/\bbut\b/gi, ''); // "but" in tries
+
+  while (remaining.length > 0) {
+    remaining = remaining.trim();
+    if (!remaining) break;
+
+    // Skip parenthesized content like (2.Qe5#) which are threat descriptions
+    if (remaining[0] === '(') {
+      const closeIdx = remaining.indexOf(')');
+      if (closeIdx >= 0) {
+        remaining = remaining.slice(closeIdx + 1);
+        continue;
+      }
+    }
+
+    // Skip slash alternatives like "Kd4/Be6"
+    if (remaining[0] === '/') {
+      remaining = remaining.slice(1);
+      continue;
+    }
+
+    const castling = remaining.match(CASTLING_RE);
+    if (castling) {
+      moves.push(castling[0]);
+      remaining = remaining.slice(castling[0].length);
+      continue;
+    }
+
+    const m = remaining.match(ANY_MOVE_RE);
+    if (m && m.index !== undefined) {
+      if (m.index > 0) {
+        // Skip non-move text before match
+        remaining = remaining.slice(m.index);
+        continue;
+      }
+      moves.push(m[0]);
+      remaining = remaining.slice(m[0].length);
+      continue;
+    }
+
+    // Skip one character and try again
+    remaining = remaining.slice(1);
+  }
+  return moves;
+}
+
+// ── Segment parsing ─────────────────────────────────────
+
+interface Segment {
+  indent: number;
+  lineIndex: number;
+  segIndex: number;
+  moveNum: number | null;
+  isBlackNum: boolean;
+  moves: string[];
+  isKey: boolean;
+  isThreat: boolean;
+  annotation: string;
+  afterBlankLine: boolean; // preceded by a blank line (section break)
+}
+
+function parseSegments(solutionText: string): Segment[] {
+  const segments: Segment[] = [];
+  const lines = solutionText.split('\n');
+
+  let lineIndex = 0;
+  let lastLineWasBlank = false;
+  for (const line of lines) {
+    const lineIndent = line.length - line.trimStart().length;
+    const trimmed = line.trimStart();
+    if (!trimmed) { lineIndex++; lastLineWasBlank = true; continue; }
+
+    // Split on move number patterns
+    const parts = trimmed.split(/(?=\d+\.)/);
+    let segIndex = 0;
+
+    for (const part of parts) {
+      let text = part.trim();
+      if (!text) continue;
+
+      const isThreat = /\bthreat:?\s*$/i.test(text);
+      text = text.replace(/\bthreat:?\s*$/i, '').trim();
+
+      const isKey = text.includes('!');
+
+      let annotation = '';
+      const annoMatch = text.match(/\{([^}]*)\}/);
+      if (annoMatch) {
+        annotation = annoMatch[1];
+        text = text.replace(/\{[^}]*\}/g, '').trim();
+      }
+
+      const moveNumMatch = text.match(/^(\d+)\.(\.\.)?/);
+      let moveNum: number | null = null;
+      let isBlackNum = false;
+
+      if (moveNumMatch) {
+        moveNum = parseInt(moveNumMatch[1]);
+        isBlackNum = !!moveNumMatch[2];
+        text = text.slice(moveNumMatch[0].length).trim();
+      }
+
+      text = text.replace(/^\.\.\.\s*/, '');
+      if (!text) continue;
+
+      const moves = extractMoveStrings(text);
+      if (moves.length === 0) continue;
+
+      segments.push({
+        indent: lineIndent,
+        lineIndex,
+        segIndex,
+        moveNum,
+        isBlackNum,
+        moves,
+        isKey,
+        isThreat,
+        annotation,
+        afterBlankLine: segIndex === 0 && lastLineWasBlank,
+      });
+      segIndex++;
+    }
+    lastLineWasBlank = false;
+    lineIndex++;
+  }
+  return segments;
+}
+
+// ── Virtual indent assignment ────────────────────────────
+// When all segments have the same indent (common in YACPDB), compute
+// virtual indents from move numbers so the tree builder works correctly.
+
+function assignVirtualIndents(segments: Segment[], firstMoveColor: 'w' | 'b'): void {
+  if (segments.length <= 1) return;
+  const allSameIndent = segments.every(s => s.indent === segments[0].indent);
+  if (!allSameIndent) return;
+
+  let prevWasThreat = false;
+  let threatBaseIndent = 0;
+
+  for (const seg of segments) {
+    if (seg.moveNum !== null) {
+      const n = seg.moveNum;
+      if (firstMoveColor === 'w') {
+        seg.indent = seg.isBlackNum ? (n - 1) * 2 + 1 : (n - 1) * 2;
+      } else {
+        seg.indent = seg.isBlackNum ? (n - 1) * 2 : (n - 1) * 2 + 1;
+      }
+    }
+
+    // Threat continuations should be at parent indent + 1, not their move-number indent
+    if (prevWasThreat) {
+      seg.indent = threatBaseIndent + 1;
+    }
+
+    prevWasThreat = seg.isThreat;
+    if (seg.isThreat) {
+      threatBaseIndent = seg.indent;
+    }
+  }
+}
+
+// ── Build solution tree ─────────────────────────────────
+
+function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isThreat: boolean, annotation: string): SolutionNode {
+  const isMate = moveText.includes('#');
+  const isCheck = moveText.includes('+') && !isMate;
+
+  return {
+    move: moveText.replace(/[!?]+/g, '').trim(),
+    moveUci: yacpdbToUci(moveText),
+    moveSan: yacpdbToSanApprox(moveText),
+    isKey,
+    isThreat,
+    isMate,
+    isCheck,
+    annotation,
+    children: [],
+    color,
+  };
+}
+
+/**
+ * Parse YACPDB solution text into a tree structure.
+ * @param solutionText - Raw solution text from YACPDB
+ * @param firstMoveColor - Color of the side that moves first ('w' for direct/self, 'b' for helpmate)
+ */
+export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 'w'): SolutionNode[] {
+  if (!solutionText || !solutionText.trim()) return [];
+
+  const segments = parseSegments(solutionText);
+  if (segments.length === 0) return [];
+
+  assignVirtualIndents(segments, firstMoveColor);
+
+  const nodes: SolutionNode[] = [];
+  // Stack tracks: the last node at each indent level, and where to add children
+  const stack: { node: SolutionNode; indent: number; isThreatParent: boolean }[] = [];
+
+  let prevLineIndex = -1;
+
+  for (const seg of segments) {
+    // Determine the starting color for this segment
+    let color: 'w' | 'b';
+    if (seg.isBlackNum) {
+      color = 'b';
+    } else if (seg.moveNum !== null) {
+      color = firstMoveColor;
+    } else {
+      const parent = stack.length > 0 ? stack[stack.length - 1].node : null;
+      color = parent ? (parent.color === 'w' ? 'b' : 'w') : firstMoveColor;
+    }
+
+    // For subsequent segments on the same line (e.g., "1...a2  2.Qb2+ cxb2#"),
+    // chain to the last node's deepest point instead of using indent comparison
+    const isSameLineFollow = seg.lineIndex === prevLineIndex && seg.segIndex > 0;
+
+    if (!isSameLineFollow) {
+      if (seg.afterBlankLine) {
+        // Blank line = section break: reset stack to start a new section
+        stack.length = 0;
+      } else {
+        // Cross-line: pop stack based on indent
+        while (stack.length > 0 && stack[stack.length - 1].indent >= seg.indent) {
+          stack.pop();
+        }
+      }
+    }
+    // If same-line follow: keep the stack as-is, chain from the last node
+
+    const isThreatChild = stack.length > 0 && stack[stack.length - 1].isThreatParent;
+    // Clear one-shot threat flag so subsequent siblings aren't marked as threats
+    if (isThreatChild && stack.length > 0) {
+      stack[stack.length - 1].isThreatParent = false;
+    }
+
+    // Build nodes for all moves in this segment, chaining them
+    let currentColor = color;
+
+    for (let i = 0; i < seg.moves.length; i++) {
+      const node = makeNode(
+        seg.moves[i],
+        currentColor,
+        i === 0 ? seg.isKey : false,
+        i === 0 ? isThreatChild : false, // only mark as threat if parent was threat-announcing
+        i === 0 ? seg.annotation : '',
+      );
+
+      if (stack.length === 0) {
+        nodes.push(node);
+      } else {
+        stack[stack.length - 1].node.children.push(node);
+      }
+
+      stack.push({ node, indent: seg.indent + i, isThreatParent: i === 0 && seg.isThreat });
+      currentColor = currentColor === 'w' ? 'b' : 'w';
+    }
+
+    prevLineIndex = seg.lineIndex;
+  }
+
+  return nodes;
+}
+
+// ── Helpers ─────────────────────────────────────────────
+
+export function getValidMoves(tree: SolutionNode[], color: 'w' | 'b'): SolutionNode[] {
+  return tree.filter(n => n.color === color);
+}
+
+export function findMoveInTree(nodes: SolutionNode[], uci: string): SolutionNode | null {
+  for (const node of nodes) {
+    if (node.moveUci === uci) return node;
+  }
+  return null;
+}
+
+export function getMainDefense(node: SolutionNode): SolutionNode | null {
+  const defenses = node.children.filter(n => !n.isThreat);
+  return defenses.length > 0 ? defenses[0] : null;
+}
+
+export interface SolutionLine {
+  moves: { san: string; color: 'w' | 'b'; isKey: boolean; isMate: boolean; annotation: string }[];
+  depth: number;
+}
+
+export function flattenSolution(nodes: SolutionNode[], depth: number = 0): SolutionLine[] {
+  const lines: SolutionLine[] = [];
+
+  for (const node of nodes) {
+    const line: SolutionLine = {
+      moves: [{
+        san: node.moveSan,
+        color: node.color,
+        isKey: node.isKey,
+        isMate: node.isMate,
+        annotation: node.annotation,
+      }],
+      depth,
+    };
+
+    if (node.children.length === 0) {
+      lines.push(line);
+    } else {
+      const threats = node.children.filter(n => n.isThreat);
+      const responses = node.children.filter(n => !n.isThreat);
+
+      for (const t of threats) {
+        lines.push({
+          moves: [...line.moves, {
+            san: t.moveSan,
+            color: t.color,
+            isKey: false,
+            isMate: t.isMate,
+            annotation: 'threat',
+          }],
+          depth,
+        });
+      }
+
+      for (const resp of responses) {
+        const subLines = flattenSolution([resp], depth + 1);
+        for (const sl of subLines) {
+          lines.push({ moves: [...line.moves, ...sl.moves], depth: sl.depth });
+        }
+      }
+
+      if (responses.length === 0 && threats.length === 0) {
+        lines.push(line);
+      }
+    }
+  }
+  return lines;
+}
