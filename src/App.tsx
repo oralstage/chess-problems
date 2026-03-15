@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Chess } from 'chess.js';
 import { useTheme } from './hooks/useTheme';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -13,6 +13,7 @@ import { SolutionTree } from './components/SolutionTree';
 import { GenreTutorial } from './components/GenreTutorial';
 import { ProblemList } from './components/ProblemList';
 import { parseSolution } from './services/solutionParser';
+import { findTheme } from './data/themes';
 import type { AppView, Genre, ProblemProgress, ChessProblem } from './types';
 
 /**
@@ -78,6 +79,50 @@ function fixEnPassantFen(p: ChessProblem): void {
   }
 }
 
+function KeywordTags({ keywords }: { keywords: string[] }) {
+  const [expanded, setExpanded] = useState<string | null>(null);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap gap-1">
+        {keywords.map(kw => {
+          const theme = findTheme(kw);
+          const hasDesc = !!theme?.description;
+          const isExpanded = expanded === kw;
+          return hasDesc ? (
+            <button
+              key={kw}
+              onClick={() => setExpanded(isExpanded ? null : kw)}
+              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors ${
+                isExpanded
+                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+              }`}
+            >
+              {kw}
+            </button>
+          ) : (
+            <span
+              key={kw}
+              className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+            >
+              {kw}
+            </span>
+          );
+        })}
+      </div>
+      {expanded && (() => {
+        const theme = findTheme(expanded);
+        if (!theme?.description) return null;
+        return (
+          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-lg px-3 py-2 leading-relaxed">
+            {theme.description}
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
 function useWindowWidth() {
   const [width, setWidth] = useState(window.innerWidth);
   useEffect(() => {
@@ -102,14 +147,22 @@ export default function App() {
   const [seenTutorials, setSeenTutorials] = useLocalStorage<string[]>('cp-tutorials-seen', []);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showProblemList, setShowProblemList] = useState(false);
+  const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
+    direct: [], help: [], self: [], study: [],
+  });
 
   const windowWidth = useWindowWidth();
   const boardWidth = Math.min(windowWidth - 32, 480);
 
   const stockfish = useStockfish();
+  const stockfishRef = useRef(stockfish);
+  stockfishRef.current = stockfish;
   const problem = useProblem(stockfish);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [analysisActive, setAnalysisActive] = useState(false);
+  const analysisActiveRef = useRef(false);
+  const [analysisArrow, setAnalysisArrow] = useState<[string, string] | null>(null);
   const [allProblems, setAllProblems] = useState<ChessProblem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -159,30 +212,82 @@ export default function App() {
     loadProblems();
   }, []);
 
-  // Clear analysis when position changes
+  // Run analysis when position changes and analysis mode is active
   useEffect(() => {
-    setAnalysisResult(null);
-  }, [problem.fen]);
-
-  const handleAnalyze = useCallback(async () => {
-    if (analyzing) return;
+    analysisActiveRef.current = analysisActive;
+    if (!analysisActive) return;
+    let cancelled = false;
     setAnalyzing(true);
     setAnalysisResult('Analyzing...');
-    try {
-      const result = await stockfish.analyze(problem.fen, 18);
-      if (result) {
-        const evalStr = Math.abs(result.eval) >= 9999
-          ? (result.eval > 0 ? 'Mate' : 'Mated')
-          : `${result.eval > 0 ? '+' : ''}${result.eval.toFixed(1)}`;
-        setAnalysisResult(`Best: ${result.bestMoveSan} (${evalStr})`);
-      } else {
-        setAnalysisResult('No result');
+    setAnalysisArrow(null);
+
+    (async () => {
+      try {
+        // Check if position has no legal moves (checkmate/stalemate)
+        let noLegalMoves = false;
+        try {
+          const checkChess = new Chess(problem.fen);
+          noLegalMoves = checkChess.moves().length === 0;
+        } catch { /* ignore */ }
+
+        if (noLegalMoves) {
+          if (cancelled || !analysisActiveRef.current) return;
+          try {
+            const checkChess = new Chess(problem.fen);
+            setAnalysisResult(checkChess.isCheckmate() ? 'Checkmate' : checkChess.isStalemate() ? 'Stalemate' : 'No legal moves');
+          } catch {
+            setAnalysisResult('No legal moves');
+          }
+          setAnalysisArrow(null);
+          setAnalyzing(false);
+          return;
+        }
+
+        const result = await stockfishRef.current.analyze(problem.fen, 18);
+        if (cancelled || !analysisActiveRef.current) return;
+        if (result) {
+          const evalStr = result.mateIn !== null
+            ? (result.mateIn > 0 ? `M${result.mateIn}` : `M${result.mateIn}`)
+            : `${result.eval > 0 ? '+' : ''}${result.eval.toFixed(1)}`;
+          setAnalysisResult(`Best: ${result.bestMoveSan} (${evalStr})`);
+          // Show arrow
+          const from = result.bestMove.slice(0, 2);
+          const to = result.bestMove.slice(2, 4);
+          setAnalysisArrow([from, to]);
+        } else {
+          setAnalysisResult('No result');
+        }
+      } catch {
+        if (!cancelled) setAnalysisResult('Analysis error');
       }
-    } catch {
-      setAnalysisResult('Analysis error');
-    }
+      if (!cancelled && analysisActiveRef.current) setAnalyzing(false);
+    })();
+
+    return () => { cancelled = true; };
+  }, [problem.fen, analysisActive]);
+
+  // Clear analysis when problem changes
+  useEffect(() => {
+    analysisActiveRef.current = false;
+    setAnalysisActive(false);
+    setAnalysisResult(null);
+    setAnalysisArrow(null);
     setAnalyzing(false);
-  }, [problem.fen, stockfish, analyzing]);
+  }, [problem.problem?.id]);
+
+  const handleAnalyze = useCallback(() => {
+    if (analysisActive) {
+      // Toggle off — set ref immediately to prevent in-flight async from setting arrow
+      analysisActiveRef.current = false;
+      setAnalysisActive(false);
+      setAnalysisResult(null);
+      setAnalysisArrow(null);
+      setAnalyzing(false);
+    } else {
+      // Toggle on — analysis will fire via useEffect
+      setAnalysisActive(true);
+    }
+  }, [analysisActive]);
 
   // Group problems by genre
   const problemsByGenre = useMemo(() => {
@@ -274,17 +379,31 @@ export default function App() {
     setShowProblemList(false);
   }, [currentGenre, problem, setCurrentProblemId]);
 
+  const handleGiveUp = useCallback(() => {
+    if (currentGenre && problem.problem) {
+      const pid = String(problem.problem.id);
+      setProgress(prev => {
+        const genreProgress = prev[currentGenre] || {};
+        if (genreProgress[pid] === 'solved') return prev; // don't downgrade
+        return { ...prev, [currentGenre]: { ...genreProgress, [pid]: 'failed' as const } };
+      });
+    }
+    problem.showSolution();
+  }, [currentGenre, problem, setProgress]);
+
   const handleNextProblem = useCallback(() => {
     if (!currentGenre || !problem.problem) return;
 
-    // Mark current as solved
-    setProgress(prev => ({
-      ...prev,
-      [currentGenre]: {
-        ...prev[currentGenre],
-        [String(problem.problem!.id)]: 'solved' as const,
-      },
-    }));
+    // Only mark as solved if actually solved (not just viewing after give up)
+    if (problem.status === 'correct') {
+      setProgress(prev => ({
+        ...prev,
+        [currentGenre]: {
+          ...prev[currentGenre],
+          [String(problem.problem!.id)]: 'solved' as const,
+        },
+      }));
+    }
 
     // Find next
     const problems = problemsByGenre[currentGenre];
@@ -309,6 +428,27 @@ export default function App() {
     setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
     setAnalysisResult(null);
   }, [currentGenre, problem, problemsByGenre, setCurrentProblemId]);
+
+  const toggleBookmark = useCallback(() => {
+    if (!currentGenre || !problem.problem) return;
+    const pid = String(problem.problem.id);
+    setBookmarks(prev => {
+      const list = prev[currentGenre] || [];
+      return { ...prev, [currentGenre]: list.includes(pid) ? list.filter(id => id !== pid) : [...list, pid] };
+    });
+  }, [currentGenre, problem.problem, setBookmarks]);
+
+  const isBookmarked = currentGenre && problem.problem
+    ? (bookmarks[currentGenre] || []).includes(String(problem.problem.id))
+    : false;
+
+  // Arrows for board: analysis arrow (blue, only when active) or refutation arrow (red)
+  // MUST pass [] (not undefined) to react-chessboard to clear arrows
+  const boardArrows: [string, string, string][] = (analysisActive && analysisArrow)
+    ? [[analysisArrow[0], analysisArrow[1], 'rgba(59, 130, 246, 0.8)']]
+    : problem.refutationArrow && problem.status === 'solving'
+      ? [[problem.refutationArrow[0], problem.refutationArrow[1], 'rgba(255, 50, 50, 0.8)']]
+      : [];
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
@@ -354,7 +494,6 @@ export default function App() {
                   </button>
                   <ProblemCard
                     problem={problem.problem}
-                    showThemes={problem.status === 'correct' || problem.status === 'viewing'}
                     problemNumber={currentGenre ? problemsByGenre[currentGenre].findIndex(p => p.id === problem.problem!.id) + 1 : undefined}
                     genrePrefix={currentGenre === 'direct' ? 'D' : currentGenre === 'help' ? 'H' : currentGenre === 'self' ? 'S' : currentGenre === 'study' ? 'St' : ''}
                   />
@@ -370,8 +509,19 @@ export default function App() {
                   </button>
                 </div>
                 <button
+                  onClick={toggleBookmark}
+                  className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0 ml-1"
+                  title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
+                >
+                  <svg className={`w-5 h-5 ${isBookmarked ? 'text-yellow-500' : 'text-gray-300 dark:text-gray-600'}`}
+                    viewBox="0 0 24 24" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round"
+                      d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                </button>
+                <button
                   onClick={() => setShowProblemList(prev => !prev)}
-                  className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors shrink-0 ml-2"
+                  className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors shrink-0 ml-1"
                 >
                   {showProblemList ? 'Hide List' : 'Problem List'}
                 </button>
@@ -381,6 +531,7 @@ export default function App() {
                 <ProblemList
                   problems={problemsByGenre[currentGenre]}
                   progress={progress[currentGenre] || {}}
+                  bookmarks={bookmarks[currentGenre] || []}
                   currentProblemId={problem.problem.id}
                   onSelectProblem={handleSelectProblem}
                   onClose={() => setShowProblemList(false)}
@@ -398,6 +549,7 @@ export default function App() {
                   feedbackSquare={problem.feedbackSquare}
                   feedbackType={problem.feedbackType}
                   hintSquares={problem.hintSquares}
+                  arrows={boardArrows}
                 />
               </div>
 
@@ -454,16 +606,17 @@ export default function App() {
                 status={problem.status}
                 feedback={problem.feedback}
                 moveHistory={problem.moveHistory}
-
                 hintActive={!!problem.hintSquares}
                 onReset={problem.resetProblem}
-                onShowSolution={problem.showSolution}
+                onShowSolution={handleGiveUp}
                 onNextProblem={handleNextProblem}
                 onShowHint={problem.showHint}
                 onAnalyze={handleAnalyze}
                 analyzing={analyzing}
                 analysisResult={analysisResult}
                 stockfishLoading={stockfish.readyState === 'loading'}
+                refutationText={problem.refutationText}
+                analysisActive={analysisActive}
               />
 
               {(problem.status === 'correct' || problem.status === 'viewing') && (
@@ -477,6 +630,10 @@ export default function App() {
                   onNext={problem.playbackNext}
                   onLast={problem.playbackLast}
                 />
+              )}
+
+              {(problem.status === 'correct' || problem.status === 'viewing') && problem.problem.keywords.length > 0 && (
+                <KeywordTags keywords={problem.problem.keywords} />
               )}
             </div>
           )}

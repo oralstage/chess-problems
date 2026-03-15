@@ -13,6 +13,8 @@ interface FeedbackPanelProps {
   analyzing?: boolean;
   analysisResult?: string | null;
   stockfishLoading?: boolean;
+  refutationText?: string | null;
+  analysisActive?: boolean;
 }
 
 export function FeedbackPanel({
@@ -27,11 +29,13 @@ export function FeedbackPanel({
   analyzing,
   analysisResult,
   stockfishLoading,
+  refutationText,
+  analysisActive,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
-      {/* Move history */}
-      {moveHistory.length > 0 && (
+      {/* Move history (only during solving — after solving, Solution section shows same info) */}
+      {moveHistory.length > 0 && status === 'solving' && (
         <div className="text-sm text-gray-600 dark:text-gray-400">
           <span className="text-xs text-gray-400">Moves: </span>
           {moveHistory.map((m, i) => (
@@ -52,10 +56,13 @@ export function FeedbackPanel({
             {onAnalyze && (
               <button
                 onClick={onAnalyze}
-                disabled={analyzing}
-                className="px-2.5 py-1.5 text-xs rounded bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                className={`px-2.5 py-1.5 text-xs rounded transition-colors ${
+                  analysisActive
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+                    : 'bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                }`}
               >
-                {analyzing ? '...' : 'Analyze'}
+                {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
               </button>
             )}
             {stockfishLoading && (
@@ -104,6 +111,11 @@ export function FeedbackPanel({
           >
             Give Up
           </button>
+          {refutationText && (
+            <span className="text-xs text-orange-600 dark:text-orange-400 font-medium ml-auto">
+              Refutation: {refutationText}
+            </span>
+          )}
         </div>
       )}
 
@@ -120,10 +132,13 @@ export function FeedbackPanel({
             {onAnalyze && (
               <button
                 onClick={onAnalyze}
-                disabled={analyzing}
-                className="px-2.5 py-1.5 text-xs rounded bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                className={`px-2.5 py-1.5 text-xs rounded transition-colors ${
+                  analysisActive
+                    ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
+                    : 'bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                }`}
               >
-                {analyzing ? '...' : 'Analyze'}
+                {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
               </button>
             )}
             {stockfishLoading && (

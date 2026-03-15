@@ -176,7 +176,7 @@ function parseSegments(solutionText: string): Segment[] {
         text = text.replace(/\{[^}]*\}/g, '').trim();
       }
 
-      const moveNumMatch = text.match(/^(\d+)\.(\.\.)?/);
+      const moveNumMatch = text.match(/^(\d+)\.\s*(\.\.\.?)?/);
       let moveNum: number | null = null;
       let isBlackNum = false;
 

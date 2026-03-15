@@ -4,17 +4,21 @@ import type { ChessProblem, ProblemProgress } from '../types';
 interface ProblemListProps {
   problems: ChessProblem[];
   progress: ProblemProgress;
+  bookmarks: string[];
   currentProblemId: number | null;
   onSelectProblem: (problem: ChessProblem) => void;
   onClose: () => void;
 }
 
+type StatusFilter = 'all' | 'unsolved' | 'solved' | 'failed' | 'bookmarked';
+
 const COLS = 4;
 const ROWS = 5;
 const PAGE_SIZE = COLS * ROWS;
 
-export function ProblemList({ problems, progress, currentProblemId, onSelectProblem, onClose }: ProblemListProps) {
+export function ProblemList({ problems, progress, bookmarks, currentProblemId, onSelectProblem, onClose }: ProblemListProps) {
   const solved = Object.values(progress).filter(s => s === 'solved').length;
+  const failed = Object.values(progress).filter(s => s === 'failed').length;
 
   // Move count filter
   const moveCounts = useMemo(() => {
@@ -36,11 +40,27 @@ export function ProblemList({ problems, progress, currentProblemId, onSelectProb
   }, [problems]);
 
   const [filter, setFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const filtered = useMemo(() => {
-    if (filter === 'all') return problems;
-    return problems.filter(p => p.stipulation === filter);
-  }, [problems, filter]);
+    let result = problems;
+    if (filter !== 'all') {
+      result = result.filter(p => p.stipulation === filter);
+    }
+    if (statusFilter !== 'all') {
+      result = result.filter(p => {
+        const s = progress[String(p.id)];
+        switch (statusFilter) {
+          case 'solved': return s === 'solved';
+          case 'failed': return s === 'failed';
+          case 'unsolved': return s !== 'solved' && s !== 'failed';
+          case 'bookmarked': return bookmarks.includes(String(p.id));
+          default: return true;
+        }
+      });
+    }
+    return result;
+  }, [problems, filter, statusFilter, progress, bookmarks]);
 
   const currentIdx = filtered.findIndex(p => p.id === currentProblemId);
   const initialPage = currentIdx >= 0 ? Math.floor(currentIdx / PAGE_SIZE) : 0;
@@ -57,16 +77,20 @@ export function ProblemList({ problems, progress, currentProblemId, onSelectProb
     setPage(0);
   };
 
+  const handleStatusFilterChange = (f: StatusFilter) => {
+    setStatusFilter(f);
+    setPage(0);
+  };
+
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col overflow-hidden">
       <div
-        className="flex-1 flex flex-col p-4 max-w-3xl mx-auto w-full"
-        onClick={e => e.stopPropagation()}
+        className="flex-1 flex flex-col p-4 max-w-3xl mx-auto w-full min-h-0"
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-2 shrink-0">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-            Problems <span className="text-base font-normal text-gray-400 dark:text-gray-400">({solved}/{problems.length} solved)</span>
+            Problems <span className="text-base font-normal text-gray-400 dark:text-gray-400">({solved}/{problems.length} solved{failed > 0 ? `, ${failed} failed` : ''})</span>
           </h3>
           <button
             onClick={onClose}
@@ -97,14 +121,40 @@ export function ProblemList({ problems, progress, currentProblemId, onSelectProb
           </div>
         )}
 
+        {/* Status filter */}
+        <div className="flex gap-1.5 mb-3 overflow-x-auto scrollbar-hide shrink-0">
+          {([
+            ['all', 'All'],
+            ['unsolved', 'Unsolved'],
+            ['solved', 'Solved'],
+            ['failed', 'Failed'],
+            ['bookmarked', '\u2605 Bookmarked'],
+          ] as [StatusFilter, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => handleStatusFilterChange(key)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
+                statusFilter === key
+                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-400 dark:hover:bg-white/20'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Grid of problems */}
         <div
-          className="flex-1 grid gap-2"
-          style={{
-            gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-            gridTemplateRows: `repeat(${ROWS}, 1fr)`,
-          }}
+          className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
+          style={{ WebkitOverflowScrolling: 'touch' }}
         >
+          <div
+            className="grid gap-2 pb-2"
+            style={{
+              gridTemplateColumns: `repeat(${COLS}, 1fr)`,
+            }}
+          >
           {pageProblems.map((p, i) => {
             const status = progress[String(p.id)];
             const isCurrent = p.id === currentProblemId;
@@ -114,53 +164,58 @@ export function ProblemList({ problems, progress, currentProblemId, onSelectProb
               <button
                 key={p.id}
                 onClick={() => onSelectProblem(p)}
-                className={`rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all text-center relative overflow-hidden p-2 ${
+                className={`rounded-lg flex flex-col items-center justify-center gap-0 transition-all text-center relative overflow-hidden py-1 px-1 ${
                   isCurrent
                     ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg shadow-blue-500/30'
                     : status === 'solved'
                       ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/20'
+                      : status === 'failed'
+                        ? 'bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/40 dark:text-orange-300 dark:hover:bg-orange-900/60'
+                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/20'
                 }`}
               >
-                <span className={`text-2xl font-extrabold leading-tight ${
-                  isCurrent ? 'text-white' : status === 'solved' ? 'text-green-600 dark:text-green-400' : 'text-gray-800 dark:text-gray-200'
+                <span className={`text-lg font-extrabold leading-tight ${
+                  isCurrent ? 'text-white' : status === 'solved' ? 'text-green-600 dark:text-green-400' : status === 'failed' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-200'
                 }`}>
                   {globalIndex}
                 </span>
 
-                <span className={`text-xs font-mono leading-tight ${
+                <span className={`text-[10px] font-mono leading-tight ${
                   isCurrent ? 'text-blue-200' : status === 'solved' ? 'text-green-500/60 dark:text-green-400/60' : 'text-gray-400 dark:text-gray-500'
                 }`}>
                   {p.stipulation}
                 </span>
 
-                <span className={`text-sm font-semibold leading-tight truncate max-w-full px-1 ${
-                  isCurrent ? 'text-blue-100' : status === 'solved' ? 'text-green-600/70 dark:text-green-500/70' : 'text-gray-600 dark:text-gray-300'
+                <span className={`text-[11px] font-semibold leading-tight truncate max-w-full ${
+                  isCurrent ? 'text-blue-100' : status === 'solved' ? 'text-green-600/70 dark:text-green-500/70' : status === 'failed' ? 'text-orange-600/70' : 'text-gray-600 dark:text-gray-300'
                 }`}>
                   {p.authors[0]?.split(',')[0] || ''}
                 </span>
 
-                <span className={`text-xs leading-tight truncate max-w-full px-1 ${
-                  isCurrent ? 'text-blue-200/60' : status === 'solved' ? 'text-green-500/50 dark:text-green-600/60' : 'text-gray-400 dark:text-gray-500'
-                }`}>
-                  {p.sourceName ? `${p.sourceName}${p.sourceYear ? ', ' + p.sourceYear : ''}` : ''}
-                </span>
-
                 {status === 'solved' && (
-                  <span className="absolute top-1.5 right-2 text-green-500 dark:text-green-400 text-sm font-bold">&#10003;</span>
+                  <span className="absolute top-0.5 right-1 text-green-500 dark:text-green-400 text-xs font-bold">&#10003;</span>
+                )}
+
+                {status === 'failed' && !isCurrent && (
+                  <span className="absolute top-0.5 right-1 text-orange-500 dark:text-orange-400 text-xs font-bold">&#10007;</span>
+                )}
+
+                {bookmarks.includes(String(p.id)) && (
+                  <span className="absolute top-0.5 left-1 text-yellow-500 text-[10px]">{'\u2605'}</span>
                 )}
 
                 {isCurrent && (
-                  <span className="absolute top-1.5 right-2 text-blue-200 text-sm">&#9654;</span>
+                  <span className="absolute top-0.5 right-1 text-blue-200 text-xs">&#9654;</span>
                 )}
               </button>
             );
           })}
+          </div>
         </div>
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-center mt-3 shrink-0">
+          <div className="flex items-center justify-center mt-3 pb-2 shrink-0">
             <button
               onClick={() => setPage(0)}
               disabled={page === 0}

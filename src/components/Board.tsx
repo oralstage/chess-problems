@@ -13,9 +13,10 @@ interface BoardProps {
   feedbackSquare?: string | null;
   feedbackType?: 'correct' | 'incorrect' | null;
   hintSquares?: string[] | null; // [fromSquare, ...toSquares]
+  arrows?: [string, string, string?][] | null;
 }
 
-export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares }: BoardProps) {
+export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows }: BoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
   const boardWidth = width || 400;
@@ -177,8 +178,9 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
         customSquareStyles={customSquareStyles}
         customDarkSquareStyle={{ backgroundColor: '#779952' }}
         customLightSquareStyle={{ backgroundColor: '#edeed1' }}
+        customArrows={arrows as never}
         arePiecesDraggable={!disabled}
-        animationDuration={300}
+        animationDuration={400}
       />
       {disabled && (
         <div className="absolute inset-0 cursor-not-allowed" />

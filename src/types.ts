@@ -30,7 +30,7 @@ export interface ChessProblem {
   award: string;
 }
 
-export type ProblemStatus = 'solved' | 'skipped' | 'in-progress';
+export type ProblemStatus = 'solved' | 'skipped' | 'in-progress' | 'failed';
 
 export interface ProblemProgress {
   [problemId: string]: ProblemStatus;

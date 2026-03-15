@@ -12,6 +12,7 @@ interface PlaybackPosition {
 
 interface StockfishApi {
   analyze: (fen: string, depth?: number) => Promise<{ bestMove: string; bestMoveSan: string; eval: number; mateIn: number | null } | null>;
+  findRefutation: (fen: string, wrongMove: string, depth?: number) => Promise<{ refutationSan: string; eval: number } | null>;
   readyState: string;
 }
 
@@ -32,11 +33,15 @@ interface ProblemState {
   wrongMoveCount: number;
   wrongMoveFen: string | null;
   wrongMoveLastMove: { from: string; to: string } | null;
+  lastWrongMove: { preFen: string; uci: string } | null;
+  refutationText: string | null;
+  refutationArrow: [string, string] | null;
   // How many white moves remain for mate (for direct mate tracking)
   movesRemaining: number;
   playback: {
     positions: PlaybackPosition[];
     mainLine: SolutionNode[];
+    mainLineLength: number;
     moveIndex: number;
     exploring: boolean;
     exploreFen: string;
@@ -45,7 +50,7 @@ interface ProblemState {
 }
 
 // Timing constants
-const AUTO_PLAY_DELAY = 400;
+const AUTO_PLAY_DELAY = 500;
 const CORRECT_FLASH = 400;
 const WRONG_MOVE_PAUSE = 500;
 
@@ -212,6 +217,9 @@ export function useProblem(stockfish?: StockfishApi) {
     wrongMoveCount: 0,
     wrongMoveFen: null,
     wrongMoveLastMove: null,
+    lastWrongMove: null,
+    refutationText: null,
+    refutationArrow: null,
     movesRemaining: 0,
     playback: null,
   });
@@ -230,6 +238,7 @@ export function useProblem(stockfish?: StockfishApi) {
     return {
       positions,
       mainLine,
+      mainLineLength: mainLine.length,
       moveIndex: startAtEnd ? positions.length - 2 : -1,
       exploring: false,
       exploreFen: '',
@@ -265,13 +274,16 @@ export function useProblem(stockfish?: StockfishApi) {
       wrongMoveCount: 0,
       wrongMoveFen: null,
       wrongMoveLastMove: null,
+      lastWrongMove: null,
+      refutationText: null,
+      refutationArrow: null,
       movesRemaining: problem.moveCount,
       playback: null,
     });
   }, []);
 
   // ── Flash wrong move and undo ──
-  const flashWrongMove = useCallback((to: string, wrongFen: string, from: string) => {
+  const flashWrongMove = useCallback((to: string, wrongFen: string, from: string, preFen: string, uci: string) => {
     setState(prev => ({
       ...prev,
       feedbackSquare: to,
@@ -280,6 +292,9 @@ export function useProblem(stockfish?: StockfishApi) {
       wrongMoveCount: prev.wrongMoveCount + 1,
       wrongMoveFen: wrongFen,
       wrongMoveLastMove: { from, to },
+      lastWrongMove: { preFen, uci },
+      refutationText: null,
+      refutationArrow: null,
     }));
     setTimeout(() => {
       setState(prev => ({ ...prev, wrongMoveFen: null, wrongMoveLastMove: null }));
@@ -571,8 +586,9 @@ export function useProblem(stockfish?: StockfishApi) {
 
     // Wrong move
     const wrongFen = chess.fen();
+    const wrongUci = from + to + (move.promotion || '');
     chess.undo();
-    flashWrongMove(to, wrongFen, from);
+    flashWrongMove(to, wrongFen, from, state.fen, wrongUci);
     return false;
   }, [state, startPlayback, flashWrongMove]);
 
@@ -663,7 +679,8 @@ export function useProblem(stockfish?: StockfishApi) {
       pb = { ...pb, moveIndex: -1 };
     }
     setState(prev => ({
-      ...prev, status: 'viewing', feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null, playback: pb,
+      ...prev, status: 'viewing', feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null,
+      refutationText: null, refutationArrow: null, playback: pb,
     }));
   }, [state.problem, state.initialFen, startPlayback]);
 
@@ -722,11 +739,6 @@ export function useProblem(stockfish?: StockfishApi) {
     if (playback.exploring) {
       effectiveFen = playback.exploreFen;
       effectiveLastMove = playback.exploreLastMove;
-    } else if (state.status === 'correct' && playback.moveIndex >= playback.positions.length - 2) {
-      // At end of playback after solving: show actual solved position
-      // (playback may be incomplete if main line moves couldn't all be executed)
-      effectiveFen = state.fen;
-      effectiveLastMove = state.lastMove;
     } else {
       const pos = playback.positions[playback.moveIndex + 1] || playback.positions[0];
       effectiveFen = pos.fen;
@@ -747,7 +759,13 @@ export function useProblem(stockfish?: StockfishApi) {
     waitingForAutoPlay: state.waitingForAutoPlay,
     hintSquares: state.hintSquares,
     wrongMoveCount: state.wrongMoveCount,
+    lastWrongMove: state.lastWrongMove,
+    refutationText: state.refutationText,
+    refutationArrow: state.refutationArrow,
     playback: state.playback,
+    setRefutation: (text: string | null, arrow: [string, string] | null) => {
+      setState(prev => ({ ...prev, refutationText: text, refutationArrow: arrow }));
+    },
     loadProblem,
     tryMove,
     showHint,
