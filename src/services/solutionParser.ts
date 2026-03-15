@@ -133,10 +133,11 @@ function parseSegments(solutionText: string): Segment[] {
     const trimmed = line.trimStart();
     if (!trimmed) { lineIndex++; lastLineWasBlank = true; continue; }
 
-    // Extract parenthesized threat content before splitting on move numbers
-    // (splitting on \d+\. would break parenthesized content like "(2.Rd1#)")
+    // Extract parenthesized/bracketed threat content before splitting on move numbers
+    // (splitting on \d+\. would break content like "(2.Rd1#)" or "[2.Qf7#]")
     const lineThreatTexts: string[] = [];
-    let trimmedClean = trimmed.replace(/\(([^)]+)\)/g, (_match, inner) => {
+    let trimmedClean = trimmed.replace(/[(\[][^)\]]+[)\]]/g, (match) => {
+      const inner = match.slice(1, -1);
       lineThreatTexts.push(inner);
       return '';
     });
@@ -369,6 +370,12 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     }
 
     prevLineIndex = seg.lineIndex;
+  }
+
+  // If any root node is a key move (!) with the correct color, filter out tries
+  const keyNodes = nodes.filter(n => n.isKey && n.color === firstMoveColor);
+  if (keyNodes.length > 0) {
+    return keyNodes;
   }
 
   return nodes;
