@@ -42,7 +42,17 @@ export function ModeSelector({ onSelectMode, progress, problemCounts }: ModeSele
       {/* ── Hero ── */}
       <div className="px-5 mb-10">
         <div className="flex items-center gap-4 mb-3">
-          <span className="text-5xl sm:text-6xl">♚</span>
+          <svg className="w-12 h-12 sm:w-14 sm:h-14 text-gray-900 dark:text-white" viewBox="0 0 45 45" fill="currentColor">
+            <g>
+              <path d="M 22.5,11.63 L 22.5,6" strokeLinejoin="miter" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <path d="M 20,8 L 25,8" strokeLinejoin="miter" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              <path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" fill="currentColor" stroke="currentColor" strokeLinecap="butt" strokeLinejoin="miter" strokeWidth="1.5" />
+              <path d="M 12.5,37 C 18,40.5 27,40.5 32.5,37 L 32.5,30 C 32.5,30 41.5,25.5 38.5,19.5 C 34.5,13 25,16 22.5,23.5 L 22.5,27 L 22.5,23.5 C 19,16 9.5,13 6.5,19.5 C 3.5,25.5 12.5,30 12.5,30 L 12.5,37" fill="currentColor" stroke="currentColor" strokeLinecap="butt" strokeLinejoin="miter" strokeWidth="1.5" />
+              <path d="M 12.5,30 C 18,27 27,27 32.5,30" fill="none" stroke="currentColor" strokeLinecap="butt" strokeLinejoin="round" strokeWidth="1.5" opacity="0.3" />
+              <path d="M 12.5,33.5 C 18,30.5 27,30.5 32.5,33.5" fill="none" stroke="currentColor" strokeLinecap="butt" strokeLinejoin="round" strokeWidth="1.5" opacity="0.3" />
+              <path d="M 12.5,37 C 18,34 27,34 32.5,37" fill="none" stroke="currentColor" strokeLinecap="butt" strokeLinejoin="round" strokeWidth="1.5" opacity="0.3" />
+            </g>
+          </svg>
           <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-white">
             Chess Problems
           </h1>
