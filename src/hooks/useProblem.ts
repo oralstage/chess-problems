@@ -473,7 +473,7 @@ export function useProblem(stockfish?: StockfishApi) {
     // ══════════════════════════════════════════════
     // STOCKFISH path: direct mate and study
     // ══════════════════════════════════════════════
-    if (usesStockfish(problem.genre) && stockfish) {
+    if ((problem.genre === 'direct' || problem.genre === 'study') && stockfish) {
       const isCheckmate = chess.isCheckmate();
 
       if (isCheckmate) {
@@ -537,29 +537,35 @@ export function useProblem(stockfish?: StockfishApi) {
       const preMoveHistory = state.moveHistory;
       const preLastMove = state.lastMove;
 
-      // Show the move on board immediately, then async-verify with Stockfish
+      // Show the move on board with neutral state (pending validation)
       setState(prev => ({
         ...prev,
         fen: newFen,
         moveHistory: newHistory,
         lastMove: { from, to },
-        feedbackSquare: to,
-        feedbackType: 'correct',
+        feedbackSquare: null,
+        feedbackType: null,
         waitingForAutoPlay: true,
         hintSquares: null,
       }));
 
-      // Async Stockfish validation
+      // Async Stockfish validation with timeout
       (async () => {
         if (sfBusyRef.current) return;
         sfBusyRef.current = true;
         try {
-          const result = await stockfish.analyze(newFen, 20);
+          // Wrap analyze in a timeout (8 seconds)
+          const analyzeWithTimeout = Promise.race([
+            stockfish.analyze(newFen, 20),
+            new Promise<null>(resolve => setTimeout(() => resolve(null), 8000)),
+          ]);
+          const result = await analyzeWithTimeout;
+
           if (!result) {
-            // Stockfish failed — undo and mark wrong
+            // Stockfish failed or timed out — undo
             sfBusyRef.current = false;
             flashWrongMove(to, newFen, from);
-            setState(prev => ({ ...prev, fen: preFen, moveHistory: preMoveHistory, lastMove: preLastMove, waitingForAutoPlay: false }));
+            setState(prev => ({ ...prev, fen: preFen, moveHistory: preMoveHistory, lastMove: preLastMove, waitingForAutoPlay: false, feedback: 'Engine timed out. Try again.' }));
             return;
           }
 
@@ -568,10 +574,6 @@ export function useProblem(stockfish?: StockfishApi) {
           let isCorrect = false;
 
           if (isMateGenre) {
-            // After white's move, it's black's turn.
-            // Stockfish reports "score mate -N" meaning black gets mated in N moves.
-            // For a #K problem with movesRemaining white moves left,
-            // the mate distance must be <= movesRemaining - 1 (remaining white moves after this one).
             if (result.mateIn !== null && result.mateIn < 0) {
               const mateDistance = Math.abs(result.mateIn);
               isCorrect = mateDistance <= movesRemaining - 1;
@@ -579,18 +581,15 @@ export function useProblem(stockfish?: StockfishApi) {
           } else {
             // Study: win (+) or draw (=)
             if (problem.stipulation === '+') {
-              isCorrect = result.eval <= -300; // White has a strong advantage
+              isCorrect = result.eval <= -300;
             } else {
-              // Draw study: eval near 0 is correct
               isCorrect = Math.abs(result.eval) < 100;
             }
           }
 
           if (isCorrect) {
-            // Correct move! Auto-play opponent's response
             await sfAutoPlayOpponent(newFen, newHistory, from, to, movesRemaining);
           } else {
-            // Wrong move — undo
             flashWrongMove(to, newFen, from);
             setState(prev => ({
               ...prev,
@@ -605,7 +604,7 @@ export function useProblem(stockfish?: StockfishApi) {
         }
       })();
 
-      return true; // Accepted the move visually (async verification pending)
+      return true;
     }
 
     // ══════════════════════════════════════════════

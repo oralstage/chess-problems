@@ -106,7 +106,7 @@ export function useStockfish() {
   const workerRef = useRef<Worker | null>(null);
   const initPromiseRef = useRef<Promise<Worker> | null>(null);
 
-  /** Lazily spin up the Web Worker and wait for UCI readiness. */
+  /** Lazily spin up the Web Worker and wait for UCI readiness (with timeout). */
   const ensureReady = useCallback((): Promise<Worker> => {
     if (initPromiseRef.current) return initPromiseRef.current;
 
@@ -117,15 +117,20 @@ export function useStockfish() {
         const worker = new Worker(url);
         workerRef.current = worker;
 
-        // Wait for the engine to signal readiness.
-        await uciCommand(worker, 'uci', (l) => l.startsWith('uciok'));
-        await uciCommand(worker, 'isready', (l) => l.startsWith('readyok'));
+        // Wait for the engine to signal readiness, with 15s timeout.
+        const timeout = <T,>(p: Promise<T>, ms: number): Promise<T> =>
+          Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('Stockfish init timeout')), ms))]);
+
+        await timeout(uciCommand(worker, 'uci', (l) => l.startsWith('uciok')), 15000);
+        await timeout(uciCommand(worker, 'isready', (l) => l.startsWith('readyok')), 10000);
 
         setReadyState('ready');
         return worker;
       } catch (err) {
         setReadyState('error');
         initPromiseRef.current = null;
+        workerRef.current?.terminate();
+        workerRef.current = null;
         throw err;
       }
     })();
@@ -152,7 +157,12 @@ export function useStockfish() {
    */
   const analyze = useCallback(
     async (fen: string, depth: number = DEFAULT_DEPTH): Promise<AnalysisResult | null> => {
-      const worker = await ensureReady();
+      let worker: Worker;
+      try {
+        worker = await ensureReady();
+      } catch {
+        return null; // Stockfish failed to load (e.g. mobile WASM issue)
+      }
 
       // Reset state for a fresh search.
       worker.postMessage('ucinewgame');
