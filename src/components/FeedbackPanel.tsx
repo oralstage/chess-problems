@@ -66,7 +66,7 @@ export function FeedbackPanel({
             </button>
           )}
           {stockfishLoading && (
-            <span className="text-xs text-gray-400">Stockfish読込中...</span>
+            <span className="text-xs text-gray-400">Loading Stockfish...</span>
           )}
           {analysisResult && !analyzing && (
             <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
@@ -132,7 +132,7 @@ export function FeedbackPanel({
             </button>
           )}
           {stockfishLoading && (
-            <span className="text-xs text-gray-400">Stockfish読込中...</span>
+            <span className="text-xs text-gray-400">Loading Stockfish...</span>
           )}
           {analysisResult && !analyzing && (
             <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>

@@ -166,19 +166,19 @@ export default function App() {
   const handleAnalyze = useCallback(async () => {
     if (analyzing) return;
     setAnalyzing(true);
-    setAnalysisResult('分析中...');
+    setAnalysisResult('Analyzing...');
     try {
       const result = await stockfish.analyze(problem.fen, 18);
       if (result) {
         const evalStr = Math.abs(result.eval) >= 9999
-          ? (result.eval > 0 ? 'メイトあり' : '被メイト')
+          ? (result.eval > 0 ? 'Mate' : 'Mated')
           : `${result.eval > 0 ? '+' : ''}${result.eval.toFixed(1)}`;
-        setAnalysisResult(`最善手: ${result.bestMoveSan}  (${evalStr})`);
+        setAnalysisResult(`Best: ${result.bestMoveSan} (${evalStr})`);
       } else {
-        setAnalysisResult('分析結果なし');
+        setAnalysisResult('No result');
       }
     } catch {
-      setAnalysisResult('分析エラー');
+      setAnalysisResult('Analysis error');
     }
     setAnalyzing(false);
   }, [problem.fen, stockfish, analyzing]);
@@ -327,22 +327,11 @@ export default function App() {
           )}
 
           {!loading && view === 'mode-select' && (
-            <div className="space-y-6">
-              <div className="text-center py-6">
-                <div className="text-5xl mb-3 text-gray-800 dark:text-gray-200">♔</div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
-                  Chess Problems
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                  YACPDB Collection - Composed Chess Art
-                </p>
-              </div>
-              <ModeSelector
-                onSelectMode={selectMode}
-                progress={progress}
-                problemCounts={problemCounts}
-              />
-            </div>
+            <ModeSelector
+              onSelectMode={selectMode}
+              progress={progress}
+              problemCounts={problemCounts}
+            />
           )}
 
           {view === 'solving' && problem.problem && (

@@ -192,12 +192,8 @@ async function main() {
   const targets = { direct: 500, help: 200, self: 100 };
   const counts = { direct: 0, help: 0, self: 0 };
 
-  // Per-moveCount sub-targets for direct mates
-  // #1: 100 (beginner), #2: 200 (easy/medium), #3: 150 (hard), 4+: 50 (expert)
-  const directTargets: Record<number, number> = { 1: 100, 2: 200, 3: 150, 4: 50 };
-  const directCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
-
-  /** Normalize moveCount to a directTargets key (4+ maps to key 4) */
+  // Track per-moveCount for logging only (no sub-targets - just collect 500 total)
+  const directCounts: Record<number, number> = {};
   function directKey(moveCount: number): number {
     return moveCount >= 4 ? 4 : moveCount;
   }
@@ -247,12 +243,8 @@ async function main() {
         const stip = parseStipulation(entry.stipulation);
         if (!stip) continue;
 
-        // Check if we still need this genre (and for direct, check per-moveCount sub-target)
+        // Check if we still need this genre
         if (counts[stip.genre] >= targets[stip.genre]) continue;
-        if (stip.genre === 'direct') {
-          const dk = directKey(stip.moveCount);
-          if (directCounts[dk] >= directTargets[dk]) continue;
-        }
 
         // Check for fairy pieces
         if (hasFairyPieces(entry.algebraic)) continue;

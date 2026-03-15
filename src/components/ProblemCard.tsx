@@ -6,11 +6,11 @@ interface ProblemCardProps {
   showThemes?: boolean;
 }
 
-const GENRE_LABELS: Record<string, { label: string; labelJa: string; color: string }> = {
-  direct: { label: 'Direct Mate', labelJa: 'ダイレクトメイト', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-  help: { label: 'Helpmate', labelJa: 'ヘルプメイト', color: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-  self: { label: 'Selfmate', labelJa: 'セルフメイト', color: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
-  study: { label: 'Study', labelJa: 'スタディ', color: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200' },
+const GENRE_LABELS: Record<string, { label: string; color: string }> = {
+  direct: { label: 'Direct Mate', color: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400' },
+  help: { label: 'Helpmate', color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' },
+  self: { label: 'Selfmate', color: 'bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400' },
+  study: { label: 'Study', color: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400' },
 };
 
 function stipulationDisplay(stip: string): string {
@@ -26,30 +26,30 @@ export function ProblemCard({ problem, showThemes }: ProblemCardProps) {
   const genre = GENRE_LABELS[problem.genre];
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5 min-w-0">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className={`px-2 py-0.5 rounded text-xs font-medium ${genre?.color}`}>
-          {genre?.labelJa}
+        <span className={`px-2 py-0.5 rounded-md text-xs font-semibold tracking-wide ${genre?.color}`}>
+          {genre?.label}
         </span>
-        <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+        <span className="text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight">
           {stipulationDisplay(problem.stipulation)}
         </span>
         {problem.award && (
-          <span className="px-2 py-0.5 rounded text-xs bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+          <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400">
             {problem.award}
           </span>
         )}
       </div>
 
-      <div className="text-sm text-gray-600 dark:text-gray-400">
-        <div className="font-medium text-gray-900 dark:text-gray-100">
+      <div className="text-gray-600 dark:text-gray-400">
+        <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
           {problem.authors.join(', ')}
         </div>
-        <div>
+        <div className="text-sm truncate">
           {problem.sourceName}
           {problem.sourceYear && `, ${problem.sourceYear}`}
         </div>
-        <div className="text-xs text-gray-400 dark:text-gray-500">
+        <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">
           YACPDB #{problem.id}
         </div>
       </div>
@@ -61,10 +61,10 @@ export function ProblemCard({ problem, showThemes }: ProblemCardProps) {
             return (
               <span
                 key={kw}
-                className="px-2 py-0.5 rounded text-xs bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                 title={theme?.description}
               >
-                {theme?.nameJa || kw}
+                {kw}
               </span>
             );
           })}
