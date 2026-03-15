@@ -95,6 +95,7 @@ function algebraicToFen(alg: { white: string[]; black: string[] }, sideToMove: '
 function hasFairyPieces(alg: { white: string[]; black: string[] }): boolean {
   const validPieces = new Set(['K', 'Q', 'R', 'B', 'S', 'N', 'P']);
   for (const pieces of [alg.white, alg.black]) {
+    if (!Array.isArray(pieces)) return true;
     for (const ps of pieces) {
       const t = ps.trim();
       if (t.length < 2) return true;
@@ -120,7 +121,10 @@ function parseStipulation(stip: string): { genre: 'direct' | 'help' | 'self' | '
   m = stip.match(/^s#(\d+)$/);
   if (m) return { genre: 'self', moveCount: parseInt(m[1]), sideToMove: 'w' };
 
-  return null; // Unsupported stipulation (series, fairy, study, etc.)
+  // Study: + (win) or = (draw)
+  if (stip === '+' || stip === '=') return { genre: 'study', moveCount: 0, sideToMove: 'w' };
+
+  return null; // Unsupported stipulation (series, fairy, etc.)
 }
 
 // ── Difficulty scoring ─────────────────────────────────
@@ -189,8 +193,9 @@ async function main() {
   fs.mkdirSync(CACHE_DIR, { recursive: true });
 
   const problems: OutputProblem[] = [];
-  const targets = { direct: 500, help: 200, self: 100 };
-  const counts = { direct: 0, help: 0, self: 0 };
+  // No hard caps — collect everything we find
+  const targets = { direct: 99999, help: 99999, self: 99999, study: 99999 };
+  const counts = { direct: 0, help: 0, self: 0, study: 0 };
 
   // Track per-moveCount for logging only (no sub-targets - just collect 500 total)
   const directCounts: Record<number, number> = {};
@@ -288,7 +293,7 @@ async function main() {
       }
 
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
-      process.stdout.write(`\r    Progress: direct=${counts.direct}(#1:${directCounts[1]} #2:${directCounts[2]} #3:${directCounts[3]} #4+:${directCounts[4]}) help=${counts.help} self=${counts.self} total=${total}  `);
+      process.stdout.write(`\r    Progress: direct=${counts.direct} help=${counts.help} self=${counts.self} study=${counts.study} total=${total}  `);
 
       // Stop early if we have enough
       const allDone = (Object.keys(counts) as (keyof typeof counts)[]).every(
@@ -314,7 +319,7 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
 
   // Split by genre
-  for (const genre of ['direct', 'help', 'self'] as const) {
+  for (const genre of ['direct', 'help', 'self', 'study'] as const) {
     const genreProblems = problems.filter(p => p.genre === genre);
     const outFile = path.join(outDir, `problems-${genre}.json`);
     fs.writeFileSync(outFile, JSON.stringify(genreProblems, null, 0));
@@ -333,9 +338,10 @@ async function main() {
 
   console.log('\nDone!');
   console.log(`Total: ${problems.length} problems`);
-  console.log(`  Direct: ${counts.direct} (#1:${directCounts[1]} #2:${directCounts[2]} #3:${directCounts[3]} #4+:${directCounts[4]})`);
+  console.log(`  Direct: ${counts.direct}`);
   console.log(`  Help: ${counts.help}`);
   console.log(`  Self: ${counts.self}`);
+  console.log(`  Study: ${counts.study}`);
 }
 
 main().catch(console.error);

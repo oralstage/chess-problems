@@ -3,6 +3,7 @@
   "configurations": [
     {
       "name": "chess-problems",
+      "cwd": ".",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5183

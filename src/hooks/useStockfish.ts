@@ -5,6 +5,7 @@ interface AnalysisResult {
   bestMove: string;
   bestMoveSan: string;
   eval: number;
+  mateIn: number | null; // positive = side-to-move mates in N, negative = side-to-move gets mated in N
 }
 
 interface RefutationResult {
@@ -65,21 +66,23 @@ function parseBestMove(lines: string[]): string | null {
  * Parse the last "info depth" line that includes "score cp" or "score mate"
  * to extract an eval in centipawns (mate is mapped to +/-10000).
  */
-function parseEval(lines: string[]): number {
+function parseEval(lines: string[]): { score: number; mateIn: number | null } {
   let score = 0;
+  let mateIn: number | null = null;
   for (const line of lines) {
     const cpMatch = line.match(/score cp (-?\d+)/);
     if (cpMatch) {
       score = parseInt(cpMatch[1], 10) / 100;
+      mateIn = null;
       continue;
     }
     const mateMatch = line.match(/score mate (-?\d+)/);
     if (mateMatch) {
-      const mateIn = parseInt(mateMatch[1], 10);
+      mateIn = parseInt(mateMatch[1], 10);
       score = mateIn > 0 ? 10000 : -10000;
     }
   }
-  return score;
+  return { score, mateIn };
 }
 
 /**
@@ -169,9 +172,9 @@ export function useStockfish() {
       const bestMoveSan = uciToSan(fen, bestMove);
       if (!bestMoveSan) return null;
 
-      const evalScore = parseEval(lines);
+      const { score: evalScore, mateIn } = parseEval(lines);
 
-      return { bestMove, bestMoveSan, eval: evalScore };
+      return { bestMove, bestMoveSan, eval: evalScore, mateIn };
     },
     [ensureReady],
   );

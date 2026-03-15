@@ -10,6 +10,11 @@ interface PlaybackPosition {
   san: string;
 }
 
+interface StockfishApi {
+  analyze: (fen: string, depth?: number) => Promise<{ bestMove: string; bestMoveSan: string; eval: number; mateIn: number | null } | null>;
+  readyState: string;
+}
+
 interface ProblemState {
   problem: ChessProblem | null;
   fen: string;
@@ -23,12 +28,12 @@ interface ProblemState {
   feedbackType: 'correct' | 'incorrect' | null;
   waitingForAutoPlay: boolean;
   userColor: 'w' | 'b';
-  // Hint state: squares to highlight when user requests a hint
-  hintSquares: string[] | null; // [fromSquare, ...toSquares]
+  hintSquares: string[] | null;
   wrongMoveCount: number;
-  // Temporarily show piece at wrong destination before snapping back
   wrongMoveFen: string | null;
   wrongMoveLastMove: { from: string; to: string } | null;
+  // How many white moves remain for mate (for direct mate tracking)
+  movesRemaining: number;
   playback: {
     positions: PlaybackPosition[];
     mainLine: SolutionNode[];
@@ -41,9 +46,8 @@ interface ProblemState {
 
 // Timing constants
 const AUTO_PLAY_DELAY = 400;
-const INCORRECT_FLASH = 600;
 const CORRECT_FLASH = 400;
-const WRONG_MOVE_PAUSE = 500; // How long to show piece at wrong destination before undoing
+const WRONG_MOVE_PAUSE = 500;
 
 function getFirstMoveColor(genre: Genre): 'w' | 'b' {
   return genre === 'help' ? 'b' : 'w';
@@ -52,6 +56,46 @@ function getFirstMoveColor(genre: Genre): 'w' | 'b' {
 function getUserColor(genre: Genre): 'w' | 'b' {
   return genre === 'help' ? 'b' : 'w';
 }
+
+// ── Stockfish-based helpers ──────────────────────────────
+
+/** Use Stockfish to compute the main line from a position */
+async function computeStockfishLine(
+  fen: string,
+  maxMoves: number,
+  sf: StockfishApi,
+): Promise<PlaybackPosition[]> {
+  const positions: PlaybackPosition[] = [{ fen, lastMove: null, san: '' }];
+  const chess = new Chess(fen);
+  // For a #N problem, we need up to 2*N - 1 half-moves (N white + N-1 black)
+  const maxHalfMoves = maxMoves > 0 ? maxMoves * 2 - 1 : 30;
+
+  for (let i = 0; i < maxHalfMoves; i++) {
+    if (chess.isGameOver()) break;
+    const result = await sf.analyze(chess.fen(), 18);
+    if (!result) break;
+
+    const from = result.bestMove.slice(0, 2);
+    const to = result.bestMove.slice(2, 4);
+    const promo = result.bestMove.length > 4 ? result.bestMove[4] : undefined;
+    let move;
+    try {
+      move = chess.move({ from, to, promotion: promo });
+    } catch {
+      break;
+    }
+    if (!move) break;
+
+    positions.push({
+      fen: chess.fen(),
+      lastMove: { from: move.from, to: move.to },
+      san: move.san,
+    });
+  }
+  return positions;
+}
+
+// ── Solution tree helpers (for helpmate/selfmate) ────────
 
 function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
   const line: SolutionNode[] = [];
@@ -67,57 +111,129 @@ function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
   return line;
 }
 
+function tryExecuteNode(chess: Chess, node: SolutionNode): ReturnType<Chess['move']> | null {
+  const uci = node.moveUci;
+
+  if (!uci.startsWith('san:') && uci.length >= 4) {
+    try {
+      const from = uci.slice(0, 2);
+      const to = uci.slice(2, 4);
+      const promo = uci.length > 4 ? uci[4] : undefined;
+      const move = chess.move({ from, to, promotion: promo });
+      if (move) return move;
+    } catch { /* fallback */ }
+  }
+
+  const san = uci.startsWith('san:') ? uci.slice(4) : node.moveSan;
+  try {
+    const move = chess.move(san);
+    if (move) return move;
+  } catch { /* fallback */ }
+
+  const cleanSan = san.replace(/[+#]/g, '');
+  if (cleanSan !== san) {
+    try {
+      const move = chess.move(cleanSan);
+      if (move) return move;
+    } catch { /* fallback */ }
+  }
+
+  const destMatch = node.move.match(/([a-h][1-8])(?:=[QRBN])?[+#!?]*$/i);
+  if (destMatch) {
+    const destSquare = destMatch[1];
+    const promoMatch = node.move.match(/=([QRBNS])/i);
+    const promo = promoMatch ? (promoMatch[1] === 'S' ? 'n' : promoMatch[1].toLowerCase()) : undefined;
+
+    const pieceChar = node.move[0];
+    let pieceType: string | null = null;
+    if (pieceChar >= 'A' && pieceChar <= 'Z') {
+      pieceType = pieceChar === 'S' ? 'n' : pieceChar.toLowerCase();
+    } else if (pieceChar >= 'a' && pieceChar <= 'h') {
+      pieceType = 'p';
+    }
+
+    const legalMoves = chess.moves({ verbose: true });
+    const candidates = legalMoves.filter(m => {
+      if (m.to !== destSquare) return false;
+      if (pieceType && m.piece !== pieceType) return false;
+      if (promo && m.promotion !== promo) return false;
+      return true;
+    });
+
+    if (candidates.length === 1) {
+      try {
+        const move = chess.move(candidates[0]);
+        if (move) return move;
+      } catch { /* give up */ }
+    }
+
+    if (candidates.length > 1) {
+      const fromFileMatch = node.move.match(/^[KQRBSN]([a-h])/);
+      const fromRankMatch = node.move.match(/^[KQRBSN][a-h]?([1-8])/);
+      let filtered = candidates;
+      if (fromFileMatch) {
+        filtered = filtered.filter(m => m.from[0] === fromFileMatch[1]);
+      }
+      if (fromRankMatch && filtered.length > 1) {
+        filtered = filtered.filter(m => m.from[1] === fromRankMatch[1]);
+      }
+      if (filtered.length === 1) {
+        try {
+          const move = chess.move(filtered[0]);
+          if (move) return move;
+        } catch { /* give up */ }
+      }
+    }
+  }
+
+  return null;
+}
+
 function computePositions(initialFen: string, mainLine: SolutionNode[]): PlaybackPosition[] {
-  const positions: PlaybackPosition[] = [
-    { fen: initialFen, lastMove: null, san: '' },
-  ];
+  const positions: PlaybackPosition[] = [{ fen: initialFen, lastMove: null, san: '' }];
   const chess = new Chess(initialFen);
   for (const node of mainLine) {
-    try {
-      const uci = node.moveUci;
-      let move;
-      if (uci.startsWith('san:')) {
-        move = chess.move(uci.slice(4));
-      } else if (uci.length >= 4) {
-        const from = uci.slice(0, 2);
-        const to = uci.slice(2, 4);
-        const promo = uci.length > 4 ? uci[4] : undefined;
-        move = chess.move({ from, to, promotion: promo });
-      }
-      if (move) {
-        positions.push({
-          fen: chess.fen(),
-          lastMove: { from: move.from, to: move.to },
-          san: move.san,
-        });
-      } else {
-        break;
-      }
-    } catch {
+    const move = tryExecuteNode(chess, node);
+    if (move) {
+      positions.push({
+        fen: chess.fen(),
+        lastMove: { from: move.from, to: move.to },
+        san: move.san,
+      });
+    } else {
       break;
     }
   }
   return positions;
 }
 
-/** Extract the from-square from a UCI string like "e2e4" or "san:Nf3" with fen context */
-function getHintFromNode(node: SolutionNode, fen: string): string | null {
-  const uci = node.moveUci;
-  if (uci.length >= 4 && !uci.startsWith('san:')) {
-    return uci.slice(0, 2);
+// ── Build playback from move history (for Stockfish-solved problems) ──
+function buildPlaybackFromHistory(initialFen: string, moveHistory: string[]): PlaybackPosition[] {
+  const positions: PlaybackPosition[] = [{ fen: initialFen, lastMove: null, san: '' }];
+  const chess = new Chess(initialFen);
+  for (const san of moveHistory) {
+    try {
+      const move = chess.move(san);
+      if (move) {
+        positions.push({
+          fen: chess.fen(),
+          lastMove: { from: move.from, to: move.to },
+          san: move.san,
+        });
+      }
+    } catch { break; }
   }
-  // For san: prefix, parse with chess.js
-  try {
-    const chess = new Chess(fen);
-    const san = uci.startsWith('san:') ? uci.slice(4) : node.moveSan;
-    const move = chess.move(san);
-    return move ? move.from : null;
-  } catch {
-    return null;
-  }
+  return positions;
 }
 
-export function useProblem() {
+// ── Determines if a genre uses Stockfish for validation ──
+function usesStockfish(genre: Genre): boolean {
+  return genre === 'direct' || genre === 'study';
+}
+
+// ──────────────────────────────────────────────────────────
+
+export function useProblem(stockfish?: StockfishApi) {
   const [state, setState] = useState<ProblemState>({
     problem: null,
     fen: '',
@@ -135,11 +251,12 @@ export function useProblem() {
     wrongMoveCount: 0,
     wrongMoveFen: null,
     wrongMoveLastMove: null,
+    movesRemaining: 0,
     playback: null,
   });
 
-  const chessRef = useRef<Chess>(new Chess());
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sfBusyRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -160,11 +277,19 @@ export function useProblem() {
     };
   }, []);
 
+  const startPlaybackFromPositions = useCallback((positions: PlaybackPosition[], startAtEnd: boolean = false) => {
+    return {
+      positions,
+      mainLine: [] as SolutionNode[],
+      moveIndex: startAtEnd ? positions.length - 2 : -1,
+      exploring: false,
+      exploreFen: '',
+      exploreLastMove: null,
+    };
+  }, []);
+
   const loadProblem = useCallback((problem: ChessProblem) => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
-
-    const chess = new Chess(problem.fen);
-    chessRef.current = chess;
 
     const firstColor = getFirstMoveColor(problem.genre);
     const userColor = getUserColor(problem.genre);
@@ -172,7 +297,6 @@ export function useProblem() {
     let fen = problem.fen;
     if (firstColor === 'b' && fen.includes(' w ')) {
       fen = fen.replace(' w ', ' b ');
-      chessRef.current = new Chess(fen);
     }
 
     setState({
@@ -192,12 +316,125 @@ export function useProblem() {
       wrongMoveCount: 0,
       wrongMoveFen: null,
       wrongMoveLastMove: null,
+      movesRemaining: problem.moveCount,
       playback: null,
     });
   }, []);
 
+  // ── Flash wrong move and undo ──
+  const flashWrongMove = useCallback((to: string, wrongFen: string, from: string) => {
+    setState(prev => ({
+      ...prev,
+      feedbackSquare: to,
+      feedbackType: 'incorrect',
+      hintSquares: null,
+      wrongMoveCount: prev.wrongMoveCount + 1,
+      wrongMoveFen: wrongFen,
+      wrongMoveLastMove: { from, to },
+    }));
+    setTimeout(() => {
+      setState(prev => ({ ...prev, wrongMoveFen: null, wrongMoveLastMove: null }));
+      setTimeout(() => {
+        setState(prev => prev.feedbackType === 'incorrect'
+          ? { ...prev, feedbackSquare: null, feedbackType: null } : prev);
+      }, 300);
+    }, WRONG_MOVE_PAUSE);
+  }, []);
+
+  // ── Stockfish auto-play opponent response ──
+  const sfAutoPlayOpponent = useCallback(async (
+    newFen: string,
+    newHistory: string[],
+    from: string,
+    to: string,
+    movesRemaining: number,
+  ) => {
+    if (!stockfish) return;
+
+    setState(prev => ({
+      ...prev,
+      fen: newFen,
+      moveHistory: newHistory,
+      feedback: '',
+      lastMove: { from, to },
+      feedbackSquare: to,
+      feedbackType: 'correct',
+      waitingForAutoPlay: true,
+      hintSquares: null,
+    }));
+
+    // Wait a beat, then get Stockfish's defense
+    await new Promise(r => setTimeout(r, AUTO_PLAY_DELAY));
+
+    const defResult = await stockfish.analyze(newFen, 18);
+    if (!defResult) {
+      setState(prev => ({ ...prev, waitingForAutoPlay: false, feedbackSquare: null, feedbackType: null }));
+      return;
+    }
+
+    const defChess = new Chess(newFen);
+    const dfrom = defResult.bestMove.slice(0, 2);
+    const dto = defResult.bestMove.slice(2, 4);
+    const dpromo = defResult.bestMove.length > 4 ? defResult.bestMove[4] : undefined;
+    let defMove;
+    try {
+      defMove = defChess.move({ from: dfrom, to: dto, promotion: dpromo });
+    } catch { /* */ }
+
+    if (!defMove) {
+      setState(prev => ({ ...prev, waitingForAutoPlay: false, feedbackSquare: null, feedbackType: null }));
+      return;
+    }
+
+    const afterDefFen = defChess.fen();
+    const defLastMove = { from: defMove.from, to: defMove.to };
+
+    // Check if this defense results in checkmate (selfmate scenario)
+    if (defChess.isCheckmate()) {
+      const historyWithDef = [...newHistory, defMove.san];
+      setState(prev => {
+        const positions = buildPlaybackFromHistory(prev.initialFen, historyWithDef);
+        const pb = {
+          positions,
+          mainLine: [] as SolutionNode[],
+          moveIndex: positions.length - 2,
+          exploring: false,
+          exploreFen: '',
+          exploreLastMove: null,
+        };
+        return {
+          ...prev,
+          fen: afterDefFen,
+          moveHistory: historyWithDef,
+          status: 'correct',
+          feedback: '',
+          lastMove: defLastMove,
+          feedbackSquare: null,
+          feedbackType: null,
+          waitingForAutoPlay: false,
+          movesRemaining: 0,
+          playback: pb,
+        };
+      });
+      return;
+    }
+
+    setState(prev => ({
+      ...prev,
+      fen: afterDefFen,
+      moveHistory: [...newHistory, defMove.san],
+      feedback: '',
+      lastMove: defLastMove,
+      feedbackSquare: null,
+      feedbackType: null,
+      waitingForAutoPlay: false,
+      movesRemaining: movesRemaining - 1,
+    }));
+  }, [stockfish]);
+
+  // ── Main tryMove ──
   const tryMove = useCallback((from: string, to: string, promotion?: string): boolean => {
-    const { problem, currentNodes, status, playback } = state;
+    const { problem, currentNodes, status, playback, movesRemaining } = state;
 
     // Playback exploration
     if (playback && (status === 'correct' || status === 'viewing')) {
@@ -239,51 +476,179 @@ export function useProblem() {
     } catch {
       return false;
     }
-
     if (!move) return false;
 
+    const newFen = chess.fen();
+    const newHistory = [...state.moveHistory, move.san];
+
+    // ══════════════════════════════════════════════
+    // STOCKFISH path: direct mate and study
+    // ══════════════════════════════════════════════
+    if (usesStockfish(problem.genre) && stockfish) {
+      const isCheckmate = chess.isCheckmate();
+
+      if (isCheckmate) {
+        // User delivered checkmate — solved!
+        const positions = buildPlaybackFromHistory(state.initialFen, newHistory);
+        const pb = {
+          positions,
+          mainLine: [] as SolutionNode[],
+          moveIndex: positions.length - 2,
+          exploring: false,
+          exploreFen: '',
+          exploreLastMove: null,
+        };
+        setState(prev => ({
+          ...prev,
+          fen: newFen,
+          moveHistory: newHistory,
+          status: 'correct',
+          feedback: '',
+          lastMove: { from, to },
+          feedbackSquare: to,
+          feedbackType: 'correct',
+          waitingForAutoPlay: false,
+          hintSquares: null,
+          movesRemaining: 0,
+          playback: pb,
+        }));
+        return true;
+      }
+
+      // For study with draw goal, stalemate is also correct
+      if (problem.stipulation === '=' && chess.isStalemate()) {
+        const positions = buildPlaybackFromHistory(state.initialFen, newHistory);
+        const pb = {
+          positions,
+          mainLine: [] as SolutionNode[],
+          moveIndex: positions.length - 2,
+          exploring: false,
+          exploreFen: '',
+          exploreLastMove: null,
+        };
+        setState(prev => ({
+          ...prev,
+          fen: newFen,
+          moveHistory: newHistory,
+          status: 'correct',
+          feedback: '',
+          lastMove: { from, to },
+          feedbackSquare: to,
+          feedbackType: 'correct',
+          waitingForAutoPlay: false,
+          hintSquares: null,
+          movesRemaining: 0,
+          playback: pb,
+        }));
+        return true;
+      }
+
+      // Save pre-move state for undo
+      const preFen = state.fen;
+      const preMoveHistory = state.moveHistory;
+      const preLastMove = state.lastMove;
+
+      // Show the move on board immediately, then async-verify with Stockfish
+      setState(prev => ({
+        ...prev,
+        fen: newFen,
+        moveHistory: newHistory,
+        lastMove: { from, to },
+        feedbackSquare: to,
+        feedbackType: 'correct',
+        waitingForAutoPlay: true,
+        hintSquares: null,
+      }));
+
+      // Async Stockfish validation
+      (async () => {
+        if (sfBusyRef.current) return;
+        sfBusyRef.current = true;
+        try {
+          const result = await stockfish.analyze(newFen, 20);
+          if (!result) {
+            // Stockfish failed — undo and mark wrong
+            sfBusyRef.current = false;
+            flashWrongMove(to, newFen, from);
+            setState(prev => ({ ...prev, fen: preFen, moveHistory: preMoveHistory, lastMove: preLastMove, waitingForAutoPlay: false }));
+            return;
+          }
+
+          // Check if forced mate still exists
+          const isMateGenre = problem.genre === 'direct';
+          let isCorrect = false;
+
+          if (isMateGenre) {
+            // After white's move, it's black's turn.
+            // Stockfish reports "score mate -N" meaning black gets mated in N moves.
+            // For a #K problem with movesRemaining white moves left,
+            // the mate distance must be <= movesRemaining - 1 (remaining white moves after this one).
+            if (result.mateIn !== null && result.mateIn < 0) {
+              const mateDistance = Math.abs(result.mateIn);
+              isCorrect = mateDistance <= movesRemaining - 1;
+            }
+          } else {
+            // Study: win (+) or draw (=)
+            if (problem.stipulation === '+') {
+              isCorrect = result.eval <= -300; // White has a strong advantage
+            } else {
+              // Draw study: eval near 0 is correct
+              isCorrect = Math.abs(result.eval) < 100;
+            }
+          }
+
+          if (isCorrect) {
+            // Correct move! Auto-play opponent's response
+            await sfAutoPlayOpponent(newFen, newHistory, from, to, movesRemaining);
+          } else {
+            // Wrong move — undo
+            flashWrongMove(to, newFen, from);
+            setState(prev => ({
+              ...prev,
+              fen: preFen,
+              moveHistory: preMoveHistory,
+              lastMove: preLastMove,
+              waitingForAutoPlay: false,
+            }));
+          }
+        } finally {
+          sfBusyRef.current = false;
+        }
+      })();
+
+      return true; // Accepted the move visually (async verification pending)
+    }
+
+    // ══════════════════════════════════════════════
+    // SOLUTION TREE path: helpmate, selfmate
+    // ══════════════════════════════════════════════
     const uci = from + to + (move.promotion || '');
 
-    // Find this move in the solution tree
     const validNodes = currentNodes.filter(n => n.color === currentTurn);
     let matchingNode: SolutionNode | null = null;
 
     for (const node of validNodes) {
-      if (node.moveUci === uci) {
-        matchingNode = node;
-        break;
-      }
-      if (node.moveSan === move.san) {
-        matchingNode = node;
-        break;
-      }
+      if (node.moveUci === uci) { matchingNode = node; break; }
+      if (node.moveSan === move.san) { matchingNode = node; break; }
       const nodeSanClean = node.moveSan.replace(/[+#]/g, '');
       const moveSanClean = move.san.replace(/[+#]/g, '');
-      if (nodeSanClean === moveSanClean) {
-        matchingNode = node;
-        break;
-      }
+      if (nodeSanClean === moveSanClean) { matchingNode = node; break; }
+      const verifyChess = new Chess(state.fen);
+      const verifiedMove = tryExecuteNode(verifyChess, node);
+      if (verifiedMove && verifiedMove.from === from && verifiedMove.to === to) { matchingNode = node; break; }
     }
 
     if (matchingNode) {
-      // === CORRECT MOVE ===
-      const newFen = chess.fen();
-      const newHistory = [...state.moveHistory, move.san];
-
-      // Verify checkmate with chess.js instead of trusting tree's isMate flag
       const isActualCheckmate = chess.isCheckmate();
-
       const opponentColor = currentTurn === 'w' ? 'b' : 'w';
       const realDefenses = matchingNode.children.filter(n => !n.isThreat && n.color === opponentColor);
 
-      // For direct/self mate, require actual checkmate for terminal nodes
-      const isMateProblem = problem.genre === 'direct' || problem.genre === 'self';
+      const isMateProblem = problem.genre === 'self';
       let isSolved: boolean;
       if (isMateProblem) {
-        // Only solved if actually checkmate, or if there are still defenses to auto-play
         isSolved = isActualCheckmate;
       } else {
-        isSolved = matchingNode.children.length === 0;
+        isSolved = matchingNode.children.length === 0 || isActualCheckmate;
       }
 
       if (isSolved) {
@@ -305,12 +670,11 @@ export function useProblem() {
       }
 
       if (problem.genre === 'help') {
-        const nextNodes = matchingNode.children;
         setState(prev => ({
           ...prev,
           fen: newFen,
           moveHistory: newHistory,
-          currentNodes: nextNodes,
+          currentNodes: matchingNode.children,
           feedback: '',
           lastMove: { from, to },
           feedbackSquare: to,
@@ -319,17 +683,13 @@ export function useProblem() {
           hintSquares: null,
         }));
         setTimeout(() => {
-          setState(prev => {
-            if (prev.feedbackType === 'correct' && prev.status === 'solving') {
-              return { ...prev, feedbackSquare: null, feedbackType: null };
-            }
-            return prev;
-          });
+          setState(prev => prev.feedbackType === 'correct' && prev.status === 'solving'
+            ? { ...prev, feedbackSquare: null, feedbackType: null } : prev);
         }, CORRECT_FLASH);
         return true;
       }
 
-      // Direct/Self: correct move, opponent auto-plays
+      // Self: auto-play opponent
       if (realDefenses.length > 0) {
         setState(prev => ({
           ...prev,
@@ -346,227 +706,143 @@ export function useProblem() {
         autoPlayTimerRef.current = setTimeout(() => {
           const defenseNode = realDefenses[0];
           const defenseChess = new Chess(newFen);
-
           try {
-            const defenseUci = defenseNode.moveUci;
-            let defMove;
-
-            if (defenseUci.startsWith('san:')) {
-              defMove = defenseChess.move(defenseUci.slice(4));
-            } else {
-              const defFrom = defenseUci.slice(0, 2);
-              const defTo = defenseUci.slice(2, 4);
-              const defPromo = defenseUci.length > 4 ? defenseUci[4] : undefined;
-              defMove = defenseChess.move({ from: defFrom, to: defTo, promotion: defPromo });
-            }
-
+            const defMove = tryExecuteNode(defenseChess, defenseNode);
             if (defMove) {
               const afterDefenseFen = defenseChess.fen();
-              const nextWhiteNodes = defenseNode.children;
               const defLastMove = { from: defMove.from, to: defMove.to };
+              const isDefCheckmate = defenseChess.isCheckmate();
 
-              const isDefenseCheckmate = defenseChess.isCheckmate();
-
-              if (isDefenseCheckmate || (!isMateProblem && nextWhiteNodes.length === 0)) {
+              if (isDefCheckmate || defenseNode.children.length === 0) {
                 const pb = startPlayback(state.initialFen, problem.solutionTree, true);
                 setState(prev => ({
-                  ...prev,
-                  fen: afterDefenseFen,
-                  moveHistory: [...newHistory, defMove.san],
-                  currentNodes: [],
-                  status: 'correct',
-                  feedback: '',
-                  lastMove: defLastMove,
-                  feedbackSquare: null,
-                  feedbackType: null,
-                  waitingForAutoPlay: false,
-                  playback: pb,
+                  ...prev, fen: afterDefenseFen, moveHistory: [...newHistory, defMove.san],
+                  currentNodes: [], status: 'correct', feedback: '', lastMove: defLastMove,
+                  feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
                 }));
               } else {
                 setState(prev => ({
-                  ...prev,
-                  fen: afterDefenseFen,
-                  moveHistory: [...newHistory, defMove.san],
-                  currentNodes: nextWhiteNodes,
-                  feedback: '',
-                  lastMove: defLastMove,
-                  feedbackSquare: null,
-                  feedbackType: null,
-                  waitingForAutoPlay: false,
+                  ...prev, fen: afterDefenseFen, moveHistory: [...newHistory, defMove.san],
+                  currentNodes: defenseNode.children, feedback: '', lastMove: defLastMove,
+                  feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false,
                 }));
               }
             }
           } catch {
-            setState(prev => ({
-              ...prev,
-              currentNodes: defenseNode.children,
-              waitingForAutoPlay: false,
-              feedbackSquare: null,
-              feedbackType: null,
-            }));
+            setState(prev => ({ ...prev, currentNodes: defenseNode.children, waitingForAutoPlay: false, feedbackSquare: null, feedbackType: null }));
           }
         }, AUTO_PLAY_DELAY);
         return true;
       }
-
-      // Matched in tree but dead end (no defenses, not checkmate) — treat as wrong
-      const deadEndFen = chess.fen();
-      chess.undo();
-      setState(prev => ({
-        ...prev,
-        feedbackSquare: to,
-        feedbackType: 'incorrect',
-        hintSquares: null,
-        wrongMoveCount: prev.wrongMoveCount + 1,
-        wrongMoveFen: deadEndFen,
-        wrongMoveLastMove: { from, to },
-      }));
-      setTimeout(() => {
-        setState(prev => ({
-          ...prev,
-          wrongMoveFen: null,
-          wrongMoveLastMove: null,
-        }));
-        setTimeout(() => {
-          setState(prev => {
-            if (prev.feedbackType === 'incorrect') {
-              return { ...prev, feedbackSquare: null, feedbackType: null };
-            }
-            return prev;
-          });
-        }, 300);
-      }, WRONG_MOVE_PAUSE);
-      return false;
-    } else {
-      // === WRONG MOVE (not in tree) ===
-      // Show piece at wrong destination temporarily before undoing
-      const wrongFen = chess.fen();
-      chess.undo();
-
-      setState(prev => ({
-        ...prev,
-        feedbackSquare: to,
-        feedbackType: 'incorrect',
-        hintSquares: null,
-        wrongMoveCount: prev.wrongMoveCount + 1,
-        wrongMoveFen: wrongFen,
-        wrongMoveLastMove: { from, to },
-      }));
-
-      // After pause, snap back to the real position
-      setTimeout(() => {
-        setState(prev => ({
-          ...prev,
-          wrongMoveFen: null,
-          wrongMoveLastMove: null,
-        }));
-        // Then clear the red highlight after another short delay
-        setTimeout(() => {
-          setState(prev => {
-            if (prev.feedbackType === 'incorrect') {
-              return { ...prev, feedbackSquare: null, feedbackType: null };
-            }
-            return prev;
-          });
-        }, 300);
-      }, WRONG_MOVE_PAUSE);
-
-      return false;
     }
-  }, [state, startPlayback]);
 
-  // Show hint: highlight the correct piece and its valid destinations
-  // Only shows moves that are actually legal in chess.js (filters out retro/fairy moves)
+    // Wrong move
+    const wrongFen = chess.fen();
+    chess.undo();
+    flashWrongMove(to, wrongFen, from);
+    return false;
+  }, [state, startPlayback, stockfish, sfAutoPlayOpponent, flashWrongMove]);
+
+  // ── Show hint ──
   const showHint = useCallback(() => {
-    const { currentNodes, fen, problem } = state;
+    const { fen, problem, currentNodes } = state;
     if (!problem) return;
 
+    // Helper: get all legal destination squares for a piece at `from`
+    const getAllLegalMoves = (chessFen: string, from: string): string[] => {
+      try {
+        const chess = new Chess(chessFen);
+        const moves = chess.moves({ square: from as never, verbose: true });
+        return moves.map(m => m.to);
+      } catch { return []; }
+    };
+
+    // Stockfish hint for direct/study
+    if (usesStockfish(problem.genre) && stockfish) {
+      (async () => {
+        const result = await stockfish.analyze(fen, 18);
+        if (!result) return;
+
+        const hFrom = result.bestMove.slice(0, 2);
+        // Show the piece to move + ALL its legal moves (not just the answer)
+        const allTargets = getAllLegalMoves(fen, hFrom);
+        if (allTargets.length > 0) {
+          setState(prev => ({ ...prev, hintSquares: [hFrom, ...allTargets] }));
+        }
+      })();
+      return;
+    }
+
+    // Solution tree hint for help/self
     const currentTurn = fen.split(' ')[1] as 'w' | 'b';
     const validNodes = currentNodes.filter(n => n.color === currentTurn);
     if (validNodes.length === 0) return;
 
-    // Try each node and verify the move is actually legal in chess.js
     const verifiedMoves: { from: string; to: string; isKey: boolean }[] = [];
     for (const node of validNodes) {
-      try {
-        const chess = new Chess(fen);
-        const uci = node.moveUci;
-        let move;
-        if (uci.startsWith('san:')) {
-          move = chess.move(uci.slice(4));
-        } else if (uci.length >= 4) {
-          const from = uci.slice(0, 2);
-          const to = uci.slice(2, 4);
-          const promo = uci.length > 4 ? uci[4] : undefined;
-          move = chess.move({ from, to, promotion: promo });
-        }
-        if (!move) {
-          // Try SAN as fallback
-          const chess2 = new Chess(fen);
-          move = chess2.move(node.moveSan);
-        }
-        if (move) {
-          verifiedMoves.push({ from: move.from, to: move.to, isKey: node.isKey });
-        }
-      } catch { /* skip unplayable moves */ }
+      const chess = new Chess(fen);
+      const move = tryExecuteNode(chess, node);
+      if (move) {
+        verifiedMoves.push({ from: move.from, to: move.to, isKey: node.isKey });
+      }
     }
-
     if (verifiedMoves.length === 0) return;
 
-    // Pick the key move's from-square, or first verified move
     const keyMove = verifiedMoves.find(m => m.isKey) || verifiedMoves[0];
-    const fromSquare = keyMove.from;
-
-    // Get all destination squares from the same from-square
-    const toSquares = verifiedMoves
-      .filter(m => m.from === fromSquare)
-      .map(m => m.to);
-
-    setState(prev => ({
-      ...prev,
-      hintSquares: [fromSquare, ...toSquares],
-    }));
-  }, [state]);
+    // Show the piece to move + ALL its legal moves (not just the answer)
+    const allTargets = getAllLegalMoves(fen, keyMove.from);
+    setState(prev => ({ ...prev, hintSquares: [keyMove.from, ...allTargets] }));
+  }, [state, stockfish]);
 
   const resetProblem = useCallback(() => {
-    if (state.problem) {
-      loadProblem(state.problem);
-    }
+    if (state.problem) loadProblem(state.problem);
   }, [state.problem, loadProblem]);
 
+  // ── Give Up / Show Solution ──
   const showSolution = useCallback(() => {
-    const pb = state.problem ? startPlayback(state.initialFen, state.problem.solutionTree) : null;
-    // Start at moveIndex 0 so the first correct move auto-plays on the board
+    const { problem, initialFen } = state;
+    if (!problem) return;
+
+    // For Stockfish genres, compute the line with Stockfish
+    if (usesStockfish(problem.genre) && stockfish) {
+      setState(prev => ({ ...prev, status: 'viewing', feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null, playback: null }));
+
+      (async () => {
+        const positions = await computeStockfishLine(initialFen, problem.moveCount, stockfish);
+        const pb = {
+          positions,
+          mainLine: [] as SolutionNode[],
+          moveIndex: positions.length > 1 ? 0 : -1,
+          exploring: false,
+          exploreFen: '',
+          exploreLastMove: null,
+        };
+        setState(prev => prev.status === 'viewing' ? { ...prev, playback: pb } : prev);
+      })();
+      return;
+    }
+
+    // Solution tree path
+    let pb = startPlayback(initialFen, problem.solutionTree);
     if (pb && pb.positions.length > 1) {
       pb.moveIndex = 0;
     }
+    if (pb && pb.positions.length <= 1) {
+      pb = { ...pb, moveIndex: -1 };
+    }
     setState(prev => ({
-      ...prev,
-      status: 'viewing',
-      feedback: '',
-      feedbackSquare: null,
-      feedbackType: null,
-      hintSquares: null,
-      playback: pb,
+      ...prev, status: 'viewing', feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null, playback: pb,
     }));
-  }, [state.problem, state.initialFen, startPlayback]);
+  }, [state.problem, state.initialFen, startPlayback, stockfish]);
 
-  // Playback navigation
+  // ── Playback navigation ──
   const playbackGoTo = useCallback((index: number) => {
     setState(prev => {
       if (!prev.playback) return prev;
       const clamped = Math.max(-1, Math.min(prev.playback.positions.length - 2, index));
       return {
-        ...prev,
-        feedbackSquare: null,
-        feedbackType: null,
-        playback: {
-          ...prev.playback,
-          moveIndex: clamped,
-          exploring: false,
-          exploreFen: '',
-          exploreLastMove: null,
-        },
+        ...prev, feedbackSquare: null, feedbackType: null,
+        playback: { ...prev.playback, moveIndex: clamped, exploring: false, exploreFen: '', exploreLastMove: null },
       };
     });
   }, []);
@@ -576,12 +852,7 @@ export function useProblem() {
     setState(prev => {
       if (!prev.playback) return prev;
       if (prev.playback.exploring) {
-        return {
-          ...prev,
-          feedbackSquare: null,
-          feedbackType: null,
-          playback: { ...prev.playback, exploring: false, exploreFen: '', exploreLastMove: null },
-        };
+        return { ...prev, feedbackSquare: null, feedbackType: null, playback: { ...prev.playback, exploring: false, exploreFen: '', exploreLastMove: null } };
       }
       const idx = Math.max(-1, prev.playback.moveIndex - 1);
       return { ...prev, feedbackSquare: null, feedbackType: null, playback: { ...prev.playback, moveIndex: idx } };
@@ -591,12 +862,7 @@ export function useProblem() {
     setState(prev => {
       if (!prev.playback) return prev;
       if (prev.playback.exploring) {
-        return {
-          ...prev,
-          feedbackSquare: null,
-          feedbackType: null,
-          playback: { ...prev.playback, exploring: false, exploreFen: '', exploreLastMove: null },
-        };
+        return { ...prev, feedbackSquare: null, feedbackType: null, playback: { ...prev.playback, exploring: false, exploreFen: '', exploreLastMove: null } };
       }
       const idx = Math.min(prev.playback.positions.length - 2, prev.playback.moveIndex + 1);
       return { ...prev, feedbackSquare: null, feedbackType: null, playback: { ...prev.playback, moveIndex: idx } };
@@ -606,26 +872,17 @@ export function useProblem() {
     setState(prev => {
       if (!prev.playback) return prev;
       return {
-        ...prev,
-        feedbackSquare: null,
-        feedbackType: null,
-        playback: {
-          ...prev.playback,
-          moveIndex: prev.playback.positions.length - 2,
-          exploring: false,
-          exploreFen: '',
-          exploreLastMove: null,
-        },
+        ...prev, feedbackSquare: null, feedbackType: null,
+        playback: { ...prev.playback, moveIndex: prev.playback.positions.length - 2, exploring: false, exploreFen: '', exploreLastMove: null },
       };
     });
   }, []);
 
-  // Compute effective fen and lastMove (playback overrides when active)
+  // Compute effective fen and lastMove
   const playback = state.playback;
   let effectiveFen = state.fen;
   let effectiveLastMove = state.lastMove;
 
-  // When a wrong move is being shown, override with the wrong position
   if (state.wrongMoveFen) {
     effectiveFen = state.wrongMoveFen;
     effectiveLastMove = state.wrongMoveLastMove;

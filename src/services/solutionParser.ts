@@ -14,8 +14,9 @@ const CASTLING_RE = /^(0-0-0|O-O-O|0-0|O-O)([+#!?]*)/;
 
 function yacpdbToUci(move: string): string {
   const clean = move.replace(/[+#!?]/g, '').trim();
-  if (clean === '0-0' || clean === 'O-O') return 'e1g1';
-  if (clean === '0-0-0' || clean === 'O-O-O') return 'e1c1';
+  // Castling: use san: prefix so chess.js handles king position correctly
+  if (clean === '0-0' || clean === 'O-O') return 'san:O-O';
+  if (clean === '0-0-0' || clean === 'O-O-O') return 'san:O-O-O';
 
   // Long algebraic: Bf7-g8 → f7g8
   const mLong = clean.match(/^([KQRBSNP]?)([a-h][1-8])[-*x]?([a-h][1-8])(?:=([QRBN]))?$/i);

@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { Chessboard } from 'react-chessboard';
+import type { PromotionPieceOption } from 'react-chessboard/dist/chessboard/types';
 import { Chess } from 'chess.js';
 
 interface BoardProps {
@@ -16,6 +17,7 @@ interface BoardProps {
 
 export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares }: BoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
   const boardWidth = width || 400;
 
   // Feedback icon position (absolute inside the board container)
@@ -32,6 +34,18 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
       : row * sqSize + 2;
     return { x, y };
   }, [feedbackSquare, feedbackType, orientation, boardWidth]);
+
+  const isPromotionMove = useCallback((from: string, to: string): boolean => {
+    try {
+      const chess = new Chess(fen);
+      const piece = chess.get(from as never);
+      if (!piece || piece.type !== 'p') return false;
+      const targetRank = to[1];
+      return (piece.color === 'w' && targetRank === '8') || (piece.color === 'b' && targetRank === '1');
+    } catch {
+      return false;
+    }
+  }, [fen]);
 
   const legalMoves = useMemo(() => {
     if (!selectedSquare) return [];
@@ -95,6 +109,11 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     if (selectedSquare) {
       const isLegalTarget = legalMoves.some(m => m.to === square);
       if (isLegalTarget) {
+        if (isPromotionMove(selectedSquare, square)) {
+          setPromotionMove({ from: selectedSquare, to: square });
+          setSelectedSquare(null);
+          return;
+        }
         try {
           const chess = new Chess(fen);
           const piece = chess.get(selectedSquare as never);
@@ -123,8 +142,21 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string) => {
     setSelectedSquare(null);
+    if (isPromotionMove(source, target)) {
+      setPromotionMove({ from: source, to: target });
+      return true; // Accept visually, wait for promotion selection
+    }
     return onPieceDrop(source, target, piece);
-  }, [onPieceDrop]);
+  }, [onPieceDrop, isPromotionMove]);
+
+  const handlePromotionPieceSelect = useCallback((piece?: PromotionPieceOption, from?: string, to?: string) => {
+    const src = from || promotionMove?.from;
+    const tgt = to || promotionMove?.to;
+    setPromotionMove(null);
+    if (!piece || !src || !tgt) return false;
+    // piece is like 'wQ', 'wR', 'wB', 'wN'
+    return onPieceDrop(src, tgt, piece);
+  }, [onPieceDrop, promotionMove]);
 
   const handlePieceDragBegin = useCallback(() => {
     setSelectedSquare(null);
@@ -137,6 +169,9 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
         onPieceDrop={handlePieceDrop}
         onSquareClick={handleSquareClick}
         onPieceDragBegin={handlePieceDragBegin}
+        onPromotionPieceSelect={handlePromotionPieceSelect}
+        promotionToSquare={promotionMove?.to as never}
+        showPromotionDialog={!!promotionMove}
         boardWidth={boardWidth}
         boardOrientation={orientation}
         customSquareStyles={customSquareStyles}

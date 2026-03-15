@@ -47,30 +47,32 @@ export function FeedbackPanel({
         </div>
       )}
 
-      {/* Success — just a Next button with green accent */}
+      {/* Success */}
       {status === 'correct' && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {onAnalyze && (
+              <button
+                onClick={onAnalyze}
+                disabled={analyzing}
+                className="px-2.5 py-1.5 text-xs rounded bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                {analyzing ? '...' : 'Analyze'}
+              </button>
+            )}
+            {stockfishLoading && (
+              <span className="text-xs text-gray-400">Loading Stockfish...</span>
+            )}
+            {analysisResult && !analyzing && (
+              <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
+            )}
+          </div>
           <button
             onClick={onNextProblem}
             className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
           >
-            Next
+            Next →
           </button>
-          {onAnalyze && (
-            <button
-              onClick={onAnalyze}
-              disabled={analyzing}
-              className="px-2.5 py-1.5 text-xs rounded bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-            >
-              {analyzing ? '...' : 'Analyze'}
-            </button>
-          )}
-          {stockfishLoading && (
-            <span className="text-xs text-gray-400">Loading Stockfish...</span>
-          )}
-          {analysisResult && !analyzing && (
-            <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
-          )}
         </div>
       )}
 
@@ -109,34 +111,36 @@ export function FeedbackPanel({
 
       {/* Viewing solution */}
       {status === 'viewing' && (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onReset}
-            className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
-          >
-            Try Again
-          </button>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onReset}
+              className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
+            >
+              Try Again
+            </button>
+            {onAnalyze && (
+              <button
+                onClick={onAnalyze}
+                disabled={analyzing}
+                className="px-2.5 py-1.5 text-xs rounded bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+              >
+                {analyzing ? '...' : 'Analyze'}
+              </button>
+            )}
+            {stockfishLoading && (
+              <span className="text-xs text-gray-400">Loading Stockfish...</span>
+            )}
+            {analysisResult && !analyzing && (
+              <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
+            )}
+          </div>
           <button
             onClick={onNextProblem}
             className="px-5 py-2 bg-cp-primary text-white rounded-lg hover:bg-cp-dark transition-colors text-sm font-medium"
           >
-            Next
+            Next →
           </button>
-          {onAnalyze && (
-            <button
-              onClick={onAnalyze}
-              disabled={analyzing}
-              className="px-2.5 py-1.5 text-xs rounded bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
-            >
-              {analyzing ? '...' : 'Analyze'}
-            </button>
-          )}
-          {stockfishLoading && (
-            <span className="text-xs text-gray-400">Loading Stockfish...</span>
-          )}
-          {analysisResult && !analyzing && (
-            <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
-          )}
         </div>
       )}
     </div>

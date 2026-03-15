@@ -106,8 +106,8 @@ export default function App() {
   const windowWidth = useWindowWidth();
   const boardWidth = Math.min(windowWidth - 32, 480);
 
-  const problem = useProblem();
   const stockfish = useStockfish();
+  const problem = useProblem(stockfish);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [allProblems, setAllProblems] = useState<ChessProblem[]>([]);
@@ -121,6 +121,7 @@ export default function App() {
           import('./data/problems-direct.json'),
           import('./data/problems-help.json'),
           import('./data/problems-self.json'),
+          import('./data/problems-study.json'),
         ]);
         const problems: ChessProblem[] = [];
         for (const m of modules) {
@@ -259,9 +260,11 @@ export default function App() {
   }, []);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
-    // Determine promotion
-    const isPromotion = piece[1] === 'P' && (target[1] === '8' || target[1] === '1');
-    return problem.tryMove(source, target, isPromotion ? 'q' : undefined);
+    // Determine promotion: react-chessboard passes the selected piece (e.g. 'wN', 'wQ')
+    const isPromotion = target[1] === '8' || target[1] === '1';
+    const promoMap: Record<string, string> = { Q: 'q', R: 'r', B: 'b', N: 'n' };
+    const promoPiece = isPromotion ? (promoMap[piece[1]] || 'q') : undefined;
+    return problem.tryMove(source, target, promoPiece);
   }, [problem]);
 
   const handleSelectProblem = useCallback((selected: ChessProblem) => {
@@ -316,6 +319,7 @@ export default function App() {
           view={view}
           currentGenre={currentGenre}
           onBack={goBack}
+          onShowHelp={view === 'solving' && currentGenre ? () => setShowTutorial(true) : undefined}
         />
 
         <main className="px-4 pb-8">
@@ -351,6 +355,8 @@ export default function App() {
                   <ProblemCard
                     problem={problem.problem}
                     showThemes={problem.status === 'correct' || problem.status === 'viewing'}
+                    problemNumber={currentGenre ? problemsByGenre[currentGenre].findIndex(p => p.id === problem.problem!.id) + 1 : undefined}
+                    genrePrefix={currentGenre === 'direct' ? 'D' : currentGenre === 'help' ? 'H' : currentGenre === 'self' ? 'S' : currentGenre === 'study' ? 'St' : ''}
                   />
                   <button
                     onClick={() => handleNavProblem(1)}
@@ -395,8 +401,8 @@ export default function App() {
                 />
               </div>
 
-              {/* Playback navigation arrows - directly below the board */}
-              {problem.playback && (problem.status === 'correct' || problem.status === 'viewing') && (
+              {/* Playback navigation arrows - directly below the board (hide if no moves computed) */}
+              {problem.playback && problem.playback.positions.length > 1 && (problem.status === 'correct' || problem.status === 'viewing') && (
                 <div className="flex items-center justify-center">
                   <button
                     onClick={problem.playbackFirst}

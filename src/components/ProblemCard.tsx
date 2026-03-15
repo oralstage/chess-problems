@@ -1,37 +1,35 @@
+import { useState } from 'react';
 import type { ChessProblem } from '../types';
 import { findTheme } from '../data/themes';
 
 interface ProblemCardProps {
   problem: ChessProblem;
   showThemes?: boolean;
+  problemNumber?: number;
+  genrePrefix?: string;
 }
 
-const GENRE_LABELS: Record<string, { label: string; color: string }> = {
-  direct: { label: 'Direct Mate', color: 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400' },
-  help: { label: 'Helpmate', color: 'bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' },
-  self: { label: 'Selfmate', color: 'bg-violet-500/10 text-violet-600 dark:bg-violet-500/20 dark:text-violet-400' },
-  study: { label: 'Study', color: 'bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400' },
-};
-
 function stipulationDisplay(stip: string): string {
-  if (stip.startsWith('h#')) return `Helpmate in ${stip.slice(2)}`;
-  if (stip.startsWith('s#')) return `Selfmate in ${stip.slice(2)}`;
-  if (stip.startsWith('#')) return `Mate in ${stip.slice(1)}`;
-  if (stip === '+') return 'White wins';
+  if (stip.startsWith('h#')) return `h#${stip.slice(2)}`;
+  if (stip.startsWith('s#')) return `s#${stip.slice(2)}`;
+  if (stip.startsWith('#')) return `#${stip.slice(1)}`;
+  if (stip === '+') return 'Win';
   if (stip === '=') return 'Draw';
   return stip;
 }
 
-export function ProblemCard({ problem, showThemes }: ProblemCardProps) {
-  const genre = GENRE_LABELS[problem.genre];
+export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }: ProblemCardProps) {
+  const [expandedTag, setExpandedTag] = useState<string | null>(null);
 
   return (
     <div className="space-y-1.5 min-w-0">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className={`px-2 py-0.5 rounded-md text-xs font-semibold tracking-wide ${genre?.color}`}>
-          {genre?.label}
-        </span>
-        <span className="text-base font-bold text-gray-900 dark:text-gray-100 tracking-tight">
+        {problemNumber !== undefined && (
+          <span className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+            {genrePrefix || ''}{problemNumber}
+          </span>
+        )}
+        <span className="text-sm text-gray-400 dark:text-gray-500 font-mono tracking-tight">
           {stipulationDisplay(problem.stipulation)}
         </span>
         {problem.award && (
@@ -55,19 +53,43 @@ export function ProblemCard({ problem, showThemes }: ProblemCardProps) {
       </div>
 
       {showThemes && problem.keywords.length > 0 && (
-        <div className="flex flex-wrap gap-1 pt-1">
-          {problem.keywords.map(kw => {
-            const theme = findTheme(kw);
+        <div className="space-y-1.5 pt-1">
+          <div className="flex flex-wrap gap-1">
+            {problem.keywords.map(kw => {
+              const theme = findTheme(kw);
+              const hasDescription = !!theme?.description;
+              const isExpanded = expandedTag === kw;
+              return hasDescription ? (
+                <button
+                  key={kw}
+                  onClick={() => setExpandedTag(isExpanded ? null : kw)}
+                  className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors ${
+                    isExpanded
+                      ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {kw}
+                </button>
+              ) : (
+                <span
+                  key={kw}
+                  className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
+                >
+                  {kw}
+                </span>
+              );
+            })}
+          </div>
+          {expandedTag && (() => {
+            const theme = findTheme(expandedTag);
+            if (!theme?.description) return null;
             return (
-              <span
-                key={kw}
-                className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                title={theme?.description}
-              >
-                {kw}
-              </span>
+              <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-lg px-3 py-2 leading-relaxed">
+                {theme.description}
+              </div>
             );
-          })}
+          })()}
         </div>
       )}
     </div>

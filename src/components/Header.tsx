@@ -7,6 +7,7 @@ interface HeaderProps {
   view: AppView;
   currentGenre: Genre | null;
   onBack: () => void;
+  onShowHelp?: () => void;
 }
 
 const GENRE_NAMES: Record<Genre, string> = {
@@ -16,7 +17,7 @@ const GENRE_NAMES: Record<Genre, string> = {
   study: 'Study',
 };
 
-export function Header({ theme, onToggleTheme, view, currentGenre, onBack }: HeaderProps) {
+export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp }: HeaderProps) {
   if (view === 'mode-select') {
     // Minimal header on home — just the theme toggle
     return (
@@ -54,6 +55,15 @@ export function Header({ theme, onToggleTheme, view, currentGenre, onBack }: Hea
         <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">
           {currentGenre ? GENRE_NAMES[currentGenre] : 'Chess Problems'}
         </h1>
+        {onShowHelp && (
+          <button
+            onClick={onShowHelp}
+            className="w-6 h-6 rounded-full border border-gray-300 dark:border-gray-600 text-xs font-bold text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
+            title={`What is ${currentGenre ? GENRE_NAMES[currentGenre] : ''}?`}
+          >
+            ?
+          </button>
+        )}
       </div>
 
       <button
