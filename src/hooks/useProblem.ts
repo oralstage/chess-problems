@@ -167,6 +167,27 @@ function computePositions(initialFen: string, mainLine: SolutionNode[]): Playbac
         lastMove: { from: move.from, to: move.to },
         san: move.san,
       });
+    } else if (node.isThreat && node.color !== chess.turn()) {
+      // Threat node (same color as parent) — insert a random opponent move first
+      const legalMoves = chess.moves({ verbose: true });
+      if (legalMoves.length > 0) {
+        const randomMove = legalMoves[0]; // Use first legal move for determinism
+        chess.move(randomMove);
+        positions.push({
+          fen: chess.fen(),
+          lastMove: { from: randomMove.from, to: randomMove.to },
+          san: randomMove.san,
+        });
+        // Now try the threat move
+        const threatMove = tryExecuteNode(chess, node);
+        if (threatMove) {
+          positions.push({
+            fen: chess.fen(),
+            lastMove: { from: threatMove.from, to: threatMove.to },
+            san: threatMove.san,
+          });
+        }
+      }
     } else {
       break;
     }
