@@ -2,10 +2,12 @@ import type { SolutionNode } from '../types';
 
 // ── Move notation conversion ────────────────────────────
 
-// Long algebraic: Piece + from + sep + to + promo
-const LONG_RE = /([KQRBSNP]?)([a-h][1-8])([-*x])([a-h][1-8])(=[QRBNS])?([+#!?]*)/i;
+// Long algebraic: Piece + from + sep + to + promo (sep includes ':' for captures)
+const LONG_RE = /([KQRBSNP]?)([a-h][1-8])([-*x:])([a-h][1-8])(=?[QRBNS])?([+#!?]*)/i;
 // Any move pattern (for extracting from text)
-const ANY_MOVE_RE = /(?:0-0-0|O-O-O|0-0|O-O|[KQRBSNP]?[a-h][1-8][-*x][a-h][1-8](?:=[QRBNS])?|[KQRBSNP][a-h]?[1-8]?[x*]?[a-h][1-8](?:=[QRBNS])?|[a-h][x*][a-h][1-8](?:=[QRBNS])?|[a-h][1-8](?:=[QRBNS])?)([+#!?]*)/;
+// Note: [a-h][18][QRBNS] handles promotions without '=' (e.g., f8Q instead of f8=Q)
+// Note: ':' is used as capture separator in some notations (e.g., R:c3)
+const ANY_MOVE_RE = /(?:0-0-0|O-O-O|0-0|O-O|[KQRBSNP]?[a-h][1-8][-*x:][a-h][1-8](?:=?[QRBNS])?|[KQRBSNP][a-h]?[1-8]?[x*:]?[a-h][1-8](?:=?[QRBNS])?|[a-h][x*:][a-h][1-8](?:=?[QRBNS])?|[a-h][18][QRBNS]|[a-h][1-8](?:=[QRBNS])?)([+#!?]*)/;
 const CASTLING_RE = /^(0-0-0|O-O-O|0-0|O-O)([+#!?]*)/;
 
 function yacpdbToUci(move: string): string {
@@ -14,15 +16,19 @@ function yacpdbToUci(move: string): string {
   if (clean === '0-0' || clean === 'O-O') return 'san:O-O';
   if (clean === '0-0-0' || clean === 'O-O-O') return 'san:O-O-O';
 
-  // Long algebraic: Bf7-g8 → f7g8
-  const mLong = clean.match(/^([KQRBSNP]?)([a-h][1-8])[-*x]?([a-h][1-8])(?:=([QRBN]))?$/i);
+  // Long algebraic: Bf7-g8 → f7g8, also handles promotion without '=' (d7-d8Q)
+  const mLong = clean.match(/^([KQRBSNP]?)([a-h][1-8])[-*x]?([a-h][1-8])(?:=?([QRBNS]))?$/i);
   if (mLong) {
-    return mLong[2].toLowerCase() + mLong[3].toLowerCase() + (mLong[4] ? mLong[4].toLowerCase() : '');
+    const promo = mLong[4] ? (mLong[4] === 'S' || mLong[4] === 's' ? 'n' : mLong[4].toLowerCase()) : '';
+    return mLong[2].toLowerCase() + mLong[3].toLowerCase() + promo;
   }
 
   // SAN: we can only extract the destination square (no source info)
   // Return a "san:" prefix so matching can use SAN comparison instead
-  return 'san:' + clean;
+  // Normalize S→N and add '=' for promotions without it (e.g., f8Q → f8=Q)
+  let sanClean = clean.replace(/S/g, 'N');
+  sanClean = sanClean.replace(/^([a-h][18])([QRBN])$/, '$1=$2');
+  return 'san:' + sanClean;
 }
 
 function normalizePiece(p: string): string {
@@ -30,7 +36,7 @@ function normalizePiece(p: string): string {
 }
 
 function yacpdbToSanApprox(move: string): string {
-  const clean = move.trim();
+  const clean = move.replace(/[!?]/g, '').trim();
   if (clean.startsWith('0-0-0') || clean.startsWith('O-O-O')) return 'O-O-O';
   if (clean.startsWith('0-0') || clean.startsWith('O-O')) return 'O-O';
 
@@ -38,9 +44,11 @@ function yacpdbToSanApprox(move: string): string {
   const mLong = clean.match(LONG_RE);
   if (mLong) {
     const piece = normalizePiece(mLong[1]);
-    const capture = mLong[3] === '*' || mLong[3] === 'x' ? 'x' : '';
+    const capture = mLong[3] === '*' || mLong[3] === 'x' || mLong[3] === ':' ? 'x' : '';
     const to = mLong[4];
-    const promo = mLong[5] ? '=' + normalizePiece(mLong[5].slice(1)) : '';
+    const promoRaw = mLong[5] || '';
+    const promoChar = promoRaw.replace('=', '');
+    const promo = promoChar ? '=' + normalizePiece(promoChar) : '';
     const suffix = mLong[6] || '';
 
     if (!piece || piece === 'P' || piece === 'p') {
@@ -50,8 +58,11 @@ function yacpdbToSanApprox(move: string): string {
     return piece + capture + to + suffix;
   }
 
-  // Already in SAN-like format - just normalize S→N
-  return clean.replace(/S/g, 'N');
+  // Already in SAN-like format - normalize S→N and add '=' for bare promotions
+  let san = clean.replace(/S/g, 'N');
+  san = san.replace(/^([a-h][18])([QRBN])/, '$1=$2');
+  san = san.replace(/^([a-h]x[a-h][18])([QRBN])/, '$1=$2');
+  return san;
 }
 
 // Extract individual move strings from text
@@ -62,6 +73,9 @@ function extractMoveStrings(text: string): string[] {
   // Remove common non-move tokens
   remaining = remaining.replace(/\bzz\b/gi, ''); // zugzwang marker
   remaining = remaining.replace(/\bbut\b/gi, ''); // "but" in tries
+  remaining = remaining.replace(/\bwaiting\b/gi, ''); // "waiting" zugzwang
+  remaining = remaining.replace(/\bzugzwang\.?\b/gi, ''); // "zugzwang" marker
+  remaining = remaining.replace(/\bep\.?\b/gi, ''); // en passant marker
 
   while (remaining.length > 0) {
     remaining = remaining.trim();

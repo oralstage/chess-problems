@@ -182,8 +182,8 @@ function matchMoveToTree(
   for (const node of nodes) {
     if (node.moveUci === uci) return node;
     if (node.moveSan === moveSan) return node;
-    const nodeSanClean = node.moveSan.replace(/[+#]/g, '');
-    const moveSanClean = moveSan.replace(/[+#]/g, '');
+    const nodeSanClean = node.moveSan.replace(/[+#!?]/g, '');
+    const moveSanClean = moveSan.replace(/[+#!?]/g, '');
     if (nodeSanClean === moveSanClean) return node;
     const verifyChess = new Chess(preFen);
     const verifiedMove = tryExecuteNode(verifyChess, node);
@@ -609,6 +609,24 @@ export function useProblem(stockfish?: StockfishApi) {
         setState(prev => ({ ...prev, hintSquares: [keyMove.from, ...allTargets] }));
         return;
       }
+
+      // Fallback: extract destination square from node text and find legal moves to it
+      const hintNode = validNodes.find(n => n.isKey) || validNodes[0];
+      const destMatch = hintNode.move.match(/([a-h][1-8])(?:=[QRBN])?$/i);
+      if (destMatch) {
+        const destSq = destMatch[1];
+        try {
+          const chess = new Chess(fen);
+          const legal = chess.moves({ verbose: true });
+          const candidates = legal.filter(m => m.to === destSq);
+          if (candidates.length > 0) {
+            const fromSq = candidates[0].from;
+            const allTargets = getAllLegalMoves(fen, fromSq);
+            setState(prev => ({ ...prev, hintSquares: [fromSq, ...allTargets] }));
+            return;
+          }
+        } catch { /* fallback to stockfish */ }
+      }
     }
 
     // Stockfish hint as fallback (if tree has no parseable moves)
@@ -703,6 +721,11 @@ export function useProblem(stockfish?: StockfishApi) {
     if (playback.exploring) {
       effectiveFen = playback.exploreFen;
       effectiveLastMove = playback.exploreLastMove;
+    } else if (state.status === 'correct' && playback.moveIndex >= playback.positions.length - 2) {
+      // At end of playback after solving: show actual solved position
+      // (playback may be incomplete if main line moves couldn't all be executed)
+      effectiveFen = state.fen;
+      effectiveLastMove = state.lastMove;
     } else {
       const pos = playback.positions[playback.moveIndex + 1] || playback.positions[0];
       effectiveFen = pos.fen;
