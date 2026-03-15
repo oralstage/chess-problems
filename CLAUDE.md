@@ -102,8 +102,16 @@
 - **Bookmarks**: Stored per-genre in localStorage (`cp-bookmarks`). Toggle via star button next to problem card.
 - **"Exploring" / "Free play"**: Shows when user makes a move on the board during playback. Clicking a solution move or pressing < returns to normal playback.
 
+### URL Routing
+- Hash-based: `#/direct/44` persists genre and problem number across reloads
+- `updateHash(genre, problemId)` writes hash; `useEffect` restores on load
+- All navigation functions (selectMode, handleSelectProblem, goBack, etc.) call `updateHash`
+- `hashRestoredRef` prevents double-restore after initial load
+
 ### Problem Data
-- ~13,400 problems total across 4 genres
-- `problems-direct.json` is 9.2MB (largest), loaded via dynamic import
+- ~36,900 problems total across 4 genres (direct: 27,542, help: 5,856, self: 2,197, study: 1,274)
+- Move count limited: #1-#5 for direct/help/self, no limit for study
+- **Cloudflare 25MB/file limit**: `problems-direct.json` split into `problems-direct-1.json` and `problems-direct-2.json`, both loaded via `Promise.allSettled` and concatenated
 - Starter set (`problems-starter.json`, 29KB) exists but currently unused
 - Cache in `scripts/.cache/` stores raw YACPDB API responses
+- **Stable numbering**: `problemIndexMap` (Map<id, index>) in ProblemList ensures global indices persist across filters
