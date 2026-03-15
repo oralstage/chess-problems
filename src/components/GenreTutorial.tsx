@@ -54,6 +54,18 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
       'Endgame positions are most common',
     ],
   },
+  retro: {
+    title: 'Retro',
+    icon: '🔍',
+    description: 'Retrograde analysis problems. You must deduce the history of the position — what moves led here? — to find the solution. Castling rights, en passant legality, and proof games are common themes.',
+    rules: [
+      'Analyze the position\'s history before making moves',
+      'Castling and en passant rights depend on deduced history',
+      'The stipulation varies: #1, #2, h#2, etc.',
+      'Some positions have no forward moves — purely analytical',
+      'Check the stipulation badge on each problem',
+    ],
+  },
 };
 
 export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {

@@ -18,8 +18,8 @@
 ### Data Pipeline
 1. `scripts/fetch-problems.ts` scans YACPDB by ID range, filters orthodox problems
 2. `src/utils/algebraicToFen.ts` converts YACPDB algebraic notation to FEN
-3. Output: 4 JSON files in `src/data/` (direct, help, self, study)
-4. App loads JSON at startup, parses solution text into trees via `solutionParser.ts`
+3. Output: 5 JSON files in `src/data/` (direct-1, direct-2, help, self, study). Direct is split for Cloudflare 25MB/file limit.
+4. App lazy-loads JSON per genre on demand (not at startup), parses solution text into trees via `solutionParser.ts`
 
 ### Key Files
 | File | Purpose |
@@ -33,9 +33,9 @@
 | `scripts/fetch-problems.ts` | YACPDB data fetcher with caching |
 
 ### 4 Genres (completely separated)
-- **Direct Mate** (#1-#8): White to move, force checkmate. User=white, black auto-plays.
-- **Helpmate** (h#1-h#8): Black moves first, both sides cooperate. User plays both sides.
-- **Selfmate** (s#1-s#8): White forces black to deliver checkmate. User=white, black auto-plays.
+- **Direct Mate** (#1-#5): White to move, force checkmate. User=white, black auto-plays.
+- **Helpmate** (h#1-h#5): Black moves first, both sides cooperate. User plays both sides.
+- **Selfmate** (s#1-s#5): White forces black to deliver checkmate. User=white, black auto-plays.
 - **Study** (+/=): No move limit. Win or draw. User=white, black auto-plays.
 
 ### Move Validation
@@ -66,7 +66,7 @@
 
 ### react-chessboard
 - Click-to-move works (click piece, click destination). Drag also works.
-- Board orientation: flipped for helpmate (black at bottom).
+- Board orientation: always white at bottom (chess problem convention, even for helpmate).
 - Responsive: `min(viewportWidth - 32, 560)`.
 - **CRITICAL**: `customArrows` must be passed `[]` (empty array) to clear arrows, NOT `undefined`. Passing `undefined` leaves previous arrows rendered on the board. This caused a persistent bug where analysis arrows stayed after Stop.
 
@@ -108,10 +108,23 @@
 - All navigation functions (selectMode, handleSelectProblem, goBack, etc.) call `updateHash`
 - `hashRestoredRef` prevents double-restore after initial load
 
+### Lazy Loading & Caching
+- **Per-genre lazy loading**: Genre data is NOT loaded at startup. `loadGenre(genre)` is called when user selects a genre or hash restore triggers. This makes the initial page load instant.
+- **Estimated counts**: `ModeSelector` shows hardcoded `ESTIMATED_COUNTS` for unloaded genres so the genre selection screen renders immediately without waiting for data.
+- **Problem cache for instant reload**: `cacheProblem()` saves the current problem (minus `solutionTree`) to localStorage (`cp-cached-problem`). On hash restore, the cached problem is shown immediately while the full genre data loads in the background. `solutionTree` is rebuilt from `solutionText` via `parseSolution()`.
+- **Cloudflare 25MB/file limit**: `problems-direct.json` split into `problems-direct-1.json` and `problems-direct-2.json`, both loaded via `Promise.allSettled` and concatenated.
+- Vite content-hashes static assets, so browser caches genre data after first download.
+
 ### Problem Data
-- ~36,900 problems total across 4 genres (direct: 27,542, help: 5,856, self: 2,197, study: 1,274)
-- Move count limited: #1-#5 for direct/help/self, no limit for study
-- **Cloudflare 25MB/file limit**: `problems-direct.json` split into `problems-direct-1.json` and `problems-direct-2.json`, both loaded via `Promise.allSettled` and concatenated
+- ~36,900 problems total across 4 genres (direct: 27,541, help: 5,856, self: 2,197, study: 1,274)
+- Move count limited: #1-#5 for direct/help/self, no limit for study. `#0` excluded (proof positions).
 - Starter set (`problems-starter.json`, 29KB) exists but currently unused
 - Cache in `scripts/.cache/` stores raw YACPDB API responses
 - **Stable numbering**: `problemIndexMap` (Map<id, index>) in ProblemList ensures global indices persist across filters
+
+### Future: Retro as separate genre
+- FIDE Album classifies chess problems into 8 sections: #2, #3, #n, Study, Helpmate, Selfmate, Fairy, Retro. This app covers the first 6 (merging #2/#3/#n into "Direct Mate"), excluding Fairy (needs non-standard pieces/rules) and partially including Retro.
+- Retro problems require knowing upfront that retrograde analysis is needed (e.g., "can White castle?" depends on deducing prior moves). Currently mixed into Direct Mate with no indication, which confuses users.
+- Detection: YACPDB `keywords` array contains `"Retro"`. Already in problem data.
+- Options: (1) separate 5th genre "Retro", (2) keep in Direct Mate but show prominent "Retro analysis required" badge before solving, (3) filter out retro problems entirely.
+- Some retro problems are playable (e.g., en passant key), others are not (retro move notation like `1.Kf3*g2`). The app already shows a "Retro problem" banner for unplayable ones (`positions.length <= 1`).

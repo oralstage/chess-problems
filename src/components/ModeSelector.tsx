@@ -31,6 +31,11 @@ const MODES: {
     title: 'Study',
     brief: 'Win or draw with no move limit',
   },
+  {
+    genre: 'retro',
+    title: 'Retro',
+    brief: 'Deduce the history of the position',
+  },
 ];
 
 export function ModeSelector({ onSelectMode, progress, problemCounts }: ModeSelectorProps) {

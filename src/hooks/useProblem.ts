@@ -54,12 +54,16 @@ const AUTO_PLAY_DELAY = 500;
 const CORRECT_FLASH = 400;
 const WRONG_MOVE_PAUSE = 500;
 
-function getFirstMoveColor(genre: Genre): 'w' | 'b' {
-  return genre === 'help' ? 'b' : 'w';
+function getFirstMoveColor(genre: Genre, stipulation?: string): 'w' | 'b' {
+  if (genre === 'help') return 'b';
+  if (genre === 'retro' && stipulation?.startsWith('h#')) return 'b';
+  return 'w';
 }
 
-function getUserColor(genre: Genre): 'w' | 'b' {
-  return genre === 'help' ? 'b' : 'w';
+function getUserColor(genre: Genre, stipulation?: string): 'w' | 'b' {
+  if (genre === 'help') return 'b';
+  if (genre === 'retro' && stipulation?.startsWith('h#')) return 'b';
+  return 'w';
 }
 
 // ── Solution tree helpers ─────────────────────────────────
@@ -304,8 +308,8 @@ export function useProblem(stockfish?: StockfishApi) {
   const loadProblem = useCallback((problem: ChessProblem) => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
 
-    const firstColor = getFirstMoveColor(problem.genre);
-    const userColor = getUserColor(problem.genre);
+    const firstColor = getFirstMoveColor(problem.genre, problem.stipulation);
+    const userColor = getUserColor(problem.genre, problem.stipulation);
 
     let fen = problem.fen;
     if (firstColor === 'b' && fen.includes(' w ')) {
@@ -495,8 +499,9 @@ export function useProblem(stockfish?: StockfishApi) {
         return true;
       }
 
-      if (problem.genre === 'help') {
-        // Help: user plays both sides, no auto-play
+      const isHelpStyle = problem.genre === 'help' || (problem.genre === 'retro' && problem.stipulation.startsWith('h#'));
+      if (isHelpStyle) {
+        // Help / retro-helpmate: user plays both sides, no auto-play
         setState(prev => ({
           ...prev,
           fen: newFen,

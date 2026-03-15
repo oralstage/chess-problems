@@ -15,6 +15,7 @@ const GENRE_NAMES: Record<Genre, string> = {
   help: 'Helpmate',
   self: 'Selfmate',
   study: 'Study',
+  retro: 'Retro',
 };
 
 export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp }: HeaderProps) {

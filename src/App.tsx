@@ -142,13 +142,14 @@ export default function App() {
     help: {},
     self: {},
     study: {},
+    retro: {},
   });
   const [currentProblemId, setCurrentProblemId] = useLocalStorage<Record<string, number | null>>('cp-current', {});
   const [seenTutorials, setSeenTutorials] = useLocalStorage<string[]>('cp-tutorials-seen', []);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showProblemList, setShowProblemList] = useState(false);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
-    direct: [], help: [], self: [], study: [],
+    direct: [], help: [], self: [], study: [], retro: [],
   });
 
   const windowWidth = useWindowWidth();
@@ -163,55 +164,69 @@ export default function App() {
   const [analysisActive, setAnalysisActive] = useState(false);
   const analysisActiveRef = useRef(false);
   const [analysisArrow, setAnalysisArrow] = useState<[string, string] | null>(null);
-  const [allProblems, setAllProblems] = useState<ChessProblem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [genreData, setGenreData] = useState<Record<Genre, ChessProblem[]>>({
+    direct: [], help: [], self: [], study: [], retro: [],
+  });
+  const [genreLoaded, setGenreLoaded] = useState<Record<Genre, boolean>>({
+    direct: false, help: false, self: false, study: false, retro: false,
+  });
+  const [genreLoading, setGenreLoading] = useState<Genre | null>(null);
 
-  // Load problem data from JSON files
-  useEffect(() => {
-    async function loadProblems() {
-      try {
-        const modules = await Promise.allSettled([
+  // Cache current problem in localStorage for instant reload
+  const cacheProblem = useCallback((p: ChessProblem) => {
+    try {
+      // Store minimal data needed to display immediately (no solutionTree — too large)
+      const { solutionTree, ...rest } = p;
+      void solutionTree;
+      localStorage.setItem('cp-cached-problem', JSON.stringify(rest));
+    } catch { /* quota exceeded — ignore */ }
+  }, []);
+
+  // Lazy-load genre data on demand
+  const loadGenre = useCallback(async (genre: Genre) => {
+    if (genreLoaded[genre]) return genreData[genre];
+    setGenreLoading(genre);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let modules: PromiseSettledResult<{ default: any[] }>[];
+      if (genre === 'direct') {
+        modules = await Promise.allSettled([
           import('./data/problems-direct-1.json'),
           import('./data/problems-direct-2.json'),
-          import('./data/problems-help.json'),
-          import('./data/problems-self.json'),
-          import('./data/problems-study.json'),
         ]);
-        const problems: ChessProblem[] = [];
-        for (const m of modules) {
-          if (m.status === 'fulfilled') {
-            const raw = m.value.default as ChessProblem[];
-            for (const p of raw) {
-              if (!p.solutionTree || p.solutionTree.length === 0) {
-                p.solutionTree = parseSolution(p.solutionText, p.genre === 'help' ? 'b' : 'w');
-              }
-            }
-            // Fix FEN for en passant retro problems
-            for (const p of raw) fixEnPassantFen(p);
-            problems.push(...raw);
-          }
-        }
-        setAllProblems(problems);
-      } catch {
-        // If separate files don't exist, try starter set
-        try {
-          const starter = await import('./data/problems-starter.json');
-          const raw = starter.default as ChessProblem[];
+      } else if (genre === 'help') {
+        modules = await Promise.allSettled([import('./data/problems-help.json')]);
+      } else if (genre === 'self') {
+        modules = await Promise.allSettled([import('./data/problems-self.json')]);
+      } else if (genre === 'retro') {
+        modules = await Promise.allSettled([import('./data/problems-retro.json')]);
+      } else {
+        modules = await Promise.allSettled([import('./data/problems-study.json')]);
+      }
+      const problems: ChessProblem[] = [];
+      for (const m of modules) {
+        if (m.status === 'fulfilled') {
+          const raw = m.value.default as ChessProblem[];
           for (const p of raw) {
             if (!p.solutionTree || p.solutionTree.length === 0) {
-              p.solutionTree = parseSolution(p.solutionText, p.genre === 'help' ? 'b' : 'w');
+              const firstColor = (p.genre === 'help' || (p.genre === 'retro' && p.stipulation.startsWith('h#'))) ? 'b' : 'w';
+              p.solutionTree = parseSolution(p.solutionText, firstColor);
             }
           }
           for (const p of raw) fixEnPassantFen(p);
-          setAllProblems(raw);
-        } catch {
-          setAllProblems([]);
+          problems.push(...raw);
         }
       }
-      setLoading(false);
+      problems.sort((a, b) => a.difficultyScore - b.difficultyScore);
+      setGenreData(prev => ({ ...prev, [genre]: problems }));
+      setGenreLoaded(prev => ({ ...prev, [genre]: true }));
+      setGenreLoading(null);
+      return problems;
+    } catch {
+      setGenreLoading(null);
+      return [];
     }
-    loadProblems();
-  }, []);
+  }, [genreLoaded, genreData]);
 
   // Run analysis when position changes and analysis mode is active
   useEffect(() => {
@@ -290,52 +305,18 @@ export default function App() {
     }
   }, [analysisActive]);
 
-  // Group problems by genre
-  const problemsByGenre = useMemo(() => {
-    const grouped: Record<Genre, ChessProblem[]> = { direct: [], help: [], self: [], study: [] };
-    for (const p of allProblems) {
-      if (grouped[p.genre]) {
-        grouped[p.genre].push(p);
-      }
+  // Genre data is now loaded lazily — problemsByGenre is just genreData
+  const problemsByGenre = genreData;
+
+  // Show actual counts for loaded genres, estimated counts for unloaded
+  const ESTIMATED_COUNTS: Record<Genre, number> = { direct: 27463, help: 5842, self: 2196, study: 1274, retro: 93 };
+  const problemCounts = useMemo(() => {
+    const counts: Record<Genre, number> = {} as Record<Genre, number>;
+    for (const g of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
+      counts[g] = genreLoaded[g] ? genreData[g].length : ESTIMATED_COUNTS[g];
     }
-    // Sort by difficulty
-    for (const genre of Object.keys(grouped) as Genre[]) {
-      grouped[genre].sort((a, b) => a.difficultyScore - b.difficultyScore);
-    }
-    return grouped;
-  }, [allProblems]);
-
-  const problemCounts = useMemo(() => ({
-    direct: problemsByGenre.direct.length,
-    help: problemsByGenre.help.length,
-    self: problemsByGenre.self.length,
-    study: problemsByGenre.study.length,
-  }), [problemsByGenre]);
-
-  // Find next unsolved problem in genre
-  const getNextProblem = useCallback((genre: Genre): ChessProblem | null => {
-    const problems = problemsByGenre[genre];
-    const genreProgress = progress[genre] || {};
-
-    // First try to resume current problem
-    const currentId = currentProblemId[genre];
-    if (currentId) {
-      const current = problems.find(p => p.id === currentId);
-      if (current && genreProgress[String(current.id)] !== 'solved') {
-        return current;
-      }
-    }
-
-    // Otherwise find next unsolved
-    for (const p of problems) {
-      if (genreProgress[String(p.id)] !== 'solved' && genreProgress[String(p.id)] !== 'skipped') {
-        return p;
-      }
-    }
-
-    // All solved/skipped - return first problem
-    return problems[0] || null;
-  }, [problemsByGenre, progress, currentProblemId]);
+    return counts;
+  }, [genreData, genreLoaded]);
 
   // ── Hash-based routing ──
   const updateHash = useCallback((genre: Genre | null, problemId?: number | null) => {
@@ -354,38 +335,74 @@ export default function App() {
     history.replaceState(null, '', `#/${genre}`);
   }, [problemsByGenre]);
 
-  // Restore from hash on initial load (after problems are loaded)
+  // Restore from hash on initial load
   const hashRestoredRef = useRef(false);
   useEffect(() => {
-    if (loading || allProblems.length === 0 || hashRestoredRef.current) return;
+    if (hashRestoredRef.current) return;
     hashRestoredRef.current = true;
 
     const hash = window.location.hash;
-    const match = hash.match(/^#\/(direct|help|self|study)(?:\/(\d+))?$/);
+    const match = hash.match(/^#\/(direct|help|self|study|retro)(?:\/(\d+))?$/);
     if (!match) return;
 
     const genre = match[1] as Genre;
     const problemNum = match[2] ? parseInt(match[2]) : null;
-    const problems = problemsByGenre[genre];
-    if (problems.length === 0) return;
 
     setCurrentGenre(genre);
     setView('solving');
 
-    if (problemNum && problemNum >= 1 && problemNum <= problems.length) {
-      const target = problems[problemNum - 1];
-      problem.loadProblem(target);
-      setCurrentProblemId(prev => ({ ...prev, [genre]: target.id }));
-    } else {
-      const nextProblem = getNextProblem(genre);
-      if (nextProblem) {
-        problem.loadProblem(nextProblem);
-        setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem.id }));
+    // Instantly show cached problem while genre data loads
+    try {
+      const cached = localStorage.getItem('cp-cached-problem');
+      if (cached) {
+        const cachedProblem = JSON.parse(cached) as ChessProblem;
+        // Rebuild solutionTree from solutionText
+        if (!cachedProblem.solutionTree || cachedProblem.solutionTree.length === 0) {
+          cachedProblem.solutionTree = parseSolution(cachedProblem.solutionText, cachedProblem.genre === 'help' ? 'b' : 'w');
+        }
+        fixEnPassantFen(cachedProblem);
+        // Only use cache if it matches the hash URL's genre
+        if (cachedProblem.genre === genre) {
+          problem.loadProblem(cachedProblem);
+          setCurrentProblemId(prev => ({ ...prev, [genre]: cachedProblem.id }));
+        }
       }
-    }
-  }, [loading, allProblems, problemsByGenre, getNextProblem, problem, setCurrentProblemId]);
+    } catch { /* corrupt cache — ignore */ }
 
-  const selectMode = useCallback((genre: Genre) => {
+    // Load full genre data in background (needed for problem list, navigation, etc.)
+    loadGenre(genre).then(problems => {
+      if (problems.length === 0) return;
+
+      // If we showed a cached problem, check if we need to update to the correct one
+      if (problemNum && problemNum >= 1 && problemNum <= problems.length) {
+        const target = problems[problemNum - 1];
+        // Only reload if different from cached
+        if (target.id !== problem.problem?.id) {
+          problem.loadProblem(target);
+          cacheProblem(target);
+          setCurrentProblemId(prev => ({ ...prev, [genre]: target.id }));
+        }
+      } else if (!problem.problem || problem.problem.genre !== genre) {
+        // No cached problem matched — find next unsolved
+        const genreProgress = progress[genre] || {};
+        let nextProblem: ChessProblem | null = null;
+        for (const p of problems) {
+          if (genreProgress[String(p.id)] !== 'solved' && genreProgress[String(p.id)] !== 'skipped') {
+            nextProblem = p;
+            break;
+          }
+        }
+        if (!nextProblem) nextProblem = problems[0];
+        if (nextProblem) {
+          problem.loadProblem(nextProblem);
+          cacheProblem(nextProblem);
+          setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem!.id }));
+        }
+      }
+    });
+  }, [loadGenre, problem, setCurrentProblemId, progress, cacheProblem]);
+
+  const selectMode = useCallback(async (genre: Genre) => {
     setCurrentGenre(genre);
     setView('solving');
 
@@ -394,15 +411,38 @@ export default function App() {
       setShowTutorial(true);
     }
 
-    const nextProblem = getNextProblem(genre);
+    // Load genre data if not loaded yet
+    const problems = await loadGenre(genre);
+
+    // Find next unsolved problem from the loaded data
+    const genreProgress = progress[genre] || {};
+    const currentId = currentProblemId[genre];
+    let nextProblem: ChessProblem | null = null;
+    if (currentId) {
+      const current = problems.find(p => p.id === currentId);
+      if (current && genreProgress[String(current.id)] !== 'solved') {
+        nextProblem = current;
+      }
+    }
+    if (!nextProblem) {
+      for (const p of problems) {
+        if (genreProgress[String(p.id)] !== 'solved' && genreProgress[String(p.id)] !== 'skipped') {
+          nextProblem = p;
+          break;
+        }
+      }
+    }
+    if (!nextProblem) nextProblem = problems[0] || null;
+
     if (nextProblem) {
       problem.loadProblem(nextProblem);
-      setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem.id }));
+      cacheProblem(nextProblem);
+      setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem!.id }));
       updateHash(genre, nextProblem.id);
     } else {
       updateHash(genre);
     }
-  }, [seenTutorials, getNextProblem, problem, setCurrentProblemId, updateHash]);
+  }, [seenTutorials, loadGenre, progress, currentProblemId, problem, setCurrentProblemId, updateHash, cacheProblem]);
 
   const closeTutorial = useCallback(() => {
     setShowTutorial(false);
@@ -428,10 +468,11 @@ export default function App() {
   const handleSelectProblem = useCallback((selected: ChessProblem) => {
     if (!currentGenre) return;
     problem.loadProblem(selected);
+    cacheProblem(selected);
     setCurrentProblemId(prev => ({ ...prev, [currentGenre]: selected.id }));
     setShowProblemList(false);
     updateHash(currentGenre, selected.id);
-  }, [currentGenre, problem, setCurrentProblemId, updateHash]);
+  }, [currentGenre, problem, cacheProblem, setCurrentProblemId, updateHash]);
 
   const handleGiveUp = useCallback(() => {
     if (currentGenre && problem.problem) {
@@ -466,10 +507,11 @@ export default function App() {
 
     if (nextProblem) {
       problem.loadProblem(nextProblem);
+      cacheProblem(nextProblem);
       setCurrentProblemId(prev => ({ ...prev, [currentGenre]: nextProblem.id }));
       updateHash(currentGenre, nextProblem.id);
     }
-  }, [currentGenre, problem, problemsByGenre, setProgress, setCurrentProblemId, updateHash]);
+  }, [currentGenre, problem, problemsByGenre, setProgress, setCurrentProblemId, updateHash, cacheProblem]);
 
   // Navigate to prev/next problem without marking solved
   const handleNavProblem = useCallback((direction: -1 | 1) => {
@@ -480,6 +522,7 @@ export default function App() {
     if (nextIdx < 0 || nextIdx >= problems.length) return;
     const next = problems[nextIdx];
     problem.loadProblem(next);
+    cacheProblem(next);
     setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
     setAnalysisResult(null);
     updateHash(currentGenre, next.id);
@@ -519,19 +562,19 @@ export default function App() {
         />
 
         <main className="px-4 pb-8">
-          {loading && (
-            <div className="text-center py-12">
-              <div className="text-4xl mb-4 animate-pulse text-gray-800 dark:text-gray-200">♔</div>
-              <p className="text-gray-500 dark:text-gray-400">Loading problems...</p>
-            </div>
-          )}
-
-          {!loading && view === 'mode-select' && (
+          {view === 'mode-select' && (
             <ModeSelector
               onSelectMode={selectMode}
               progress={progress}
               problemCounts={problemCounts}
             />
+          )}
+
+          {view === 'solving' && genreLoading && !problem.problem && (
+            <div className="text-center py-12">
+              <div className="text-4xl mb-4 animate-pulse text-gray-800 dark:text-gray-200">♔</div>
+              <p className="text-gray-500 dark:text-gray-400">Loading problems...</p>
+            </div>
           )}
 
           {view === 'solving' && problem.problem && (
@@ -600,7 +643,7 @@ export default function App() {
                   onPieceDrop={handlePieceDrop}
                   lastMove={problem.lastMove}
                   disabled={problem.waitingForAutoPlay}
-                  orientation={currentGenre === 'help' ? 'black' : 'white'}
+                  orientation="white"
                   width={boardWidth}
                   feedbackSquare={problem.feedbackSquare}
                   feedbackType={problem.feedbackType}

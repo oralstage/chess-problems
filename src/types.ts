@@ -1,4 +1,4 @@
-export type Genre = 'direct' | 'help' | 'self' | 'study';
+export type Genre = 'direct' | 'help' | 'self' | 'study' | 'retro';
 
 export interface SolutionNode {
   move: string;

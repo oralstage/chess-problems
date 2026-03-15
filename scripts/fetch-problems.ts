@@ -21,7 +21,7 @@ interface OutputProblem {
   sourceYear: number | null;
   stipulation: string;
   moveCount: number;
-  genre: 'direct' | 'help' | 'self' | 'study';
+  genre: 'direct' | 'help' | 'self' | 'study' | 'retro';
   difficulty: string;
   difficultyScore: number;
   solutionText: string;
@@ -194,8 +194,8 @@ async function main() {
 
   const problems: OutputProblem[] = [];
   // No hard caps — collect everything we find
-  const targets = { direct: 99999, help: 99999, self: 99999, study: 99999 };
-  const counts = { direct: 0, help: 0, self: 0, study: 0 };
+  const targets = { direct: 99999, help: 99999, self: 99999, study: 99999, retro: 99999 };
+  const counts = { direct: 0, help: 0, self: 0, study: 0, retro: 0 };
 
   // Max move count per genre (exclude #6+ as noise for casual solvers)
   const MAX_MOVE_COUNT: Record<string, number> = { direct: 5, help: 5, self: 5, study: 999 };
@@ -253,11 +253,16 @@ async function main() {
         const stip = parseStipulation(entry.stipulation);
         if (!stip) continue;
 
-        // Filter out long move counts (#6+ for direct/help/self)
+        // Filter out #0 (already-mated proof positions) and long move counts (#6+)
+        if (stip.moveCount === 0) continue;
         if (stip.moveCount > MAX_MOVE_COUNT[stip.genre]) continue;
 
+        // Retro keyword overrides genre
+        const isRetro = (entry.keywords || []).includes('Retro');
+        const finalGenre = isRetro ? 'retro' as const : stip.genre;
+
         // Check if we still need this genre
-        if (counts[stip.genre] >= targets[stip.genre]) continue;
+        if (counts[finalGenre] >= targets[finalGenre]) continue;
 
         // Check for fairy pieces
         if (hasFairyPieces(entry.algebraic)) continue;
@@ -286,7 +291,7 @@ async function main() {
           sourceYear: entry.source?.date?.year || null,
           stipulation: entry.stipulation,
           moveCount: stip.moveCount,
-          genre: stip.genre,
+          genre: finalGenre,
           difficulty: label,
           difficultyScore: score,
           solutionText: entry.solution,
@@ -294,13 +299,13 @@ async function main() {
           award,
         });
 
-        counts[stip.genre]++;
-        const mcKey = `${stip.genre}#${stip.moveCount}`;
+        counts[finalGenre]++;
+        const mcKey = `${finalGenre}#${stip.moveCount}`;
         moveCountStats[mcKey] = (moveCountStats[mcKey] || 0) + 1;
       }
 
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
-      process.stdout.write(`\r    Progress: direct=${counts.direct} help=${counts.help} self=${counts.self} study=${counts.study} total=${total}  `);
+      process.stdout.write(`\r    Progress: direct=${counts.direct} help=${counts.help} self=${counts.self} study=${counts.study} retro=${counts.retro} total=${total}  `);
 
       // Stop early if we have enough
       const allDone = (Object.keys(counts) as (keyof typeof counts)[]).every(
@@ -314,7 +319,7 @@ async function main() {
 
   // Sort by genre then difficulty
   problems.sort((a, b) => {
-    const genreOrder = { direct: 0, help: 1, self: 2, study: 3 };
+    const genreOrder: Record<string, number> = { direct: 0, help: 1, self: 2, study: 3, retro: 4 };
     if (genreOrder[a.genre] !== genreOrder[b.genre]) {
       return genreOrder[a.genre] - genreOrder[b.genre];
     }
@@ -326,7 +331,7 @@ async function main() {
   fs.mkdirSync(outDir, { recursive: true });
 
   // Split by genre
-  for (const genre of ['direct', 'help', 'self', 'study'] as const) {
+  for (const genre of ['direct', 'help', 'self', 'study', 'retro'] as const) {
     const genreProblems = problems.filter(p => p.genre === genre);
     const outFile = path.join(outDir, `problems-${genre}.json`);
     fs.writeFileSync(outFile, JSON.stringify(genreProblems, null, 0));
