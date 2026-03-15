@@ -64,6 +64,12 @@ function getUserColor(genre: Genre): 'w' | 'b' {
 
 // ── Solution tree helpers ─────────────────────────────────
 
+// Placeholder node for auto-played opponent moves inserted between key and threat
+const AUTO_MOVE_PLACEHOLDER: SolutionNode = {
+  move: '...', moveUci: '', moveSan: '...', isKey: false, isTry: false,
+  isThreat: false, isMate: false, isCheck: false, annotation: '', children: [], color: 'b',
+};
+
 function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
   const line: SolutionNode[] = [];
   let current = nodes.find(n => n.isKey) || nodes.find(n => n.color === 'w') || nodes[0];
@@ -72,7 +78,13 @@ function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
   line.push(current);
   while (current.children.length > 0) {
     const nonThreat = current.children.filter(n => !n.isThreat);
-    current = nonThreat[0] || current.children[0];
+    const next = nonThreat[0] || current.children[0];
+    // If next node is same color (threat), insert a placeholder for the opponent's move
+    if (next.color === current.color && next.isThreat) {
+      const placeholder = { ...AUTO_MOVE_PLACEHOLDER, color: current.color === 'w' ? 'b' as const : 'w' as const };
+      line.push(placeholder);
+    }
+    current = next;
     line.push(current);
   }
   return line;
@@ -167,26 +179,19 @@ function computePositions(initialFen: string, mainLine: SolutionNode[]): Playbac
         lastMove: { from: move.from, to: move.to },
         san: move.san,
       });
-    } else if (node.isThreat && node.color !== chess.turn()) {
-      // Threat node (same color as parent) — insert a random opponent move first
+    } else if (node === AUTO_MOVE_PLACEHOLDER || (node.moveSan === '...' && node.moveUci === '')) {
+      // Placeholder for auto-played opponent move — pick first legal move
       const legalMoves = chess.moves({ verbose: true });
       if (legalMoves.length > 0) {
-        const randomMove = legalMoves[0]; // Use first legal move for determinism
-        chess.move(randomMove);
+        const autoMove = legalMoves[0];
+        chess.move(autoMove);
         positions.push({
           fen: chess.fen(),
-          lastMove: { from: randomMove.from, to: randomMove.to },
-          san: randomMove.san,
+          lastMove: { from: autoMove.from, to: autoMove.to },
+          san: autoMove.san,
         });
-        // Now try the threat move
-        const threatMove = tryExecuteNode(chess, node);
-        if (threatMove) {
-          positions.push({
-            fen: chess.fen(),
-            lastMove: { from: threatMove.from, to: threatMove.to },
-            san: threatMove.san,
-          });
-        }
+      } else {
+        break;
       }
     } else {
       break;
@@ -253,9 +258,38 @@ export function useProblem(stockfish?: StockfishApi) {
     };
   }, []);
 
-  const startPlayback = useCallback((initialFen: string, solutionTree: SolutionNode[], startAtEnd: boolean = false) => {
-    const mainLine = getMainLine(solutionTree);
-    const positions = computePositions(initialFen, mainLine);
+  const startPlayback = useCallback((initialFen: string, solutionTree: SolutionNode[], startAtEnd: boolean = false, playedMoves?: string[]) => {
+    let mainLine: SolutionNode[];
+    let positions: PlaybackPosition[];
+
+    if (playedMoves && playedMoves.length > 0) {
+      // Build playback from the actual moves the user played
+      positions = [{ fen: initialFen, lastMove: null, san: '' }];
+      mainLine = [];
+      const chess = new Chess(initialFen);
+      for (const san of playedMoves) {
+        try {
+          const move = chess.move(san);
+          if (move) {
+            positions.push({
+              fen: chess.fen(),
+              lastMove: { from: move.from, to: move.to },
+              san: move.san,
+            });
+            mainLine.push({
+              move: move.san, moveUci: move.from + move.to + (move.promotion || ''),
+              moveSan: move.san, isKey: false, isTry: false, isThreat: false,
+              isMate: chess.isCheckmate(), isCheck: chess.isCheck(),
+              annotation: '', children: [], color: move.color,
+            });
+          } else break;
+        } catch { break; }
+      }
+    } else {
+      mainLine = getMainLine(solutionTree);
+      positions = computePositions(initialFen, mainLine);
+    }
+
     return {
       positions,
       mainLine,
@@ -382,7 +416,7 @@ export function useProblem(stockfish?: StockfishApi) {
 
     if (isCheckmate && problem.genre !== 'self') {
       // User delivered checkmate — solved! (direct/study/help)
-      const pb = startPlayback(state.initialFen, problem.solutionTree, true);
+      const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
       setState(prev => ({
         ...prev,
         fen: newFen,
@@ -402,7 +436,7 @@ export function useProblem(stockfish?: StockfishApi) {
 
     if (problem.stipulation === '=' && chess.isStalemate()) {
       // Study draw: stalemate — solved!
-      const pb = startPlayback(state.initialFen, problem.solutionTree, true);
+      const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
       setState(prev => ({
         ...prev,
         fen: newFen,
@@ -444,7 +478,7 @@ export function useProblem(stockfish?: StockfishApi) {
       }
 
       if (isSolved) {
-        const pb = startPlayback(state.initialFen, problem.solutionTree, true);
+        const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
         setState(prev => ({
           ...prev,
           fen: newFen,
@@ -508,9 +542,10 @@ export function useProblem(stockfish?: StockfishApi) {
             const isDefStalemate = defenseChess.isStalemate();
 
             if (isDefCheckmate || isDefStalemate || defenseNode.children.length === 0) {
-              const pb = startPlayback(state.initialFen, problem.solutionTree, true);
+              const defHistory = [...newHistory, defMove.san];
+              const pb = startPlayback(state.initialFen, problem.solutionTree, true, defHistory);
               setState(prev => ({
-                ...prev, fen: afterDefenseFen, moveHistory: [...newHistory, defMove.san],
+                ...prev, fen: afterDefenseFen, moveHistory: defHistory,
                 currentNodes: [], status: 'correct', feedback: '', lastMove: defLastMove,
                 feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
               }));
@@ -561,9 +596,10 @@ export function useProblem(stockfish?: StockfishApi) {
 
             if (randomChess.isCheckmate() || randomChess.isStalemate()) {
               // Opponent has no useful moves — problem effectively solved
-              const pb = startPlayback(state.initialFen, problem.solutionTree, true);
+              const randomHistory = [...newHistory, randomMove.san];
+              const pb = startPlayback(state.initialFen, problem.solutionTree, true, randomHistory);
               setState(prev => ({
-                ...prev, fen: afterRandomFen, moveHistory: [...newHistory, randomMove.san],
+                ...prev, fen: afterRandomFen, moveHistory: randomHistory,
                 currentNodes: [], status: 'correct', feedback: '', lastMove: randomLastMove,
                 feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
               }));
