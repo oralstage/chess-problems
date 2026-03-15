@@ -197,28 +197,33 @@ async function main() {
   const targets = { direct: 99999, help: 99999, self: 99999, study: 99999 };
   const counts = { direct: 0, help: 0, self: 0, study: 0 };
 
-  // Track per-moveCount for logging only (no sub-targets - just collect 500 total)
-  const directCounts: Record<number, number> = {};
-  function directKey(moveCount: number): number {
-    return moveCount >= 4 ? 4 : moveCount;
-  }
+  // Max move count per genre (exclude #6+ as noise for casual solvers)
+  const MAX_MOVE_COUNT: Record<string, number> = { direct: 5, help: 5, self: 5, study: 999 };
+
+  // Track per-moveCount for logging
+  const moveCountStats: Record<string, number> = {};
 
   console.log('Fetching problems from YACPDB...');
+  console.log('  Move count limit: #1-#5 (study unlimited)');
 
   // Scan strategy:
-  // - IDs 1-350000: mostly direct mates (#2, #3)
+  // - IDs 1-350000: mostly direct mates (#2, #3) — scan densely for #2
   // - IDs 340000-370000: mix of selfmates and helpmates
   // - IDs 370000-550000: mostly helpmates
+  //
+  // Denser scan (smaller steps) to collect more #2 problems.
+  // Previously: step 12/60/80 → ~8500 checks for direct range
+  // Now: step 4/15/25 → ~26000 checks for direct range (~3x denser)
 
   const ranges = [
-    // Direct mates: sample from early IDs (denser scan)
-    { start: 4, end: 50000, step: 12 },       // ~4200 checks
-    { start: 50000, end: 200000, step: 60 },   // ~2500 checks
-    { start: 200000, end: 340000, step: 80 },  // ~1750 checks (extended range)
-    // Selfmates + helpmates
-    { start: 340000, end: 380000, step: 15 },  // ~2700 checks
-    // Helpmates
-    { start: 380000, end: 550000, step: 40 },  // ~4250 checks
+    // Direct mates: dense scan for #2
+    { start: 4, end: 50000, step: 4 },         // ~12500 checks (was step 12)
+    { start: 50000, end: 200000, step: 15 },    // ~10000 checks (was step 60)
+    { start: 200000, end: 340000, step: 25 },   // ~5600 checks (was step 80)
+    // Selfmates + helpmates: denser scan
+    { start: 340000, end: 380000, step: 8 },    // ~5000 checks (was step 15)
+    // Helpmates: denser scan
+    { start: 380000, end: 550000, step: 15 },   // ~11300 checks (was step 40)
   ];
 
   for (const range of ranges) {
@@ -247,6 +252,9 @@ async function main() {
         // Parse stipulation
         const stip = parseStipulation(entry.stipulation);
         if (!stip) continue;
+
+        // Filter out long move counts (#6+ for direct/help/self)
+        if (stip.moveCount > MAX_MOVE_COUNT[stip.genre]) continue;
 
         // Check if we still need this genre
         if (counts[stip.genre] >= targets[stip.genre]) continue;
@@ -287,9 +295,8 @@ async function main() {
         });
 
         counts[stip.genre]++;
-        if (stip.genre === 'direct') {
-          directCounts[directKey(stip.moveCount)]++;
-        }
+        const mcKey = `${stip.genre}#${stip.moveCount}`;
+        moveCountStats[mcKey] = (moveCountStats[mcKey] || 0) + 1;
       }
 
       const total = Object.values(counts).reduce((a, b) => a + b, 0);
@@ -342,6 +349,8 @@ async function main() {
   console.log(`  Help: ${counts.help}`);
   console.log(`  Self: ${counts.self}`);
   console.log(`  Study: ${counts.study}`);
+  console.log('\nMove count distribution:');
+  Object.entries(moveCountStats).sort().forEach(([k, v]) => console.log(`  ${k}: ${v}`));
 }
 
 main().catch(console.error);
