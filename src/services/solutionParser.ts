@@ -67,7 +67,7 @@ function extractMoveStrings(text: string): string[] {
     remaining = remaining.trim();
     if (!remaining) break;
 
-    // Skip parenthesized content like (2.Qe5#) which are threat descriptions
+    // Skip any remaining parenthesized content (threats are extracted at line level)
     if (remaining[0] === '(') {
       const closeIdx = remaining.indexOf(')');
       if (closeIdx >= 0) {
@@ -133,8 +133,16 @@ function parseSegments(solutionText: string): Segment[] {
     const trimmed = line.trimStart();
     if (!trimmed) { lineIndex++; lastLineWasBlank = true; continue; }
 
+    // Extract parenthesized threat content before splitting on move numbers
+    // (splitting on \d+\. would break parenthesized content like "(2.Rd1#)")
+    const lineThreatTexts: string[] = [];
+    let trimmedClean = trimmed.replace(/\(([^)]+)\)/g, (_match, inner) => {
+      lineThreatTexts.push(inner);
+      return '';
+    });
+
     // Split on move number patterns
-    const parts = trimmed.split(/(?=\d+\.)/);
+    const parts = trimmedClean.split(/(?=\d+\.)/);
     let segIndex = 0;
 
     for (const part of parts) {
@@ -183,6 +191,28 @@ function parseSegments(solutionText: string): Segment[] {
       });
       segIndex++;
     }
+
+    // Add threat segments from parenthesized content extracted earlier
+    for (const threatText of lineThreatTexts) {
+      const cleanThreat = threatText.replace(/^\d+\./, '').trim();
+      const threatMoves = extractMoveStrings(cleanThreat);
+      if (threatMoves.length > 0) {
+        segments.push({
+          indent: lineIndent + 1,
+          lineIndex,
+          segIndex,
+          moveNum: null,
+          isBlackNum: false,
+          moves: threatMoves,
+          isKey: false,
+          isThreat: true,
+          annotation: '',
+          afterBlankLine: false,
+        });
+        segIndex++;
+      }
+    }
+
     lastLineWasBlank = false;
     lineIndex++;
   }
@@ -195,7 +225,10 @@ function parseSegments(solutionText: string): Segment[] {
 
 function assignVirtualIndents(segments: Segment[], firstMoveColor: 'w' | 'b'): void {
   if (segments.length <= 1) return;
-  const allSameIndent = segments.every(s => s.indent === segments[0].indent);
+  // Only check non-threat segments for uniform indent (threat segments have indent+1 from extraction)
+  const nonThreatSegs = segments.filter(s => !s.isThreat);
+  if (nonThreatSegs.length <= 1) return;
+  const allSameIndent = nonThreatSegs.every(s => s.indent === nonThreatSegs[0].indent);
   if (!allSameIndent) return;
 
   let prevWasThreat = false;
@@ -214,6 +247,14 @@ function assignVirtualIndents(segments: Segment[], firstMoveColor: 'w' | 'b'): v
     // Threat continuations should be at parent indent + 1, not their move-number indent
     if (prevWasThreat) {
       seg.indent = threatBaseIndent + 1;
+    }
+
+    // Threat segments from parens: place at the indent of the key move (first seg on same line) + 1
+    if (seg.isThreat && seg.moveNum === null) {
+      const keySeg = segments.find(s => s.lineIndex === seg.lineIndex && !s.isThreat);
+      if (keySeg) {
+        seg.indent = keySeg.indent + 1;
+      }
     }
 
     prevWasThreat = seg.isThreat;
@@ -265,7 +306,11 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
   for (const seg of segments) {
     // Determine the starting color for this segment
     let color: 'w' | 'b';
-    if (seg.isBlackNum) {
+    if (seg.isThreat) {
+      // Threat continuations are the same color as the parent (attacker's follow-up)
+      const parent = stack.length > 0 ? stack[stack.length - 1].node : null;
+      color = parent ? parent.color : firstMoveColor;
+    } else if (seg.isBlackNum) {
       color = 'b';
     } else if (seg.moveNum !== null) {
       color = firstMoveColor;
@@ -275,15 +320,18 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     }
 
     // For subsequent segments on the same line (e.g., "1...a2  2.Qb2+ cxb2#"),
-    // chain to the last node's deepest point instead of using indent comparison
-    const isSameLineFollow = seg.lineIndex === prevLineIndex && seg.segIndex > 0;
+    // chain to the last node's deepest point instead of using indent comparison.
+    // Exceptions: threat segments and segments whose indent goes back (new variation)
+    const stackTopIndent = stack.length > 0 ? stack[stack.length - 1].indent : -1;
+    const isSameLineFollow = seg.lineIndex === prevLineIndex && seg.segIndex > 0
+      && !seg.isThreat && seg.indent > stackTopIndent;
 
     if (!isSameLineFollow) {
       if (seg.afterBlankLine) {
         // Blank line = section break: reset stack to start a new section
         stack.length = 0;
       } else {
-        // Cross-line: pop stack based on indent
+        // Pop stack based on indent
         while (stack.length > 0 && stack[stack.length - 1].indent >= seg.indent) {
           stack.pop();
         }
@@ -301,11 +349,12 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     let currentColor = color;
 
     for (let i = 0; i < seg.moves.length; i++) {
+      const isNodeThreat = i === 0 && (isThreatChild || seg.isThreat);
       const node = makeNode(
         seg.moves[i],
         currentColor,
         i === 0 ? seg.isKey : false,
-        i === 0 ? isThreatChild : false, // only mark as threat if parent was threat-announcing
+        isNodeThreat,
         i === 0 ? seg.annotation : '',
       );
 

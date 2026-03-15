@@ -396,12 +396,15 @@ export function useProblem(stockfish?: StockfishApi) {
       const realDefenses = matchingNode.children.filter(n => !n.isThreat && n.color === opponentColor);
 
       const isMateProblem = problem.genre === 'self';
+      const isTerminal = isActualCheckmate || chess.isStalemate() || chess.isDraw();
       let isSolved: boolean;
       if (isMateProblem) {
         isSolved = isActualCheckmate;
+      } else if (isTerminal) {
+        isSolved = true;
       } else {
-        isSolved = matchingNode.children.length === 0 || isActualCheckmate
-          || (problem.stipulation === '=' && chess.isStalemate());
+        // Only solved if no children AND no more moves expected
+        isSolved = matchingNode.children.length === 0 && movesRemaining <= 1;
       }
 
       if (isSolved) {
@@ -494,7 +497,59 @@ export function useProblem(stockfish?: StockfishApi) {
         return true;
       }
 
-      // Matched node but no defenses listed — advance (tree might be truncated)
+      // No explicit defenses — check if there are threat children (e.g., "1.Kb3! (2.Rd1#)")
+      // If so, auto-play a random legal opponent move so user can execute the threat
+      const threatChildren = matchingNode.children.filter(n => n.isThreat);
+      if (threatChildren.length > 0) {
+        setState(prev => ({
+          ...prev,
+          fen: newFen,
+          moveHistory: newHistory,
+          currentNodes: matchingNode.children,
+          feedback: '',
+          lastMove: { from, to },
+          feedbackSquare: to,
+          feedbackType: 'correct',
+          waitingForAutoPlay: true,
+          hintSquares: null,
+        }));
+
+        autoPlayTimerRef.current = setTimeout(() => {
+          const randomChess = new Chess(newFen);
+          const legalMoves = randomChess.moves({ verbose: true });
+          if (legalMoves.length > 0) {
+            const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
+            randomChess.move(randomMove);
+            const afterRandomFen = randomChess.fen();
+            const randomLastMove = { from: randomMove.from, to: randomMove.to };
+
+            if (randomChess.isCheckmate() || randomChess.isStalemate()) {
+              // Opponent has no useful moves — problem effectively solved
+              const pb = startPlayback(state.initialFen, problem.solutionTree, true);
+              setState(prev => ({
+                ...prev, fen: afterRandomFen, moveHistory: [...newHistory, randomMove.san],
+                currentNodes: [], status: 'correct', feedback: '', lastMove: randomLastMove,
+                feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
+              }));
+            } else {
+              // Advance: user should now play the threat move(s)
+              setState(prev => ({
+                ...prev, fen: afterRandomFen, moveHistory: [...newHistory, randomMove.san],
+                currentNodes: threatChildren, feedback: '', lastMove: randomLastMove,
+                feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false,
+                movesRemaining: movesRemaining - 1,
+              }));
+            }
+          } else {
+            setState(prev => ({
+              ...prev, waitingForAutoPlay: false, feedbackSquare: null, feedbackType: null,
+            }));
+          }
+        }, AUTO_PLAY_DELAY);
+        return true;
+      }
+
+      // Truly no children — advance (tree might be truncated)
       setState(prev => ({
         ...prev,
         fen: newFen,
