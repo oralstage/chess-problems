@@ -629,11 +629,8 @@ export default function App() {
                   onPrev={problem.playbackPrev}
                   onNext={problem.playbackNext}
                   onLast={problem.playbackLast}
+                  keywordTags={problem.problem.keywords.length > 0 ? <KeywordTags keywords={problem.problem.keywords} /> : undefined}
                 />
-              )}
-
-              {(problem.status === 'correct' || problem.status === 'viewing') && problem.problem.keywords.length > 0 && (
-                <KeywordTags keywords={problem.problem.keywords} />
               )}
             </div>
           )}

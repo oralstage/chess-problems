@@ -15,6 +15,7 @@ interface SolutionTreeProps {
   onPrev: () => void;
   onNext: () => void;
   onLast: () => void;
+  keywordTags?: React.ReactNode;
 }
 
 function SolutionNodeView({ node, depth }: { node: SolutionNode; depth: number }) {
@@ -40,7 +41,7 @@ function SolutionNodeView({ node, depth }: { node: SolutionNode; depth: number }
   );
 }
 
-export function SolutionTree({ nodes, solutionText, playback, onGoTo, onFirst, onPrev, onNext, onLast }: SolutionTreeProps) {
+export function SolutionTree({ nodes, solutionText, playback, onGoTo, onFirst, onPrev, onNext, onLast, keywordTags }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -92,6 +93,8 @@ export function SolutionTree({ nodes, solutionText, playback, onGoTo, onFirst, o
 
         </div>
       )}
+
+      {keywordTags}
 
       {/* Full variation tree */}
       <details className="text-xs" open>

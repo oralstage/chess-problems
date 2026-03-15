@@ -317,6 +317,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
   const stack: { node: SolutionNode; indent: number; isThreatParent: boolean }[] = [];
 
   let prevLineIndex = -1;
+  let prevSegMoveNum: number | null = null;
 
   for (const seg of segments) {
     // Determine the starting color for this segment
@@ -334,12 +335,14 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
       color = parent ? (parent.color === 'w' ? 'b' : 'w') : firstMoveColor;
     }
 
-    // For subsequent segments on the same line (e.g., "1...a2  2.Qb2+ cxb2#"),
+    // For subsequent segments on the same line (e.g., "1...f4 2.Bh7#"),
     // chain to the last node's deepest point instead of using indent comparison.
     // Exceptions: threat segments and segments whose indent goes back (new variation)
+    // Also chain when move number increases on the same line (handles non-uniform indent case)
     const stackTopIndent = stack.length > 0 ? stack[stack.length - 1].indent : -1;
+    const moveNumIncreased = seg.moveNum !== null && prevSegMoveNum !== null && seg.moveNum > prevSegMoveNum;
     const isSameLineFollow = seg.lineIndex === prevLineIndex && seg.segIndex > 0
-      && !seg.isThreat && seg.indent > stackTopIndent;
+      && !seg.isThreat && (seg.indent > stackTopIndent || moveNumIncreased);
 
     if (!isSameLineFollow) {
       if (seg.afterBlankLine) {
@@ -384,6 +387,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     }
 
     prevLineIndex = seg.lineIndex;
+    prevSegMoveNum = seg.moveNum;
   }
 
   // If any root node is a key move (!) with the correct color, filter out tries
