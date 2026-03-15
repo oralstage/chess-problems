@@ -39,6 +39,13 @@ export function ProblemList({ problems, progress, bookmarks, currentProblemId, o
     })];
   }, [problems]);
 
+  // Map problem ID → original index (1-based) for stable numbering across filters
+  const problemIndexMap = useMemo(() => {
+    const map = new Map<number, number>();
+    problems.forEach((p, i) => map.set(p.id, i + 1));
+    return map;
+  }, [problems]);
+
   const [filter, setFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
@@ -155,10 +162,10 @@ export function ProblemList({ problems, progress, bookmarks, currentProblemId, o
               gridTemplateColumns: `repeat(${COLS}, 1fr)`,
             }}
           >
-          {pageProblems.map((p, i) => {
+          {pageProblems.map((p) => {
             const status = progress[String(p.id)];
             const isCurrent = p.id === currentProblemId;
-            const globalIndex = page * PAGE_SIZE + i + 1;
+            const globalIndex = problemIndexMap.get(p.id) ?? 0;
 
             return (
               <button
@@ -174,17 +181,18 @@ export function ProblemList({ problems, progress, bookmarks, currentProblemId, o
                         : 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/20'
                 }`}
               >
-                <span className={`text-lg font-extrabold leading-tight ${
-                  isCurrent ? 'text-white' : status === 'solved' ? 'text-green-600 dark:text-green-400' : status === 'failed' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-200'
-                }`}>
-                  {globalIndex}
-                </span>
-
-                <span className={`text-[10px] font-mono leading-tight ${
-                  isCurrent ? 'text-blue-200' : status === 'solved' ? 'text-green-500/60 dark:text-green-400/60' : 'text-gray-400 dark:text-gray-500'
-                }`}>
-                  {p.stipulation}
-                </span>
+                <div className="flex items-baseline gap-1 leading-tight">
+                  <span className={`text-lg font-extrabold ${
+                    isCurrent ? 'text-white' : status === 'solved' ? 'text-green-600 dark:text-green-400' : status === 'failed' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-200'
+                  }`}>
+                    {globalIndex}
+                  </span>
+                  <span className={`text-sm font-bold font-mono ${
+                    isCurrent ? 'text-blue-200' : status === 'solved' ? 'text-green-500/70 dark:text-green-400/70' : 'text-gray-500 dark:text-gray-400'
+                  }`}>
+                    {p.stipulation}
+                  </span>
+                </div>
 
                 <span className={`text-[11px] font-semibold leading-tight truncate max-w-full ${
                   isCurrent ? 'text-blue-100' : status === 'solved' ? 'text-green-600/70 dark:text-green-500/70' : status === 'failed' ? 'text-orange-600/70' : 'text-gray-600 dark:text-gray-300'

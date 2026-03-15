@@ -171,7 +171,8 @@ export default function App() {
     async function loadProblems() {
       try {
         const modules = await Promise.allSettled([
-          import('./data/problems-direct.json'),
+          import('./data/problems-direct-1.json'),
+          import('./data/problems-direct-2.json'),
           import('./data/problems-help.json'),
           import('./data/problems-self.json'),
           import('./data/problems-study.json'),
@@ -336,6 +337,54 @@ export default function App() {
     return problems[0] || null;
   }, [problemsByGenre, progress, currentProblemId]);
 
+  // ── Hash-based routing ──
+  const updateHash = useCallback((genre: Genre | null, problemId?: number | null) => {
+    if (!genre) {
+      history.replaceState(null, '', window.location.pathname);
+      return;
+    }
+    if (problemId) {
+      const problems = problemsByGenre[genre];
+      const idx = problems.findIndex(p => p.id === problemId);
+      if (idx >= 0) {
+        history.replaceState(null, '', `#/${genre}/${idx + 1}`);
+        return;
+      }
+    }
+    history.replaceState(null, '', `#/${genre}`);
+  }, [problemsByGenre]);
+
+  // Restore from hash on initial load (after problems are loaded)
+  const hashRestoredRef = useRef(false);
+  useEffect(() => {
+    if (loading || allProblems.length === 0 || hashRestoredRef.current) return;
+    hashRestoredRef.current = true;
+
+    const hash = window.location.hash;
+    const match = hash.match(/^#\/(direct|help|self|study)(?:\/(\d+))?$/);
+    if (!match) return;
+
+    const genre = match[1] as Genre;
+    const problemNum = match[2] ? parseInt(match[2]) : null;
+    const problems = problemsByGenre[genre];
+    if (problems.length === 0) return;
+
+    setCurrentGenre(genre);
+    setView('solving');
+
+    if (problemNum && problemNum >= 1 && problemNum <= problems.length) {
+      const target = problems[problemNum - 1];
+      problem.loadProblem(target);
+      setCurrentProblemId(prev => ({ ...prev, [genre]: target.id }));
+    } else {
+      const nextProblem = getNextProblem(genre);
+      if (nextProblem) {
+        problem.loadProblem(nextProblem);
+        setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem.id }));
+      }
+    }
+  }, [loading, allProblems, problemsByGenre, getNextProblem, problem, setCurrentProblemId]);
+
   const selectMode = useCallback((genre: Genre) => {
     setCurrentGenre(genre);
     setView('solving');
@@ -349,8 +398,11 @@ export default function App() {
     if (nextProblem) {
       problem.loadProblem(nextProblem);
       setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem.id }));
+      updateHash(genre, nextProblem.id);
+    } else {
+      updateHash(genre);
     }
-  }, [seenTutorials, getNextProblem, problem, setCurrentProblemId]);
+  }, [seenTutorials, getNextProblem, problem, setCurrentProblemId, updateHash]);
 
   const closeTutorial = useCallback(() => {
     setShowTutorial(false);
@@ -362,7 +414,8 @@ export default function App() {
   const goBack = useCallback(() => {
     setView('mode-select');
     setCurrentGenre(null);
-  }, []);
+    updateHash(null);
+  }, [updateHash]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
     // Determine promotion: react-chessboard passes the selected piece (e.g. 'wN', 'wQ')
@@ -377,7 +430,8 @@ export default function App() {
     problem.loadProblem(selected);
     setCurrentProblemId(prev => ({ ...prev, [currentGenre]: selected.id }));
     setShowProblemList(false);
-  }, [currentGenre, problem, setCurrentProblemId]);
+    updateHash(currentGenre, selected.id);
+  }, [currentGenre, problem, setCurrentProblemId, updateHash]);
 
   const handleGiveUp = useCallback(() => {
     if (currentGenre && problem.problem) {
@@ -413,8 +467,9 @@ export default function App() {
     if (nextProblem) {
       problem.loadProblem(nextProblem);
       setCurrentProblemId(prev => ({ ...prev, [currentGenre]: nextProblem.id }));
+      updateHash(currentGenre, nextProblem.id);
     }
-  }, [currentGenre, problem, problemsByGenre, setProgress, setCurrentProblemId]);
+  }, [currentGenre, problem, problemsByGenre, setProgress, setCurrentProblemId, updateHash]);
 
   // Navigate to prev/next problem without marking solved
   const handleNavProblem = useCallback((direction: -1 | 1) => {
@@ -427,7 +482,8 @@ export default function App() {
     problem.loadProblem(next);
     setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
     setAnalysisResult(null);
-  }, [currentGenre, problem, problemsByGenre, setCurrentProblemId]);
+    updateHash(currentGenre, next.id);
+  }, [currentGenre, problem, problemsByGenre, setCurrentProblemId, updateHash]);
 
   const toggleBookmark = useCallback(() => {
     if (!currentGenre || !problem.problem) return;
