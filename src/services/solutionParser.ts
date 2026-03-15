@@ -131,6 +131,7 @@ interface Segment {
   isBlackNum: boolean;
   moves: string[];
   isKey: boolean;
+  isTry: boolean;
   isThreat: boolean;
   annotation: string;
   afterBlankLine: boolean; // preceded by a blank line (section break)
@@ -168,6 +169,7 @@ function parseSegments(solutionText: string): Segment[] {
       text = text.replace(/\bthreat:?\s*$/i, '').trim();
 
       const isKey = text.includes('!');
+      const isTry = text.includes('?');
 
       let annotation = '';
       const annoMatch = text.match(/\{([^}]*)\}/);
@@ -200,6 +202,7 @@ function parseSegments(solutionText: string): Segment[] {
         isBlackNum,
         moves,
         isKey,
+        isTry,
         isThreat,
         annotation,
         afterBlankLine: segIndex === 0 && lastLineWasBlank,
@@ -220,6 +223,7 @@ function parseSegments(solutionText: string): Segment[] {
           isBlackNum: false,
           moves: threatMoves,
           isKey: false,
+          isTry: false,
           isThreat: true,
           annotation: '',
           afterBlankLine: false,
@@ -281,7 +285,7 @@ function assignVirtualIndents(segments: Segment[], firstMoveColor: 'w' | 'b'): v
 
 // ── Build solution tree ─────────────────────────────────
 
-function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isThreat: boolean, annotation: string): SolutionNode {
+function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isTry: boolean, isThreat: boolean, annotation: string): SolutionNode {
   const isMate = moveText.includes('#');
   const isCheck = moveText.includes('+') && !isMate;
 
@@ -290,6 +294,7 @@ function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isThreat: 
     moveUci: yacpdbToUci(moveText),
     moveSan: yacpdbToSanApprox(moveText),
     isKey,
+    isTry,
     isThreat,
     isMate,
     isCheck,
@@ -372,6 +377,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
         seg.moves[i],
         currentColor,
         i === 0 ? seg.isKey : false,
+        i === 0 ? seg.isTry : false,
         isNodeThreat,
         i === 0 ? seg.annotation : '',
       );
@@ -394,6 +400,12 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
   const keyNodes = nodes.filter(n => n.isKey && n.color === firstMoveColor);
   if (keyNodes.length > 0) {
     return keyNodes;
+  }
+
+  // Even without explicit key moves, filter out tries (moves marked with ?)
+  const nonTryNodes = nodes.filter(n => !n.isTry);
+  if (nonTryNodes.length > 0) {
+    return nonTryNodes;
   }
 
   return nodes;

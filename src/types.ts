@@ -5,6 +5,7 @@ export interface SolutionNode {
   moveUci: string;
   moveSan: string;
   isKey: boolean;
+  isTry: boolean;
   isThreat: boolean;
   isMate: boolean;
   isCheck: boolean;
