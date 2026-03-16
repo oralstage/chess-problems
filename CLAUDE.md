@@ -2,10 +2,11 @@
 
 ## Project
 - URL: https://chess-problems.pages.dev/
-- Stack: React 19 + TypeScript + Vite 7 + Tailwind CSS 4
+- Stack: React 19 + TypeScript + Vite 7 + Tailwind CSS 4 + Cloudflare D1 + Pages Functions
 - Dev server: port 5183
 - Deploy: `npm run build && npx wrangler pages deploy dist --project-name=chess-problems`
 - Data source: YACPDB (Yet Another Chess Problem Database)
+- D1 Database: `chess-problems-db` (ID: `43ccd454-aa55-420c-93b6-61333ccad8c1`)
 
 ## Commands
 - `npm run dev` - Dev server (port 5183)
@@ -15,20 +16,37 @@
 
 ## Architecture
 
-### Data Pipeline
-1. `scripts/fetch-problems.ts` scans YACPDB by ID range, filters orthodox problems
-2. `src/utils/algebraicToFen.ts` converts YACPDB algebraic notation to FEN
-3. Output: 6 JSON files in `src/data/` (direct-1, direct-2, help, self, study, retro). Direct is split for Cloudflare 25MB/file limit.
-4. App lazy-loads JSON per genre on demand (not at startup), parses solution text into trees via `solutionParser.ts`
+### Data Pipeline (D1 API)
+1. `scripts/fetch-problems.ts` scans YACPDB by ID range, filters orthodox problems, caches to `scripts/.cache/`
+2. `scripts/import-to-d1.ts` converts cached entries to SQL and imports into Cloudflare D1
+3. Pages Functions (`functions/api/`) serve problems from D1 on demand
+4. App fetches problem metadata per genre via API (no solutionText), then fetches solutionText individually when user selects a problem
+5. `solutionParser.ts` builds solution trees client-side from solutionText
+
+### D1 Import Commands
+- `npx tsx scripts/import-to-d1.ts` — Generate SQL files from YACPDB cache
+- `for i in $(seq 0 N); do npx wrangler d1 execute chess-problems-db --remote --file=scripts/import-data-$i.sql; done` — Import into D1
+
+### API Endpoints (Pages Functions)
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/stats?genre=X` | Genre counts, available stipulations, keywords, ranges |
+| `GET /api/problems?genre=X&page=0&pageSize=20&...` | Paginated problem list (no solutionText) |
+| `GET /api/problems/:id` | Single problem with full solutionText |
+| `GET /api/problems/ids?genre=X&...` | All matching problem IDs for navigation |
 
 ### Key Files
 | File | Purpose |
 |------|---------|
 | `src/services/solutionParser.ts` | YACPDB solution text → tree structure (most complex) |
+| `src/services/api.ts` | API client for D1 backend |
 | `src/hooks/useProblem.ts` | Problem state machine, move validation, auto-play |
 | `src/hooks/useStockfish.ts` | Stockfish WASM wrapper (optional, hint-only) |
 | `src/utils/algebraicToFen.ts` | YACPDB algebraic → FEN conversion |
 | `src/App.tsx` | Main app, problem loading, view routing |
+| `functions/api/problems.ts` | Problems list API endpoint |
+| `functions/api/problems/[id].ts` | Single problem API endpoint |
+| `functions/api/stats.ts` | Stats API endpoint |
 | `src/components/Board.tsx` | react-chessboard wrapper |
 | `scripts/fetch-problems.ts` | YACPDB data fetcher with caching |
 
@@ -61,9 +79,11 @@
 - Lazy-loaded: first call to `analyze()` triggers `ensureReady()`. Don't gate on `readyState === 'ready'`.
 
 ### Deployment
-- Cloudflare Pages: `npx wrangler pages deploy dist --project-name=chess-problems`
+- Cloudflare Pages + Functions: `npx wrangler pages deploy dist --project-name=chess-problems`
 - Build: `npm run build` (prebuild copies Stockfish to public/, then tsc + vite build)
+- `wrangler.toml` configures D1 binding (`DB`) for Pages Functions
 - No need to manually remove WASM files — Stockfish is now in `dist/stockfish/` (~7MB each), not in `dist/assets/`.
+- **dist size**: ~0.5MB (was ~48MB with static JSON). All problem data served from D1 API.
 
 ### react-chessboard
 - Click-to-move works (click piece, click destination). Drag also works.
@@ -110,18 +130,19 @@
 - `hashRestoredRef` prevents double-restore after initial load
 
 ### Lazy Loading & Caching
-- **Per-genre lazy loading**: Genre data is NOT loaded at startup. `loadGenre(genre)` is called when user selects a genre or hash restore triggers. This makes the initial page load instant.
-- **Estimated counts**: `ModeSelector` shows hardcoded `ESTIMATED_COUNTS` for unloaded genres so the genre selection screen renders immediately without waiting for data.
-- **Problem cache for instant reload**: `cacheProblem()` saves the current problem (minus `solutionTree`) to localStorage (`cp-cached-problem`). On hash restore, the cached problem is shown immediately while the full genre data loads in the background. `solutionTree` is rebuilt from `solutionText` via `parseSolution()`.
-- **Cloudflare 25MB/file limit**: `problems-direct.json` split into `problems-direct-1.json` and `problems-direct-2.json`, both loaded via `Promise.allSettled` and concatenated.
-- Vite content-hashes static assets, so browser caches genre data after first download.
+- **Per-genre lazy loading via API**: Genre data is NOT loaded at startup. `loadGenre(genre)` fetches all problem metadata (no solutionText) from `/api/problems` when user selects a genre. Metadata is paginated (100/page) and fetched in parallel.
+- **On-demand solutionText**: `solutionText` is fetched individually via `/api/problems/:id` when a problem is selected. `ensureSolution()` fetches + parses into `solutionTree`.
+- **Genre counts from API**: `fetchStats()` retrieves counts on mount. Hardcoded `ESTIMATED_COUNTS` as fallback.
+- **Problem cache for instant reload**: `cacheProblem()` saves the current problem (minus `solutionTree`, but WITH `solutionText`) to localStorage (`cp-cached-problem`). On hash restore, `solutionTree` is rebuilt from cached `solutionText` synchronously.
 
 ### Problem Data
-- ~36,900 problems total across 5 genres (direct: ~27,400, help: ~5,800, self: ~2,200, study: ~1,270, retro: ~93)
+- **~79,000 problems** in D1 across 5 genres (direct: ~53,200, help: ~16,500, self: ~6,200, study: ~3,100, retro: ~180)
+- Previously ~36,900 as static JSON; migrated to D1 API for 2x+ more problems and no bundle size limit
 - Move count limited: #1-#5 for direct/help/self, no limit for study. `#0` excluded (proof positions).
-- Starter set (`problems-starter.json`, 29KB) exists but currently unused
-- Cache in `scripts/.cache/` stores raw YACPDB API responses
+- Cache in `scripts/.cache/` stores raw YACPDB API responses (~96k entries, ~386MB)
+- D1 storage: ~63MB (5GB free tier)
 - **Stable numbering**: `problemIndexMap` (Map<id, index>) in ProblemList ensures global indices persist across filters
+- Static JSON files (`src/data/problems-*.json`) still exist but are no longer imported by the app
 
 ### Retro Genre
 - FIDE Album section 8. Separated as 5th genre. Problems with YACPDB `keywords` containing `"Retro"` are extracted from other genres into `problems-retro.json`.

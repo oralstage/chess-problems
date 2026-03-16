@@ -17,6 +17,7 @@ import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
 import { HistoryPage } from './components/HistoryPage';
 import { parseSolution } from './services/solutionParser';
+import { fetchAllProblems, fetchProblem, fetchStats, metaToChessProblem } from './services/api';
 import { findTheme } from './data/themes';
 import { getDailyIndex } from './utils/dailyProblem';
 import type { AppView, Genre, ProblemProgress, ChessProblem } from './types';
@@ -237,52 +238,13 @@ export default function App() {
     } catch { /* quota exceeded — ignore */ }
   }, []);
 
-  // Lazy-load genre data on demand
+  // Lazy-load genre data on demand (from D1 API)
   const loadGenre = useCallback(async (genre: Genre) => {
     if (genreLoaded[genre]) return genreData[genre];
     setGenreLoading(genre);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let modules: PromiseSettledResult<{ default: any[] }>[];
-      if (genre === 'direct') {
-        modules = await Promise.allSettled([
-          import('./data/problems-direct-1.json'),
-          import('./data/problems-direct-2.json'),
-        ]);
-      } else if (genre === 'help') {
-        modules = await Promise.allSettled([import('./data/problems-help.json')]);
-      } else if (genre === 'self') {
-        modules = await Promise.allSettled([import('./data/problems-self.json')]);
-      } else if (genre === 'retro') {
-        modules = await Promise.allSettled([import('./data/problems-retro.json')]);
-      } else {
-        modules = await Promise.allSettled([import('./data/problems-study.json')]);
-      }
-      const problems: ChessProblem[] = [];
-      for (const m of modules) {
-        if (m.status === 'fulfilled') {
-          const raw = m.value.default as ChessProblem[];
-          for (const p of raw) {
-            if (!p.solutionTree || p.solutionTree.length === 0) {
-              const firstColor = (p.genre === 'help' || (p.genre === 'retro' && p.stipulation.startsWith('h#'))) ? 'b' : 'w';
-              p.solutionTree = parseSolution(p.solutionText, firstColor);
-            }
-            // Retro + {(illegal)}: White's move is illegal → it's Black's turn.
-            // Parser assigns wrong colors (1.Kf3*g2 → white), flip them.
-            if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
-              const flipColors = (nodes: typeof p.solutionTree): void => {
-                for (const n of nodes) {
-                  n.color = n.color === 'w' ? 'b' : 'w';
-                  flipColors(n.children);
-                }
-              };
-              flipColors(p.solutionTree);
-            }
-          }
-          for (const p of raw) fixEnPassantFen(p);
-          problems.push(...raw);
-        }
-      }
+      const metas = await fetchAllProblems(genre);
+      const problems: ChessProblem[] = metas.map(m => metaToChessProblem(m));
       problems.sort((a, b) => a.difficultyScore - b.difficultyScore);
       setGenreData(prev => ({ ...prev, [genre]: problems }));
       setGenreLoaded(prev => ({ ...prev, [genre]: true }));
@@ -293,6 +255,36 @@ export default function App() {
       return [];
     }
   }, [genreLoaded, genreData]);
+
+  // Ensure a problem has solutionTree (fetch solutionText from API if needed)
+  const ensureSolution = useCallback(async (p: ChessProblem): Promise<ChessProblem> => {
+    if (p.solutionTree.length > 0) return p; // already has solution
+    if (!p.solutionText) {
+      // Fetch solutionText from API
+      const full = await fetchProblem(p.id);
+      p.solutionText = full.solutionText;
+    }
+    const firstColor = (p.genre === 'help' || (p.genre === 'retro' && p.stipulation.startsWith('h#'))) ? 'b' : 'w';
+    p.solutionTree = parseSolution(p.solutionText, firstColor);
+    // Retro + {(illegal)}: flip colors
+    if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
+      const flipColors = (nodes: typeof p.solutionTree): void => {
+        for (const n of nodes) {
+          n.color = n.color === 'w' ? 'b' : 'w';
+          flipColors(n.children);
+        }
+      };
+      flipColors(p.solutionTree);
+    }
+    fixEnPassantFen(p);
+    return p;
+  }, []);
+
+  // Load a problem into the solver (fetches solutionText from API if needed)
+  const loadAndStartProblem = useCallback(async (p: ChessProblem) => {
+    const ready = await ensureSolution(p);
+    problem.loadProblem(ready);
+  }, [ensureSolution, problem]);
 
   // ── Daily Problem ──
   // Preload direct genre on mount for daily problem
@@ -322,7 +314,7 @@ export default function App() {
     if (!dailyProblem) return;
     setCurrentGenre('direct');
     setView('solving');
-    problem.loadProblem(dailyProblem);
+    loadAndStartProblem(dailyProblem);
     cacheProblem(dailyProblem);
     setCurrentProblemId(prev => ({ ...prev, direct: dailyProblem.id }));
     history.replaceState(null, '', `#/direct/yacpdb/${dailyProblem.id}`);
@@ -409,15 +401,20 @@ export default function App() {
   // Genre data is now loaded lazily — problemsByGenre is just genreData
   const problemsByGenre = genreData;
 
-  // Show actual counts for loaded genres, estimated counts for unloaded
-  const ESTIMATED_COUNTS: Record<Genre, number> = { direct: 27463, help: 5842, self: 2196, study: 1274, retro: 93 };
+  // Fetch genre counts from API on mount
+  const [apiCounts, setApiCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    fetchStats().then(stats => setApiCounts(stats.counts)).catch(() => {});
+  }, []);
+
   const problemCounts = useMemo(() => {
+    const ESTIMATED_COUNTS: Record<Genre, number> = { direct: 53177, help: 16457, self: 6164, study: 3077, retro: 178 };
     const counts: Record<Genre, number> = {} as Record<Genre, number>;
     for (const g of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
-      counts[g] = genreLoaded[g] ? genreData[g].length : ESTIMATED_COUNTS[g];
+      counts[g] = genreLoaded[g] ? genreData[g].length : (apiCounts[g] || ESTIMATED_COUNTS[g]);
     }
     return counts;
-  }, [genreData, genreLoaded]);
+  }, [genreData, genreLoaded, apiCounts]);
 
   const filteredProblems = useMemo(() => {
     if (!currentGenre) return [];
@@ -512,7 +509,7 @@ export default function App() {
         }
         if (!nextProblem) nextProblem = problems[0];
         if (nextProblem) {
-          problem.loadProblem(nextProblem);
+          loadAndStartProblem(nextProblem);
           cacheProblem(nextProblem);
           setCurrentProblemId(prev => ({ ...prev, [genreOnly[1] as Genre]: nextProblem!.id }));
           history.replaceState(null, '', `#/${genreOnly[1]}/yacpdb/${nextProblem.id}`);
@@ -533,25 +530,23 @@ export default function App() {
       const cached = localStorage.getItem('cp-cached-problem');
       if (cached) {
         const cachedProblem = JSON.parse(cached) as ChessProblem;
-        // Always rebuild solutionTree from text to avoid double-flip issues
-        {
-          const firstColor = (cachedProblem.genre === 'help' || (cachedProblem.genre === 'retro' && cachedProblem.stipulation.startsWith('h#'))) ? 'b' : 'w';
-          cachedProblem.solutionTree = parseSolution(cachedProblem.solutionText, firstColor);
-        }
-        // Retro + {(illegal)}: flip solution tree colors
-        if (cachedProblem.genre === 'retro' && cachedProblem.solutionText.includes('{(illegal')) {
-          const flipColors = (nodes: typeof cachedProblem.solutionTree): void => {
-            for (const n of nodes) {
-              n.color = n.color === 'w' ? 'b' : 'w';
-              flipColors(n.children);
-            }
-          };
-          flipColors(cachedProblem.solutionTree);
-        }
-        fixEnPassantFen(cachedProblem);
         // Only use cache if it matches the hash URL's genre
         if (cachedProblem.genre === genre) {
-          problem.loadProblem(cachedProblem);
+          // Rebuild solutionTree synchronously from cached solutionText
+          if (cachedProblem.solutionText && (!cachedProblem.solutionTree || cachedProblem.solutionTree.length === 0)) {
+            const firstColor = (cachedProblem.genre === 'help' || (cachedProblem.genre === 'retro' && cachedProblem.stipulation.startsWith('h#'))) ? 'b' : 'w';
+            cachedProblem.solutionTree = parseSolution(cachedProblem.solutionText, firstColor);
+            if (cachedProblem.genre === 'retro' && cachedProblem.solutionText.includes('{(illegal')) {
+              const flipColors = (nodes: typeof cachedProblem.solutionTree): void => {
+                for (const n of nodes) { n.color = n.color === 'w' ? 'b' : 'w'; flipColors(n.children); }
+              };
+              flipColors(cachedProblem.solutionTree);
+            }
+            fixEnPassantFen(cachedProblem);
+          }
+          if (cachedProblem.solutionTree?.length > 0) {
+            problem.loadProblem(cachedProblem);
+          }
           setCurrentProblemId(prev => ({ ...prev, [genre]: cachedProblem.id }));
         }
       }
@@ -573,7 +568,7 @@ export default function App() {
           target = problems.find(p => p.id === problemNum);
         }
         if (target && target.id !== problem.problem?.id) {
-          problem.loadProblem(target);
+          loadAndStartProblem(target);
           cacheProblem(target);
           setCurrentProblemId(prev => ({ ...prev, [genre]: target!.id }));
           // Update to new format if legacy
@@ -593,13 +588,13 @@ export default function App() {
         }
         if (!nextProblem) nextProblem = problems[0];
         if (nextProblem) {
-          problem.loadProblem(nextProblem);
+          loadAndStartProblem(nextProblem);
           cacheProblem(nextProblem);
           setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem!.id }));
         }
       }
     });
-  }, [loadGenre, problem, setCurrentProblemId, progress, cacheProblem]);
+  }, [loadGenre, loadAndStartProblem, ensureSolution, problem, setCurrentProblemId, progress, cacheProblem]);
 
   const selectMode = useCallback(async (genre: Genre) => {
     setCurrentGenre(genre);
@@ -634,14 +629,14 @@ export default function App() {
     if (!nextProblem) nextProblem = problems[0] || null;
 
     if (nextProblem) {
-      problem.loadProblem(nextProblem);
+      loadAndStartProblem(nextProblem);
       cacheProblem(nextProblem);
       setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem!.id }));
       history.replaceState(null, '', `#/${genre}/yacpdb/${nextProblem.id}`);
     } else {
       history.replaceState(null, '', `#/${genre}`);
     }
-  }, [seenTutorials, loadGenre, progress, currentProblemId, problem, setCurrentProblemId, cacheProblem]);
+  }, [seenTutorials, loadGenre, loadAndStartProblem, progress, currentProblemId, problem, setCurrentProblemId, cacheProblem]);
 
   const closeTutorial = useCallback(() => {
     setShowTutorial(false);
@@ -662,11 +657,11 @@ export default function App() {
     setView('solving');
     // Ensure genre data is loaded
     await loadGenre(genre);
-    problem.loadProblem(selected);
+    loadAndStartProblem(selected);
     cacheProblem(selected);
     setCurrentProblemId(prev => ({ ...prev, [genre]: selected.id }));
     history.replaceState(null, '', `#/${genre}/yacpdb/${selected.id}`);
-  }, [loadGenre, problem, cacheProblem, setCurrentProblemId]);
+  }, [loadGenre, loadAndStartProblem, problem, cacheProblem, setCurrentProblemId]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
     // Determine promotion: react-chessboard passes the selected piece (e.g. 'wN', 'wQ')
@@ -678,12 +673,12 @@ export default function App() {
 
   const handleSelectProblem = useCallback((selected: ChessProblem) => {
     if (!currentGenre) return;
-    problem.loadProblem(selected);
+    loadAndStartProblem(selected);
     cacheProblem(selected);
     setCurrentProblemId(prev => ({ ...prev, [currentGenre]: selected.id }));
     setShowProblemList(false);
     updateHash(currentGenre, selected.id);
-  }, [currentGenre, problem, cacheProblem, setCurrentProblemId, updateHash]);
+  }, [currentGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
 
   const handleGiveUp = useCallback(() => {
     if (currentGenre && problem.problem) {
@@ -722,12 +717,12 @@ export default function App() {
     const nextProblem = problems[currentIdx + 1] || problems[0];
 
     if (nextProblem) {
-      problem.loadProblem(nextProblem);
+      loadAndStartProblem(nextProblem);
       cacheProblem(nextProblem);
       setCurrentProblemId(prev => ({ ...prev, [currentGenre]: nextProblem.id }));
       updateHash(currentGenre, nextProblem.id);
     }
-  }, [currentGenre, problem, filteredProblems, setProgress, setTimestamps, setCurrentProblemId, updateHash, cacheProblem]);
+  }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setProgress, setTimestamps, setCurrentProblemId, updateHash, cacheProblem]);
 
   // Navigate to prev/next problem without marking solved
   const handleNavProblem = useCallback((direction: -1 | 1) => {
@@ -738,7 +733,7 @@ export default function App() {
     if (currentIdx === -1) {
       // Current problem not in filtered set — go to first
       const next = problems[0];
-      problem.loadProblem(next);
+      loadAndStartProblem(next);
       cacheProblem(next);
       setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
       setAnalysisResult(null);
@@ -748,12 +743,12 @@ export default function App() {
     const nextIdx = currentIdx + direction;
     if (nextIdx < 0 || nextIdx >= problems.length) return;
     const next = problems[nextIdx];
-    problem.loadProblem(next);
+    loadAndStartProblem(next);
     cacheProblem(next);
     setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
     setAnalysisResult(null);
     updateHash(currentGenre, next.id);
-  }, [currentGenre, problem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
+  }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
 
   const handleRandomProblem = useCallback(() => {
     if (!currentGenre) return;
@@ -764,11 +759,11 @@ export default function App() {
       const idx = Math.floor(Math.random() * problems.length);
       next = problems[idx];
     } while (next.id === problem.problem?.id && problems.length > 1);
-    problem.loadProblem(next);
+    loadAndStartProblem(next);
     cacheProblem(next);
     setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
     updateHash(currentGenre, next.id);
-  }, [currentGenre, problem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
+  }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
 
   const toggleBookmark = useCallback(() => {
     if (!currentGenre || !problem.problem) return;
