@@ -97,7 +97,7 @@ export function SolutionTree({ nodes, solutionText, playback, onGoTo, onFirst, o
       {keywordTags}
 
       {/* Full variation tree */}
-      <details className="text-xs" open>
+      <details className="text-xs">
         <summary className="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 text-sm font-medium">
           All variations
         </summary>

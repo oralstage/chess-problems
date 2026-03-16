@@ -1,9 +1,13 @@
-import type { Genre, ProblemProgress } from '../types';
+import { Chessboard } from 'react-chessboard';
+import type { Genre, ProblemProgress, ChessProblem } from '../types';
 
 interface ModeSelectorProps {
   onSelectMode: (genre: Genre) => void;
   progress: Record<Genre, ProblemProgress>;
   problemCounts: Record<Genre, number>;
+  dailyProblem: ChessProblem | null;
+  onSolveDaily: () => void;
+  dailySolved: boolean;
 }
 
 const MODES: {
@@ -38,7 +42,7 @@ const MODES: {
   },
 ];
 
-export function ModeSelector({ onSelectMode, progress, problemCounts }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved }: ModeSelectorProps) {
   const availableModes = MODES.filter(m => (problemCounts[m.genre] || 0) > 0);
 
   return (
@@ -68,6 +72,60 @@ export function ModeSelector({ onSelectMode, progress, problemCounts }: ModeSele
           </a>.
         </p>
       </div>
+
+      {/* ── Daily Problem ── */}
+      {dailyProblem && (
+        <div className="px-5 mb-8">
+          <button
+            onClick={onSolveDaily}
+            className="group w-full text-left transition-colors"
+          >
+            <div className="flex flex-col items-center gap-4">
+              {/* Header */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
+                  Daily Problem
+                </span>
+                {dailySolved && (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                    Solved &#10003;
+                  </span>
+                )}
+              </div>
+
+              {/* Board */}
+              <div className="shrink-0 rounded-lg overflow-hidden shadow-sm" style={{ width: 320, height: 320 }}>
+                <Chessboard
+                  position={dailyProblem.fen}
+                  boardWidth={320}
+                  arePiecesDraggable={false}
+                  animationDuration={0}
+                  customBoardStyle={{ borderRadius: '0' }}
+                  customDarkSquareStyle={{ backgroundColor: '#779952' }}
+                  customLightSquareStyle={{ backgroundColor: '#edeed1' }}
+                />
+              </div>
+
+              {/* Info */}
+              <div className="text-center">
+                <div className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-1">
+                  Mate in {dailyProblem.moveCount}
+                </div>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {dailyProblem.authors[0]?.split(',')[0] || 'Unknown'}
+                  {dailyProblem.sourceYear ? `, ${dailyProblem.sourceYear}` : ''}
+                </div>
+                <div className="mt-3 flex items-center justify-center gap-1 text-sm font-semibold text-green-600 dark:text-green-400 group-hover:gap-2 transition-all">
+                  {dailySolved ? 'View solution' : 'Solve'}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* ── Modes ── */}
       <nav className="space-y-2 px-4">

@@ -150,3 +150,13 @@
 
 ### Stale Closure Bug in selectMode
 - After `await loadGenre(genre)`, the captured `updateHash` callback references old `problemsByGenre` (empty). Fix: use `problems.findIndex()` directly and call `history.replaceState()` instead of `updateHash()`. Remove `updateHash` from `selectMode` dependency array.
+
+### UI Components (Batch 3)
+- **FilterPage** (`src/components/FilterPage.tsx`): Full-screen overlay for global filter settings. Stipulation multi-select pills, DualRangeSlider for pieces/year, theme tag cloud with search + Select all/Deselect all. Reset preserves sort settings.
+- **HamburgerMenu** (`src/components/HamburgerMenu.tsx`): Right-side slide-in menu (solving view only). Contains: Problem List, Filters (with badge), Home. No genre switching — genres are separate.
+- **GlobalFilters** interface: `keywords: string[]`, `stipulations: string[]`, `minPieces`, `maxPieces`, `minYear`, `maxYear`, `sortBy: 'difficulty' | 'year'`, `sortOrder: 'asc' | 'desc'`. Stored in localStorage (`cp-filters`) with migration from old `keyword: string` / `stipulation: string` formats.
+- **Sort dropdown**: Located in ProblemList header (not on problem page). macOS-style button showing current sort (e.g., "Difficulty ▲▼"). Dropdown lists ascending/descending for each sort type.
+- **Header layout**: Left = `<` back button (Home) + genre title + `?` help. Right = theme toggle + ☰ hamburger (solving view only).
+- **Theme filter behavior**: `keywords: []` (empty) = no theme filtering (show ALL problems). Only filters when keywords are explicitly selected.
+- **Theme hiding**: `showThemes` on ProblemCard is `false` during solving (prevents hints). Themes shown after solving in SolutionTree's `keywordTags`.
+- **Info modal** (`i` button): Inline modal in App.tsx showing author, source, YACPDB link, stipulation, pieces, award, themes.

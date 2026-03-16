@@ -8,6 +8,7 @@ interface HeaderProps {
   currentGenre: Genre | null;
   onBack: () => void;
   onShowHelp?: () => void;
+  onOpenMenu?: () => void;
 }
 
 const GENRE_NAMES: Record<Genre, string> = {
@@ -55,7 +56,7 @@ function ThemeToggle({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme
   );
 }
 
-export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp }: HeaderProps) {
+export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp, onOpenMenu }: HeaderProps) {
   if (view === 'mode-select') {
     return (
       <header className="flex items-center justify-end gap-2 py-3 px-4">
@@ -68,9 +69,11 @@ export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onSho
   return (
     <header className="flex items-center justify-between py-3 px-4">
       <div className="flex items-center gap-3">
+        {/* Back button (always visible in solving view) */}
         <button
           onClick={onBack}
           className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400"
+          title="Home"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -90,7 +93,21 @@ export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onSho
         )}
       </div>
 
-      <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
+      <div className="flex items-center gap-1">
+        <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
+        {/* Hamburger menu button (right side) */}
+        {onOpenMenu && (
+          <button
+            onClick={onOpenMenu}
+            className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-gray-600 dark:text-gray-400"
+            title="Menu"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        )}
+      </div>
     </header>
   );
 }

@@ -8,6 +8,7 @@ interface FeedbackPanelProps {
   onReset: () => void;
   onShowSolution: () => void;
   onNextProblem: () => void;
+  onRandomProblem?: () => void;
   onShowHint: () => void;
   onHideHint?: () => void;
   onAnalyze?: () => void;
@@ -25,6 +26,7 @@ export function FeedbackPanel({
   onReset,
   onShowSolution,
   onNextProblem,
+  onRandomProblem,
   onShowHint,
   onHideHint,
   onAnalyze,
@@ -60,8 +62,8 @@ export function FeedbackPanel({
                 onClick={onAnalyze}
                 className={`px-2.5 py-1.5 text-xs rounded transition-colors ${
                   analysisActive
-                    ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
-                    : 'bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                    ? 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600'
+                    : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60'
                 }`}
               >
                 {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
@@ -77,7 +79,7 @@ export function FeedbackPanel({
           <div className="flex items-center gap-2">
             <button
               onClick={onReset}
-              className="px-4 py-2 text-sm bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
+              className="px-4 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
             >
               Try Again
             </button>
@@ -87,17 +89,26 @@ export function FeedbackPanel({
             >
               Next →
             </button>
+            {onRandomProblem && (
+              <button
+                onClick={onRandomProblem}
+                className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
+                title="Random problem"
+              >
+                Random
+              </button>
+            )}
           </div>
         </div>
       )}
 
       {/* Solving state */}
       {status === 'solving' && (
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           {!hintActive && (
             <button
               onClick={onShowHint}
-              className="px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors font-medium"
+              className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
             >
               Show Hint
             </button>
@@ -105,7 +116,7 @@ export function FeedbackPanel({
           {hintActive && (
             <button
               onClick={onHideHint}
-              className="px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors font-medium"
+              className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
             >
               Hide Hint
             </button>
@@ -125,10 +136,21 @@ export function FeedbackPanel({
             Give Up
           </button>
           {refutationText && (
-            <span className="text-xs text-orange-600 dark:text-orange-400 font-medium ml-auto">
+            <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
               Refutation: {refutationText}
             </span>
           )}
+          <div className="ml-auto">
+            {onRandomProblem && (
+              <button
+                onClick={onRandomProblem}
+                className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
+                title="Random problem"
+              >
+                Random
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -136,19 +158,13 @@ export function FeedbackPanel({
       {status === 'viewing' && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button
-              onClick={onReset}
-              className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
-            >
-              Try Again
-            </button>
             {onAnalyze && (
               <button
                 onClick={onAnalyze}
                 className={`px-2.5 py-1.5 text-xs rounded transition-colors ${
                   analysisActive
-                    ? 'bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600'
-                    : 'bg-gray-200 text-gray-500 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600'
+                    ? 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600'
+                    : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60'
                 }`}
               >
                 {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
@@ -161,12 +177,29 @@ export function FeedbackPanel({
               <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
             )}
           </div>
-          <button
-            onClick={onNextProblem}
-            className="px-5 py-2 bg-cp-primary text-white rounded-lg hover:bg-cp-dark transition-colors text-sm font-medium"
-          >
-            Next →
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onReset}
+              className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={onNextProblem}
+              className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              Next →
+            </button>
+            {onRandomProblem && (
+              <button
+                onClick={onRandomProblem}
+                className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
+                title="Random problem"
+              >
+                Random
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

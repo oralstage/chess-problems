@@ -1,15 +1,19 @@
-import { useState, useMemo } from 'react';
-import { useLocalStorage } from '../hooks/useLocalStorage';
-import type { ChessProblem, ProblemProgress, Genre } from '../types';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import type { ChessProblem, ProblemProgress } from '../types';
 
 interface ProblemListProps {
-  genre: Genre;
-  problems: ChessProblem[];
+  problems: ChessProblem[];          // pre-filtered by global filters
+  allProblems: ChessProblem[];       // unfiltered, for stable numbering
   progress: ProblemProgress;
   bookmarks: string[];
   currentProblemId: number | null;
   onSelectProblem: (problem: ChessProblem) => void;
   onClose: () => void;
+  onOpenFilters: () => void;
+  activeFilterCount: number;
+  sortBy: 'difficulty' | 'year';
+  sortOrder: 'asc' | 'desc';
+  onSortChange: (sort: 'difficulty' | 'year', order: 'asc' | 'desc') => void;
 }
 
 type StatusFilter = 'all' | 'unsolved' | 'solved' | 'failed' | 'bookmarked';
@@ -18,58 +22,51 @@ const COLS = 4;
 const ROWS = 5;
 const PAGE_SIZE = COLS * ROWS;
 
-export function ProblemList({ genre, problems, progress, bookmarks, currentProblemId, onSelectProblem, onClose }: ProblemListProps) {
+export function ProblemList({
+  problems, allProblems, progress, bookmarks, currentProblemId,
+  onSelectProblem, onClose, onOpenFilters, activeFilterCount,
+  sortBy, sortOrder, onSortChange,
+}: ProblemListProps) {
   const solved = Object.values(progress).filter(s => s === 'solved').length;
   const failed = Object.values(progress).filter(s => s === 'failed').length;
 
-  // Move count filter
-  const moveCounts = useMemo(() => {
-    const counts = new Set<string>();
-    for (const p of problems) {
-      counts.add(p.stipulation);
-    }
-    return ['all', ...Array.from(counts).sort((a, b) => {
-      const order = (s: string) => {
-        if (s.startsWith('h#')) return 100 + parseInt(s.slice(2) || '0');
-        if (s.startsWith('s#')) return 200 + parseInt(s.slice(2) || '0');
-        if (s.startsWith('#')) return parseInt(s.slice(1) || '0');
-        if (s === '+') return 300;
-        if (s === '=') return 301;
-        return 999;
-      };
-      return order(a) - order(b);
-    })];
-  }, [problems]);
-
-  // Map problem ID → original index (1-based) for stable numbering across filters
+  // Map problem ID → original index (1-based) for stable numbering
   const problemIndexMap = useMemo(() => {
     const map = new Map<number, number>();
-    problems.forEach((p, i) => map.set(p.id, i + 1));
+    allProblems.forEach((p, i) => map.set(p.id, i + 1));
     return map;
-  }, [problems]);
+  }, [allProblems]);
 
-  const [filter, setFilter] = useLocalStorage<string>(`cp-filter-${genre}`, 'all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const sortRef = useRef<HTMLDivElement>(null);
 
+  // Close sort menu on outside click
+  useEffect(() => {
+    if (!showSortMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) {
+        setShowSortMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showSortMenu]);
+
+  // Internal filtering: status only (keyword/pieces/year/sort/stipulation handled by parent)
   const filtered = useMemo(() => {
-    let result = problems;
-    if (filter !== 'all') {
-      result = result.filter(p => p.stipulation === filter);
-    }
-    if (statusFilter !== 'all') {
-      result = result.filter(p => {
-        const s = progress[String(p.id)];
-        switch (statusFilter) {
-          case 'solved': return s === 'solved';
-          case 'failed': return s === 'failed';
-          case 'unsolved': return s !== 'solved' && s !== 'failed';
-          case 'bookmarked': return bookmarks.includes(String(p.id));
-          default: return true;
-        }
-      });
-    }
-    return result;
-  }, [problems, filter, statusFilter, progress, bookmarks]);
+    if (statusFilter === 'all') return problems;
+    return problems.filter(p => {
+      const s = progress[String(p.id)];
+      switch (statusFilter) {
+        case 'solved': return s === 'solved';
+        case 'failed': return s === 'failed';
+        case 'unsolved': return s !== 'solved' && s !== 'failed';
+        case 'bookmarked': return bookmarks.includes(String(p.id));
+        default: return true;
+      }
+    });
+  }, [problems, statusFilter, progress, bookmarks]);
 
   const currentIdx = filtered.findIndex(p => p.id === currentProblemId);
   const initialPage = currentIdx >= 0 ? Math.floor(currentIdx / PAGE_SIZE) : 0;
@@ -81,11 +78,6 @@ export function ProblemList({ genre, problems, progress, bookmarks, currentProbl
     [filtered, page],
   );
 
-  const handleFilterChange = (f: string) => {
-    setFilter(f);
-    setPage(0);
-  };
-
   const handleStatusFilterChange = (f: StatusFilter) => {
     setStatusFilter(f);
     setPage(0);
@@ -93,14 +85,79 @@ export function ProblemList({ genre, problems, progress, bookmarks, currentProbl
 
   return (
     <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col overflow-hidden">
-      <div
-        className="flex-1 flex flex-col p-4 max-w-3xl mx-auto w-full min-h-0"
-      >
+      <div className="flex-1 flex flex-col p-4 max-w-3xl mx-auto w-full min-h-0">
         {/* Header */}
         <div className="flex items-center justify-between mb-2 shrink-0">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-            Problems <span className="text-base font-normal text-gray-400 dark:text-gray-400">({solved}/{problems.length} solved{failed > 0 ? `, ${failed} failed` : ''})</span>
-          </h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+              Problems
+              <span className="text-base font-normal text-gray-400 ml-1.5">
+                ({solved}/{allProblems.length} solved{failed > 0 ? `, ${failed} failed` : ''})
+              </span>
+            </h3>
+            {/* Filter button */}
+            <button
+              onClick={onOpenFilters}
+              className={`relative p-1.5 rounded-lg transition-colors ${
+                activeFilterCount > 0
+                  ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
+                  : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400'
+              }`}
+              title="Filters"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              {activeFilterCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            {/* Sort dropdown */}
+            <div className="relative" ref={sortRef}>
+              <button
+                onClick={() => setShowSortMenu(prev => !prev)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
+              >
+                <span>{sortBy === 'year' ? 'Year' : 'Difficulty'}</span>
+                <svg className="w-3 h-3 opacity-60" fill="currentColor" viewBox="0 0 10 14">
+                  <path d="M5 0L9 5H1L5 0Z" />
+                  <path d="M5 14L1 9H9L5 14Z" />
+                </svg>
+              </button>
+              {showSortMenu && (
+                <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 min-w-[180px]">
+                  {([['difficulty', 'Difficulty'], ['year', 'Year']] as const).map(([value, label]) => (
+                    <div key={value}>
+                      <button
+                        onClick={() => { onSortChange(value, 'asc'); setShowSortMenu(false); }}
+                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 ${
+                          sortBy === value && sortOrder === 'asc'
+                            ? 'text-gray-900 dark:text-white font-medium'
+                            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                        } hover:bg-gray-50 dark:hover:bg-gray-700`}
+                      >
+                        <span className="w-4 text-green-600 dark:text-green-400 text-xs">{sortBy === value && sortOrder === 'asc' ? '✓' : ''}</span>
+                        {label} ↑
+                      </button>
+                      <button
+                        onClick={() => { onSortChange(value, 'desc'); setShowSortMenu(false); }}
+                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 ${
+                          sortBy === value && sortOrder === 'desc'
+                            ? 'text-gray-900 dark:text-white font-medium'
+                            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                        } hover:bg-gray-50 dark:hover:bg-gray-700`}
+                      >
+                        <span className="w-4 text-green-600 dark:text-green-400 text-xs">{sortBy === value && sortOrder === 'desc' ? '✓' : ''}</span>
+                        {label} ↓
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
           <button
             onClick={onClose}
             className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
@@ -110,25 +167,6 @@ export function ProblemList({ genre, problems, progress, bookmarks, currentProbl
             </svg>
           </button>
         </div>
-
-        {/* Move count filter */}
-        {moveCounts.length > 2 && (
-          <div className="flex gap-1.5 mb-3 overflow-x-auto scrollbar-hide shrink-0">
-            {moveCounts.map(mc => (
-              <button
-                key={mc}
-                onClick={() => handleFilterChange(mc)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                  filter === mc
-                    ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-400 dark:hover:bg-white/20'
-                }`}
-              >
-                {mc === 'all' ? `All (${problems.length})` : `${mc} (${problems.filter(p => p.stipulation === mc).length})`}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Status filter */}
         <div className="flex gap-1.5 mb-3 overflow-x-auto scrollbar-hide shrink-0">
@@ -153,6 +191,13 @@ export function ProblemList({ genre, problems, progress, bookmarks, currentProbl
           ))}
         </div>
 
+        {/* Filtered count */}
+        {filtered.length !== allProblems.length && (
+          <div className="text-xs text-gray-400 dark:text-gray-500 mb-2 shrink-0">
+            Showing {filtered.length} of {allProblems.length} problems
+          </div>
+        )}
+
         {/* Grid of problems */}
         <div
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
@@ -160,66 +205,61 @@ export function ProblemList({ genre, problems, progress, bookmarks, currentProbl
         >
           <div
             className="grid gap-2 pb-2"
-            style={{
-              gridTemplateColumns: `repeat(${COLS}, 1fr)`,
-            }}
+            style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}
           >
-          {pageProblems.map((p) => {
-            const status = progress[String(p.id)];
-            const isCurrent = p.id === currentProblemId;
-            const globalIndex = problemIndexMap.get(p.id) ?? 0;
+            {pageProblems.map((p) => {
+              const status = progress[String(p.id)];
+              const isCurrent = p.id === currentProblemId;
+              const globalIndex = problemIndexMap.get(p.id) ?? 0;
 
-            return (
-              <button
-                key={p.id}
-                onClick={() => onSelectProblem(p)}
-                className={`rounded-lg flex flex-col items-center justify-center gap-0 transition-all text-center relative overflow-hidden py-1 px-1 ${
-                  isCurrent
-                    ? 'bg-blue-600 text-white ring-2 ring-blue-400 shadow-lg shadow-blue-500/30'
-                    : status === 'solved'
-                      ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60'
-                      : status === 'failed'
-                        ? 'bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/40 dark:text-orange-300 dark:hover:bg-orange-900/60'
-                        : 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/20'
-                }`}
-              >
-                <div className="flex items-baseline gap-1 leading-tight">
-                  <span className={`text-lg font-extrabold ${
-                    isCurrent ? 'text-white' : status === 'solved' ? 'text-green-600 dark:text-green-400' : status === 'failed' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-200'
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => onSelectProblem(p)}
+                  className={`rounded-lg flex flex-col items-center justify-center gap-0 transition-all text-center relative overflow-hidden py-1 px-1 ${
+                    isCurrent
+                      ? 'bg-green-600 text-white ring-2 ring-green-400 shadow-lg shadow-green-500/30'
+                      : status === 'solved'
+                        ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60'
+                        : status === 'failed'
+                          ? 'bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/40 dark:text-orange-300 dark:hover:bg-orange-900/60'
+                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/20'
+                  }`}
+                >
+                  <div className="flex items-baseline gap-1 leading-tight">
+                    <span className={`text-lg font-extrabold ${
+                      isCurrent ? 'text-white' : status === 'solved' ? 'text-green-600 dark:text-green-400' : status === 'failed' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-200'
+                    }`}>
+                      {globalIndex}
+                    </span>
+                    <span className={`text-sm font-bold font-mono ${
+                      isCurrent ? 'text-green-200' : status === 'solved' ? 'text-green-500/70 dark:text-green-400/70' : 'text-gray-500 dark:text-gray-400'
+                    }`}>
+                      {p.stipulation}
+                    </span>
+                  </div>
+
+                  <span className={`text-[11px] font-semibold leading-tight truncate max-w-full ${
+                    isCurrent ? 'text-green-100' : status === 'solved' ? 'text-green-600/70 dark:text-green-500/70' : status === 'failed' ? 'text-orange-600/70' : 'text-gray-600 dark:text-gray-300'
                   }`}>
-                    {globalIndex}
+                    {p.authors[0]?.split(',')[0] || ''}
                   </span>
-                  <span className={`text-sm font-bold font-mono ${
-                    isCurrent ? 'text-blue-200' : status === 'solved' ? 'text-green-500/70 dark:text-green-400/70' : 'text-gray-500 dark:text-gray-400'
-                  }`}>
-                    {p.stipulation}
-                  </span>
-                </div>
 
-                <span className={`text-[11px] font-semibold leading-tight truncate max-w-full ${
-                  isCurrent ? 'text-blue-100' : status === 'solved' ? 'text-green-600/70 dark:text-green-500/70' : status === 'failed' ? 'text-orange-600/70' : 'text-gray-600 dark:text-gray-300'
-                }`}>
-                  {p.authors[0]?.split(',')[0] || ''}
-                </span>
-
-                {status === 'solved' && (
-                  <span className="absolute top-0.5 right-1 text-green-500 dark:text-green-400 text-xs font-bold">&#10003;</span>
-                )}
-
-                {status === 'failed' && !isCurrent && (
-                  <span className="absolute top-0.5 right-1 text-orange-500 dark:text-orange-400 text-xs font-bold">&#10007;</span>
-                )}
-
-                {bookmarks.includes(String(p.id)) && (
-                  <span className="absolute top-0.5 left-1 text-yellow-500 text-[10px]">{'\u2605'}</span>
-                )}
-
-                {isCurrent && (
-                  <span className="absolute top-0.5 right-1 text-blue-200 text-xs">&#9654;</span>
-                )}
-              </button>
-            );
-          })}
+                  {status === 'solved' && (
+                    <span className="absolute top-0.5 right-1 text-green-500 dark:text-green-400 text-xs font-bold">&#10003;</span>
+                  )}
+                  {status === 'failed' && !isCurrent && (
+                    <span className="absolute top-0.5 right-1 text-orange-500 dark:text-orange-400 text-xs font-bold">&#10007;</span>
+                  )}
+                  {bookmarks.includes(String(p.id)) && (
+                    <span className="absolute top-0.5 left-1 text-yellow-500 text-[10px]">{'\u2605'}</span>
+                  )}
+                  {isCurrent && (
+                    <span className="absolute top-0.5 right-1 text-green-200 text-xs">&#9654;</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 

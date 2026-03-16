@@ -13,8 +13,11 @@ import { SolutionTree } from './components/SolutionTree';
 import { GenreTutorial } from './components/GenreTutorial';
 // import { TermsPage } from './components/TermsPage';
 import { ProblemList } from './components/ProblemList';
+import { FilterPage } from './components/FilterPage';
+import { HamburgerMenu } from './components/HamburgerMenu';
 import { parseSolution } from './services/solutionParser';
 import { findTheme } from './data/themes';
+import { getDailyIndex } from './utils/dailyProblem';
 import type { AppView, Genre, ProblemProgress, ChessProblem } from './types';
 
 /**
@@ -124,6 +127,42 @@ function KeywordTags({ keywords }: { keywords: string[] }) {
   );
 }
 
+function pieceCount(fen: string): number {
+  return fen.split(' ')[0].replace(/[0-9/]/g, '').length;
+}
+
+interface GlobalFilters {
+  keywords: string[];
+  minPieces: number;
+  maxPieces: number;
+  minYear: number;
+  maxYear: number;
+  sortBy: 'difficulty' | 'year';
+  sortOrder: 'asc' | 'desc';
+  stipulations: string[];
+}
+
+/** Migrate old localStorage format */
+function migrateFilters(raw: unknown): GlobalFilters {
+  const defaults: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [] };
+  if (!raw || typeof raw !== 'object') return defaults;
+  const obj = raw as Record<string, unknown>;
+  // Migrate old single keyword
+  if (typeof obj.keyword === 'string' && !Array.isArray(obj.keywords)) {
+    obj.keywords = obj.keyword ? [obj.keyword as string] : [];
+    delete obj.keyword;
+  }
+  // Migrate old single stipulation to array
+  if (typeof obj.stipulation === 'string') {
+    obj.stipulations = obj.stipulation && obj.stipulation !== 'all' ? [obj.stipulation as string] : [];
+    delete obj.stipulation;
+  }
+  if (!Array.isArray(obj.keywords)) obj.keywords = [];
+  if (!Array.isArray(obj.stipulations)) obj.stipulations = [];
+  if (obj.sortOrder !== 'asc' && obj.sortOrder !== 'desc') obj.sortOrder = 'asc';
+  return { ...defaults, ...obj } as GlobalFilters;
+}
+
 function useWindowWidth() {
   const [width, setWidth] = useState(window.innerWidth);
   useEffect(() => {
@@ -149,9 +188,16 @@ export default function App() {
   const [seenTutorials, setSeenTutorials] = useLocalStorage<string[]>('cp-tutorials-seen', []);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showProblemList, setShowProblemList] = useState(false);
+  const [showFilterPage, setShowFilterPage] = useState(false);
+  const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
+  const [showProblemInfo, setShowProblemInfo] = useState(false);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
     direct: [], help: [], self: [], study: [], retro: [],
   });
+  const [filtersRaw, setFilters] = useLocalStorage<GlobalFilters>('cp-filters', {
+    keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [],
+  });
+  const filters = useMemo(() => migrateFilters(filtersRaw), [filtersRaw]);
 
   const windowWidth = useWindowWidth();
   const boardWidth = Math.min(windowWidth - 32, 480);
@@ -239,6 +285,40 @@ export default function App() {
       return [];
     }
   }, [genreLoaded, genreData]);
+
+  // ── Daily Problem ──
+  // Preload direct genre on mount for daily problem
+  const dailyPreloadedRef = useRef(false);
+  useEffect(() => {
+    if (dailyPreloadedRef.current) return;
+    dailyPreloadedRef.current = true;
+    loadGenre('direct');
+  }, [loadGenre]);
+
+  const dailyProblem = useMemo<ChessProblem | null>(() => {
+    if (!genreLoaded.direct) return null;
+    const directProblems = genreData.direct;
+    // Filter to #2 problems only (most classic daily puzzle format)
+    const mate2 = directProblems.filter(p => p.stipulation === '#2');
+    if (mate2.length === 0) return null;
+    const idx = getDailyIndex(new Date(), mate2.length);
+    return mate2[idx] || null;
+  }, [genreLoaded.direct, genreData.direct]);
+
+  const dailySolved = useMemo(() => {
+    if (!dailyProblem) return false;
+    return progress.direct?.[String(dailyProblem.id)] === 'solved';
+  }, [dailyProblem, progress]);
+
+  const handleSolveDaily = useCallback(() => {
+    if (!dailyProblem) return;
+    setCurrentGenre('direct');
+    setView('solving');
+    problem.loadProblem(dailyProblem);
+    cacheProblem(dailyProblem);
+    setCurrentProblemId(prev => ({ ...prev, direct: dailyProblem.id }));
+    history.replaceState(null, '', `#/direct/yacpdb/${dailyProblem.id}`);
+  }, [dailyProblem, problem, cacheProblem, setCurrentProblemId]);
 
   // Run analysis when position changes and analysis mode is active
   useEffect(() => {
@@ -331,6 +411,35 @@ export default function App() {
     return counts;
   }, [genreData, genreLoaded]);
 
+  const filteredProblems = useMemo(() => {
+    if (!currentGenre) return [];
+    let result = problemsByGenre[currentGenre] || [];
+    if (filters.minPieces > 0) result = result.filter(p => pieceCount(p.fen) >= filters.minPieces);
+    if (filters.maxPieces > 0) result = result.filter(p => pieceCount(p.fen) <= filters.maxPieces);
+    if (filters.minYear > 0) result = result.filter(p => (p.sourceYear || 0) >= filters.minYear);
+    if (filters.maxYear > 0) result = result.filter(p => (p.sourceYear || 9999) <= filters.maxYear);
+    if (filters.keywords.length > 0) result = result.filter(p => filters.keywords.some(kw => p.keywords?.includes(kw)));
+    if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
+    if (filters.sortBy === 'year') {
+      const dir = filters.sortOrder === 'desc' ? -1 : 1;
+      result = [...result].sort((a, b) => dir * ((a.sourceYear || 9999) - (b.sourceYear || 9999)));
+    } else if (filters.sortOrder === 'desc') {
+      result = [...result].slice().reverse();
+    }
+    return result;
+  }, [currentGenre, problemsByGenre, filters]);
+
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filters.keywords.length > 0) count++;
+    if (filters.minPieces > 0) count++;
+    if (filters.maxPieces > 0) count++;
+    if (filters.minYear > 0) count++;
+    if (filters.maxYear > 0) count++;
+    if (filters.stipulations.length > 0) count++;
+    return count;
+  }, [filters]);
+
   // ── Hash-based routing ──
   const updateHash = useCallback((genre: Genre | null, problemId?: number | null) => {
     if (!genre) {
@@ -338,15 +447,11 @@ export default function App() {
       return;
     }
     if (problemId) {
-      const problems = problemsByGenre[genre];
-      const idx = problems.findIndex(p => p.id === problemId);
-      if (idx >= 0) {
-        history.replaceState(null, '', `#/${genre}/${idx + 1}`);
-        return;
-      }
+      history.replaceState(null, '', `#/${genre}/yacpdb/${problemId}`);
+      return;
     }
     history.replaceState(null, '', `#/${genre}`);
-  }, [problemsByGenre]);
+  }, []);
 
   // Restore from hash on initial load
   const hashRestoredRef = useRef(false);
@@ -356,13 +461,44 @@ export default function App() {
 
     const hash = window.location.hash;
     if (hash === '#/terms') {
-      setView('mode-select'); // terms page removed
+      setView('mode-select');
       return;
     }
-    const match = hash.match(/^#\/(direct|help|self|study|retro)(?:\/(\d+))?$/);
-    if (!match) return;
+    // New format: #/genre/yacpdb/12345
+    const yacpdbMatch = hash.match(/^#\/(direct|help|self|study|retro)\/yacpdb\/(\d+)$/);
+    // Legacy format: #/genre/12345
+    const legacyMatch = hash.match(/^#\/(direct|help|self|study|retro)\/(\d+)$/);
+    const match = yacpdbMatch || legacyMatch;
+    if (!match) {
+      // Check if it's just a genre without problem number
+      const genreOnly = hash.match(/^#\/(direct|help|self|study|retro)$/);
+      if (!genreOnly) return;
+      // Just set genre, no specific problem
+      setCurrentGenre(genreOnly[1] as Genre);
+      setView('solving');
+      loadGenre(genreOnly[1] as Genre).then(problems => {
+        if (problems.length === 0) return;
+        const genreProgress = progress[genreOnly[1] as Genre] || {};
+        let nextProblem: ChessProblem | null = null;
+        for (const p of problems) {
+          if (genreProgress[String(p.id)] !== 'solved' && genreProgress[String(p.id)] !== 'skipped') {
+            nextProblem = p;
+            break;
+          }
+        }
+        if (!nextProblem) nextProblem = problems[0];
+        if (nextProblem) {
+          problem.loadProblem(nextProblem);
+          cacheProblem(nextProblem);
+          setCurrentProblemId(prev => ({ ...prev, [genreOnly[1] as Genre]: nextProblem!.id }));
+          history.replaceState(null, '', `#/${genreOnly[1]}/yacpdb/${nextProblem.id}`);
+        }
+      });
+      return;
+    }
 
     const genre = match[1] as Genre;
+    const isLegacy = !yacpdbMatch;
     const problemNum = match[2] ? parseInt(match[2]) : null;
 
     setCurrentGenre(genre);
@@ -401,14 +537,25 @@ export default function App() {
     loadGenre(genre).then(problems => {
       if (problems.length === 0) return;
 
-      // If we showed a cached problem, check if we need to update to the correct one
-      if (problemNum && problemNum >= 1 && problemNum <= problems.length) {
-        const target = problems[problemNum - 1];
-        // Only reload if different from cached
-        if (target.id !== problem.problem?.id) {
+      if (problemNum) {
+        let target: ChessProblem | undefined;
+        if (isLegacy) {
+          // Legacy: problemNum is 1-based index
+          if (problemNum >= 1 && problemNum <= problems.length) {
+            target = problems[problemNum - 1];
+          }
+        } else {
+          // New: problemNum is YACPDB ID
+          target = problems.find(p => p.id === problemNum);
+        }
+        if (target && target.id !== problem.problem?.id) {
           problem.loadProblem(target);
           cacheProblem(target);
-          setCurrentProblemId(prev => ({ ...prev, [genre]: target.id }));
+          setCurrentProblemId(prev => ({ ...prev, [genre]: target!.id }));
+          // Update to new format if legacy
+          if (isLegacy) {
+            history.replaceState(null, '', `#/${genre}/yacpdb/${target.id}`);
+          }
         }
       } else if (!problem.problem || problem.problem.genre !== genre) {
         // No cached problem matched — find next unsolved
@@ -466,13 +613,7 @@ export default function App() {
       problem.loadProblem(nextProblem);
       cacheProblem(nextProblem);
       setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem!.id }));
-      // Use problems array directly to compute index (avoids stale closure on problemsByGenre)
-      const idx = problems.findIndex(p => p.id === nextProblem!.id);
-      if (idx >= 0) {
-        history.replaceState(null, '', `#/${genre}/${idx + 1}`);
-      } else {
-        history.replaceState(null, '', `#/${genre}`);
-      }
+      history.replaceState(null, '', `#/${genre}/yacpdb/${nextProblem.id}`);
     } else {
       history.replaceState(null, '', `#/${genre}`);
     }
@@ -535,7 +676,7 @@ export default function App() {
     }
 
     // Find next
-    const problems = problemsByGenre[currentGenre];
+    const problems = filteredProblems;
     const currentIdx = problems.findIndex(p => p.id === problem.problem!.id);
     const nextProblem = problems[currentIdx + 1] || problems[0];
 
@@ -545,13 +686,24 @@ export default function App() {
       setCurrentProblemId(prev => ({ ...prev, [currentGenre]: nextProblem.id }));
       updateHash(currentGenre, nextProblem.id);
     }
-  }, [currentGenre, problem, problemsByGenre, setProgress, setCurrentProblemId, updateHash, cacheProblem]);
+  }, [currentGenre, problem, filteredProblems, setProgress, setCurrentProblemId, updateHash, cacheProblem]);
 
   // Navigate to prev/next problem without marking solved
   const handleNavProblem = useCallback((direction: -1 | 1) => {
     if (!currentGenre || !problem.problem) return;
-    const problems = problemsByGenre[currentGenre];
+    const problems = filteredProblems;
+    if (problems.length === 0) return;
     const currentIdx = problems.findIndex(p => p.id === problem.problem!.id);
+    if (currentIdx === -1) {
+      // Current problem not in filtered set — go to first
+      const next = problems[0];
+      problem.loadProblem(next);
+      cacheProblem(next);
+      setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
+      setAnalysisResult(null);
+      updateHash(currentGenre, next.id);
+      return;
+    }
     const nextIdx = currentIdx + direction;
     if (nextIdx < 0 || nextIdx >= problems.length) return;
     const next = problems[nextIdx];
@@ -560,7 +712,22 @@ export default function App() {
     setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
     setAnalysisResult(null);
     updateHash(currentGenre, next.id);
-  }, [currentGenre, problem, problemsByGenre, setCurrentProblemId, updateHash]);
+  }, [currentGenre, problem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
+
+  const handleRandomProblem = useCallback(() => {
+    if (!currentGenre) return;
+    const problems = filteredProblems;
+    if (problems.length <= 1) return;
+    let next: typeof problems[0];
+    do {
+      const idx = Math.floor(Math.random() * problems.length);
+      next = problems[idx];
+    } while (next.id === problem.problem?.id && problems.length > 1);
+    problem.loadProblem(next);
+    cacheProblem(next);
+    setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
+    updateHash(currentGenre, next.id);
+  }, [currentGenre, problem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
 
   const toggleBookmark = useCallback(() => {
     if (!currentGenre || !problem.problem) return;
@@ -593,6 +760,7 @@ export default function App() {
           currentGenre={currentGenre}
           onBack={goBack}
           onShowHelp={view === 'solving' && currentGenre ? () => setShowTutorial(true) : undefined}
+          onOpenMenu={view === 'solving' ? () => setShowHamburgerMenu(true) : undefined}
         />
 
         <main className="px-4 pb-8">
@@ -602,6 +770,9 @@ export default function App() {
                 onSelectMode={selectMode}
                 progress={progress}
                 problemCounts={problemCounts}
+                dailyProblem={dailyProblem}
+                onSolveDaily={handleSolveDaily}
+                dailySolved={dailySolved}
               />
           )}
 
@@ -640,7 +811,7 @@ export default function App() {
                 <div className="flex items-center gap-1 flex-1 min-w-0">
                   <button
                     onClick={() => handleNavProblem(-1)}
-                    disabled={!currentGenre || !problem.problem || problemsByGenre[currentGenre].findIndex(p => p.id === problem.problem!.id) <= 0}
+                    disabled={!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) <= 0}
                     className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors shrink-0"
                     title="Previous problem"
                   >
@@ -650,12 +821,13 @@ export default function App() {
                   </button>
                   <ProblemCard
                     problem={problem.problem}
-                    problemNumber={currentGenre ? problemsByGenre[currentGenre].findIndex(p => p.id === problem.problem!.id) + 1 : undefined}
+                    problemNumber={currentGenre ? (problemsByGenre[currentGenre] || []).findIndex(p => p.id === problem.problem!.id) + 1 : undefined}
                     genrePrefix={currentGenre === 'direct' ? 'D' : currentGenre === 'help' ? 'H' : currentGenre === 'self' ? 'S' : currentGenre === 'study' ? 'St' : ''}
+                    showThemes={problem.status === 'correct' || problem.status === 'viewing'}
                   />
                   <button
                     onClick={() => handleNavProblem(1)}
-                    disabled={!currentGenre || !problem.problem || problemsByGenre[currentGenre].findIndex(p => p.id === problem.problem!.id) >= problemsByGenre[currentGenre].length - 1}
+                    disabled={!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) >= filteredProblems.length - 1}
                     className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors shrink-0"
                     title="Next problem"
                   >
@@ -676,22 +848,37 @@ export default function App() {
                   </svg>
                 </button>
                 <button
-                  onClick={() => setShowProblemList(prev => !prev)}
-                  className="text-xs px-2 py-1 rounded bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors shrink-0 ml-1"
+                  onClick={() => setShowProblemInfo(true)}
+                  className="w-6 h-6 rounded-full border border-gray-300 dark:border-gray-600 text-xs font-bold text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center shrink-0"
+                  title="Problem info"
                 >
-                  {showProblemList ? 'Hide List' : 'Problem List'}
+                  i
                 </button>
               </div>
 
               {showProblemList && currentGenre && (
                 <ProblemList
-                  genre={currentGenre}
-                  problems={problemsByGenre[currentGenre]}
+                  problems={filteredProblems}
+                  allProblems={problemsByGenre[currentGenre]}
                   progress={progress[currentGenre] || {}}
                   bookmarks={bookmarks[currentGenre] || []}
                   currentProblemId={problem.problem.id}
                   onSelectProblem={handleSelectProblem}
                   onClose={() => setShowProblemList(false)}
+                  onOpenFilters={() => { setShowProblemList(false); setShowFilterPage(true); }}
+                  activeFilterCount={activeFilterCount}
+                  sortBy={filters.sortBy}
+                  sortOrder={filters.sortOrder}
+                  onSortChange={(sort, order) => setFilters({ ...filters, sortBy: sort, sortOrder: order })}
+                />
+              )}
+
+              {showFilterPage && currentGenre && (
+                <FilterPage
+                  allProblems={problemsByGenre[currentGenre]}
+                  filters={filters}
+                  onFiltersChange={setFilters}
+                  onClose={() => setShowFilterPage(false)}
                 />
               )}
 
@@ -768,6 +955,7 @@ export default function App() {
                 onReset={problem.resetProblem}
                 onShowSolution={handleGiveUp}
                 onNextProblem={handleNextProblem}
+                onRandomProblem={handleRandomProblem}
                 onShowHint={problem.showHint}
                 onHideHint={problem.hideHint}
                 onAnalyze={handleAnalyze}
@@ -812,6 +1000,79 @@ export default function App() {
       {showTutorial && currentGenre && (
         <GenreTutorial genre={currentGenre} onClose={closeTutorial} />
       )}
+
+      <HamburgerMenu
+        isOpen={showHamburgerMenu}
+        onClose={() => setShowHamburgerMenu(false)}
+        onOpenFilters={() => { setShowHamburgerMenu(false); setShowFilterPage(true); }}
+        onOpenProblemList={() => { setShowHamburgerMenu(false); setShowProblemList(true); }}
+        onGoHome={() => { setShowHamburgerMenu(false); goBack(); }}
+        activeFilterCount={activeFilterCount}
+      />
+
+      {/* Problem Info Modal */}
+      {showProblemInfo && problem.problem && (() => {
+        const p = problem.problem!;
+        const pc = pieceCount(p.fen);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setShowProblemInfo(false)} />
+            <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-sm w-full mx-4 p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Problem Info</h3>
+                <button onClick={() => setShowProblemInfo(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="space-y-2 text-sm">
+                <div>
+                  <span className="text-gray-400 dark:text-gray-500">Author: </span>
+                  <span className="text-gray-900 dark:text-gray-100 font-medium">{p.authors.join(', ')}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 dark:text-gray-500">Source: </span>
+                  <span className="text-gray-900 dark:text-gray-100">{p.sourceName}{p.sourceYear ? `, ${p.sourceYear}` : ''}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 dark:text-gray-500">YACPDB: </span>
+                  <a href={`https://www.yacpdb.org/#q/id:${p.id}`} target="_blank" rel="noopener noreferrer"
+                    className="text-green-600 dark:text-green-400 underline hover:text-green-700">
+                    #{p.id}
+                  </a>
+                </div>
+                <div>
+                  <span className="text-gray-400 dark:text-gray-500">Stipulation: </span>
+                  <span className="text-gray-900 dark:text-gray-100 font-mono">{p.stipulation}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 dark:text-gray-500">Pieces: </span>
+                  <span className="text-gray-900 dark:text-gray-100">{pc}</span>
+                </div>
+                {p.award && (
+                  <div>
+                    <span className="text-gray-400 dark:text-gray-500">Award: </span>
+                    <span className="text-yellow-600 dark:text-yellow-400">{p.award}</span>
+                  </div>
+                )}
+                {p.keywords.length > 0 && (
+                  <div>
+                    <span className="text-gray-400 dark:text-gray-500 block mb-1">Themes:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {p.keywords.map(kw => (
+                        <span key={kw} className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                          {kw}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
