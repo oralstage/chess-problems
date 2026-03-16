@@ -601,7 +601,10 @@ export default function App() {
                 progress={progress}
                 problemCounts={problemCounts}
               />
-              <div className="flex flex-col items-center gap-4 mt-6">
+              <div className="flex flex-col items-center gap-5 mt-8 mb-4">
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Enjoying the puzzles? Support this project ☕
+                </p>
                 <a
                   href="https://ko-fi.com/A0A21W2W51"
                   target="_blank"
@@ -610,7 +613,7 @@ export default function App() {
                   <img
                     src="https://storage.ko-fi.com/cdn/kofi2.png?v=6"
                     alt="Buy Me a Coffee at ko-fi.com"
-                    className="h-9 hover:opacity-80 transition-opacity"
+                    className="h-10 hover:opacity-80 transition-opacity"
                   />
                 </a>
                 <button
@@ -623,7 +626,7 @@ export default function App() {
             </>
           )}
 
-          {view === 'solving' && genreLoading && !problem.problem && (
+          {view === 'solving' && !problem.problem && (genreLoading || (currentGenre && !genreLoaded[currentGenre])) && (
             <div className="text-center py-12">
               <div className="text-4xl mb-4 animate-pulse text-gray-800 dark:text-gray-200">♔</div>
               <p className="text-gray-500 dark:text-gray-400">Loading problems...</p>
@@ -795,7 +798,7 @@ export default function App() {
             </div>
           )}
 
-          {view === 'solving' && !problem.problem && (
+          {view === 'solving' && !problem.problem && !genreLoading && currentGenre && genreLoaded[currentGenre] && (
             <div className="text-center py-12 text-gray-400">
               No problems available for this mode.
             </div>
