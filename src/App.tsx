@@ -466,11 +466,17 @@ export default function App() {
       problem.loadProblem(nextProblem);
       cacheProblem(nextProblem);
       setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem!.id }));
-      updateHash(genre, nextProblem.id);
+      // Use problems array directly to compute index (avoids stale closure on problemsByGenre)
+      const idx = problems.findIndex(p => p.id === nextProblem!.id);
+      if (idx >= 0) {
+        history.replaceState(null, '', `#/${genre}/${idx + 1}`);
+      } else {
+        history.replaceState(null, '', `#/${genre}`);
+      }
     } else {
-      updateHash(genre);
+      history.replaceState(null, '', `#/${genre}`);
     }
-  }, [seenTutorials, loadGenre, progress, currentProblemId, problem, setCurrentProblemId, updateHash, cacheProblem]);
+  }, [seenTutorials, loadGenre, progress, currentProblemId, problem, setCurrentProblemId, cacheProblem]);
 
   const closeTutorial = useCallback(() => {
     setShowTutorial(false);
