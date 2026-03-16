@@ -607,21 +607,7 @@ export default function App() {
                 progress={progress}
                 problemCounts={problemCounts}
               />
-              <div className="flex flex-col items-center gap-5 mt-8 mb-4">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Enjoying the puzzles? Support this project ☕
-                </p>
-                <a
-                  href="https://ko-fi.com/A0A21W2W51"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img
-                    src="https://storage.ko-fi.com/cdn/kofi2.png?v=6"
-                    alt="Buy Me a Coffee at ko-fi.com"
-                    className="h-10 hover:opacity-80 transition-opacity"
-                  />
-                </a>
+              <div className="flex justify-center mt-6">
                 <button
                   onClick={() => { setView('terms'); window.location.hash = '#/terms'; }}
                   className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
@@ -633,9 +619,28 @@ export default function App() {
           )}
 
           {view === 'solving' && !problem.problem && (genreLoading || (currentGenre && !genreLoaded[currentGenre])) && (
-            <div className="text-center py-12">
-              <div className="text-4xl mb-4 animate-pulse text-gray-800 dark:text-gray-200">♔</div>
-              <p className="text-gray-500 dark:text-gray-400">Loading problems...</p>
+            <div className="text-center py-16">
+              <div className="inline-flex gap-1 mb-4">
+                {['♔', '♕', '♖', '♗', '♘'].map((piece, i) => (
+                  <span
+                    key={i}
+                    className="text-3xl text-gray-700 dark:text-gray-300"
+                    style={{
+                      animation: `bounce 1.2s ease-in-out ${i * 0.15}s infinite`,
+                      display: 'inline-block',
+                    }}
+                  >
+                    {piece}
+                  </span>
+                ))}
+              </div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Loading problems...</p>
+              <style>{`
+                @keyframes bounce {
+                  0%, 80%, 100% { transform: translateY(0); }
+                  40% { transform: translateY(-12px); }
+                }
+              `}</style>
             </div>
           )}
 
@@ -773,6 +778,7 @@ export default function App() {
                 onShowSolution={handleGiveUp}
                 onNextProblem={handleNextProblem}
                 onShowHint={problem.showHint}
+                onHideHint={problem.hideHint}
                 onAnalyze={handleAnalyze}
                 analyzing={analyzing}
                 analysisResult={analysisResult}

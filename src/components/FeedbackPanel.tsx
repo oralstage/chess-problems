@@ -9,6 +9,7 @@ interface FeedbackPanelProps {
   onShowSolution: () => void;
   onNextProblem: () => void;
   onShowHint: () => void;
+  onHideHint?: () => void;
   onAnalyze?: () => void;
   analyzing?: boolean;
   analysisResult?: string | null;
@@ -25,6 +26,7 @@ export function FeedbackPanel({
   onShowSolution,
   onNextProblem,
   onShowHint,
+  onHideHint,
   onAnalyze,
   analyzing,
   analysisResult,
@@ -93,9 +95,12 @@ export function FeedbackPanel({
             </button>
           )}
           {hintActive && (
-            <span className="px-3 py-1.5 text-xs text-blue-600 dark:text-blue-400 font-medium">
-              Hint active
-            </span>
+            <button
+              onClick={onHideHint}
+              className="px-3 py-1.5 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60 transition-colors font-medium"
+            >
+              Hide Hint
+            </button>
           )}
           {moveHistory.length > 0 && (
             <button

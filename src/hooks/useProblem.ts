@@ -767,6 +767,10 @@ export function useProblem(stockfish?: StockfishApi) {
     }
   }, [state, stockfish]);
 
+  const hideHint = useCallback(() => {
+    setState(prev => ({ ...prev, hintSquares: null }));
+  }, []);
+
   const resetProblem = useCallback(() => {
     if (state.problem) loadProblem(state.problem);
   }, [state.problem, loadProblem]);
@@ -875,6 +879,7 @@ export function useProblem(stockfish?: StockfishApi) {
     loadProblem,
     tryMove,
     showHint,
+    hideHint,
     resetProblem,
     showSolution,
     playbackGoTo,
