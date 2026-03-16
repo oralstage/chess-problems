@@ -90,10 +90,7 @@ export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onSho
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <KofiButton />
-        <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
-      </div>
+      <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
     </header>
   );
 }
