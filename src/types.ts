@@ -43,7 +43,7 @@ export interface GenreStats {
   bestStreak: number;
 }
 
-export type AppView = 'mode-select' | 'solving' | 'history' | 'themes';
+export type AppView = 'mode-select' | 'solving' | 'history' | 'themes' | 'terms';
 
 export interface ThemeInfo {
   key: string;
