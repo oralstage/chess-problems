@@ -233,7 +233,11 @@ function matchMoveToTree(
     if (nodeSanClean === moveSanClean) return node;
     const verifyChess = new Chess(preFen);
     const verifiedMove = tryExecuteNode(verifyChess, node);
-    if (verifiedMove && verifiedMove.from === from && verifiedMove.to === to) return node;
+    if (verifiedMove && verifiedMove.from === from && verifiedMove.to === to) {
+      // For promotions, also check the promotion piece matches
+      if (movePromotion && verifiedMove.promotion && verifiedMove.promotion !== movePromotion) continue;
+      return node;
+    }
   }
   return null;
 }

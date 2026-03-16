@@ -46,7 +46,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts }: ModeSele
       {/* ── Hero ── */}
       <div className="px-5 mb-10">
         <div className="flex items-center gap-4 mb-3">
-          <svg className="w-12 h-12 sm:w-14 sm:h-14 text-gray-900 dark:text-white" viewBox="0 0 45 45" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-14 h-14 sm:w-16 sm:h-16 text-gray-900 dark:text-white" viewBox="0 0 45 45" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M 22.5,11.63 L 22.5,6" />
             <path d="M 20,8 L 25,8" />
             <path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" />
