@@ -3,13 +3,14 @@ interface HamburgerMenuProps {
   onClose: () => void;
   onOpenFilters: () => void;
   onOpenProblemList: () => void;
+  onOpenHistory: () => void;
   onGoHome: () => void;
   activeFilterCount: number;
 }
 
 export function HamburgerMenu({
   isOpen, onClose,
-  onOpenFilters, onOpenProblemList, onGoHome, activeFilterCount,
+  onOpenFilters, onOpenProblemList, onOpenHistory, onGoHome, activeFilterCount,
 }: HamburgerMenuProps) {
   if (!isOpen) return null;
 
@@ -60,6 +61,20 @@ export function HamburgerMenu({
                 {activeFilterCount}
               </span>
             )}
+          </button>
+
+          {/* History */}
+          <button
+            onClick={() => {
+              onOpenHistory();
+              onClose();
+            }}
+            className="w-full text-left px-5 py-3 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            History
           </button>
 
           <div className="h-px bg-gray-100 dark:bg-gray-800 my-2 mx-5" />

@@ -1,8 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import type { ChessProblem, ProblemProgress } from '../types';
 
+type StatusFilter = 'all' | 'unsolved' | 'solved' | 'failed' | 'bookmarked';
+
 interface ProblemListProps {
-  problems: ChessProblem[];          // pre-filtered by global filters
+  problems: ChessProblem[];          // pre-filtered by global filters + status filter
   allProblems: ChessProblem[];       // unfiltered, for stable numbering
   progress: ProblemProgress;
   bookmarks: string[];
@@ -14,9 +16,9 @@ interface ProblemListProps {
   sortBy: 'difficulty' | 'year';
   sortOrder: 'asc' | 'desc';
   onSortChange: (sort: 'difficulty' | 'year', order: 'asc' | 'desc') => void;
+  statusFilter: StatusFilter;
+  onStatusFilterChange: (f: StatusFilter) => void;
 }
-
-type StatusFilter = 'all' | 'unsolved' | 'solved' | 'failed' | 'bookmarked';
 
 const COLS = 4;
 const ROWS = 5;
@@ -26,6 +28,7 @@ export function ProblemList({
   problems, allProblems, progress, bookmarks, currentProblemId,
   onSelectProblem, onClose, onOpenFilters, activeFilterCount,
   sortBy, sortOrder, onSortChange,
+  statusFilter, onStatusFilterChange,
 }: ProblemListProps) {
   const solved = Object.values(progress).filter(s => s === 'solved').length;
   const failed = Object.values(progress).filter(s => s === 'failed').length;
@@ -37,7 +40,6 @@ export function ProblemList({
     return map;
   }, [allProblems]);
 
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [showSortMenu, setShowSortMenu] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
 
@@ -53,20 +55,8 @@ export function ProblemList({
     return () => document.removeEventListener('mousedown', handler);
   }, [showSortMenu]);
 
-  // Internal filtering: status only (keyword/pieces/year/sort/stipulation handled by parent)
-  const filtered = useMemo(() => {
-    if (statusFilter === 'all') return problems;
-    return problems.filter(p => {
-      const s = progress[String(p.id)];
-      switch (statusFilter) {
-        case 'solved': return s === 'solved';
-        case 'failed': return s === 'failed';
-        case 'unsolved': return s !== 'solved' && s !== 'failed';
-        case 'bookmarked': return bookmarks.includes(String(p.id));
-        default: return true;
-      }
-    });
-  }, [problems, statusFilter, progress, bookmarks]);
+  // problems is already filtered by parent (global filters + status filter)
+  const filtered = problems;
 
   const currentIdx = filtered.findIndex(p => p.id === currentProblemId);
   const initialPage = currentIdx >= 0 ? Math.floor(currentIdx / PAGE_SIZE) : 0;
@@ -79,7 +69,7 @@ export function ProblemList({
   );
 
   const handleStatusFilterChange = (f: StatusFilter) => {
-    setStatusFilter(f);
+    onStatusFilterChange(f);
     setPage(0);
   };
 

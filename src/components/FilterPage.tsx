@@ -10,6 +10,7 @@ interface GlobalFilters {
   sortBy: 'difficulty' | 'year';
   sortOrder: 'asc' | 'desc';
   stipulations: string[];
+  statusFilter: 'all' | 'unsolved' | 'solved' | 'failed' | 'bookmarked';
 }
 
 interface FilterPageProps {
@@ -187,7 +188,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
   const resetAll = () => {
     onFiltersChange({
       keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0,
-      sortBy: filters.sortBy, sortOrder: filters.sortOrder, stipulations: [],
+      sortBy: filters.sortBy, sortOrder: filters.sortOrder, stipulations: [], statusFilter: filters.statusFilter,
     });
   };
 

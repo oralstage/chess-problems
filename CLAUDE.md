@@ -160,3 +160,5 @@
 - **Theme filter behavior**: `keywords: []` (empty) = no theme filtering (show ALL problems). Only filters when keywords are explicitly selected.
 - **Theme hiding**: `showThemes` on ProblemCard is `false` during solving (prevents hints). Themes shown after solving in SolutionTree's `keywordTags`.
 - **Info modal** (`i` button): Inline modal in App.tsx showing author, source, YACPDB link, stipulation, pieces, award, themes.
+- **History page** (`src/components/HistoryPage.tsx`): Full-screen overlay showing solved/failed problems across ALL genres, grouped by date (Today, Yesterday, N days ago, Mon DD, Earlier). Accessible from hamburger menu. Clicking an entry navigates to the problem (cross-genre). Timestamps stored in `cp-timestamps` localStorage (`Record<string, number>`, key = `"genre:problemId"`).
+- **Status filter in navigation**: `statusFilter` is part of `GlobalFilters` (not local ProblemList state). Applied in centralized `filteredProblems` useMemo so prev/next/random all respect the filter (e.g., Unsolved filter skips solved problems in navigation).

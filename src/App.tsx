@@ -15,6 +15,7 @@ import { GenreTutorial } from './components/GenreTutorial';
 import { ProblemList } from './components/ProblemList';
 import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
+import { HistoryPage } from './components/HistoryPage';
 import { parseSolution } from './services/solutionParser';
 import { findTheme } from './data/themes';
 import { getDailyIndex } from './utils/dailyProblem';
@@ -131,6 +132,8 @@ function pieceCount(fen: string): number {
   return fen.split(' ')[0].replace(/[0-9/]/g, '').length;
 }
 
+type StatusFilter = 'all' | 'unsolved' | 'solved' | 'failed' | 'bookmarked';
+
 interface GlobalFilters {
   keywords: string[];
   minPieces: number;
@@ -140,11 +143,12 @@ interface GlobalFilters {
   sortBy: 'difficulty' | 'year';
   sortOrder: 'asc' | 'desc';
   stipulations: string[];
+  statusFilter: StatusFilter;
 }
 
 /** Migrate old localStorage format */
 function migrateFilters(raw: unknown): GlobalFilters {
-  const defaults: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [] };
+  const defaults: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' };
   if (!raw || typeof raw !== 'object') return defaults;
   const obj = raw as Record<string, unknown>;
   // Migrate old single keyword
@@ -160,6 +164,8 @@ function migrateFilters(raw: unknown): GlobalFilters {
   if (!Array.isArray(obj.keywords)) obj.keywords = [];
   if (!Array.isArray(obj.stipulations)) obj.stipulations = [];
   if (obj.sortOrder !== 'asc' && obj.sortOrder !== 'desc') obj.sortOrder = 'asc';
+  const validStatuses: StatusFilter[] = ['all', 'unsolved', 'solved', 'failed', 'bookmarked'];
+  if (!validStatuses.includes(obj.statusFilter as StatusFilter)) obj.statusFilter = 'all';
   return { ...defaults, ...obj } as GlobalFilters;
 }
 
@@ -190,12 +196,14 @@ export default function App() {
   const [showProblemList, setShowProblemList] = useState(false);
   const [showFilterPage, setShowFilterPage] = useState(false);
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
   const [showProblemInfo, setShowProblemInfo] = useState(false);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
     direct: [], help: [], self: [], study: [], retro: [],
   });
+  const [timestamps, setTimestamps] = useLocalStorage<Record<string, number>>('cp-timestamps', {});
   const [filtersRaw, setFilters] = useLocalStorage<GlobalFilters>('cp-filters', {
-    keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [],
+    keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' as StatusFilter,
   });
   const filters = useMemo(() => migrateFilters(filtersRaw), [filtersRaw]);
 
@@ -420,6 +428,21 @@ export default function App() {
     if (filters.maxYear > 0) result = result.filter(p => (p.sourceYear || 9999) <= filters.maxYear);
     if (filters.keywords.length > 0) result = result.filter(p => filters.keywords.some(kw => p.keywords?.includes(kw)));
     if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
+    // Status filter
+    if (filters.statusFilter !== 'all' && currentGenre) {
+      const genreProgress = progress[currentGenre] || {};
+      const genreBookmarks = bookmarks[currentGenre] || [];
+      result = result.filter(p => {
+        const s = genreProgress[String(p.id)];
+        switch (filters.statusFilter) {
+          case 'solved': return s === 'solved';
+          case 'failed': return s === 'failed';
+          case 'unsolved': return s !== 'solved' && s !== 'failed';
+          case 'bookmarked': return genreBookmarks.includes(String(p.id));
+          default: return true;
+        }
+      });
+    }
     if (filters.sortBy === 'year') {
       const dir = filters.sortOrder === 'desc' ? -1 : 1;
       result = [...result].sort((a, b) => dir * ((a.sourceYear || 9999) - (b.sourceYear || 9999)));
@@ -427,7 +450,7 @@ export default function App() {
       result = [...result].slice().reverse();
     }
     return result;
-  }, [currentGenre, problemsByGenre, filters]);
+  }, [currentGenre, problemsByGenre, filters, progress, bookmarks]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -437,6 +460,7 @@ export default function App() {
     if (filters.minYear > 0) count++;
     if (filters.maxYear > 0) count++;
     if (filters.stipulations.length > 0) count++;
+    if (filters.statusFilter !== 'all') count++;
     return count;
   }, [filters]);
 
@@ -632,6 +656,18 @@ export default function App() {
     updateHash(null);
   }, [updateHash]);
 
+  const handleHistorySelect = useCallback(async (genre: Genre, selected: ChessProblem) => {
+    setShowHistory(false);
+    setCurrentGenre(genre);
+    setView('solving');
+    // Ensure genre data is loaded
+    await loadGenre(genre);
+    problem.loadProblem(selected);
+    cacheProblem(selected);
+    setCurrentProblemId(prev => ({ ...prev, [genre]: selected.id }));
+    history.replaceState(null, '', `#/${genre}/yacpdb/${selected.id}`);
+  }, [loadGenre, problem, cacheProblem, setCurrentProblemId]);
+
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
     // Determine promotion: react-chessboard passes the selected piece (e.g. 'wN', 'wQ')
     const isPromotion = target[1] === '8' || target[1] === '1';
@@ -657,22 +693,27 @@ export default function App() {
         if (genreProgress[pid] === 'solved') return prev; // don't downgrade
         return { ...prev, [currentGenre]: { ...genreProgress, [pid]: 'failed' as const } };
       });
+      const tsKey = `${currentGenre}:${pid}`;
+      setTimestamps(prev => ({ ...prev, [tsKey]: Date.now() }));
     }
     problem.showSolution();
-  }, [currentGenre, problem, setProgress]);
+  }, [currentGenre, problem, setProgress, setTimestamps]);
 
   const handleNextProblem = useCallback(() => {
     if (!currentGenre || !problem.problem) return;
 
     // Only mark as solved if actually solved (not just viewing after give up)
     if (problem.status === 'correct') {
+      const pid = String(problem.problem!.id);
       setProgress(prev => ({
         ...prev,
         [currentGenre]: {
           ...prev[currentGenre],
-          [String(problem.problem!.id)]: 'solved' as const,
+          [pid]: 'solved' as const,
         },
       }));
+      const tsKey = `${currentGenre}:${pid}`;
+      setTimestamps(prev => ({ ...prev, [tsKey]: Date.now() }));
     }
 
     // Find next
@@ -686,7 +727,7 @@ export default function App() {
       setCurrentProblemId(prev => ({ ...prev, [currentGenre]: nextProblem.id }));
       updateHash(currentGenre, nextProblem.id);
     }
-  }, [currentGenre, problem, filteredProblems, setProgress, setCurrentProblemId, updateHash, cacheProblem]);
+  }, [currentGenre, problem, filteredProblems, setProgress, setTimestamps, setCurrentProblemId, updateHash, cacheProblem]);
 
   // Navigate to prev/next problem without marking solved
   const handleNavProblem = useCallback((direction: -1 | 1) => {
@@ -870,6 +911,8 @@ export default function App() {
                   sortBy={filters.sortBy}
                   sortOrder={filters.sortOrder}
                   onSortChange={(sort, order) => setFilters({ ...filters, sortBy: sort, sortOrder: order })}
+                  statusFilter={filters.statusFilter}
+                  onStatusFilterChange={(f) => setFilters({ ...filters, statusFilter: f })}
                 />
               )}
 
@@ -1006,9 +1049,31 @@ export default function App() {
         onClose={() => setShowHamburgerMenu(false)}
         onOpenFilters={() => { setShowHamburgerMenu(false); setShowFilterPage(true); }}
         onOpenProblemList={() => { setShowHamburgerMenu(false); setShowProblemList(true); }}
+        onOpenHistory={() => {
+          setShowHamburgerMenu(false);
+          setShowHistory(true);
+          // Load all genres that have progress data
+          for (const g of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
+            const prg = progress[g] || {};
+            if (Object.keys(prg).length > 0 && !genreLoaded[g]) {
+              loadGenre(g);
+            }
+          }
+        }}
         onGoHome={() => { setShowHamburgerMenu(false); goBack(); }}
         activeFilterCount={activeFilterCount}
       />
+
+      {showHistory && (
+        <HistoryPage
+          genreData={genreData}
+          genreLoaded={genreLoaded}
+          progress={progress}
+          timestamps={timestamps}
+          onSelectProblem={handleHistorySelect}
+          onClose={() => setShowHistory(false)}
+        />
+      )}
 
       {/* Problem Info Modal */}
       {showProblemInfo && problem.problem && (() => {
