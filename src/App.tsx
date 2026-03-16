@@ -17,9 +17,8 @@ import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
 import { HistoryPage } from './components/HistoryPage';
 import { parseSolution } from './services/solutionParser';
-import { fetchAllProblems, fetchProblem, fetchStats, metaToChessProblem } from './services/api';
+import { fetchAllProblems, fetchProblem, fetchDaily, fetchStats, metaToChessProblem } from './services/api';
 import { findTheme } from './data/themes';
-import { getDailyIndex } from './utils/dailyProblem';
 import type { AppView, Genre, ProblemProgress, ChessProblem } from './types';
 
 /**
@@ -286,24 +285,27 @@ export default function App() {
     problem.loadProblem(ready);
   }, [ensureSolution, problem]);
 
-  // ── Daily Problem ──
-  // Preload direct genre on mount for daily problem
-  const dailyPreloadedRef = useRef(false);
-  useEffect(() => {
-    if (dailyPreloadedRef.current) return;
-    dailyPreloadedRef.current = true;
-    loadGenre('direct');
-  }, [loadGenre]);
+  // ── Hash-based routing with browser history ──
+  const updateHash = useCallback((genre: Genre | null, problemId?: number | null, replace = false) => {
+    const method = replace ? 'replaceState' : 'pushState';
+    if (!genre) {
+      history[method](null, '', window.location.pathname);
+      return;
+    }
+    if (problemId) {
+      history[method]({ genre, problemId }, '', `#/${genre}/yacpdb/${problemId}`);
+      return;
+    }
+    history[method]({ genre }, '', `#/${genre}`);
+  }, []);
 
-  const dailyProblem = useMemo<ChessProblem | null>(() => {
-    if (!genreLoaded.direct) return null;
-    const directProblems = genreData.direct;
-    // Filter to #2 problems only (most classic daily puzzle format)
-    const mate2 = directProblems.filter(p => p.stipulation === '#2');
-    if (mate2.length === 0) return null;
-    const idx = getDailyIndex(new Date(), mate2.length);
-    return mate2[idx] || null;
-  }, [genreLoaded.direct, genreData.direct]);
+  // ── Daily Problem (fetched from /api/daily, no need to load all direct problems) ──
+  const [dailyProblem, setDailyProblem] = useState<ChessProblem | null>(null);
+  useEffect(() => {
+    fetchDaily().then(data => {
+      setDailyProblem(metaToChessProblem(data, data.solutionText));
+    }).catch(() => {});
+  }, []);
 
   const dailySolved = useMemo(() => {
     if (!dailyProblem) return false;
@@ -317,8 +319,8 @@ export default function App() {
     loadAndStartProblem(dailyProblem);
     cacheProblem(dailyProblem);
     setCurrentProblemId(prev => ({ ...prev, direct: dailyProblem.id }));
-    history.replaceState(null, '', `#/direct/yacpdb/${dailyProblem.id}`);
-  }, [dailyProblem, problem, cacheProblem, setCurrentProblemId]);
+    updateHash('direct', dailyProblem.id);
+  }, [dailyProblem, problem, cacheProblem, setCurrentProblemId, updateHash]);
 
   // Run analysis when position changes and analysis mode is active
   useEffect(() => {
@@ -461,18 +463,56 @@ export default function App() {
     return count;
   }, [filters]);
 
-  // ── Hash-based routing ──
-  const updateHash = useCallback((genre: Genre | null, problemId?: number | null) => {
-    if (!genre) {
-      history.replaceState(null, '', window.location.pathname);
-      return;
-    }
-    if (problemId) {
-      history.replaceState(null, '', `#/${genre}/yacpdb/${problemId}`);
-      return;
-    }
-    history.replaceState(null, '', `#/${genre}`);
-  }, []);
+  // Handle browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const hash = window.location.hash;
+      if (!hash || hash === '#') {
+        // Back to home
+        setView('mode-select');
+        setCurrentGenre(null);
+        setShowProblemList(false);
+        setShowFilterPage(false);
+        setShowHamburgerMenu(false);
+        setShowHistory(false);
+        setShowProblemInfo(false);
+        return;
+      }
+      const yacpdbMatch = hash.match(/^#\/(direct|help|self|study|retro)\/yacpdb\/(\d+)$/);
+      const genreOnlyMatch = hash.match(/^#\/(direct|help|self|study|retro)$/);
+      if (yacpdbMatch) {
+        const genre = yacpdbMatch[1] as Genre;
+        const problemId = parseInt(yacpdbMatch[2]);
+        setCurrentGenre(genre);
+        setView('solving');
+        setShowProblemList(false);
+        setShowFilterPage(false);
+        setShowHamburgerMenu(false);
+        setShowHistory(false);
+        setShowProblemInfo(false);
+        // Load genre data if needed, then navigate to problem
+        loadGenre(genre).then(problems => {
+          const target = problems.find(p => p.id === problemId);
+          if (target) {
+            loadAndStartProblem(target);
+            cacheProblem(target);
+            setCurrentProblemId(prev => ({ ...prev, [genre]: target.id }));
+          }
+        });
+      } else if (genreOnlyMatch) {
+        const genre = genreOnlyMatch[1] as Genre;
+        setCurrentGenre(genre);
+        setView('solving');
+        setShowProblemList(false);
+        setShowFilterPage(false);
+        setShowHamburgerMenu(false);
+        setShowHistory(false);
+        setShowProblemInfo(false);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId]);
 
   // Restore from hash on initial load
   const hashRestoredRef = useRef(false);
@@ -526,6 +566,7 @@ export default function App() {
     setView('solving');
 
     // Instantly show cached problem while genre data loads
+    let cacheHit = false;
     try {
       const cached = localStorage.getItem('cp-cached-problem');
       if (cached) {
@@ -546,11 +587,22 @@ export default function App() {
           }
           if (cachedProblem.solutionTree?.length > 0) {
             problem.loadProblem(cachedProblem);
+            cacheHit = true;
           }
           setCurrentProblemId(prev => ({ ...prev, [genre]: cachedProblem.id }));
         }
       }
     } catch { /* corrupt cache — ignore */ }
+
+    // Quick-start: if no cache hit and we have a specific problem ID, fetch it directly
+    if (!cacheHit && problemNum && !isLegacy) {
+      fetchProblem(problemNum).then(full => {
+        const quickProblem = metaToChessProblem(full, full.solutionText);
+        loadAndStartProblem(quickProblem);
+        cacheProblem(quickProblem);
+        setCurrentProblemId(prev => ({ ...prev, [genre]: quickProblem.id }));
+      }).catch(() => {});
+    }
 
     // Load full genre data in background (needed for problem list, navigation, etc.)
     loadGenre(genre).then(problems => {
@@ -568,6 +620,7 @@ export default function App() {
           target = problems.find(p => p.id === problemNum);
         }
         if (target && target.id !== problem.problem?.id) {
+          // Only update if quick-start hasn't already loaded this problem
           loadAndStartProblem(target);
           cacheProblem(target);
           setCurrentProblemId(prev => ({ ...prev, [genre]: target!.id }));
@@ -605,15 +658,30 @@ export default function App() {
       setShowTutorial(true);
     }
 
+    // Quick-start: if we have a saved problem ID, fetch it directly (single API call)
+    // while genre data loads in background
+    const savedId = currentProblemId[genre];
+    if (savedId && !genreLoaded[genre]) {
+      try {
+        const full = await fetchProblem(savedId);
+        const quickProblem = metaToChessProblem(full, full.solutionText);
+        loadAndStartProblem(quickProblem);
+        cacheProblem(quickProblem);
+        updateHash(genre, quickProblem.id);
+        // Load genre data in background (don't await)
+        loadGenre(genre);
+        return;
+      } catch { /* fall through to full load */ }
+    }
+
     // Load genre data if not loaded yet
     const problems = await loadGenre(genre);
 
     // Find next unsolved problem from the loaded data
     const genreProgress = progress[genre] || {};
-    const currentId = currentProblemId[genre];
     let nextProblem: ChessProblem | null = null;
-    if (currentId) {
-      const current = problems.find(p => p.id === currentId);
+    if (savedId) {
+      const current = problems.find(p => p.id === savedId);
       if (current && genreProgress[String(current.id)] !== 'solved') {
         nextProblem = current;
       }
@@ -632,11 +700,11 @@ export default function App() {
       loadAndStartProblem(nextProblem);
       cacheProblem(nextProblem);
       setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem!.id }));
-      history.replaceState(null, '', `#/${genre}/yacpdb/${nextProblem.id}`);
+      updateHash(genre, nextProblem.id);
     } else {
-      history.replaceState(null, '', `#/${genre}`);
+      updateHash(genre);
     }
-  }, [seenTutorials, loadGenre, loadAndStartProblem, progress, currentProblemId, problem, setCurrentProblemId, cacheProblem]);
+  }, [seenTutorials, loadGenre, loadAndStartProblem, progress, currentProblemId, problem, setCurrentProblemId, cacheProblem, updateHash, genreLoaded]);
 
   const closeTutorial = useCallback(() => {
     setShowTutorial(false);
@@ -648,7 +716,7 @@ export default function App() {
   const goBack = useCallback(() => {
     setView('mode-select');
     setCurrentGenre(null);
-    updateHash(null);
+    updateHash(null, null, false);
   }, [updateHash]);
 
   const handleHistorySelect = useCallback(async (genre: Genre, selected: ChessProblem) => {
@@ -660,8 +728,8 @@ export default function App() {
     loadAndStartProblem(selected);
     cacheProblem(selected);
     setCurrentProblemId(prev => ({ ...prev, [genre]: selected.id }));
-    history.replaceState(null, '', `#/${genre}/yacpdb/${selected.id}`);
-  }, [loadGenre, loadAndStartProblem, problem, cacheProblem, setCurrentProblemId]);
+    updateHash(genre, selected.id);
+  }, [loadGenre, loadAndStartProblem, problem, cacheProblem, setCurrentProblemId, updateHash]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
     // Determine promotion: react-chessboard passes the selected piece (e.g. 'wN', 'wQ')

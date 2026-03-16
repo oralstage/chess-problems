@@ -48,7 +48,7 @@ export async function fetchStats(genre?: string): Promise<StatsResponse> {
  * Uses pagination internally to fetch all pages.
  */
 export async function fetchAllProblems(genre: string): Promise<ProblemMeta[]> {
-  const PAGE_SIZE = 100;
+  const PAGE_SIZE = 1000;
   const all: ProblemMeta[] = [];
 
   // First page to get total
@@ -84,6 +84,15 @@ export async function fetchAllProblems(genre: string): Promise<ProblemMeta[]> {
 export async function fetchProblem(id: number): Promise<ProblemMeta & { solutionText: string }> {
   const res = await fetch(`${API_BASE}/problems/${id}`);
   if (!res.ok) throw new Error(`Problem ${id} not found: ${res.status}`);
+  return res.json();
+}
+
+/**
+ * Fetch today's daily problem (includes solutionText).
+ */
+export async function fetchDaily(): Promise<ProblemMeta & { solutionText: string }> {
+  const res = await fetch(`${API_BASE}/daily`);
+  if (!res.ok) throw new Error(`Daily API error: ${res.status}`);
   return res.json();
 }
 

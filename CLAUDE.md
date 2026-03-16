@@ -31,9 +31,10 @@
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/stats?genre=X` | Genre counts, available stipulations, keywords, ranges |
-| `GET /api/problems?genre=X&page=0&pageSize=20&...` | Paginated problem list (no solutionText) |
+| `GET /api/problems?genre=X&page=0&pageSize=20&...` | Paginated problem list (no solutionText), max pageSize=1000 |
 | `GET /api/problems/:id` | Single problem with full solutionText |
 | `GET /api/problems/ids?genre=X&...` | All matching problem IDs for navigation |
+| `GET /api/daily` | Today's daily problem (#2 direct mate, with solutionText, 1h cache) |
 
 ### Key Files
 | File | Purpose |
@@ -123,14 +124,18 @@
 - **Bookmarks**: Stored per-genre in localStorage (`cp-bookmarks`). Toggle via star button next to problem card.
 - **"Exploring" / "Free play"**: Shows when user makes a move on the board during playback. Clicking a solution move or pressing < returns to normal playback.
 
-### URL Routing
-- Hash-based: `#/direct/44` persists genre and problem number across reloads
-- `updateHash(genre, problemId)` writes hash; `useEffect` restores on load
-- All navigation functions (selectMode, handleSelectProblem, goBack, etc.) call `updateHash`
+### URL Routing & Browser History
+- Hash-based: `#/direct/yacpdb/12345` persists genre and YACPDB problem ID across reloads
+- `updateHash(genre, problemId, replace)` uses `pushState` (default) or `replaceState` for browser history
+- `popstate` event listener handles browser back/forward buttons — navigates between problems
+- All navigation functions (selectMode, handleSelectProblem, handleNavProblem, handleRandomProblem, etc.) call `updateHash` which pushes to browser history stack
 - `hashRestoredRef` prevents double-restore after initial load
+- Legacy format `#/direct/44` (1-based index) auto-converted to new format on load
 
 ### Lazy Loading & Caching
-- **Per-genre lazy loading via API**: Genre data is NOT loaded at startup. `loadGenre(genre)` fetches all problem metadata (no solutionText) from `/api/problems` when user selects a genre. Metadata is paginated (100/page) and fetched in parallel.
+- **Per-genre lazy loading via API**: Genre data is NOT loaded at startup. `loadGenre(genre)` fetches all problem metadata (no solutionText) from `/api/problems` when user selects a genre. Metadata is paginated (1000/page) and fetched in parallel.
+- **Quick-start optimization**: When entering a genre with a saved `currentProblemId`, the app fetches that single problem via `/api/problems/:id` and shows it immediately. Full genre data loads in background for navigation/filters.
+- **Daily problem via API**: `/api/daily` returns today's daily problem server-side (1 DB query). No need to load 53k direct problems just for the home page.
 - **On-demand solutionText**: `solutionText` is fetched individually via `/api/problems/:id` when a problem is selected. `ensureSolution()` fetches + parses into `solutionTree`.
 - **Genre counts from API**: `fetchStats()` retrieves counts on mount. Hardcoded `ESTIMATED_COUNTS` as fallback.
 - **Problem cache for instant reload**: `cacheProblem()` saves the current problem (minus `solutionTree`, but WITH `solutionText`) to localStorage (`cp-cached-problem`). On hash restore, `solutionTree` is rebuilt from cached `solutionText` synchronously.

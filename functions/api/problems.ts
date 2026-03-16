@@ -28,7 +28,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   const page = Math.max(0, parseInt(params.get('page') || '0'));
-  const pageSize = Math.min(100, Math.max(1, parseInt(params.get('pageSize') || '20')));
+  const pageSize = Math.min(1000, Math.max(1, parseInt(params.get('pageSize') || '20')));
   const sortBy = params.get('sortBy') === 'year' ? 'source_year' : 'difficulty_score';
   const sortOrder = params.get('sortOrder') === 'desc' ? 'DESC' : 'ASC';
 
