@@ -601,22 +601,24 @@ export default function App() {
                 progress={progress}
                 problemCounts={problemCounts}
               />
-              <div className="flex items-center justify-center gap-3 mt-6">
+              <div className="flex flex-col items-center gap-4 mt-6">
+                <a
+                  href="https://ko-fi.com/A0A21W2W51"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src="https://storage.ko-fi.com/cdn/kofi2.png?v=6"
+                    alt="Buy Me a Coffee at ko-fi.com"
+                    className="h-9 hover:opacity-80 transition-opacity"
+                  />
+                </a>
                 <button
                   onClick={() => { setView('terms'); window.location.hash = '#/terms'; }}
                   className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                 >
                   About &amp; Terms
                 </button>
-                <span className="text-gray-300 dark:text-gray-600">|</span>
-                <a
-                  href="https://ko-fi.com/A0A21W2W51"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                >
-                  Buy me a coffee
-                </a>
               </div>
             </>
           )}
@@ -790,6 +792,20 @@ export default function App() {
                   keywordTags={problem.problem.keywords.length > 0 ? <KeywordTags keywords={problem.problem.keywords} /> : undefined}
                 />
               )}
+
+              <div className="flex justify-center pt-6 pb-2">
+                <a
+                  href="https://ko-fi.com/A0A21W2W51"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <img
+                    src="https://storage.ko-fi.com/cdn/kofi2.png?v=6"
+                    alt="Buy Me a Coffee at ko-fi.com"
+                    className="h-9 hover:opacity-80 transition-opacity"
+                  />
+                </a>
+              </div>
             </div>
           )}
 
