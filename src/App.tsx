@@ -620,27 +620,30 @@ export default function App() {
 
           {view === 'solving' && !problem.problem && (genreLoading || (currentGenre && !genreLoaded[currentGenre])) && (
             <div className="text-center py-16">
-              <div className="inline-flex gap-1 mb-4">
+              <div className="flex justify-center gap-1 mb-4">
                 {['♚', '♛', '♜', '♝', '♞'].map((piece, i) => (
-                  <span
+                  <div
                     key={i}
-                    className="text-3xl text-gray-700 dark:text-gray-300"
-                    style={{
-                      animation: `cp-bounce 1.2s ease-in-out ${i * 0.15}s infinite`,
-                      display: 'inline-block',
+                    className="text-3xl text-gray-700 dark:text-gray-300 w-9 text-center"
+                    ref={el => {
+                      if (el) {
+                        el.animate(
+                          [
+                            { transform: 'translateY(0)', offset: 0 },
+                            { transform: 'translateY(-12px)', offset: 0.4 },
+                            { transform: 'translateY(0)', offset: 0.8 },
+                            { transform: 'translateY(0)', offset: 1 },
+                          ],
+                          { duration: 1200, iterations: Infinity, easing: 'ease-in-out', delay: i * 150 }
+                        );
+                      }
                     }}
                   >
                     {piece}
-                  </span>
+                  </div>
                 ))}
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Loading problems...</p>
-              <style>{`
-                @keyframes cp-bounce {
-                  0%, 80%, 100% { transform: translateY(0); }
-                  40% { transform: translateY(-12px); }
-                }
-              `}</style>
             </div>
           )}
 

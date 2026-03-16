@@ -122,21 +122,13 @@ export function TermsPage({ onBack }: TermsPageProps) {
         <div>
           <h2 className="text-lg font-semibold mb-2">Contact Information</h2>
           <p>For questions, issues, or refund inquiries, you can reach the operator through:</p>
-          <ul className="list-disc list-inside mt-2 space-y-1 text-gray-700 dark:text-gray-300">
-            <li>
-              Ko-fi:{' '}
-              <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
-                ko-fi.com/ushiyutvj
-              </a>{' '}
-              (use the message feature)
-            </li>
-            <li>
-              GitHub:{' '}
-              <a href="https://github.com/ushiyutvj/chess-problems/issues" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
-                Open an issue
-              </a>
-            </li>
-          </ul>
+          <p className="mt-2 text-gray-700 dark:text-gray-300">
+            Ko-fi:{' '}
+            <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
+              ko-fi.com/ushiyutvj
+            </a>{' '}
+            (use the message feature)
+          </p>
         </div>
       </section>
 

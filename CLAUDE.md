@@ -133,3 +133,20 @@
 - **Cache double-flip bug**: When caching problems to localStorage, the solutionTree has already-flipped colors. On restore, always rebuild from `solutionText` via `parseSolution()` before applying the flip — never use the cached tree directly, or the flip gets applied twice (undoing it).
 - **FEN flip for opposite-turn moves**: chess.js enforces turn order. When user moves the non-active color in retro, `tryMove` flips the FEN turn and retries. Same pattern in `Board.tsx` `legalMoves`, `computePositions`, and `startPlayback`.
 - Many retro problems are playable (e.g., en passant key, castling analysis). Some are not (retro move notation like `1.Kf3*g2` meaning "undo capture") — these show a banner for unplayable ones (`positions.length <= 1`).
+
+### Safari Issues
+- **SVG favicon not supported**: Safari ignores `<link rel="icon" type="image/svg+xml">`. Must provide PNG fallbacks: `<link rel="icon" type="image/png" sizes="32x32">` and `<link rel="apple-touch-icon" sizes="180x180">`. Generated via `npx sharp-cli`.
+- **CSS `@keyframes` animation not working on Safari**: Tried multiple approaches, none worked on Safari:
+  1. Inline `<style>` tag with `@keyframes cp-bounce` + inline `style={{ animation: ... }}` — only first element animated
+  2. Moved `@keyframes` to `index.css` with CSS classes (`.animate-cp-bounce`) — Tailwind v4 tree-shakes `@keyframes` not referenced by Tailwind utilities; worked after adding classes but still Safari-only issue
+  3. Added `-webkit-` prefixes (`@-webkit-keyframes`, `-webkit-animation`, `-webkit-transform`) + `will-change: transform` — still not working on Safari
+  4. Switched to Web Animations API (`element.animate()`) — current approach, needs Safari testing
+  - **Root cause unclear**: Chrome DevTools confirms animation properties are applied and transform values change. Safari may have issues with `transform` on elements containing Unicode chess symbols (♚♛♜♝♞). The loading animation works on Chrome but not Safari.
+
+### Stripe / Ko-fi Integration
+- Ko-fi "Buy me a coffee" button in header, shown only on home page (`view === 'mode-select'`), not on problem-solving pages.
+- Commerce Disclosure page (`TermsPage.tsx`) at `#/terms`: Business Name, Product/Service, Donations/Payments (USD via Stripe/Ko-fi), Refund Policy, Privacy Policy, Payment Security, Contact (Ko-fi only).
+- "About & Terms" link on home page footer — keep small/subtle (`text-xs text-gray-400`). URL was submitted directly to Stripe for review.
+
+### Stale Closure Bug in selectMode
+- After `await loadGenre(genre)`, the captured `updateHash` callback references old `problemsByGenre` (empty). Fix: use `problems.findIndex()` directly and call `history.replaceState()` instead of `updateHash()`. Remove `updateHash` from `selectMode` dependency array.

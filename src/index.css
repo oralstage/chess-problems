@@ -61,3 +61,5 @@ body::before {
 .animate-delay-2 { animation-delay: 0.2s; }
 .animate-delay-3 { animation-delay: 0.3s; }
 .animate-delay-4 { animation-delay: 0.4s; }
+
+/* cp-bounce: now using Web Animations API in App.tsx (CSS @keyframes didn't work on Safari) */
