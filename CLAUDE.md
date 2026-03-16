@@ -69,6 +69,7 @@
 - Parenthesized threats `(2.Rd1#)` and bracket threats `[2.Qf7#]` must be extracted BEFORE splitting on move numbers (`\d+\.`), otherwise the regex breaks the content inside parens.
 - Try/key filtering: YACPDB solutions include "tries" (wrong moves marked with `?`) before the key move (`!`). Parser filters root nodes to keep only `isKey && color === firstMoveColor`.
 - Threat nodes use the SAME color as the parent (attacker's follow-up), not the opposite color.
+- **`isThreat` vs `hasThreatLabel`**: `isThreat` means this segment IS a threat move (from parens like `(2.Rd1#)`). `hasThreatLabel` means this segment's CHILDREN are threats (e.g., `1.f4 ! threat:`). Previously `1.f4 ! threat:` set `isThreat=true` on the key move itself, causing wrong color assignment (key move was treated as a threat continuation inheriting parent's color, but stack was empty so it got `firstMoveColor` wrong for `#2` problems where `firstMoveColor='w'`). Fix: separate the two flags.
 - `S` in YACPDB notation = Knight (`N`). Must normalize everywhere.
 - Virtual indents: When all segments have the same indent (flat YACPDB text), compute indents from move numbers. Exclude threat segments from uniform-indent check.
 
@@ -143,8 +144,9 @@
 ### Problem Data
 - **~79,000 problems** in D1 across 5 genres (direct: ~53,200, help: ~16,500, self: ~6,200, study: ~3,100, retro: ~180)
 - Previously ~36,900 as static JSON; migrated to D1 API for 2x+ more problems and no bundle size limit
-- Move count limited: #1-#5 for direct/help/self, no limit for study. `#0` excluded (proof positions).
-- Cache in `scripts/.cache/` stores raw YACPDB API responses (~96k entries, ~386MB)
+- No move count limit in fetch script — all move counts collected. Filter via UI Moves slider.
+- `#0` excluded (proof positions). YACPDB `stipulation` field can be non-string — `parseStipulation()` guards with `typeof stip !== 'string'`.
+- Cache in `scripts/.cache/` stores raw YACPDB API responses (~545k+ entries)
 - D1 storage: ~63MB (5GB free tier)
 - **Stable numbering**: `problemIndexMap` (Map<id, index>) in ProblemList ensures global indices persist across filters
 - Static JSON files (`src/data/problems-*.json`) still exist but are no longer imported by the app
@@ -180,7 +182,7 @@
 ### UI Components (Batch 3)
 - **FilterPage** (`src/components/FilterPage.tsx`): Full-screen overlay for global filter settings. Stipulation multi-select pills, DualRangeSlider for pieces/year, theme tag cloud with search + Select all/Deselect all. Reset preserves sort settings.
 - **HamburgerMenu** (`src/components/HamburgerMenu.tsx`): Right-side slide-in menu (solving view only). Contains: Problem List, Filters (with badge), Home. No genre switching — genres are separate.
-- **GlobalFilters** interface: `keywords: string[]`, `stipulations: string[]`, `minPieces`, `maxPieces`, `minYear`, `maxYear`, `sortBy: 'difficulty' | 'year'`, `sortOrder: 'asc' | 'desc'`. Stored in localStorage (`cp-filters`) with migration from old `keyword: string` / `stipulation: string` formats.
+- **GlobalFilters** interface: `keywords: string[]`, `stipulations: string[]`, `minPieces`, `maxPieces`, `minYear`, `maxYear`, `minMoves`, `maxMoves`, `sortBy: 'difficulty' | 'year'`, `sortOrder: 'asc' | 'desc'`. Stored in localStorage (`cp-filters`) with migration from old `keyword: string` / `stipulation: string` formats.
 - **Sort dropdown**: Located in ProblemList header (not on problem page). macOS-style button showing current sort (e.g., "Difficulty ▲▼"). Dropdown lists ascending/descending for each sort type.
 - **Header layout**: Left = `<` back button (Home) + genre title + `?` help. Right = theme toggle + ☰ hamburger (solving view only).
 - **Theme filter behavior**: `keywords: []` (empty) = no theme filtering (show ALL problems). Only filters when keywords are explicitly selected.

@@ -133,6 +133,7 @@ interface Segment {
   isKey: boolean;
   isTry: boolean;
   isThreat: boolean;
+  hasThreatLabel: boolean; // "threat:" label — children are threats, not this segment itself
   annotation: string;
   afterBlankLine: boolean; // preceded by a blank line (section break)
 }
@@ -165,11 +166,15 @@ function parseSegments(solutionText: string): Segment[] {
       let text = part.trim();
       if (!text) continue;
 
-      const isThreat = /\bthreat:?\s*$/i.test(text);
+      const hasThreatLabel = /\bthreat:?\s*$/i.test(text);
       text = text.replace(/\bthreat:?\s*$/i, '').trim();
 
       const isKey = text.includes('!');
       const isTry = text.includes('?');
+      // isThreat means this segment IS a threat move (from parens).
+      // hasThreatLabel means this segment's CHILDREN are threats (e.g., "1.f4 ! threat:")
+      // — the segment itself is a regular key/try move, not a threat.
+      const isThreat = false;
 
       let annotation = '';
       const annoMatch = text.match(/\{([^}]*)\}/);
@@ -204,6 +209,7 @@ function parseSegments(solutionText: string): Segment[] {
         isKey,
         isTry,
         isThreat,
+        hasThreatLabel,
         annotation,
         afterBlankLine: segIndex === 0 && lastLineWasBlank,
       });
@@ -225,6 +231,7 @@ function parseSegments(solutionText: string): Segment[] {
           isKey: false,
           isTry: false,
           isThreat: true,
+          hasThreatLabel: false,
           annotation: '',
           afterBlankLine: false,
         });
@@ -388,7 +395,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
         stack[stack.length - 1].node.children.push(node);
       }
 
-      stack.push({ node, indent: seg.indent + i, isThreatParent: i === 0 && seg.isThreat });
+      stack.push({ node, indent: seg.indent + i, isThreatParent: i === 0 && (seg.isThreat || seg.hasThreatLabel) });
       currentColor = currentColor === 'w' ? 'b' : 'w';
     }
 

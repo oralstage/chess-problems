@@ -7,6 +7,8 @@ interface GlobalFilters {
   maxPieces: number;
   minYear: number;
   maxYear: number;
+  minMoves: number;
+  maxMoves: number;
   sortBy: 'difficulty' | 'year';
   sortOrder: 'asc' | 'desc';
   stipulations: string[];
@@ -158,10 +160,24 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
     return { min: min > max ? 1850 : min, max: max < min ? 2025 : max };
   }, [allProblems]);
 
+  // Move count range
+  const moveRange = useMemo(() => {
+    let min = 999, max = 0;
+    for (const p of allProblems) {
+      if (p.moveCount > 0) {
+        if (p.moveCount < min) min = p.moveCount;
+        if (p.moveCount > max) max = p.moveCount;
+      }
+    }
+    return { min: min > max ? 1 : min, max: max < min ? 10 : max };
+  }, [allProblems]);
+
   const pieceLow = filters.minPieces || pieceRange.min;
   const pieceHigh = filters.maxPieces || pieceRange.max;
   const yearLow = filters.minYear || yearRange.min;
   const yearHigh = filters.maxYear || yearRange.max;
+  const moveLow = filters.minMoves || moveRange.min;
+  const moveHigh = filters.maxMoves || moveRange.max;
 
   const update = (patch: Partial<GlobalFilters>) => {
     onFiltersChange({ ...filters, ...patch });
@@ -187,13 +203,14 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
 
   const resetAll = () => {
     onFiltersChange({
-      keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0,
+      keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0,
       sortBy: filters.sortBy, sortOrder: filters.sortOrder, stipulations: [], statusFilter: filters.statusFilter,
     });
   };
 
   const hasActiveFilters = filters.keywords.length > 0 || filters.minPieces > 0 || filters.maxPieces > 0
     || filters.minYear > 0 || filters.maxYear > 0
+    || filters.minMoves > 0 || filters.maxMoves > 0
     || filters.stipulations.length > 0;
 
   const filteredKeywords = themeSearch
@@ -256,6 +273,24 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
                 );
               })}
             </div>
+          </section>
+
+          {/* Move count range */}
+          <section>
+            <DualRangeSlider
+              min={moveRange.min}
+              max={moveRange.max}
+              valueLow={moveLow}
+              valueHigh={moveHigh}
+              onChange={(low, high) => update({
+                minMoves: low <= moveRange.min ? 0 : low,
+                maxMoves: high >= moveRange.max ? 0 : high,
+              })}
+              label="Moves"
+              formatValue={(low, high, min, max) =>
+                low <= min && high >= max ? 'Moves: Any' : `Moves: ${low}–${high}`
+              }
+            />
           </section>
 
           {/* Pieces range */}

@@ -108,7 +108,8 @@ function hasFairyPieces(alg: { white: string[]; black: string[] }): boolean {
 }
 
 // ── Stipulation parsing ────────────────────────────────
-function parseStipulation(stip: string): { genre: 'direct' | 'help' | 'self' | 'study'; moveCount: number; sideToMove: 'w' | 'b' } | null {
+function parseStipulation(stip: unknown): { genre: 'direct' | 'help' | 'self' | 'study'; moveCount: number; sideToMove: 'w' | 'b' } | null {
+  if (typeof stip !== 'string') return null;
   // Direct mate: #2, #3, etc.
   let m = stip.match(/^#(\d+)$/);
   if (m) return { genre: 'direct', moveCount: parseInt(m[1]), sideToMove: 'w' };
@@ -145,13 +146,14 @@ function scoreDifficulty(genre: string, moveCount: number, pieceCount: number, s
 // ── Fetching ───────────────────────────────────────────
 const CACHE_DIR = path.join(import.meta.dirname, '.cache');
 
-async function fetchEntry(id: number): Promise<YacpdbEntry | null> {
+/** Returns { entry, fromCache } */
+async function fetchEntry(id: number): Promise<{ entry: YacpdbEntry | null; fromCache: boolean }> {
   const cacheFile = path.join(CACHE_DIR, `${id}.json`);
 
   // Check cache
   if (fs.existsSync(cacheFile)) {
     try {
-      return JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
+      return { entry: JSON.parse(fs.readFileSync(cacheFile, 'utf-8')), fromCache: true };
     } catch {
       // ignore cache errors
     }
@@ -159,27 +161,30 @@ async function fetchEntry(id: number): Promise<YacpdbEntry | null> {
 
   try {
     const res = await fetch(`https://www.yacpdb.org/json.php?entry&id=${id}`);
-    if (!res.ok) return null;
+    if (!res.ok) return { entry: null, fromCache: false };
     const data = await res.json() as YacpdbEntry;
 
     // Cache response
     fs.writeFileSync(cacheFile, JSON.stringify(data));
-    return data;
+    return { entry: data, fromCache: false };
   } catch {
-    return null;
+    return { entry: null, fromCache: false };
   }
 }
 
-async function fetchBatch(ids: number[], concurrency: number = 15): Promise<(YacpdbEntry | null)[]> {
+async function fetchBatch(ids: number[], concurrency: number = 20): Promise<(YacpdbEntry | null)[]> {
   const results: (YacpdbEntry | null)[] = new Array(ids.length).fill(null);
   let idx = 0;
 
   async function worker() {
     while (idx < ids.length) {
       const i = idx++;
-      results[i] = await fetchEntry(ids[i]);
-      // Small delay to be respectful
-      await new Promise(r => setTimeout(r, 50));
+      const { entry, fromCache } = await fetchEntry(ids[i]);
+      results[i] = entry;
+      // Only delay for API calls (not cache hits) to be respectful
+      if (!fromCache) {
+        await new Promise(r => setTimeout(r, 30));
+      }
     }
   }
 
@@ -194,36 +199,25 @@ async function main() {
 
   const problems: OutputProblem[] = [];
   // No hard caps — collect everything we find
-  const targets = { direct: 99999, help: 99999, self: 99999, study: 99999, retro: 99999 };
+  const targets = { direct: Infinity, help: Infinity, self: Infinity, study: Infinity, retro: Infinity };
   const counts = { direct: 0, help: 0, self: 0, study: 0, retro: 0 };
 
-  // Max move count per genre (exclude #6+ as noise for casual solvers)
-  const MAX_MOVE_COUNT: Record<string, number> = { direct: 5, help: 5, self: 5, study: 999 };
+  // No move count limit — collect all move counts, filter in UI via slider
+  const MAX_MOVE_COUNT: Record<string, number> = { direct: 999, help: 999, self: 999, study: 999 };
 
   // Track per-moveCount for logging
   const moveCountStats: Record<string, number> = {};
 
   console.log('Fetching problems from YACPDB...');
-  console.log('  Move count limit: #1-#5 (study unlimited)');
+  console.log('  Move count limit: none (all move counts)');
 
-  // Scan strategy:
-  // - IDs 1-350000: mostly direct mates (#2, #3) — scan densely for #2
-  // - IDs 340000-370000: mix of selfmates and helpmates
-  // - IDs 370000-550000: mostly helpmates
-  //
-  // Denser scan (smaller steps) to collect more #2 problems.
-  // Previously: step 12/60/80 → ~8500 checks for direct range
-  // Now: step 4/15/25 → ~26000 checks for direct range (~3x denser)
+  // Full scan: check every single ID from 1 to 1,000,000
+  // Cached entries are read from disk (fast), only uncached IDs hit the API.
+  // ~96k already cached, remaining ~900k need API calls.
+  // With 15 concurrency and 50ms delay: ~50 minutes for uncached IDs.
 
   const ranges = [
-    // Direct mates: dense scan for #2
-    { start: 4, end: 50000, step: 4 },         // ~12500 checks (was step 12)
-    { start: 50000, end: 200000, step: 15 },    // ~10000 checks (was step 60)
-    { start: 200000, end: 340000, step: 25 },   // ~5600 checks (was step 80)
-    // Selfmates + helpmates: denser scan
-    { start: 340000, end: 380000, step: 8 },    // ~5000 checks (was step 15)
-    // Helpmates: denser scan
-    { start: 380000, end: 550000, step: 15 },   // ~11300 checks (was step 40)
+    { start: 1, end: 1000000, step: 1 },
   ];
 
   for (const range of ranges) {
@@ -239,15 +233,15 @@ async function main() {
 
     console.log(`  Scanning IDs ${range.start}-${range.end} (step ${range.step}, ${ids.length} IDs)...`);
 
-    // Process in batches of 200
-    for (let batchStart = 0; batchStart < ids.length; batchStart += 200) {
-      const batchIds = ids.slice(batchStart, batchStart + 200);
+    // Process in batches of 500
+    for (let batchStart = 0; batchStart < ids.length; batchStart += 500) {
+      const batchIds = ids.slice(batchStart, batchStart + 500);
       const entries = await fetchBatch(batchIds);
 
       for (const entry of entries) {
         if (!entry || !entry.id) continue;
         if (!entry.stipulation || !entry.algebraic || !entry.solution) continue;
-        if (!entry.solution.trim()) continue;
+        if (typeof entry.solution !== 'string' || !entry.solution.trim()) continue;
 
         // Parse stipulation
         const stip = parseStipulation(entry.stipulation);

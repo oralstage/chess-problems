@@ -140,6 +140,8 @@ interface GlobalFilters {
   maxPieces: number;
   minYear: number;
   maxYear: number;
+  minMoves: number;
+  maxMoves: number;
   sortBy: 'difficulty' | 'year';
   sortOrder: 'asc' | 'desc';
   stipulations: string[];
@@ -148,7 +150,7 @@ interface GlobalFilters {
 
 /** Migrate old localStorage format */
 function migrateFilters(raw: unknown): GlobalFilters {
-  const defaults: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' };
+  const defaults: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' };
   if (!raw || typeof raw !== 'object') return defaults;
   const obj = raw as Record<string, unknown>;
   // Migrate old single keyword
@@ -203,7 +205,7 @@ export default function App() {
   });
   const [timestamps, setTimestamps] = useLocalStorage<Record<string, number>>('cp-timestamps', {});
   const [filtersRaw, setFilters] = useLocalStorage<GlobalFilters>('cp-filters', {
-    keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' as StatusFilter,
+    keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' as StatusFilter,
   });
   const filters = useMemo(() => migrateFilters(filtersRaw), [filtersRaw]);
 
@@ -425,6 +427,8 @@ export default function App() {
     if (filters.maxPieces > 0) result = result.filter(p => pieceCount(p.fen) <= filters.maxPieces);
     if (filters.minYear > 0) result = result.filter(p => (p.sourceYear || 0) >= filters.minYear);
     if (filters.maxYear > 0) result = result.filter(p => (p.sourceYear || 9999) <= filters.maxYear);
+    if (filters.minMoves > 0) result = result.filter(p => p.moveCount >= filters.minMoves);
+    if (filters.maxMoves > 0) result = result.filter(p => p.moveCount <= filters.maxMoves);
     if (filters.keywords.length > 0) result = result.filter(p => filters.keywords.some(kw => p.keywords?.includes(kw)));
     if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
     // Status filter
@@ -458,6 +462,8 @@ export default function App() {
     if (filters.maxPieces > 0) count++;
     if (filters.minYear > 0) count++;
     if (filters.maxYear > 0) count++;
+    if (filters.minMoves > 0) count++;
+    if (filters.maxMoves > 0) count++;
     if (filters.stipulations.length > 0) count++;
     if (filters.statusFilter !== 'all') count++;
     return count;
