@@ -11,7 +11,7 @@ import { ProblemCard } from './components/ProblemCard';
 import { FeedbackPanel } from './components/FeedbackPanel';
 import { SolutionTree } from './components/SolutionTree';
 import { GenreTutorial } from './components/GenreTutorial';
-import { TermsPage } from './components/TermsPage';
+// import { TermsPage } from './components/TermsPage';
 import { ProblemList } from './components/ProblemList';
 import { parseSolution } from './services/solutionParser';
 import { findTheme } from './data/themes';
@@ -356,7 +356,7 @@ export default function App() {
 
     const hash = window.location.hash;
     if (hash === '#/terms') {
-      setView('terms');
+      setView('mode-select'); // terms page removed
       return;
     }
     const match = hash.match(/^#\/(direct|help|self|study|retro)(?:\/(\d+))?$/);
@@ -596,26 +596,13 @@ export default function App() {
         />
 
         <main className="px-4 pb-8">
-          {view === 'terms' && (
-            <TermsPage onBack={goBack} />
-          )}
 
           {view === 'mode-select' && (
-            <>
               <ModeSelector
                 onSelectMode={selectMode}
                 progress={progress}
                 problemCounts={problemCounts}
               />
-              <div className="flex justify-center mt-6">
-                <button
-                  onClick={() => { setView('terms'); window.location.hash = '#/terms'; }}
-                  className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                >
-                  About &amp; Terms
-                </button>
-              </div>
-            </>
           )}
 
           {view === 'solving' && !problem.problem && (genreLoading || (currentGenre && !genreLoaded[currentGenre])) && (
@@ -698,6 +685,7 @@ export default function App() {
 
               {showProblemList && currentGenre && (
                 <ProblemList
+                  genre={currentGenre}
                   problems={problemsByGenre[currentGenre]}
                   progress={progress[currentGenre] || {}}
                   bookmarks={bookmarks[currentGenre] || []}

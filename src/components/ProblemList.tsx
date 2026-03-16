@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react';
-import type { ChessProblem, ProblemProgress } from '../types';
+import { useLocalStorage } from '../hooks/useLocalStorage';
+import type { ChessProblem, ProblemProgress, Genre } from '../types';
 
 interface ProblemListProps {
+  genre: Genre;
   problems: ChessProblem[];
   progress: ProblemProgress;
   bookmarks: string[];
@@ -16,7 +18,7 @@ const COLS = 4;
 const ROWS = 5;
 const PAGE_SIZE = COLS * ROWS;
 
-export function ProblemList({ problems, progress, bookmarks, currentProblemId, onSelectProblem, onClose }: ProblemListProps) {
+export function ProblemList({ genre, problems, progress, bookmarks, currentProblemId, onSelectProblem, onClose }: ProblemListProps) {
   const solved = Object.values(progress).filter(s => s === 'solved').length;
   const failed = Object.values(progress).filter(s => s === 'failed').length;
 
@@ -46,7 +48,7 @@ export function ProblemList({ problems, progress, bookmarks, currentProblemId, o
     return map;
   }, [problems]);
 
-  const [filter, setFilter] = useState('all');
+  const [filter, setFilter] = useLocalStorage<string>(`cp-filter-${genre}`, 'all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
   const filtered = useMemo(() => {

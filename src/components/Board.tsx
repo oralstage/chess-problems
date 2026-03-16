@@ -103,10 +103,19 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     if (selectedSquare) {
       styles[selectedSquare] = { ...styles[selectedSquare], backgroundColor: 'rgba(20, 85, 200, 0.4)' };
       for (const move of legalMoves) {
-        styles[move.to] = {
-          ...styles[move.to],
-          background: `radial-gradient(circle, rgba(0,0,0,0.2) 25%, transparent 25%)`,
-        };
+        if (move.captured) {
+          // Capture target: ring around the piece
+          styles[move.to] = {
+            ...styles[move.to],
+            background: `radial-gradient(circle, transparent 60%, rgba(0,0,0,0.2) 60%, rgba(0,0,0,0.2) 80%, transparent 80%)`,
+          };
+        } else {
+          // Empty square: center dot
+          styles[move.to] = {
+            ...styles[move.to],
+            background: `radial-gradient(circle, rgba(0,0,0,0.2) 25%, transparent 25%)`,
+          };
+        }
       }
     }
     return styles;

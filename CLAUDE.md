@@ -141,7 +141,7 @@
   2. Moved `@keyframes` to `index.css` with CSS classes (`.animate-cp-bounce`) — Tailwind v4 tree-shakes `@keyframes` not referenced by Tailwind utilities; worked after adding classes but still Safari-only issue
   3. Added `-webkit-` prefixes (`@-webkit-keyframes`, `-webkit-animation`, `-webkit-transform`) + `will-change: transform` — still not working on Safari
   4. Switched to Web Animations API (`element.animate()`) — current approach, needs Safari testing
-  - **Root cause unclear**: Chrome DevTools confirms animation properties are applied and transform values change. Safari may have issues with `transform` on elements containing Unicode chess symbols (♚♛♜♝♞). The loading animation works on Chrome but not Safari.
+  - **Root cause**: Safari renders some Unicode chess symbols as emoji/image glyphs rather than text glyphs, and `transform` doesn't apply to those. iPhone Safari: ♚♛ animate (text glyph), ♜♝♞ don't (emoji). Mac Safari: only ♚ animates. Chrome: all 5 animate. This is a font/emoji rendering difference across platforms — no CSS/JS workaround known.
 
 ### Stripe / Ko-fi Integration
 - Ko-fi "Buy me a coffee" button in header, shown only on home page (`view === 'mode-select'`), not on problem-solving pages.

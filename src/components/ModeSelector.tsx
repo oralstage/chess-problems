@@ -40,7 +40,6 @@ const MODES: {
 
 export function ModeSelector({ onSelectMode, progress, problemCounts }: ModeSelectorProps) {
   const availableModes = MODES.filter(m => (problemCounts[m.genre] || 0) > 0);
-  const totalProblems = Object.values(problemCounts).reduce((s, c) => s + c, 0);
 
   return (
     <div className="min-h-[80vh] flex flex-col justify-center py-12">
@@ -60,9 +59,13 @@ export function ModeSelector({ onSelectMode, progress, problemCounts }: ModeSele
             Chess Problems
           </h1>
         </div>
-        <p className="text-base text-gray-500 dark:text-gray-400 max-w-lg leading-relaxed">
-          Chess problems are composed puzzles — not from real games, but crafted as art.
-          Find the unique winning idea in {totalProblems.toLocaleString()} curated positions.
+        <p className="text-base text-gray-500 dark:text-gray-400 max-w-lg leading-relaxed mb-3">
+          Chess problems are composed positions with a unique solution — not tactics from real games, but crafted works of art.
+          Most databases let you browse them; this site lets you solve them interactively on the board with move validation, Stockfish hints, and solution playback.
+          All problems from{' '}
+          <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+            YACPDB
+          </a>.
         </p>
       </div>
 
