@@ -56,7 +56,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   retro: {
     title: 'Retro',
-    icon: '🔍',
+    icon: '♚',
     description: 'Retrograde analysis problems. You must deduce the history of the position — what moves led here? — to find the solution. Castling rights, en passant legality, and proof games are common themes.',
     rules: [
       'Analyze the position\'s history before making moves',

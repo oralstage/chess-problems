@@ -621,7 +621,7 @@ export default function App() {
           {view === 'solving' && !problem.problem && (genreLoading || (currentGenre && !genreLoaded[currentGenre])) && (
             <div className="text-center py-16">
               <div className="inline-flex gap-1 mb-4">
-                {['♔', '♕', '♖', '♗', '♘'].map((piece, i) => (
+                {['♚', '♛', '♜', '♝', '♞'].map((piece, i) => (
                   <span
                     key={i}
                     className="text-3xl text-gray-700 dark:text-gray-300"
