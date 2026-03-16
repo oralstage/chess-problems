@@ -55,12 +55,6 @@ export function FeedbackPanel({
       {status === 'correct' && (
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <button
-              onClick={onReset}
-              className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
-            >
-              Try Again
-            </button>
             {onAnalyze && (
               <button
                 onClick={onAnalyze}
@@ -80,12 +74,20 @@ export function FeedbackPanel({
               <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
             )}
           </div>
-          <button
-            onClick={onNextProblem}
-            className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-          >
-            Next →
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onReset}
+              className="px-4 py-2 text-sm bg-gray-200 text-gray-600 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={onNextProblem}
+              className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+            >
+              Next →
+            </button>
+          </div>
         </div>
       )}
 
