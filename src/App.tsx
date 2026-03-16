@@ -626,7 +626,7 @@ export default function App() {
                     key={i}
                     className="text-3xl text-gray-700 dark:text-gray-300"
                     style={{
-                      animation: `bounce 1.2s ease-in-out ${i * 0.15}s infinite`,
+                      animation: `cp-bounce 1.2s ease-in-out ${i * 0.15}s infinite`,
                       display: 'inline-block',
                     }}
                   >
@@ -636,7 +636,7 @@ export default function App() {
               </div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Loading problems...</p>
               <style>{`
-                @keyframes bounce {
+                @keyframes cp-bounce {
                   0%, 80%, 100% { transform: translateY(0); }
                   40% { transform: translateY(-12px); }
                 }
