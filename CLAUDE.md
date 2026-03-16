@@ -18,7 +18,7 @@
 ### Data Pipeline
 1. `scripts/fetch-problems.ts` scans YACPDB by ID range, filters orthodox problems
 2. `src/utils/algebraicToFen.ts` converts YACPDB algebraic notation to FEN
-3. Output: 5 JSON files in `src/data/` (direct-1, direct-2, help, self, study). Direct is split for Cloudflare 25MB/file limit.
+3. Output: 6 JSON files in `src/data/` (direct-1, direct-2, help, self, study, retro). Direct is split for Cloudflare 25MB/file limit.
 4. App lazy-loads JSON per genre on demand (not at startup), parses solution text into trees via `solutionParser.ts`
 
 ### Key Files
@@ -32,11 +32,12 @@
 | `src/components/Board.tsx` | react-chessboard wrapper |
 | `scripts/fetch-problems.ts` | YACPDB data fetcher with caching |
 
-### 4 Genres (completely separated)
+### 5 Genres (completely separated)
 - **Direct Mate** (#1-#5): White to move, force checkmate. User=white, black auto-plays.
 - **Helpmate** (h#1-h#5): Black moves first, both sides cooperate. User plays both sides.
 - **Selfmate** (s#1-s#5): White forces black to deliver checkmate. User=white, black auto-plays.
 - **Study** (+/=): No move limit. Win or draw. User=white, black auto-plays.
+- **Retro**: Deduce the position's history. User plays both colors (must figure out whose turn it is). Mixed stipulations (#, h#, s#) with stipulation badge.
 
 ### Move Validation
 - **Primary**: Solution tree matching (all genres). `matchMoveToTree()` in useProblem.ts.
@@ -116,15 +117,19 @@
 - Vite content-hashes static assets, so browser caches genre data after first download.
 
 ### Problem Data
-- ~36,900 problems total across 4 genres (direct: 27,541, help: 5,856, self: 2,197, study: 1,274)
+- ~36,900 problems total across 5 genres (direct: ~27,400, help: ~5,800, self: ~2,200, study: ~1,270, retro: ~93)
 - Move count limited: #1-#5 for direct/help/self, no limit for study. `#0` excluded (proof positions).
 - Starter set (`problems-starter.json`, 29KB) exists but currently unused
 - Cache in `scripts/.cache/` stores raw YACPDB API responses
 - **Stable numbering**: `problemIndexMap` (Map<id, index>) in ProblemList ensures global indices persist across filters
 
-### Future: Retro as separate genre
-- FIDE Album classifies chess problems into 8 sections: #2, #3, #n, Study, Helpmate, Selfmate, Fairy, Retro. This app covers the first 6 (merging #2/#3/#n into "Direct Mate"), excluding Fairy (needs non-standard pieces/rules) and partially including Retro.
-- Retro problems require knowing upfront that retrograde analysis is needed (e.g., "can White castle?" depends on deducing prior moves). Currently mixed into Direct Mate with no indication, which confuses users.
-- Detection: YACPDB `keywords` array contains `"Retro"`. Already in problem data.
-- Options: (1) separate 5th genre "Retro", (2) keep in Direct Mate but show prominent "Retro analysis required" badge before solving, (3) filter out retro problems entirely.
-- Some retro problems are playable (e.g., en passant key), others are not (retro move notation like `1.Kf3*g2`). The app already shows a "Retro problem" banner for unplayable ones (`positions.length <= 1`).
+### Retro Genre
+- FIDE Album section 8. Separated as 5th genre. Problems with YACPDB `keywords` containing `"Retro"` are extracted from other genres into `problems-retro.json`.
+- **User plays both colors** (`allowAnyColor` on Board component). The user must deduce whose turn it is — moving the wrong color is rejected as incorrect. This avoids giving away the answer.
+- **`{(illegal)` problems**: Some retro problems have `{(illegal)}` or `{(illegal, ...)}` in their solutionText, indicating White's apparent move is illegal (e.g., castling rights). For these:
+  - Solution tree colors are flipped at load time (parser assigns wrong colors because notation like `1.Kf3*g2` looks like White's move but is actually Black's).
+  - "White's move is illegal — it's Black's turn" banner shown only AFTER solving (showing during solve gives away the answer).
+  - **Pattern matching**: Use `includes('{(illegal')` (no closing paren) because YACPDB notation varies: `{(illegal)}`, `{(illegal, Black has no last move!)}`, etc.
+- **Cache double-flip bug**: When caching problems to localStorage, the solutionTree has already-flipped colors. On restore, always rebuild from `solutionText` via `parseSolution()` before applying the flip — never use the cached tree directly, or the flip gets applied twice (undoing it).
+- **FEN flip for opposite-turn moves**: chess.js enforces turn order. When user moves the non-active color in retro, `tryMove` flips the FEN turn and retries. Same pattern in `Board.tsx` `legalMoves`, `computePositions`, and `startPlayback`.
+- Many retro problems are playable (e.g., en passant key, castling analysis). Some are not (retro move notation like `1.Kf3*g2` meaning "undo capture") — these show a banner for unplayable ones (`positions.length <= 1`).

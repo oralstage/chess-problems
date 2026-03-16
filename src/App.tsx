@@ -212,6 +212,17 @@ export default function App() {
               const firstColor = (p.genre === 'help' || (p.genre === 'retro' && p.stipulation.startsWith('h#'))) ? 'b' : 'w';
               p.solutionTree = parseSolution(p.solutionText, firstColor);
             }
+            // Retro + {(illegal)}: White's move is illegal → it's Black's turn.
+            // Parser assigns wrong colors (1.Kf3*g2 → white), flip them.
+            if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
+              const flipColors = (nodes: typeof p.solutionTree): void => {
+                for (const n of nodes) {
+                  n.color = n.color === 'w' ? 'b' : 'w';
+                  flipColors(n.children);
+                }
+              };
+              flipColors(p.solutionTree);
+            }
           }
           for (const p of raw) fixEnPassantFen(p);
           problems.push(...raw);
@@ -291,6 +302,7 @@ export default function App() {
     setAnalyzing(false);
   }, [problem.problem?.id]);
 
+
   const handleAnalyze = useCallback(() => {
     if (analysisActive) {
       // Toggle off — set ref immediately to prevent in-flight async from setting arrow
@@ -356,9 +368,20 @@ export default function App() {
       const cached = localStorage.getItem('cp-cached-problem');
       if (cached) {
         const cachedProblem = JSON.parse(cached) as ChessProblem;
-        // Rebuild solutionTree from solutionText
-        if (!cachedProblem.solutionTree || cachedProblem.solutionTree.length === 0) {
-          cachedProblem.solutionTree = parseSolution(cachedProblem.solutionText, cachedProblem.genre === 'help' ? 'b' : 'w');
+        // Always rebuild solutionTree from text to avoid double-flip issues
+        {
+          const firstColor = (cachedProblem.genre === 'help' || (cachedProblem.genre === 'retro' && cachedProblem.stipulation.startsWith('h#'))) ? 'b' : 'w';
+          cachedProblem.solutionTree = parseSolution(cachedProblem.solutionText, firstColor);
+        }
+        // Retro + {(illegal)}: flip solution tree colors
+        if (cachedProblem.genre === 'retro' && cachedProblem.solutionText.includes('{(illegal')) {
+          const flipColors = (nodes: typeof cachedProblem.solutionTree): void => {
+            for (const n of nodes) {
+              n.color = n.color === 'w' ? 'b' : 'w';
+              flipColors(n.children);
+            }
+          };
+          flipColors(cachedProblem.solutionTree);
         }
         fixEnPassantFen(cachedProblem);
         // Only use cache if it matches the hash URL's genre
@@ -649,6 +672,7 @@ export default function App() {
                   feedbackType={problem.feedbackType}
                   hintSquares={problem.hintSquares}
                   arrows={boardArrows}
+                  allowAnyColor={currentGenre === 'retro'}
                 />
               </div>
 
@@ -718,11 +742,12 @@ export default function App() {
                 analysisActive={analysisActive}
               />
 
-              {(problem.status === 'correct' || problem.status === 'viewing') && problem.problem.keywords.includes('Retro') && (!problem.playback || problem.playback.positions.length <= 1) && (
-                <div className="text-xs bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg px-3 py-2 text-amber-700 dark:text-amber-400">
-                  <span className="font-semibold">Retro problem</span> — This problem requires retrograde analysis (reasoning about previous moves). The solution may include moves that cannot be played forward on the board.
+              {(problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText.includes('{(illegal') && (
+                <div className="text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 text-red-700 dark:text-red-400">
+                  <span className="font-semibold">White's move is illegal</span> — it's Black's turn.
                 </div>
               )}
+
 
               {(problem.status === 'correct' || problem.status === 'viewing') && (
                 <SolutionTree

@@ -14,9 +14,10 @@ interface BoardProps {
   feedbackType?: 'correct' | 'incorrect' | null;
   hintSquares?: string[] | null; // [fromSquare, ...toSquares]
   arrows?: [string, string, string?][] | null;
+  allowAnyColor?: boolean; // Allow moving pieces of either color (retro problems)
 }
 
-export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows }: BoardProps) {
+export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor }: BoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
   const boardWidth = width || 400;
@@ -52,11 +53,18 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     if (!selectedSquare) return [];
     try {
       const chess = new Chess(fen);
+      const piece = chess.get(selectedSquare as never);
+      // If allowAnyColor and piece color != current turn, flip FEN turn to compute legal moves
+      if (allowAnyColor && piece && piece.color !== chess.turn()) {
+        const flipped = fen.replace(/ [wb] /, chess.turn() === 'w' ? ' b ' : ' w ');
+        const chess2 = new Chess(flipped);
+        return chess2.moves({ square: selectedSquare as never, verbose: true });
+      }
       return chess.moves({ square: selectedSquare as never, verbose: true });
     } catch {
       return [];
     }
-  }, [fen, selectedSquare]);
+  }, [fen, selectedSquare, allowAnyColor]);
 
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
@@ -131,7 +139,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     try {
       const chess = new Chess(fen);
       const piece = chess.get(square as never);
-      if (piece && piece.color === chess.turn()) {
+      if (piece && (piece.color === chess.turn() || allowAnyColor)) {
         setSelectedSquare(square === selectedSquare ? null : square);
       } else {
         setSelectedSquare(null);
@@ -139,7 +147,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     } catch {
       setSelectedSquare(null);
     }
-  }, [disabled, selectedSquare, legalMoves, fen, onPieceDrop]);
+  }, [disabled, selectedSquare, legalMoves, fen, onPieceDrop, allowAnyColor]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string) => {
     setSelectedSquare(null);
@@ -163,6 +171,19 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     setSelectedSquare(null);
   }, []);
 
+  const isDraggablePiece = useCallback(({ piece }: { piece: string }) => {
+    if (disabled) return false;
+    if (allowAnyColor) return true;
+    // Default: only current turn's pieces
+    try {
+      const chess = new Chess(fen);
+      const color = piece[0] === 'w' ? 'w' : 'b';
+      return color === chess.turn();
+    } catch {
+      return true;
+    }
+  }, [disabled, allowAnyColor, fen]);
+
   return (
     <div className="relative">
       <Chessboard
@@ -180,6 +201,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
         customLightSquareStyle={{ backgroundColor: '#edeed1' }}
         customArrows={arrows as never}
         arePiecesDraggable={!disabled}
+        isDraggablePiece={isDraggablePiece}
         animationDuration={400}
       />
       {disabled && (

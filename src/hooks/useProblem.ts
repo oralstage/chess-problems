@@ -176,7 +176,18 @@ function computePositions(initialFen: string, mainLine: SolutionNode[]): Playbac
   const positions: PlaybackPosition[] = [{ fen: initialFen, lastMove: null, san: '' }];
   const chess = new Chess(initialFen);
   for (const node of mainLine) {
-    const move = tryExecuteNode(chess, node);
+    let move = tryExecuteNode(chess, node);
+    // If move fails, try with flipped turn (retro problems may start with opposite color)
+    if (!move && node.color !== chess.turn()) {
+      const curFen = chess.fen();
+      const curTurn = curFen.split(' ')[1];
+      const flipped = curFen.replace(/ [wb] /, curTurn === 'w' ? ' b ' : ' w ');
+      const chess2 = new Chess(flipped);
+      move = tryExecuteNode(chess2, node);
+      if (move) {
+        chess.load(chess2.fen());
+      }
+    }
     if (move) {
       positions.push({
         fen: chess.fen(),
@@ -272,22 +283,36 @@ export function useProblem(stockfish?: StockfishApi) {
       mainLine = [];
       const chess = new Chess(initialFen);
       for (const san of playedMoves) {
-        try {
-          const move = chess.move(san);
-          if (move) {
-            positions.push({
-              fen: chess.fen(),
-              lastMove: { from: move.from, to: move.to },
-              san: move.san,
-            });
-            mainLine.push({
-              move: move.san, moveUci: move.from + move.to + (move.promotion || ''),
-              moveSan: move.san, isKey: false, isTry: false, isThreat: false,
-              isMate: chess.isCheckmate(), isCheck: chess.isCheck(),
-              annotation: '', children: [], color: move.color,
-            });
-          } else break;
-        } catch { break; }
+        // Try the move; if it fails (e.g., retro with wrong turn), try with flipped turn
+        let move: ReturnType<Chess['move']> | null = null;
+        try { move = chess.move(san); } catch { /* try flip */ }
+        if (!move) {
+          // Flip turn and retry (retro problems may have opposite-turn moves)
+          const curFen = chess.fen();
+          const curTurn = curFen.split(' ')[1];
+          const flipped = curFen.replace(/ [wb] /, curTurn === 'w' ? ' b ' : ' w ');
+          try {
+            const chess2 = new Chess(flipped);
+            move = chess2.move(san);
+            if (move) {
+              // Use the flipped chess state going forward
+              chess.load(chess2.fen());
+            }
+          } catch { /* give up */ }
+        }
+        if (move) {
+          positions.push({
+            fen: chess.fen(),
+            lastMove: { from: move.from, to: move.to },
+            san: move.san,
+          });
+          mainLine.push({
+            move: move.san, moveUci: move.from + move.to + (move.promotion || ''),
+            moveSan: move.san, isKey: false, isTry: false, isThreat: false,
+            isMate: new Chess(chess.fen()).isCheckmate(), isCheck: move.san.includes('+') || move.san.includes('#'),
+            annotation: '', children: [], color: move.color,
+          });
+        } else break;
       }
     } else {
       mainLine = getMainLine(solutionTree);
@@ -309,7 +334,12 @@ export function useProblem(stockfish?: StockfishApi) {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
 
     const firstColor = getFirstMoveColor(problem.genre, problem.stipulation);
-    const userColor = getUserColor(problem.genre, problem.stipulation);
+    let userColor = getUserColor(problem.genre, problem.stipulation);
+
+    // Retro: user controls both colors (must deduce whose turn it is)
+    if (problem.genre === 'retro') {
+      userColor = 'b'; // 'b' = user controls both sides (same convention as helpmate)
+    }
 
     let fen = problem.fen;
     if (firstColor === 'b' && fen.includes(' w ')) {
@@ -397,26 +427,42 @@ export function useProblem(stockfish?: StockfishApi) {
 
     if (!problem || status !== 'solving' || state.waitingForAutoPlay) return false;
 
-    const chess = new Chess(state.fen);
     const currentTurn = state.fen.split(' ')[1] as 'w' | 'b';
 
-    if (problem.genre !== 'help' && currentTurn !== 'w') return false;
+    // Help/Retro: user controls both sides
+    const isHelpStyle = problem.genre === 'help' || problem.genre === 'retro';
+    if (!isHelpStyle && currentTurn !== state.userColor) return false;
 
-    let move;
-    try {
-      move = chess.move({ from, to, promotion: promotion || 'q' });
-    } catch {
+    // Try the move with current FEN; for retro, also try with flipped turn
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let move: any = null;
+    let afterFen = '';
+
+    const tryWithFen = (fen: string) => {
+      try {
+        const c = new Chess(fen);
+        const m = c.move({ from, to, promotion: promotion || 'q' });
+        if (m) { move = m; afterFen = c.fen(); return true; }
+      } catch { /* invalid */ }
       return false;
+    };
+
+    if (!tryWithFen(state.fen) && problem.genre === 'retro') {
+      // Flip turn and retry (user deduced it's the other side's move)
+      const flippedFen = state.fen.replace(/ [wb] /, currentTurn === 'w' ? ' b ' : ' w ');
+      tryWithFen(flippedFen);
     }
     if (!move) return false;
 
-    const newFen = chess.fen();
+    const newFen = afterFen;
     const newHistory = [...state.moveHistory, move.san];
 
     // ══════════════════════════════════════════════
     // Check immediate solve (checkmate / stalemate)
     // ══════════════════════════════════════════════
-    const isCheckmate = chess.isCheckmate();
+    const movedColor = move.color; // actual color that moved (may differ from currentTurn for retro)
+    const afterChess = new Chess(newFen);
+    const isCheckmate = afterChess.isCheckmate();
 
     if (isCheckmate && problem.genre !== 'self') {
       // User delivered checkmate — solved! (direct/study/help)
@@ -438,7 +484,7 @@ export function useProblem(stockfish?: StockfishApi) {
       return true;
     }
 
-    if (problem.stipulation === '=' && chess.isStalemate()) {
+    if (problem.stipulation === '=' && afterChess.isStalemate()) {
       // Study draw: stalemate — solved!
       const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
       setState(prev => ({
@@ -461,16 +507,16 @@ export function useProblem(stockfish?: StockfishApi) {
     // ══════════════════════════════════════════════
     // SOLUTION TREE path (all genres)
     // ══════════════════════════════════════════════
-    const validNodes = currentNodes.filter(n => n.color === currentTurn);
+    const validNodes = currentNodes.filter(n => n.color === movedColor);
     const matchingNode = matchMoveToTree(state.fen, from, to, move.san, move.promotion, validNodes);
 
     if (matchingNode) {
-      const isActualCheckmate = chess.isCheckmate();
-      const opponentColor = currentTurn === 'w' ? 'b' : 'w';
+      const isActualCheckmate = afterChess.isCheckmate();
+      const opponentColor = movedColor === 'w' ? 'b' : 'w';
       const realDefenses = matchingNode.children.filter(n => !n.isThreat && n.color === opponentColor);
 
       const isMateProblem = problem.genre === 'self';
-      const isTerminal = isActualCheckmate || chess.isStalemate() || chess.isDraw();
+      const isTerminal = isActualCheckmate || afterChess.isStalemate() || afterChess.isDraw();
       let isSolved: boolean;
       if (isMateProblem) {
         isSolved = isActualCheckmate;
@@ -499,8 +545,8 @@ export function useProblem(stockfish?: StockfishApi) {
         return true;
       }
 
-      const isHelpStyle = problem.genre === 'help' || (problem.genre === 'retro' && problem.stipulation.startsWith('h#'));
-      if (isHelpStyle) {
+      const isHelpStyleInner = problem.genre === 'help' || (problem.genre === 'retro' && state.userColor === 'b');
+      if (isHelpStyleInner) {
         // Help / retro-helpmate: user plays both sides, no auto-play
         setState(prev => ({
           ...prev,
@@ -647,10 +693,8 @@ export function useProblem(stockfish?: StockfishApi) {
     }
 
     // Wrong move
-    const wrongFen = chess.fen();
     const wrongUci = from + to + (move.promotion || '');
-    chess.undo();
-    flashWrongMove(to, wrongFen, from, state.fen, wrongUci);
+    flashWrongMove(to, newFen, from, state.fen, wrongUci);
     return false;
   }, [state, startPlayback, flashWrongMove]);
 
