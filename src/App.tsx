@@ -792,20 +792,6 @@ export default function App() {
                   keywordTags={problem.problem.keywords.length > 0 ? <KeywordTags keywords={problem.problem.keywords} /> : undefined}
                 />
               )}
-
-              <div className="flex justify-center pt-6 pb-2">
-                <a
-                  href="https://ko-fi.com/A0A21W2W51"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <img
-                    src="https://storage.ko-fi.com/cdn/kofi2.png?v=6"
-                    alt="Buy Me a Coffee at ko-fi.com"
-                    className="h-9 hover:opacity-80 transition-opacity"
-                  />
-                </a>
-              </div>
             </div>
           )}
 
