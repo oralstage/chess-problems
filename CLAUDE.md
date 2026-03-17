@@ -190,3 +190,12 @@
 - **Info modal** (`i` button): Inline modal in App.tsx showing author, source, YACPDB link, stipulation, pieces, award, themes.
 - **History page** (`src/components/HistoryPage.tsx`): Full-screen overlay showing solved/failed problems across ALL genres, grouped by date (Today, Yesterday, N days ago, Mon DD, Earlier). Accessible from hamburger menu. Clicking an entry navigates to the problem (cross-genre). Timestamps stored in `cp-timestamps` localStorage (`Record<string, number>`, key = `"genre:problemId"`).
 - **Status filter in navigation**: `statusFilter` is part of `GlobalFilters` (not local ProblemList state). Applied in centralized `filteredProblems` useMemo so prev/next/random all respect the filter (e.g., Unsolved filter skips solved problems in navigation).
+
+### Progressive Loading & Filter UX (Batch 4)
+- **Progressive loading**: `fetchAllProblems` fetches all genre problems in paginated batches (5000 per page) with `onProgress` callback. UI shows partial results immediately while remaining pages load in background. `genreLoaded[genre]` tracks completion; data stays in memory until page reload.
+- **API pageSize max**: Increased from 1000 to 5000 in `functions/api/problems.ts` for fewer round trips.
+- **Filter Done behavior**: `filterOpenedFrom` state tracks context ('problemList' | 'hamburger'). From ProblemList → FilterPage → Done returns to ProblemList. From problem page (hamburger) → FilterPage → Done navigates to first matching problem if current problem doesn't match new filters.
+- **FilterPage hit count**: Real-time `matchCount` computed via useMemo, displayed on Done button (`Done · 1,234 problems`).
+- **YACPDB ID as problem number**: Problem numbers use YACPDB IDs directly (`#243207`) instead of sequential indices. Stable across filters/sorts. Removed redundant `YACPDB #ID` line from ProblemCard.
+- **Green color scheme**: All active filter pills, pagination, genre badges unified to green (`bg-green-700 text-white`).
+- **fullSolutionTree**: `parseSolution()` returns all nodes including tries. `filterKeyMoves()` extracts key-only nodes for solving. `ChessProblem` has both `solutionTree` (key moves for solver) and `fullSolutionTree` (all variations including tries for display). SolutionTree "All variations" uses `fullSolutionTree`. Try moves shown with `?` marker.

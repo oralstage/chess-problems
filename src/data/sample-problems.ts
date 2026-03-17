@@ -13,6 +13,7 @@ export const SAMPLE_PROBLEMS: ChessProblem[] = [
     genre: 'direct',
     difficulty: 'Easy',
     difficultyScore: 210,
+    fullSolutionTree: [],
     solutionTree: [
       {
         move: 'Re7-e5',
@@ -138,6 +139,7 @@ export const SAMPLE_PROBLEMS: ChessProblem[] = [
     genre: 'direct',
     difficulty: 'Easy',
     difficultyScore: 205,
+    fullSolutionTree: [],
     solutionTree: [
       {
         move: 'Kg8-h7',
@@ -196,6 +198,7 @@ export const SAMPLE_PROBLEMS: ChessProblem[] = [
     genre: 'help',
     difficulty: 'Medium',
     difficultyScore: 310,
+    fullSolutionTree: [],
     solutionTree: [
       {
         move: 'Ra5-e5',
@@ -268,6 +271,7 @@ export const SAMPLE_PROBLEMS: ChessProblem[] = [
     genre: 'direct',
     difficulty: 'Beginner',
     difficultyScore: 103,
+    fullSolutionTree: [],
     solutionTree: [
       {
         move: 'Qd1-d8',

@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import type { SolutionNode } from '../types';
 
 interface SolutionTreeProps {
-  nodes: SolutionNode[];
+  fullNodes: SolutionNode[];
   solutionText: string;
   playback: {
     positions: { fen: string; lastMove: { from: string; to: string } | null; san: string }[];
@@ -29,6 +29,7 @@ function SolutionNodeView({ node, depth }: { node: SolutionNode; depth: number }
         {node.moveSan}
       </span>
       {node.isKey && <span className="text-red-500 ml-1 font-bold">!</span>}
+      {node.isTry && <span className="text-orange-500 ml-1 font-bold">?</span>}
       {node.isMate && <span className="text-red-600 ml-1">#</span>}
       {node.isThreat && <span className="text-orange-500 ml-1 text-xs">(threat)</span>}
       {node.annotation && (
@@ -41,7 +42,7 @@ function SolutionNodeView({ node, depth }: { node: SolutionNode; depth: number }
   );
 }
 
-export function SolutionTree({ nodes, solutionText, playback, onGoTo, onFirst, onPrev, onNext, onLast, keywordTags }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, solutionText, playback, onGoTo, onFirst, onPrev, onNext, onLast, keywordTags }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -102,7 +103,7 @@ export function SolutionTree({ nodes, solutionText, playback, onGoTo, onFirst, o
           All variations
         </summary>
         <div className="mt-2 text-sm font-mono bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-0.5">
-          {nodes.map((node, i) => (
+          {fullNodes.map((node, i) => (
             <SolutionNodeView key={i} node={node} depth={0} />
           ))}
         </div>

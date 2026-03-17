@@ -134,6 +134,7 @@ export function metaToChessProblem(meta: ProblemMeta, solutionText?: string): Ch
     difficulty: meta.difficulty,
     difficultyScore: meta.difficultyScore,
     solutionTree: [],
+    fullSolutionTree: [],
     solutionText: solutionText || '',
     keywords: meta.keywords,
     award: meta.award,

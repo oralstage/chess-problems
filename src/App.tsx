@@ -16,7 +16,7 @@ import { ProblemList } from './components/ProblemList';
 import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
 import { HistoryPage } from './components/HistoryPage';
-import { parseSolution } from './services/solutionParser';
+import { parseSolution, filterKeyMoves } from './services/solutionParser';
 import { fetchAllProblems, fetchProblem, fetchDaily, fetchStats, metaToChessProblem } from './services/api';
 import { findTheme } from './data/themes';
 import type { AppView, Genre, ProblemProgress, ChessProblem } from './types';
@@ -275,17 +275,19 @@ export default function App() {
       p.solutionText = full.solutionText;
     }
     const firstColor = (p.genre === 'help' || (p.genre === 'retro' && p.stipulation.startsWith('h#'))) ? 'b' : 'w';
-    p.solutionTree = parseSolution(p.solutionText, firstColor);
+    const allNodes = parseSolution(p.solutionText, firstColor);
     // Retro + {(illegal)}: flip colors
     if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
-      const flipColors = (nodes: typeof p.solutionTree): void => {
+      const flipColors = (nodes: typeof allNodes): void => {
         for (const n of nodes) {
           n.color = n.color === 'w' ? 'b' : 'w';
           flipColors(n.children);
         }
       };
-      flipColors(p.solutionTree);
+      flipColors(allNodes);
     }
+    p.fullSolutionTree = allNodes;
+    p.solutionTree = filterKeyMoves(allNodes, firstColor);
     fixEnPassantFen(p);
     return p;
   }, []);
@@ -1124,7 +1126,7 @@ export default function App() {
 
               {(problem.status === 'correct' || problem.status === 'viewing') && (
                 <SolutionTree
-                  nodes={problem.problem.solutionTree}
+                  fullNodes={problem.problem.fullSolutionTree}
                   solutionText={problem.problem.solutionText}
                   playback={problem.playback}
                   onGoTo={problem.playbackGoTo}

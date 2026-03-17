@@ -25,7 +25,8 @@ export interface ChessProblem {
   genre: Genre;
   difficulty: string;
   difficultyScore: number;
-  solutionTree: SolutionNode[];
+  solutionTree: SolutionNode[];       // key moves only (for solving)
+  fullSolutionTree: SolutionNode[];   // all moves including tries (for "All variations")
   solutionText: string;
   keywords: string[];
   award: string;

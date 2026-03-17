@@ -47,9 +47,6 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
           {problem.sourceName}
           {problem.sourceYear && `, ${problem.sourceYear}`}
         </div>
-        <div className="text-xs text-gray-400 dark:text-gray-500 font-mono">
-          YACPDB #{problem.id}
-        </div>
       </div>
 
       {showThemes && problem.keywords.length > 0 && (

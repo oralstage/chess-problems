@@ -403,6 +403,14 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     prevSegMoveNum = seg.moveNum;
   }
 
+  return nodes;
+}
+
+/**
+ * Filter solution tree to only key moves (for solving).
+ * Removes tries (??) from root nodes.
+ */
+export function filterKeyMoves(nodes: SolutionNode[], firstMoveColor: 'w' | 'b'): SolutionNode[] {
   // If any root node is a key move (!) with the correct color, filter out tries
   const keyNodes = nodes.filter(n => n.isKey && n.color === firstMoveColor);
   if (keyNodes.length > 0) {
