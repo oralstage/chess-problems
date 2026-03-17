@@ -107,6 +107,26 @@ function hasFairyPieces(alg: { white: string[]; black: string[] }): boolean {
   return false;
 }
 
+// ── Year normalization ────────────────────────────────
+function normalizeYear(raw: unknown): number | null {
+  const currentYear = new Date().getFullYear();
+  if (raw == null) return null;
+  if (typeof raw === 'number') {
+    if (raw <= 0) return null;
+    if (raw < 100) return raw < 30 ? 2000 + raw : 1900 + raw; // 2-digit: 79→1979, 05→2005
+    if (raw >= 100 && raw < 200) return 1800 + (raw - 100);    // 3-digit 1xx: 188→1888
+    if (raw > currentYear) return null; // Future year — data error
+    return raw; // >= 200 kept as-is (includes medieval 800 AD+)
+  }
+  // String like "1989-1994" — take first 4-digit number
+  const m = String(raw).match(/(\d{4})/);
+  if (m) {
+    const parsed = parseInt(m[1]);
+    return parsed > currentYear ? null : parsed;
+  }
+  return null;
+}
+
 // ── Stipulation parsing ────────────────────────────────
 function parseStipulation(stip: unknown): { genre: 'direct' | 'help' | 'self' | 'study'; moveCount: number; sideToMove: 'w' | 'b' } | null {
   if (typeof stip !== 'string') return null;
@@ -242,6 +262,10 @@ async function main() {
         if (!entry || !entry.id) continue;
         if (!entry.stipulation || !entry.algebraic || !entry.solution) continue;
         if (typeof entry.solution !== 'string' || !entry.solution.trim()) continue;
+        // Skip empty/placeholder solutions
+        const solClean = entry.solution.replace(/[{}\s]/g, '');
+        if (!solClean || /^(nosolution!?|solution\??)$/i.test(solClean)) continue;
+        if (!/\d\./.test(entry.solution)) continue;
 
         // Parse stipulation
         const stip = parseStipulation(entry.stipulation);
@@ -282,7 +306,7 @@ async function main() {
           fen,
           authors: entry.authors || ['Unknown'],
           sourceName: entry.source?.name || 'Unknown',
-          sourceYear: entry.source?.date?.year || null,
+          sourceYear: normalizeYear(entry.source?.date?.year),
           stipulation: entry.stipulation,
           moveCount: stip.moveCount,
           genre: finalGenre,

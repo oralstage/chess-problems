@@ -90,7 +90,7 @@ function extractMoveStrings(text: string): string[] {
       }
     }
 
-    // Skip slash alternatives like "Kd4/Be6"
+    // Skip slash (alternatives are expanded at line level before segment parsing)
     if (remaining[0] === '/') {
       remaining = remaining.slice(1);
       continue;
@@ -138,9 +138,77 @@ interface Segment {
   afterBlankLine: boolean; // preceded by a blank line (section break)
 }
 
+/**
+ * Expand slash alternatives in a line into multiple lines.
+ * e.g., "   1...Rg3/Rxg4 2.O-O-O#" → ["   1...Rg3 2.O-O-O#", "   1...Rxg4 2.O-O-O#"]
+ * Only expands "/" that's NOT followed by a move number (which indicates a full variation split).
+ * Does NOT expand "/" inside parentheses (threats).
+ */
+function expandSlashAlternatives(line: string): string[] {
+  const indent = line.length - line.trimStart().length;
+  const prefix = line.slice(0, indent);
+  let content = line.trimStart();
+  if (!content) return [line];
+
+  // Remove parenthesized content temporarily to avoid expanding "/" inside threats
+  const parenParts: string[] = [];
+  content = content.replace(/\([^)]*\)/g, (match) => {
+    parenParts.push(match);
+    return `__PAREN${parenParts.length - 1}__`;
+  });
+
+  // Find "/" that separates alternative moves (not followed by a move number)
+  // Pattern: "Move1/Move2 continuation" or "Move1/Move2/Move3 continuation"
+  // The "/" must be between move-like tokens, not followed by digit+dot
+  const slashRe = /\/(?!\d+\.)/g;
+  if (!slashRe.test(content)) {
+    return [line]; // no alternatives to expand
+  }
+
+  // Find the portion containing "/" alternatives
+  // Split content on move number boundaries to find which part has "/"
+  const moveNumSplit = content.split(/(?=\d+\.)/);
+  let altPartIdx = -1;
+  for (let i = 0; i < moveNumSplit.length; i++) {
+    if (/\/(?!\d+\.)/.test(moveNumSplit[i])) {
+      altPartIdx = i;
+      break;
+    }
+  }
+  if (altPartIdx < 0) return [line];
+
+  const altPart = moveNumSplit[altPartIdx];
+  const beforeAlt = moveNumSplit.slice(0, altPartIdx).join('');
+  const afterAlt = moveNumSplit.slice(altPartIdx + 1).join('');
+
+  // Split alternatives: "Rg3/Rxg4" → ["Rg3", "Rxg4"]
+  // But keep the move number prefix (e.g., "1...Rg3/Rxg4" → prefix "1...", alts ["Rg3", "Rxg4"])
+  // Match move number prefix: "1." or "1..." or "1. ..." etc.
+  const altMoveNumMatch = altPart.match(/^(\d+\.+\s*)/);
+  const altPrefix = altMoveNumMatch ? altMoveNumMatch[1] : '';
+  const altBody = altPart.slice(altPrefix.length);
+  const alternatives = altBody.split(/\/(?!\d+\.)/);
+
+  // Create one line per alternative, each with the shared continuation
+  const expandedLines = alternatives.map(alt => {
+    let expanded = prefix + beforeAlt + altPrefix + alt.trim() + ' ' + afterAlt;
+    // Restore parenthesized content
+    expanded = expanded.replace(/__PAREN(\d+)__/g, (_, i) => parenParts[parseInt(i)]);
+    return expanded;
+  });
+
+  return expandedLines;
+}
+
 function parseSegments(solutionText: string): Segment[] {
   const segments: Segment[] = [];
-  const lines = solutionText.split('\n');
+  const rawLines = solutionText.split('\n');
+
+  // Expand slash alternatives before parsing
+  const lines: string[] = [];
+  for (const line of rawLines) {
+    lines.push(...expandSlashAlternatives(line));
+  }
 
   let lineIndex = 0;
   let lastLineWasBlank = false;
@@ -381,6 +449,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     // Save stack depth before threat segments so we can restore it after
     const stackDepthBeforeThreat = seg.isThreat ? stack.length : -1;
 
+    // Slash alternatives are expanded at line level, so just process linearly
     for (let i = 0; i < seg.moves.length; i++) {
       const isNodeThreat = i === 0 && (isThreatChild || seg.isThreat);
       const node = makeNode(

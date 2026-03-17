@@ -128,7 +128,7 @@ function scoreDifficulty(genre: string, moveCount: number, pieceCount: number, s
 
 // ── Main ───────────────────────────────────────────────
 const CACHE_DIR = path.join(import.meta.dirname, '.cache');
-const MAX_MOVE_COUNT: Record<string, number> = { direct: 5, help: 5, self: 5, study: 999 };
+const MAX_MOVE_COUNT: Record<string, number> = { direct: 999, help: 999, self: 999, study: 999 };
 
 function escapeSQL(s: string): string {
   return s.replace(/'/g, "''");
@@ -147,7 +147,11 @@ async function main() {
       const entry: YacpdbEntry = JSON.parse(fs.readFileSync(path.join(CACHE_DIR, file), 'utf-8'));
       if (!entry || !entry.id) { skipped++; continue; }
       if (!entry.stipulation || !entry.algebraic || !entry.solution) { skipped++; continue; }
-      if (!entry.solution.trim()) { skipped++; continue; }
+      // Skip empty or placeholder solutions (e.g. "{\n}", "No solution", "{Solution?}")
+      const solClean = entry.solution.replace(/[{}\s]/g, '');
+      if (!solClean || /^(nosolution!?|solution\??)$/i.test(solClean)) { skipped++; continue; }
+      // Must contain at least one chess move (digit followed by dot)
+      if (!/\d\./.test(entry.solution)) { skipped++; continue; }
 
       const stip = parseStipulation(entry.stipulation);
       if (!stip) { skipped++; continue; }
@@ -176,8 +180,42 @@ async function main() {
       const authors = JSON.stringify(entry.authors || ['Unknown']);
       const keywords = JSON.stringify(entry.keywords || []);
 
+      // Parse year: can be number (2001), 2-digit number (79 → 1979), string ("1989-1994"), or missing
+      const rawYear = entry.source?.date?.year;
+      let sourceYear: string;
+      if (rawYear == null) {
+        sourceYear = 'NULL';
+      } else if (typeof rawYear === 'number') {
+        if (rawYear <= 0) {
+          sourceYear = 'NULL';
+        } else if (rawYear < 100) {
+          // 2-digit year: 79 → 1979, 05 → 2005
+          sourceYear = String(rawYear < 30 ? 2000 + rawYear : 1900 + rawYear);
+        } else if (rawYear >= 100 && rawYear < 200) {
+          // 3-digit year 1xx: likely 18xx (e.g. 188 → 1888 from Nationaltidende)
+          sourceYear = String(1800 + (rawYear - 100));
+        } else if (rawYear > new Date().getFullYear()) {
+          sourceYear = 'NULL'; // Future year — data error
+        } else {
+          // Values >= 200 kept as-is (includes medieval chess/shatranj problems from 800 AD+)
+          sourceYear = String(rawYear);
+        }
+      } else {
+        // String like "1989-1994" or "2001" — take first 4-digit number
+        const yearMatch = String(rawYear).match(/(\d{4})/);
+        if (yearMatch) {
+          const parsed = parseInt(yearMatch[1]);
+          sourceYear = parsed > new Date().getFullYear() ? 'NULL' : yearMatch[1];
+        } else {
+          sourceYear = 'NULL';
+        }
+      }
+
+      // Truncate solution to 2000 chars to stay within D1 500MB free tier
+      const solutionText = entry.solution.length > 2000 ? entry.solution.slice(0, 2000) + '...' : entry.solution;
+
       problems.push(
-        `(${entry.id},'${escapeSQL(fen)}','${escapeSQL(authors)}','${escapeSQL(entry.source?.name || 'Unknown')}',${entry.source?.date?.year || 'NULL'},'${escapeSQL(entry.stipulation)}',${stip.moveCount},'${finalGenre}','${escapeSQL(label)}',${score},${pieceCount},'${escapeSQL(entry.solution)}','${escapeSQL(keywords)}','${escapeSQL(award)}')`
+        `(${entry.id},'${escapeSQL(fen)}','${escapeSQL(authors)}','${escapeSQL(entry.source?.name || 'Unknown')}',${sourceYear},'${escapeSQL(entry.stipulation)}',${stip.moveCount},'${finalGenre}','${escapeSQL(label)}',${score},${pieceCount},'${escapeSQL(solutionText)}','${escapeSQL(keywords)}','${escapeSQL(award)}')`
       );
 
       counts[finalGenre]++;

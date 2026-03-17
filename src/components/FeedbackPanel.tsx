@@ -87,7 +87,7 @@ export function FeedbackPanel({
               onClick={onNextProblem}
               className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
             >
-              Next →
+              Next
             </button>
             {onRandomProblem && (
               <button
@@ -188,7 +188,7 @@ export function FeedbackPanel({
               onClick={onNextProblem}
               className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
             >
-              Next →
+              Next
             </button>
             {onRandomProblem && (
               <button

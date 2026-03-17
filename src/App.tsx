@@ -252,7 +252,10 @@ export default function App() {
 
   // Load a problem into the solver (fetches solutionText from API if needed)
   const loadAndStartProblem = useCallback(async (p: ChessProblem) => {
+    loadedProblemIdRef.current = p.id;
     const ready = await ensureSolution(p);
+    // Guard: if another problem was loaded while we were fetching, don't overwrite it
+    if (loadedProblemIdRef.current !== p.id) return;
     problem.loadProblem(ready);
   }, [ensureSolution, problem]);
 
@@ -497,6 +500,8 @@ export default function App() {
 
   // Restore from hash on initial load
   const hashRestoredRef = useRef(false);
+  // Track which problem ID was loaded to prevent late async callbacks from resetting state
+  const loadedProblemIdRef = useRef<number | null>(null);
   useEffect(() => {
     if (hashRestoredRef.current) return;
     hashRestoredRef.current = true;
@@ -600,11 +605,14 @@ export default function App() {
           // New: problemNum is YACPDB ID
           target = problems.find(p => p.id === problemNum);
         }
-        if (target && target.id !== problem.problem?.id) {
-          // Only update if quick-start hasn't already loaded this problem
-          loadAndStartProblem(target);
-          cacheProblem(target);
-          setCurrentProblemId(prev => ({ ...prev, [genre]: target!.id }));
+        if (target) {
+          // Only load if this problem isn't already loaded
+          // (avoid resetting solving/correct/viewing state from late async callbacks)
+          if (target.id !== loadedProblemIdRef.current) {
+            loadAndStartProblem(target);
+            cacheProblem(target);
+            setCurrentProblemId(prev => ({ ...prev, [genre]: target!.id }));
+          }
           // Update to new format if legacy
           if (isLegacy) {
             history.replaceState(null, '', `#/${genre}/yacpdb/${target.id}`);

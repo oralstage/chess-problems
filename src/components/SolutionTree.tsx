@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import type { SolutionNode } from '../types';
 
@@ -161,11 +161,23 @@ function buildRootVariations(fullNodes: SolutionNode[]): RootVariation[] {
 
 // ── Clickable move button ──
 
-function MoveButton({ node, path, onNodeClick }: {
+function MoveButton({ node, path, onNodeClick, isActive }: {
   node: SolutionNode;
   path: SolutionNode[];
   onNodeClick: (path: SolutionNode[]) => void;
+  isActive?: boolean;
 }) {
+  if (isActive) {
+    return (
+      <button
+        onClick={() => onNodeClick(path)}
+        className="bg-cp-primary text-white px-1.5 py-0.5 rounded text-xs cursor-pointer"
+      >
+        {node.moveSan}
+      </button>
+    );
+  }
+
   const moveClasses = node.color === 'w'
     ? 'font-bold text-gray-900 dark:text-gray-100'
     : 'italic text-gray-600 dark:text-gray-400';
@@ -182,11 +194,11 @@ function MoveButton({ node, path, onNodeClick }: {
 
 // ── Compact variation line display ──
 
-function VariationLineView({ line, startMoveNum, onNodeClick, showSlash }: {
+function VariationLineView({ line, startMoveNum, onNodeClick, activeNode }: {
   line: VariationLine;
   startMoveNum: number;
   onNodeClick: (path: SolutionNode[]) => void;
-  showSlash?: boolean;
+  activeNode?: SolutionNode | null;
 }) {
   // Skip the root move (index 0), show from defense onwards
   const movesAfterRoot = line.moves.slice(1);
@@ -194,7 +206,6 @@ function VariationLineView({ line, startMoveNum, onNodeClick, showSlash }: {
 
   return (
     <span className="inline">
-      {showSlash && <span className="text-gray-400 mx-1">/</span>}
       {movesAfterRoot.map((m, i) => {
         // Add move number for white moves
         const moveNum = startMoveNum + Math.floor((i + 1) / 2);
@@ -206,7 +217,7 @@ function VariationLineView({ line, startMoveNum, onNodeClick, showSlash }: {
           <span key={i}>
             {showNum && <span className="text-gray-400 text-xs mr-0.5">{moveNum}.</span>}
             {isBlackFirst && <span className="text-gray-400 text-xs mr-0.5">{startMoveNum}...</span>}
-            <MoveButton node={m.node} path={m.path} onNodeClick={onNodeClick} />
+            <MoveButton node={m.node} path={m.path} onNodeClick={onNodeClick} isActive={activeNode === m.node} />
             {' '}
           </span>
         );
@@ -231,6 +242,14 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, playback, on
     return () => window.removeEventListener('keydown', handler);
   }, [onFirst, onPrev, onNext, onLast]);
 
+  // Track which node is currently active (clicked) in variations
+  const [activeNode, setActiveNode] = useState<SolutionNode | null>(null);
+
+  // Clear active node when leaving explore mode
+  useEffect(() => {
+    if (!playback?.exploring) setActiveNode(null);
+  }, [playback?.exploring]);
+
   const handleNodeClick = useCallback((path: SolutionNode[]) => {
     const chess = new Chess(initialFen);
     let lastMove: { from: string; to: string } | null = null;
@@ -239,6 +258,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, playback, on
       if (!result) break;
       lastMove = result;
     }
+    setActiveNode(path[path.length - 1] || null);
     onExplore(chess.fen(), lastMove);
   }, [initialFen, onExplore]);
 
@@ -293,18 +313,18 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, playback, on
           </summary>
           <div className="mt-2 text-sm bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-1">
             {keyVariations.map((v, vi) => (
-              <div key={vi}>
-                {v.lines.map((line, li) => (
-                  <div key={li} className="flex items-baseline gap-1 flex-wrap leading-relaxed">
-                    {li === 0 && (
-                      <span className="inline-flex items-baseline gap-1">
-                        <span className="text-gray-400 text-xs">1.</span>
-                        <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} />
-                        <span className="text-red-500 font-bold text-xs">!</span>
-                      </span>
-                    )}
-                    {li > 0 && <span className="w-[3ch] inline-block" />}
-                    <VariationLineView line={line} startMoveNum={1} onNodeClick={handleNodeClick} />
+              <div key={vi} className="leading-relaxed">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-gray-400 text-xs">1.</span>
+                  <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} isActive={activeNode === v.rootNode} />
+                  <span className="text-red-500 font-bold text-xs">!</span>
+                  {v.lines.length === 1 && (
+                    <VariationLineView line={v.lines[0]} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
+                  )}
+                </div>
+                {v.lines.length > 1 && v.lines.map((line, li) => (
+                  <div key={li} className="flex items-baseline gap-1 flex-wrap ml-6">
+                    <VariationLineView line={line} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
                   </div>
                 ))}
               </div>
@@ -322,15 +342,20 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, playback, on
           <div className="mt-2 text-sm bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-2">
             {tryVariations.map((v, vi) => (
               <div key={vi}>
-                {/* Try with continuations */}
-                <div className="flex items-baseline gap-1 flex-wrap leading-relaxed">
-                  <span className="inline-flex items-baseline gap-1 shrink-0">
+                {/* Try with continuations — each defense on its own indented line */}
+                <div className="leading-relaxed">
+                  <div className="flex items-baseline gap-1">
                     <span className="text-gray-400 text-xs">1.</span>
-                    <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} />
+                    <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} isActive={activeNode === v.rootNode} />
                     <span className="text-orange-500 font-bold text-xs">?</span>
-                  </span>
-                  {v.lines.map((line, li) => (
-                    <VariationLineView key={li} line={line} startMoveNum={1} onNodeClick={handleNodeClick} showSlash={li > 0} />
+                    {v.lines.length === 1 && (
+                      <VariationLineView line={v.lines[0]} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
+                    )}
+                  </div>
+                  {v.lines.length > 1 && v.lines.map((line, li) => (
+                    <div key={li} className="flex items-baseline gap-1 flex-wrap ml-6">
+                      <VariationLineView line={line} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
+                    </div>
                   ))}
                 </div>
                 {/* Refutation on separate line — applies to the whole try, not just the last variation */}
@@ -345,7 +370,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, playback, on
                         return (
                           <span key={i}>
                             {showNum && <span className="text-gray-400 text-xs mr-0.5">{isBlack ? '1...' : '1.'}</span>}
-                            <MoveButton node={m.node} path={m.path} onNodeClick={handleNodeClick} />
+                            <MoveButton node={m.node} path={m.path} onNodeClick={handleNodeClick} isActive={activeNode === m.node} />
                             {m.node.isKey && <span className="text-red-500 font-bold text-xs ml-0.5">!</span>}
                           </span>
                         );

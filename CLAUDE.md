@@ -199,3 +199,12 @@
 - **YACPDB ID as problem number**: Problem numbers use YACPDB IDs directly (`#243207`) instead of sequential indices. Stable across filters/sorts. Removed redundant `YACPDB #ID` line from ProblemCard.
 - **Green color scheme**: All active filter pills, pagination, genre badges unified to green (`bg-green-700 text-white`).
 - **fullSolutionTree**: `parseSolution()` returns all nodes including tries. `filterKeyMoves()` extracts key-only nodes for solving. `ChessProblem` has both `solutionTree` (key moves for solver) and `fullSolutionTree` (all variations including tries for display). SolutionTree "All variations" uses `fullSolutionTree`. Try moves shown with `?` marker.
+
+### Solution Display & Variations (Batch 5)
+- **Slash alternatives expansion**: YACPDB notation uses `/` for alternative moves (e.g., `1...Rg3/Rxg4 2.O-O-O#`). `expandSlashAlternatives()` in `solutionParser.ts` pre-processes lines before parsing — splits into separate lines per alternative with shared continuation. `/` followed by a move number (e.g., `/2.`) is a full variation split (NOT expanded); `/` without is alternative moves at the same level.
+- **Castling rights detection**: `fixCastlingRights()` in `api.ts` uses negative lookbehind+lookahead regex to distinguish O-O from O-O-O: `(?<!O-)(?<!0-)\b(O-O(?!-O)|0-0(?!-0))\b`. Without this, clicking O-O-O castling moves in variations didn't work.
+- **Active node highlighting**: Clicking a move in Key Variations or Tries highlights it with green background (`bg-cp-primary text-white`). `activeNode` state in SolutionTree tracks the currently clicked node. Resets when leaving exploring mode.
+- **Variation line-break display**: Key Variations and Tries show each defense on its own indented line (instead of inline with `/` separators). Single-line variations stay inline. Refutations shown on separate line with `↳ but` prefix.
+- **Tries/Key open by default**: `<details open>` on Tries and Key Variations sections so they're expanded on load.
+- **Root-level refutation fix**: `v.refutation.moves.slice(1)` returned empty for root-level refutations (only 1 element). Fixed with conditional: check if first node equals rootNode before slicing.
+- **loadedProblemIdRef guard**: Ref-based guard in `App.tsx` prevents late async callbacks (from `ensureSolution` or `loadGenre`) from resetting problem state when user navigates quickly between problems. Fixes intermittent "try again" reset bug.

@@ -130,8 +130,9 @@ export function fixCastlingRights(fen: string, solutionText?: string): string {
   const parts = fen.split(' ');
   if (parts.length < 3 || parts[2] !== '-') return fen; // already has castling rights
 
-  const hasShortCastling = /\b(O-O|0-0)\b/.test(solutionText);
   const hasLongCastling = /\b(O-O-O|0-0-0)\b/.test(solutionText);
+  // Match O-O/0-0 but NOT O-O-O/0-0-0 (negative lookbehind + lookahead)
+  const hasShortCastling = /(?<!O-)(?<!0-)\b(O-O(?!-O)|0-0(?!-0))\b/.test(solutionText);
   if (!hasShortCastling && !hasLongCastling) return fen;
 
   // Parse board to find king and rook positions
