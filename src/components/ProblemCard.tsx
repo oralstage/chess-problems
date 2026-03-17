@@ -32,11 +32,6 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
         <span className="px-2 py-0.5 rounded-md text-sm font-bold font-mono bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
           {stipulationDisplay(problem.stipulation)}
         </span>
-        {problem.award && (
-          <span className="px-2 py-0.5 rounded-md text-xs font-medium bg-yellow-500/10 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400">
-            {problem.award}
-          </span>
-        )}
       </div>
 
       <div className="text-gray-600 dark:text-gray-400">

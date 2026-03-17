@@ -378,6 +378,9 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     // Build nodes for all moves in this segment, chaining them
     let currentColor = color;
 
+    // Save stack depth before threat segments so we can restore it after
+    const stackDepthBeforeThreat = seg.isThreat ? stack.length : -1;
+
     for (let i = 0; i < seg.moves.length; i++) {
       const isNodeThreat = i === 0 && (isThreatChild || seg.isThreat);
       const node = makeNode(
@@ -397,6 +400,12 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
 
       stack.push({ node, indent: seg.indent + i, isThreatParent: i === 0 && (seg.isThreat || seg.hasThreatLabel) });
       currentColor = currentColor === 'w' ? 'b' : 'w';
+    }
+
+    // Restore stack after threat segments so subsequent continuations
+    // attach to the correct parent (not to the threat subtree)
+    if (stackDepthBeforeThreat >= 0) {
+      stack.length = stackDepthBeforeThreat;
     }
 
     prevLineIndex = seg.lineIndex;

@@ -17,8 +17,7 @@ import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
 import { HistoryPage } from './components/HistoryPage';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
-import { fetchAllProblems, fetchProblem, fetchDaily, fetchStats, metaToChessProblem } from './services/api';
-import { findTheme } from './data/themes';
+import { fetchAllProblems, fetchProblem, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights } from './services/api';
 import type { AppView, Genre, ProblemProgress, ChessProblem } from './types';
 
 /**
@@ -84,49 +83,6 @@ function fixEnPassantFen(p: ChessProblem): void {
   }
 }
 
-function KeywordTags({ keywords }: { keywords: string[] }) {
-  const [expanded, setExpanded] = useState<string | null>(null);
-  return (
-    <div className="space-y-1.5">
-      <div className="flex flex-wrap gap-1">
-        {keywords.map(kw => {
-          const theme = findTheme(kw);
-          const hasDesc = !!theme?.description;
-          const isExpanded = expanded === kw;
-          return hasDesc ? (
-            <button
-              key={kw}
-              onClick={() => setExpanded(isExpanded ? null : kw)}
-              className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors ${
-                isExpanded
-                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-              }`}
-            >
-              {kw}
-            </button>
-          ) : (
-            <span
-              key={kw}
-              className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
-            >
-              {kw}
-            </span>
-          );
-        })}
-      </div>
-      {expanded && (() => {
-        const theme = findTheme(expanded);
-        if (!theme?.description) return null;
-        return (
-          <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-lg px-3 py-2 leading-relaxed">
-            {theme.description}
-          </div>
-        );
-      })()}
-    </div>
-  );
-}
 
 function pieceCount(fen: string): number {
   return fen.split(' ')[0].replace(/[0-9/]/g, '').length;
@@ -288,6 +244,8 @@ export default function App() {
     }
     p.fullSolutionTree = allNodes;
     p.solutionTree = filterKeyMoves(allNodes, firstColor);
+    // Fix castling rights if solution contains O-O but FEN has none
+    p.fen = fixCastlingRights(p.fen, p.solutionText);
     fixEnPassantFen(p);
     return p;
   }, []);
@@ -949,7 +907,7 @@ export default function App() {
                   <ProblemCard
                     problem={problem.problem}
                     problemNumber={problem.problem!.id}
-                    genrePrefix="#"
+                    genrePrefix="D"
                     showThemes={problem.status === 'correct' || problem.status === 'viewing'}
                   />
                   <button
@@ -1033,6 +991,7 @@ export default function App() {
                 />
               )}
 
+              <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 pb-1">
               <div className="flex justify-center">
                 <Board
                   fen={problem.fen}
@@ -1097,6 +1056,7 @@ export default function App() {
                   </button>
                 </div>
               )}
+              </div>
 
               <FeedbackPanel
                 status={problem.status}
@@ -1127,6 +1087,7 @@ export default function App() {
               {(problem.status === 'correct' || problem.status === 'viewing') && (
                 <SolutionTree
                   fullNodes={problem.problem.fullSolutionTree}
+                  initialFen={problem.initialFen}
                   solutionText={problem.problem.solutionText}
                   playback={problem.playback}
                   onGoTo={problem.playbackGoTo}
@@ -1134,7 +1095,7 @@ export default function App() {
                   onPrev={problem.playbackPrev}
                   onNext={problem.playbackNext}
                   onLast={problem.playbackLast}
-                  keywordTags={problem.problem.keywords.length > 0 ? <KeywordTags keywords={problem.problem.keywords} /> : undefined}
+                  onExplore={problem.playbackExplore}
                 />
               )}
             </div>
@@ -1169,6 +1130,29 @@ export default function App() {
           }
         }}
         onGoHome={() => { setShowHamburgerMenu(false); goBack(); }}
+        onGoToId={async (id: number) => {
+          if (!currentGenre) return;
+          // Try to find in loaded genre data first
+          const existing = (problemsByGenre[currentGenre] || []).find(p => p.id === id);
+          if (existing) {
+            loadAndStartProblem(existing);
+            cacheProblem(existing);
+            setCurrentProblemId(prev => ({ ...prev, [currentGenre]: id }));
+            updateHash(currentGenre, id);
+          } else {
+            // Fetch directly from API
+            try {
+              const full = await fetchProblem(id);
+              const p = metaToChessProblem(full, full.solutionText);
+              loadAndStartProblem(p);
+              cacheProblem(p);
+              setCurrentProblemId(prev => ({ ...prev, [currentGenre]: id }));
+              updateHash(currentGenre, id);
+            } catch {
+              // Problem not found — ignore silently
+            }
+          }
+        }}
         activeFilterCount={activeFilterCount}
       />
 

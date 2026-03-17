@@ -891,5 +891,14 @@ export function useProblem(stockfish?: StockfishApi) {
     playbackPrev,
     playbackNext,
     playbackLast,
+    playbackExplore: useCallback((fen: string, lastMove: { from: string; to: string } | null) => {
+      setState(prev => {
+        if (!prev.playback) return prev;
+        return {
+          ...prev, feedbackSquare: null, feedbackType: null,
+          playback: { ...prev.playback, exploring: true, exploreFen: fen, exploreLastMove: lastMove },
+        };
+      });
+    }, []),
   };
 }

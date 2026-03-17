@@ -1,8 +1,10 @@
-import { useEffect } from 'react';
+import { useEffect, useCallback, useMemo } from 'react';
+import { Chess } from 'chess.js';
 import type { SolutionNode } from '../types';
 
 interface SolutionTreeProps {
   fullNodes: SolutionNode[];
+  initialFen: string;
   solutionText: string;
   playback: {
     positions: { fen: string; lastMove: { from: string; to: string } | null; san: string }[];
@@ -15,37 +17,211 @@ interface SolutionTreeProps {
   onPrev: () => void;
   onNext: () => void;
   onLast: () => void;
-  keywordTags?: React.ReactNode;
+  onExplore: (fen: string, lastMove: { from: string; to: string } | null) => void;
 }
 
-function SolutionNodeView({ node, depth }: { node: SolutionNode; depth: number }) {
+/**
+ * Try to execute a solution node's move on a chess.js instance.
+ */
+function tryExecuteNode(chess: Chess, node: SolutionNode): { from: string; to: string } | null {
+  const uci = node.moveUci;
+
+  if (uci.startsWith('san:')) {
+    try {
+      const move = chess.move(uci.slice(4));
+      if (move) return { from: move.from, to: move.to };
+    } catch { /* fall through */ }
+    try {
+      const parts = chess.fen().split(' ');
+      parts[1] = parts[1] === 'w' ? 'b' : 'w';
+      chess.load(parts.join(' '));
+      const move = chess.move(uci.slice(4));
+      if (move) return { from: move.from, to: move.to };
+    } catch { /* fall through */ }
+    return null;
+  }
+
+  if (uci.length >= 4) {
+    const from = uci.slice(0, 2);
+    const to = uci.slice(2, 4);
+    const promotion = uci.length > 4 ? uci[4] : undefined;
+    try {
+      const move = chess.move({ from, to, promotion });
+      if (move) return { from: move.from, to: move.to };
+    } catch { /* fall through */ }
+    try {
+      const parts = chess.fen().split(' ');
+      parts[1] = parts[1] === 'w' ? 'b' : 'w';
+      chess.load(parts.join(' '));
+      const move = chess.move({ from, to, promotion });
+      if (move) return { from: move.from, to: move.to };
+    } catch { /* fall through */ }
+  }
+
+  return null;
+}
+
+// ── Flatten tree into compact variation lines ──
+
+interface VariationLine {
+  moves: { node: SolutionNode; path: SolutionNode[] }[];
+  isRefutation: boolean; // this line is the refutation of a try
+}
+
+interface RootVariation {
+  rootNode: SolutionNode;
+  isKey: boolean;
+  isTry: boolean;
+  lines: VariationLine[];       // successful continuations
+  refutation: VariationLine | null; // the defense that breaks the try
+}
+
+/**
+ * Collect all paths from a node to its leaves.
+ * Each path is a sequence of nodes (excluding the root — it's tracked separately).
+ */
+function collectLines(node: SolutionNode, parentPath: SolutionNode[]): VariationLine[] {
+  const currentPath = [...parentPath, node];
+  const nonThreatChildren = node.children.filter(c => !c.isThreat);
+
+  const lines: VariationLine[] = [];
+
+  // If this is a leaf (ignoring threats), return a single line
+  if (nonThreatChildren.length === 0) {
+    // Don't include threat continuations — they represent "if defender does nothing" scenarios
+    lines.push({
+      moves: currentPath.map((n, i, arr) => ({ node: n, path: arr.slice(0, i + 1) })),
+      isRefutation: node.isKey && node.color !== currentPath[0]?.color, // refutation marker
+    });
+    return lines;
+  }
+
+  // Recurse into children
+  for (const child of nonThreatChildren) {
+    const childLines = collectLines(child, currentPath);
+    lines.push(...childLines);
+  }
+
+  return lines;
+}
+
+function buildRootVariations(fullNodes: SolutionNode[]): RootVariation[] {
+  const variations: RootVariation[] = [];
+
+  for (let idx = 0; idx < fullNodes.length; idx++) {
+    const rootNode = fullNodes[idx];
+
+    // Check if this root node is actually a refutation of the previous try.
+    // Refutations are root nodes with isKey=true but opposite color from the actual key.
+    // They appear right after a try node due to parser section breaks.
+    if (rootNode.isKey && !rootNode.isTry && variations.length > 0) {
+      const prev = variations[variations.length - 1];
+      if (prev.isTry && rootNode.color !== prev.rootNode.color) {
+        // This is a refutation — attach to the previous try
+        // Include the try's root node in the path so the board replays correctly
+        const refLine: VariationLine = {
+          moves: [{ node: rootNode, path: [prev.rootNode, rootNode] }],
+          isRefutation: true,
+        };
+        prev.refutation = refLine;
+        continue;
+      }
+    }
+
+    const allLines = collectLines(rootNode, []);
+
+    if (rootNode.isTry) {
+      // For tries: find the refutation line among children
+      let refutation: VariationLine | null = null;
+      const successLines: VariationLine[] = [];
+
+      const nonThreatChildren = rootNode.children.filter(c => !c.isThreat);
+      const refutingChild = nonThreatChildren.find(c => c.isKey);
+
+      if (refutingChild) {
+        for (const line of allLines) {
+          if (line.moves.length > 1 && line.moves[1].node === refutingChild) {
+            refutation = { ...line, isRefutation: true };
+          } else {
+            successLines.push(line);
+          }
+        }
+      } else {
+        successLines.push(...allLines);
+      }
+
+      variations.push({ rootNode, isKey: false, isTry: true, lines: successLines, refutation });
+    } else {
+      variations.push({ rootNode, isKey: rootNode.isKey, isTry: false, lines: allLines, refutation: null });
+    }
+  }
+
+  return variations;
+}
+
+// ── Clickable move button ──
+
+function MoveButton({ node, path, onNodeClick }: {
+  node: SolutionNode;
+  path: SolutionNode[];
+  onNodeClick: (path: SolutionNode[]) => void;
+}) {
   const moveClasses = node.color === 'w'
     ? 'font-bold text-gray-900 dark:text-gray-100'
-    : 'italic text-gray-700 dark:text-gray-300';
+    : 'italic text-gray-600 dark:text-gray-400';
 
   return (
-    <div style={{ paddingLeft: depth * 16 }}>
-      <span className={moveClasses}>
-        {node.moveSan}
-      </span>
-      {node.isKey && <span className="text-red-500 ml-1 font-bold">!</span>}
-      {node.isTry && <span className="text-orange-500 ml-1 font-bold">?</span>}
-      {node.isMate && <span className="text-red-600 ml-1">#</span>}
-      {node.isThreat && <span className="text-orange-500 ml-1 text-xs">(threat)</span>}
-      {node.annotation && (
-        <span className="text-gray-400 ml-1 text-xs">({node.annotation})</span>
-      )}
-      {node.children.map((child, i) => (
-        <SolutionNodeView key={i} node={child} depth={depth + 1} />
-      ))}
-    </div>
+    <button
+      onClick={() => onNodeClick(path)}
+      className={`${moveClasses} hover:bg-green-100 dark:hover:bg-green-900/30 px-0.5 rounded cursor-pointer transition-colors`}
+    >
+      {node.moveSan}
+    </button>
   );
 }
 
-export function SolutionTree({ fullNodes, solutionText, playback, onGoTo, onFirst, onPrev, onNext, onLast, keywordTags }: SolutionTreeProps) {
+// ── Compact variation line display ──
+
+function VariationLineView({ line, startMoveNum, onNodeClick, showSlash }: {
+  line: VariationLine;
+  startMoveNum: number;
+  onNodeClick: (path: SolutionNode[]) => void;
+  showSlash?: boolean;
+}) {
+  // Skip the root move (index 0), show from defense onwards
+  const movesAfterRoot = line.moves.slice(1);
+  if (movesAfterRoot.length === 0) return null;
+
+  return (
+    <span className="inline">
+      {showSlash && <span className="text-gray-400 mx-1">/</span>}
+      {movesAfterRoot.map((m, i) => {
+        // Add move number for white moves
+        const moveNum = startMoveNum + Math.floor((i + 1) / 2);
+        const isWhiteMove = m.node.color === 'w';
+        const showNum = isWhiteMove && i > 0;
+        const isBlackFirst = i === 0 && m.node.color === 'b';
+
+        return (
+          <span key={i}>
+            {showNum && <span className="text-gray-400 text-xs mr-0.5">{moveNum}.</span>}
+            {isBlackFirst && <span className="text-gray-400 text-xs mr-0.5">{startMoveNum}...</span>}
+            <MoveButton node={m.node} path={m.path} onNodeClick={onNodeClick} />
+            {' '}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
+
+export function SolutionTree({ fullNodes, initialFen, solutionText, playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      // Don't hijack arrow keys when an input is focused or user is exploring variations
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (e.key === 'ArrowLeft') { e.preventDefault(); onPrev(); }
       if (e.key === 'ArrowRight') { e.preventDefault(); onNext(); }
       if (e.key === 'Home') { e.preventDefault(); onFirst(); }
@@ -54,6 +230,21 @@ export function SolutionTree({ fullNodes, solutionText, playback, onGoTo, onFirs
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [onFirst, onPrev, onNext, onLast]);
+
+  const handleNodeClick = useCallback((path: SolutionNode[]) => {
+    const chess = new Chess(initialFen);
+    let lastMove: { from: string; to: string } | null = null;
+    for (const node of path) {
+      const result = tryExecuteNode(chess, node);
+      if (!result) break;
+      lastMove = result;
+    }
+    onExplore(chess.fen(), lastMove);
+  }, [initialFen, onExplore]);
+
+  const variations = useMemo(() => buildRootVariations(fullNodes), [fullNodes]);
+  const keyVariations = variations.filter(v => v.isKey);
+  const tryVariations = variations.filter(v => v.isTry);
 
   const moveIndex = playback?.moveIndex ?? -1;
   const positions = playback?.positions ?? [];
@@ -71,7 +262,7 @@ export function SolutionTree({ fullNodes, solutionText, playback, onGoTo, onFirs
         )}
       </div>
 
-      {/* Move display */}
+      {/* Main line playback */}
       {positions.length > 1 && (
         <div className="space-y-2">
           <div className="flex items-center gap-1 flex-wrap text-sm">
@@ -91,23 +282,82 @@ export function SolutionTree({ fullNodes, solutionText, playback, onGoTo, onFirs
               </button>
             ))}
           </div>
-
         </div>
       )}
 
-      {keywordTags}
+      {/* Key variations (all defenses after the key move) */}
+      {keyVariations.length > 0 && keyVariations.some(v => v.lines.length > 1) && (
+        <details className="text-xs" open>
+          <summary className="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 text-sm font-medium">
+            Key variations
+          </summary>
+          <div className="mt-2 text-sm bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-1">
+            {keyVariations.map((v, vi) => (
+              <div key={vi}>
+                {v.lines.map((line, li) => (
+                  <div key={li} className="flex items-baseline gap-1 flex-wrap leading-relaxed">
+                    {li === 0 && (
+                      <span className="inline-flex items-baseline gap-1">
+                        <span className="text-gray-400 text-xs">1.</span>
+                        <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} />
+                        <span className="text-red-500 font-bold text-xs">!</span>
+                      </span>
+                    )}
+                    {li > 0 && <span className="w-[3ch] inline-block" />}
+                    <VariationLineView line={line} startMoveNum={1} onNodeClick={handleNodeClick} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
-      {/* Full variation tree */}
-      <details className="text-xs">
-        <summary className="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 text-sm font-medium">
-          All variations
-        </summary>
-        <div className="mt-2 text-sm font-mono bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-0.5">
-          {fullNodes.map((node, i) => (
-            <SolutionNodeView key={i} node={node} depth={0} />
-          ))}
-        </div>
-      </details>
+      {/* Tries */}
+      {tryVariations.length > 0 && (
+        <details className="text-xs" open>
+          <summary className="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 text-sm font-medium">
+            Tries ({tryVariations.length})
+          </summary>
+          <div className="mt-2 text-sm bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-2">
+            {tryVariations.map((v, vi) => (
+              <div key={vi}>
+                {/* Try with continuations */}
+                <div className="flex items-baseline gap-1 flex-wrap leading-relaxed">
+                  <span className="inline-flex items-baseline gap-1 shrink-0">
+                    <span className="text-gray-400 text-xs">1.</span>
+                    <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} />
+                    <span className="text-orange-500 font-bold text-xs">?</span>
+                  </span>
+                  {v.lines.map((line, li) => (
+                    <VariationLineView key={li} line={line} startMoveNum={1} onNodeClick={handleNodeClick} showSlash={li > 0} />
+                  ))}
+                </div>
+                {/* Refutation on separate line — applies to the whole try, not just the last variation */}
+                {v.refutation && (() => {
+                  const refMoves = v.refutation.moves[0]?.node === v.rootNode ? v.refutation.moves.slice(1) : v.refutation.moves;
+                  return (
+                    <div className="flex items-baseline gap-1 ml-4 text-red-600 dark:text-red-400 leading-relaxed">
+                      <span className="text-xs font-medium">↳ but</span>
+                      {refMoves.map((m, i) => {
+                        const isBlack = m.node.color === 'b';
+                        const showNum = i === 0;
+                        return (
+                          <span key={i}>
+                            {showNum && <span className="text-gray-400 text-xs mr-0.5">{isBlack ? '1...' : '1.'}</span>}
+                            <MoveButton node={m.node} path={m.path} onNodeClick={handleNodeClick} />
+                            {m.node.isKey && <span className="text-red-500 font-bold text-xs ml-0.5">!</span>}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
 
       {/* Raw solution text */}
       <details className="text-xs">

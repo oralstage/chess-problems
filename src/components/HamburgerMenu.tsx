@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 interface HamburgerMenuProps {
   isOpen: boolean;
   onClose: () => void;
@@ -5,13 +7,16 @@ interface HamburgerMenuProps {
   onOpenProblemList: () => void;
   onOpenHistory: () => void;
   onGoHome: () => void;
+  onGoToId: (id: number) => void;
   activeFilterCount: number;
 }
 
 export function HamburgerMenu({
   isOpen, onClose,
-  onOpenFilters, onOpenProblemList, onOpenHistory, onGoHome, activeFilterCount,
+  onOpenFilters, onOpenProblemList, onOpenHistory, onGoHome, onGoToId, activeFilterCount,
 }: HamburgerMenuProps) {
+  const [idInput, setIdInput] = useState('');
+
   if (!isOpen) return null;
 
   return (
@@ -76,6 +81,41 @@ export function HamburgerMenu({
             </svg>
             History
           </button>
+
+          <div className="h-px bg-gray-100 dark:bg-gray-800 my-2 mx-5" />
+
+          {/* Go to Problem ID */}
+          <div className="px-5 py-2">
+            <label className="text-xs font-medium text-gray-400 dark:text-gray-500 mb-1 block">Go to Problem #</label>
+            <form
+              className="flex gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const id = parseInt(idInput.replace(/[^0-9]/g, ''));
+                if (id > 0) {
+                  onGoToId(id);
+                  onClose();
+                  setIdInput('');
+                }
+              }}
+            >
+              <input
+                type="text"
+                inputMode="numeric"
+                value={idInput}
+                onChange={(e) => setIdInput(e.target.value)}
+                placeholder="e.g. 243207"
+                className="flex-1 min-w-0 px-2.5 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              />
+              <button
+                type="submit"
+                disabled={!idInput.replace(/[^0-9]/g, '')}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Go
+              </button>
+            </form>
+          </div>
 
           <div className="h-px bg-gray-100 dark:bg-gray-800 my-2 mx-5" />
 

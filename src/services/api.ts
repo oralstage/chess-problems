@@ -121,10 +121,60 @@ export async function fetchDaily(): Promise<ProblemMeta & { solutionText: string
 /**
  * Convert ProblemMeta to ChessProblem (without solutionTree — must be built separately).
  */
+/**
+ * If the solution contains castling but the FEN has no castling rights,
+ * infer and add the necessary castling rights based on king/rook positions.
+ */
+export function fixCastlingRights(fen: string, solutionText?: string): string {
+  if (!solutionText) return fen;
+  const parts = fen.split(' ');
+  if (parts.length < 3 || parts[2] !== '-') return fen; // already has castling rights
+
+  const hasShortCastling = /\b(O-O|0-0)\b/.test(solutionText);
+  const hasLongCastling = /\b(O-O-O|0-0-0)\b/.test(solutionText);
+  if (!hasShortCastling && !hasLongCastling) return fen;
+
+  // Parse board to find king and rook positions
+  const ranks = parts[0].split('/');
+  let castling = '';
+
+  const findPieces = (rank: string) => {
+    const pieces: { piece: string; file: number }[] = [];
+    let file = 0;
+    for (const ch of rank) {
+      if (ch >= '1' && ch <= '8') { file += parseInt(ch); }
+      else { pieces.push({ piece: ch, file }); file++; }
+    }
+    return pieces;
+  };
+
+  // White (rank 1 = index 7)
+  const rank1 = findPieces(ranks[7]);
+  const whiteKing = rank1.find(p => p.piece === 'K');
+  if (whiteKing && whiteKing.file === 4) { // King on e1
+    if (hasShortCastling && rank1.find(p => p.piece === 'R' && p.file === 7)) castling += 'K';
+    if (hasLongCastling && rank1.find(p => p.piece === 'R' && p.file === 0)) castling += 'Q';
+  }
+
+  // Black (rank 8 = index 0)
+  const rank8 = findPieces(ranks[0]);
+  const blackKing = rank8.find(p => p.piece === 'k');
+  if (blackKing && blackKing.file === 4) { // King on e8
+    if (hasShortCastling && rank8.find(p => p.piece === 'r' && p.file === 7)) castling += 'k';
+    if (hasLongCastling && rank8.find(p => p.piece === 'r' && p.file === 0)) castling += 'q';
+  }
+
+  if (castling) {
+    parts[2] = castling;
+    return parts.join(' ');
+  }
+  return fen;
+}
+
 export function metaToChessProblem(meta: ProblemMeta, solutionText?: string): ChessProblem {
   return {
     id: meta.id,
-    fen: meta.fen,
+    fen: fixCastlingRights(meta.fen, solutionText),
     authors: meta.authors,
     sourceName: meta.sourceName,
     sourceYear: meta.sourceYear,
