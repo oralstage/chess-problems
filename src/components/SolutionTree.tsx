@@ -263,8 +263,11 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, playback, on
   }, [initialFen, onExplore]);
 
   const variations = useMemo(() => buildRootVariations(fullNodes), [fullNodes]);
-  const keyVariations = variations.filter(v => v.isKey);
-  const tryVariations = variations.filter(v => v.isTry);
+  const hasAnyMarkers = variations.some(v => v.isKey || v.isTry);
+  // When no key/try markers exist (e.g., helpmates), treat all variations as "solutions"
+  const keyVariations = hasAnyMarkers ? variations.filter(v => v.isKey) : [];
+  const tryVariations = hasAnyMarkers ? variations.filter(v => v.isTry) : [];
+  const plainSolutions = hasAnyMarkers ? [] : variations;
 
   const moveIndex = playback?.moveIndex ?? -1;
   const positions = playback?.positions ?? [];
@@ -303,6 +306,35 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, playback, on
             ))}
           </div>
         </div>
+      )}
+
+      {/* Plain solutions (helpmate-style: no key/try markers) */}
+      {plainSolutions.length > 0 && (
+        <details className="text-xs" open>
+          <summary className="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 text-sm font-medium">
+            Solutions ({plainSolutions.length})
+          </summary>
+          <div className="mt-2 text-sm bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-1">
+            {plainSolutions.map((v, vi) => (
+              <div key={vi} className="leading-relaxed">
+                <div className="flex items-baseline gap-1 flex-wrap">
+                  <span className="text-gray-400 text-xs">
+                    {v.rootNode.color === 'b' ? '1...' : '1.'}
+                  </span>
+                  <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} isActive={activeNode === v.rootNode} />
+                  {v.lines.length === 1 && (
+                    <VariationLineView line={v.lines[0]} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
+                  )}
+                </div>
+                {v.lines.length > 1 && v.lines.map((line, li) => (
+                  <div key={li} className="flex items-baseline gap-1 flex-wrap ml-6">
+                    <VariationLineView line={line} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </details>
       )}
 
       {/* Key variations (all defenses after the key move) */}

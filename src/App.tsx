@@ -161,9 +161,33 @@ export default function App() {
     direct: [], help: [], self: [], study: [], retro: [],
   });
   const [timestamps, setTimestamps] = useLocalStorage<Record<string, number>>('cp-timestamps', {});
-  const [filtersRaw, setFilters] = useLocalStorage<GlobalFilters>('cp-filters', {
-    keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' as StatusFilter,
-  });
+
+  // Per-genre filters (each genre has its own independent filter settings)
+  const defaultFilters: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' as StatusFilter };
+  const [allFiltersRaw, setAllFilters] = useLocalStorage<Record<string, GlobalFilters>>('cp-filters-by-genre', {});
+  // One-time migration from old global cp-filters
+  useEffect(() => {
+    try {
+      const old = localStorage.getItem('cp-filters');
+      if (old) {
+        const parsed = migrateFilters(JSON.parse(old));
+        localStorage.removeItem('cp-filters');
+        setAllFilters(prev => {
+          // Only migrate if no per-genre filters exist yet
+          if (Object.keys(prev).length === 0) {
+            return { direct: parsed, help: defaultFilters, self: defaultFilters, study: defaultFilters, retro: defaultFilters };
+          }
+          return prev;
+        });
+      }
+    } catch { /* ignore */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const filtersRaw = currentGenre ? allFiltersRaw[currentGenre] || defaultFilters : defaultFilters;
+  const setFilters = useCallback((value: GlobalFilters) => {
+    if (!currentGenre) return;
+    setAllFilters(prev => ({ ...prev, [currentGenre]: value }));
+  }, [currentGenre, setAllFilters]);
   const filters = useMemo(() => migrateFilters(filtersRaw), [filtersRaw]);
 
   const windowWidth = useWindowWidth();
