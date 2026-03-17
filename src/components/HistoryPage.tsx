@@ -137,7 +137,7 @@ export function HistoryPage({
               onClick={() => setFilter(key)}
               className={`px-3 py-1 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                 filter === key
-                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                  ? 'bg-green-700 text-white dark:bg-green-600 dark:text-white'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-400 dark:hover:bg-white/20'
               }`}
             >
@@ -185,6 +185,9 @@ export function HistoryPage({
                           {/* Problem info */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-baseline gap-2">
+                              <span className="font-bold text-sm text-gray-800 dark:text-gray-200 tabular-nums">
+                                #{p.id}
+                              </span>
                               <span className="font-bold text-sm text-gray-800 dark:text-gray-200 font-mono">
                                 {p.stipulation}
                               </span>
@@ -196,13 +199,7 @@ export function HistoryPage({
                           </div>
 
                           {/* Genre badge */}
-                          <span className={`shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                            entry.genre === 'direct' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400' :
-                            entry.genre === 'help' ? 'bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400' :
-                            entry.genre === 'self' ? 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400' :
-                            entry.genre === 'study' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400' :
-                            'bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400'
-                          }`}>
+                          <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">
                             {GENRE_LABELS[entry.genre]}
                           </span>
                         </button>

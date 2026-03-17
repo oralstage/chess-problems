@@ -30,6 +30,7 @@ export interface StatsResponse {
   keywords: string[];
   yearRange: { min: number; max: number };
   pieceRange: { min: number; max: number };
+  moveRange: { min: number; max: number };
 }
 
 /**
@@ -44,38 +45,59 @@ export async function fetchStats(genre?: string): Promise<StatsResponse> {
 
 /**
  * Fetch all problems for a genre (without solutionText).
- * Returns all problems at once for client-side filtering.
- * Uses pagination internally to fetch all pages.
+ * Fetches first page immediately, then remaining pages sequentially.
+ * Optional onProgress callback for progressive loading.
  */
-export async function fetchAllProblems(genre: string): Promise<ProblemMeta[]> {
-  const PAGE_SIZE = 1000;
-  const all: ProblemMeta[] = [];
+export async function fetchAllProblems(
+  genre: string,
+  onProgress?: (problems: ProblemMeta[], total: number, done: boolean) => void,
+): Promise<ProblemMeta[]> {
+  const PAGE_SIZE = 5000;
+  const allProblems: ProblemMeta[] = [];
 
-  // First page to get total
-  const firstRes = await fetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=0&sortBy=difficulty&sortOrder=asc`);
-  if (!firstRes.ok) throw new Error(`Problems API error: ${firstRes.status}`);
-  const first = await firstRes.json();
-  all.push(...first.problems);
-  const total = first.total;
+  // First page
+  const res = await fetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=0&sortBy=difficulty&sortOrder=asc`);
+  if (!res.ok) throw new Error(`Problems API error: ${res.status}`);
+  const data: { problems: ProblemMeta[]; total: number } = await res.json();
+  allProblems.push(...data.problems);
 
-  if (total <= PAGE_SIZE) return all;
-
-  // Fetch remaining pages in parallel
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  const pagePromises: Promise<Response>[] = [];
-  for (let p = 1; p < totalPages; p++) {
-    pagePromises.push(fetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=${p}&sortBy=difficulty&sortOrder=asc`));
+  if (allProblems.length >= data.total || data.problems.length < PAGE_SIZE) {
+    onProgress?.(allProblems, data.total, true);
+    return allProblems;
   }
 
-  const responses = await Promise.all(pagePromises);
-  for (const res of responses) {
-    if (res.ok) {
-      const data = await res.json();
-      all.push(...data.problems);
+  // Report first page immediately
+  onProgress?.(allProblems, data.total, false);
+
+  // Fetch remaining pages
+  let page = 1;
+  while (allProblems.length < data.total) {
+    const pageRes = await fetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=${page}&sortBy=difficulty&sortOrder=asc`);
+    if (!pageRes.ok) break;
+    const pageData: { problems: ProblemMeta[]; total: number } = await pageRes.json();
+    allProblems.push(...pageData.problems);
+    const done = allProblems.length >= data.total || pageData.problems.length < PAGE_SIZE;
+    onProgress?.(allProblems, data.total, done);
+    if (done) break;
+    page++;
+  }
+
+  return allProblems;
+}
+
+/**
+ * Fetch a page of problems with optional filters.
+ */
+export async function fetchProblemsPage(genre: string, page: number, pageSize = 1000, filters?: Record<string, string>): Promise<{ problems: ProblemMeta[]; total: number }> {
+  const params = new URLSearchParams({ genre, pageSize: String(pageSize), page: String(page), sortBy: 'difficulty', sortOrder: 'asc' });
+  if (filters) {
+    for (const [k, v] of Object.entries(filters)) {
+      if (v) params.set(k, v);
     }
   }
-
-  return all;
+  const res = await fetch(`${API_BASE}/problems?${params}`);
+  if (!res.ok) throw new Error(`Problems API error: ${res.status}`);
+  return res.json();
 }
 
 /**

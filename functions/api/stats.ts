@@ -22,6 +22,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   let keywords: string[] = [];
   let yearRange = { min: 0, max: 0 };
   let pieceRange = { min: 0, max: 0 };
+  let moveRange = { min: 0, max: 0 };
 
   if (genre && ['direct', 'help', 'self', 'study', 'retro'].includes(genre)) {
     const stipResult = await context.env.DB.prepare(
@@ -31,13 +32,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     const rangeResult = await context.env.DB.prepare(
       `SELECT MIN(source_year) as minYear, MAX(source_year) as maxYear,
-              MIN(piece_count) as minPieces, MAX(piece_count) as maxPieces
+              MIN(piece_count) as minPieces, MAX(piece_count) as maxPieces,
+              MIN(CASE WHEN move_count > 0 THEN move_count END) as minMoves,
+              MAX(move_count) as maxMoves
        FROM problems WHERE genre = ?`
-    ).bind(genre).first<{ minYear: number; maxYear: number; minPieces: number; maxPieces: number }>();
+    ).bind(genre).first<{ minYear: number; maxYear: number; minPieces: number; maxPieces: number; minMoves: number; maxMoves: number }>();
 
     if (rangeResult) {
       yearRange = { min: rangeResult.minYear || 0, max: rangeResult.maxYear || 0 };
       pieceRange = { min: rangeResult.minPieces || 0, max: rangeResult.maxPieces || 0 };
+      moveRange = { min: rangeResult.minMoves || 1, max: rangeResult.maxMoves || 10 };
     }
 
     // Get all unique keywords for this genre
@@ -55,5 +59,5 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     keywords = [...kwSet].sort();
   }
 
-  return Response.json({ counts, stipulations, keywords, yearRange, pieceRange });
+  return Response.json({ counts, stipulations, keywords, yearRange, pieceRange, moveRange });
 };

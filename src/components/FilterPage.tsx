@@ -20,6 +20,7 @@ interface FilterPageProps {
   filters: GlobalFilters;
   onFiltersChange: (f: GlobalFilters) => void;
   onClose: () => void;
+  genreStats?: { yearRange: { min: number; max: number }; pieceRange: { min: number; max: number }; moveRange: { min: number; max: number } } | null;
 }
 
 function pieceCount(fen: string): number {
@@ -40,6 +41,13 @@ function DualRangeSlider({
   const displayText = formatValue
     ? formatValue(valueLow, valueHigh, min, max)
     : isFullRange ? `${label}: Any` : `${label}: ${valueLow}–${valueHigh}`;
+
+  // When both thumbs overlap, put the one that can still be dragged in the useful direction on top.
+  // Upper half → min thumb on top (drag left), lower half → max thumb on top (drag right).
+  const midpoint = (min + max) / 2;
+  const overlapping = valueLow === valueHigh;
+  const minZ = overlapping ? (valueLow >= midpoint ? 5 : 3) : (valueLow > max - 5 ? 5 : 3);
+  const maxZ = overlapping ? (valueHigh >= midpoint ? 3 : 5) : 4;
 
   return (
     <div className="space-y-2">
@@ -76,7 +84,7 @@ function DualRangeSlider({
             [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
             [&::-moz-range-thumb]:bg-green-600 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
             [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
-          style={{ zIndex: valueLow > max - 5 ? 5 : 3 }}
+          style={{ zIndex: minZ }}
         />
         {/* Max thumb */}
         <input
@@ -97,34 +105,15 @@ function DualRangeSlider({
             [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
             [&::-moz-range-thumb]:bg-green-600 [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white
             [&::-moz-range-thumb]:shadow-md [&::-moz-range-thumb]:cursor-pointer"
-          style={{ zIndex: 4 }}
+          style={{ zIndex: maxZ }}
         />
       </div>
     </div>
   );
 }
 
-export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: FilterPageProps) {
+export function FilterPage({ allProblems, filters, onFiltersChange, onClose, genreStats }: FilterPageProps) {
   const [themeSearch, setThemeSearch] = useState('');
-
-  // Stipulation options
-  const stipulations = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const p of allProblems) {
-      counts.set(p.stipulation, (counts.get(p.stipulation) || 0) + 1);
-    }
-    return Array.from(counts.entries()).sort((a, b) => {
-      const order = (s: string) => {
-        if (s.startsWith('h#')) return 100 + parseInt(s.slice(2) || '0');
-        if (s.startsWith('s#')) return 200 + parseInt(s.slice(2) || '0');
-        if (s.startsWith('#')) return parseInt(s.slice(1) || '0');
-        if (s === '+') return 300;
-        if (s === '=') return 301;
-        return 999;
-      };
-      return order(a[0]) - order(b[0]);
-    });
-  }, [allProblems]);
 
   // All unique keywords
   const allKeywords = useMemo(() => {
@@ -148,20 +137,34 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
     return { min: Math.max(2, min), max: Math.min(32, max) };
   }, [allProblems]);
 
-  // Year range
+  // Year range — prefer stats from API, clamp to reasonable bounds
   const yearRange = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    if (genreStats?.yearRange && genreStats.yearRange.max > 0) {
+      return {
+        min: Math.max(1800, genreStats.yearRange.min),
+        max: Math.min(currentYear, genreStats.yearRange.max),
+      };
+    }
     let min = 9999, max = 0;
     for (const p of allProblems) {
       if (p.sourceYear && p.sourceYear > 0) {
-        if (p.sourceYear < min) min = p.sourceYear;
-        if (p.sourceYear > max) max = p.sourceYear;
+        const y = Math.max(p.sourceYear, 1800);
+        const yc = Math.min(y, currentYear);
+        if (yc < min) min = yc;
+        if (yc > max) max = yc;
       }
     }
-    return { min: min > max ? 1850 : min, max: max < min ? 2025 : max };
-  }, [allProblems]);
+    return { min: min > max ? 1800 : min, max: max < min ? currentYear : max };
+  }, [allProblems, genreStats]);
 
-  // Move count range
+  // Move count range — prefer stats from API, clamp max to 30 for usability
+  // (ultra-long problems like #450, #530 exist but are extremely rare)
+  const MOVE_SLIDER_MAX = 30;
   const moveRange = useMemo(() => {
+    if (genreStats?.moveRange && genreStats.moveRange.max > 0) {
+      return { min: Math.max(1, genreStats.moveRange.min), max: Math.min(genreStats.moveRange.max, MOVE_SLIDER_MAX) };
+    }
     let min = 999, max = 0;
     for (const p of allProblems) {
       if (p.moveCount > 0) {
@@ -169,8 +172,8 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
         if (p.moveCount > max) max = p.moveCount;
       }
     }
-    return { min: min > max ? 1 : min, max: max < min ? 10 : max };
-  }, [allProblems]);
+    return { min: min > max ? 1 : min, max: Math.min(max < min ? 10 : max, MOVE_SLIDER_MAX) };
+  }, [allProblems, genreStats]);
 
   const pieceLow = filters.minPieces || pieceRange.min;
   const pieceHigh = filters.maxPieces || pieceRange.max;
@@ -192,15 +195,6 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
     }
   };
 
-  const toggleStipulation = (stip: string) => {
-    const current = filters.stipulations;
-    if (current.includes(stip)) {
-      update({ stipulations: current.filter(s => s !== stip) });
-    } else {
-      update({ stipulations: [...current, stip] });
-    }
-  };
-
   const resetAll = () => {
     onFiltersChange({
       keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0,
@@ -210,8 +204,21 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
 
   const hasActiveFilters = filters.keywords.length > 0 || filters.minPieces > 0 || filters.maxPieces > 0
     || filters.minYear > 0 || filters.maxYear > 0
-    || filters.minMoves > 0 || filters.maxMoves > 0
-    || filters.stipulations.length > 0;
+    || filters.minMoves > 0 || filters.maxMoves > 0;
+
+  // Compute matching count in real-time
+  const matchCount = useMemo(() => {
+    let result = allProblems;
+    if (filters.minPieces > 0) result = result.filter(p => pieceCount(p.fen) >= filters.minPieces);
+    if (filters.maxPieces > 0) result = result.filter(p => pieceCount(p.fen) <= filters.maxPieces);
+    if (filters.minYear > 0) result = result.filter(p => (p.sourceYear || 0) >= filters.minYear);
+    if (filters.maxYear > 0) result = result.filter(p => (p.sourceYear || 9999) <= filters.maxYear);
+    if (filters.minMoves > 0) result = result.filter(p => p.moveCount >= filters.minMoves);
+    if (filters.maxMoves > 0) result = result.filter(p => p.moveCount <= filters.maxMoves);
+    if (filters.keywords.length > 0) result = result.filter(p => filters.keywords.some(kw => p.keywords?.includes(kw)));
+    if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
+    return result.length;
+  }, [allProblems, filters]);
 
   const filteredKeywords = themeSearch
     ? allKeywords.filter(kw => kw.toLowerCase().includes(themeSearch.toLowerCase()))
@@ -245,36 +252,6 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
-          {/* Stipulation (multi-select) */}
-          <section>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-              Type
-              {filters.stipulations.length > 0 && (
-                <span className="ml-2 text-xs font-normal text-green-600 dark:text-green-400">
-                  {filters.stipulations.length} selected
-                </span>
-              )}
-            </h3>
-            <div className="flex gap-1.5 flex-wrap">
-              {stipulations.map(([stip]) => {
-                const isSelected = filters.stipulations.includes(stip);
-                return (
-                  <button
-                    key={stip}
-                    onClick={() => toggleStipulation(stip)}
-                    className={`px-3 py-1.5 rounded-lg text-sm font-medium font-mono transition-colors ${
-                      isSelected
-                        ? 'bg-green-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    {stip}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
           {/* Move count range */}
           <section>
             <DualRangeSlider
@@ -288,7 +265,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
               })}
               label="Moves"
               formatValue={(low, high, min, max) =>
-                low <= min && high >= max ? 'Moves: Any' : `Moves: ${low}–${high}`
+                low <= min && high >= max ? 'Moves: Any' : `Moves: ${low}–${high >= max ? `${max}+` : high}`
               }
             />
           </section>
@@ -393,7 +370,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose }: F
             onClick={onClose}
             className="w-full py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
           >
-            Done
+            {hasActiveFilters ? `Done · ${matchCount.toLocaleString()} problems` : 'Done'}
           </button>
         </div>
       </div>

@@ -18,6 +18,7 @@ interface ProblemListProps {
   onSortChange: (sort: 'difficulty' | 'year', order: 'asc' | 'desc') => void;
   statusFilter: StatusFilter;
   onStatusFilterChange: (f: StatusFilter) => void;
+  loading?: boolean;
 }
 
 const COLS = 4;
@@ -29,16 +30,13 @@ export function ProblemList({
   onSelectProblem, onClose, onOpenFilters, activeFilterCount,
   sortBy, sortOrder, onSortChange,
   statusFilter, onStatusFilterChange,
+  loading,
 }: ProblemListProps) {
   const solved = Object.values(progress).filter(s => s === 'solved').length;
   const failed = Object.values(progress).filter(s => s === 'failed').length;
 
-  // Map problem ID → original index (1-based) for stable numbering
-  const problemIndexMap = useMemo(() => {
-    const map = new Map<number, number>();
-    allProblems.forEach((p, i) => map.set(p.id, i + 1));
-    return map;
-  }, [allProblems]);
+  // YACPDB ID is used directly as the problem number
+  void allProblems; // allProblems kept for prop compatibility
 
   const [showSortMenu, setShowSortMenu] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
@@ -172,7 +170,7 @@ export function ProblemList({
               onClick={() => handleStatusFilterChange(key)}
               className={`px-3 py-1 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
                 statusFilter === key
-                  ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
+                  ? 'bg-green-700 text-white dark:bg-green-600 dark:text-white'
                   : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-400 dark:hover:bg-white/20'
               }`}
             >
@@ -193,6 +191,34 @@ export function ProblemList({
           className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
           style={{ WebkitOverflowScrolling: 'touch' }}
         >
+          {loading && allProblems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="flex gap-1">
+                {['♚', '♛', '♜', '♝', '♞'].map((piece, i) => (
+                  <div
+                    key={i}
+                    className="text-2xl text-gray-400 dark:text-gray-500 w-7 text-center"
+                    ref={el => {
+                      if (el) {
+                        el.animate(
+                          [
+                            { transform: 'translateY(0)', offset: 0 },
+                            { transform: 'translateY(-10px)', offset: 0.4 },
+                            { transform: 'translateY(0)', offset: 0.8 },
+                            { transform: 'translateY(0)', offset: 1 },
+                          ],
+                          { duration: 1200, iterations: Infinity, easing: 'ease-in-out', delay: i * 150 }
+                        );
+                      }
+                    }}
+                  >
+                    {piece}
+                  </div>
+                ))}
+              </div>
+              <p className="text-sm text-gray-400 dark:text-gray-500">Loading problems...</p>
+            </div>
+          ) : (
           <div
             className="grid gap-2 pb-2"
             style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}
@@ -200,7 +226,7 @@ export function ProblemList({
             {pageProblems.map((p) => {
               const status = progress[String(p.id)];
               const isCurrent = p.id === currentProblemId;
-              const globalIndex = problemIndexMap.get(p.id) ?? 0;
+              const globalIndex = p.id;
 
               return (
                 <button
@@ -251,6 +277,7 @@ export function ProblemList({
               );
             })}
           </div>
+          )}
         </div>
 
         {/* Pagination */}
@@ -295,7 +322,7 @@ export function ProblemList({
                       onClick={() => setPage(item)}
                       className={`w-10 h-10 text-sm rounded-lg transition-colors ${
                         page === item
-                          ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900 font-bold'
+                          ? 'bg-green-700 text-white dark:bg-green-600 dark:text-white font-bold'
                           : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400'
                       }`}
                     >

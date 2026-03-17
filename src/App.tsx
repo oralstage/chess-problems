@@ -197,6 +197,7 @@ export default function App() {
   const [showTutorial, setShowTutorial] = useState(false);
   const [showProblemList, setShowProblemList] = useState(false);
   const [showFilterPage, setShowFilterPage] = useState(false);
+  const [filterOpenedFrom, setFilterOpenedFrom] = useState<'problemList' | 'hamburger'>('hamburger');
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showProblemInfo, setShowProblemInfo] = useState(false);
@@ -239,12 +240,20 @@ export default function App() {
     } catch { /* quota exceeded — ignore */ }
   }, []);
 
-  // Lazy-load genre data on demand (from D1 API)
+  // Lazy-load genre data on demand (from D1 API) with progressive updates
   const loadGenre = useCallback(async (genre: Genre) => {
     if (genreLoaded[genre]) return genreData[genre];
     setGenreLoading(genre);
     try {
-      const metas = await fetchAllProblems(genre);
+      const metas = await fetchAllProblems(genre, (partial, _total, done) => {
+        const problems: ChessProblem[] = partial.map(m => metaToChessProblem(m));
+        problems.sort((a, b) => a.difficultyScore - b.difficultyScore);
+        setGenreData(prev => ({ ...prev, [genre]: problems }));
+        if (done) {
+          setGenreLoaded(prev => ({ ...prev, [genre]: true }));
+          setGenreLoading(null);
+        }
+      });
       const problems: ChessProblem[] = metas.map(m => metaToChessProblem(m));
       problems.sort((a, b) => a.difficultyScore - b.difficultyScore);
       setGenreData(prev => ({ ...prev, [genre]: problems }));
@@ -407,9 +416,15 @@ export default function App() {
 
   // Fetch genre counts from API on mount
   const [apiCounts, setApiCounts] = useState<Record<string, number>>({});
+  const [genreStats, setGenreStats] = useState<{ yearRange: { min: number; max: number }; pieceRange: { min: number; max: number }; moveRange: { min: number; max: number } } | null>(null);
   useEffect(() => {
     fetchStats().then(stats => setApiCounts(stats.counts)).catch(() => {});
   }, []);
+  useEffect(() => {
+    if (currentGenre) {
+      fetchStats(currentGenre).then(stats => setGenreStats({ yearRange: stats.yearRange, pieceRange: stats.pieceRange, moveRange: stats.moveRange })).catch(() => {});
+    }
+  }, [currentGenre]);
 
   const problemCounts = useMemo(() => {
     const ESTIMATED_COUNTS: Record<Genre, number> = { direct: 53177, help: 16457, self: 6164, study: 3077, retro: 178 };
@@ -931,8 +946,8 @@ export default function App() {
                   </button>
                   <ProblemCard
                     problem={problem.problem}
-                    problemNumber={currentGenre ? (problemsByGenre[currentGenre] || []).findIndex(p => p.id === problem.problem!.id) + 1 : undefined}
-                    genrePrefix={currentGenre === 'direct' ? 'D' : currentGenre === 'help' ? 'H' : currentGenre === 'self' ? 'S' : currentGenre === 'study' ? 'St' : ''}
+                    problemNumber={problem.problem!.id}
+                    genrePrefix="#"
                     showThemes={problem.status === 'correct' || problem.status === 'viewing'}
                   />
                   <button
@@ -975,13 +990,14 @@ export default function App() {
                   currentProblemId={problem.problem.id}
                   onSelectProblem={handleSelectProblem}
                   onClose={() => setShowProblemList(false)}
-                  onOpenFilters={() => { setShowProblemList(false); setShowFilterPage(true); }}
+                  onOpenFilters={() => { setShowProblemList(false); setFilterOpenedFrom('problemList'); setShowFilterPage(true); }}
                   activeFilterCount={activeFilterCount}
                   sortBy={filters.sortBy}
                   sortOrder={filters.sortOrder}
                   onSortChange={(sort, order) => setFilters({ ...filters, sortBy: sort, sortOrder: order })}
                   statusFilter={filters.statusFilter}
                   onStatusFilterChange={(f) => setFilters({ ...filters, statusFilter: f })}
+                  loading={!!genreLoading || !genreLoaded[currentGenre]}
                 />
               )}
 
@@ -990,7 +1006,28 @@ export default function App() {
                   allProblems={problemsByGenre[currentGenre]}
                   filters={filters}
                   onFiltersChange={setFilters}
-                  onClose={() => setShowFilterPage(false)}
+                  onClose={() => {
+                    setShowFilterPage(false);
+                    if (filterOpenedFrom === 'problemList') {
+                      setShowProblemList(true);
+                    } else if (currentGenre) {
+                      // From hamburger (problem page): navigate to a matching problem
+                      const currentId = problem.problem?.id;
+                      const matching = filteredProblems;
+                      if (matching.length > 0) {
+                        // If current problem already matches, stay on it
+                        const alreadyMatches = matching.some(p => p.id === currentId);
+                        if (!alreadyMatches) {
+                          const target = matching[0];
+                          loadAndStartProblem(target);
+                          cacheProblem(target);
+                          setCurrentProblemId(prev => ({ ...prev, [currentGenre]: target.id }));
+                          updateHash(currentGenre, target.id);
+                        }
+                      }
+                    }
+                  }}
+                  genreStats={genreStats}
                 />
               )}
 
@@ -1116,8 +1153,8 @@ export default function App() {
       <HamburgerMenu
         isOpen={showHamburgerMenu}
         onClose={() => setShowHamburgerMenu(false)}
-        onOpenFilters={() => { setShowHamburgerMenu(false); setShowFilterPage(true); }}
-        onOpenProblemList={() => { setShowHamburgerMenu(false); setShowProblemList(true); }}
+        onOpenFilters={() => { setShowHamburgerMenu(false); setFilterOpenedFrom('hamburger'); setShowFilterPage(true); }}
+        onOpenProblemList={() => { setShowHamburgerMenu(false); setShowProblemList(true); if (currentGenre && !genreLoaded[currentGenre]) loadGenre(currentGenre); }}
         onOpenHistory={() => {
           setShowHamburgerMenu(false);
           setShowHistory(true);
@@ -1171,7 +1208,7 @@ export default function App() {
                 </div>
                 <div>
                   <span className="text-gray-400 dark:text-gray-500">YACPDB: </span>
-                  <a href={`https://www.yacpdb.org/#q/id:${p.id}`} target="_blank" rel="noopener noreferrer"
+                  <a href={`https://www.yacpdb.org/#${p.id}`} target="_blank" rel="noopener noreferrer"
                     className="text-green-600 dark:text-green-400 underline hover:text-green-700">
                     #{p.id}
                   </a>
