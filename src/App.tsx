@@ -17,6 +17,7 @@ import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
 import { SearchPage } from './components/SearchPage';
 import { BookmarksPage } from './components/BookmarksPage';
+import { ChangelogPage } from './components/ChangelogPage';
 import { HistoryPage } from './components/HistoryPage';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
 import { fetchAllProblems, fetchProblem, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights } from './services/api';
@@ -167,6 +168,7 @@ export default function App() {
   const [showProblemInfo, setShowProblemInfo] = useState(false);
   const [showSearchPage, setShowSearchPage] = useState(false);
   const [showBookmarksPage, setShowBookmarksPage] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
     direct: [], help: [], self: [], study: [], retro: [],
   });
@@ -1017,6 +1019,7 @@ export default function App() {
                 dailyProblem={dailyProblem}
                 onSolveDaily={handleSolveDaily}
                 dailySolved={dailySolved}
+                onShowChangelog={() => setShowChangelog(true)}
               />
           )}
 
@@ -1358,6 +1361,10 @@ export default function App() {
             } catch { /* ignore */ }
           }}
         />
+      )}
+
+      {showChangelog && (
+        <ChangelogPage onClose={() => setShowChangelog(false)} />
       )}
 
       {showBookmarksPage && (

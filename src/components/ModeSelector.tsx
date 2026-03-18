@@ -12,6 +12,7 @@ interface ModeSelectorProps {
   dailyProblem: ChessProblem | null;
   onSolveDaily: () => void;
   dailySolved: boolean;
+  onShowChangelog?: () => void;
 }
 
 // Group categories by their group label
@@ -43,7 +44,7 @@ const GROUP_BRIEFS: Record<string, string> = {
   'Helpmates': 'Both sides cooperate to achieve mate',
 };
 
-export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved, onShowChangelog }: ModeSelectorProps) {
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem(EXPANDED_GROUPS_KEY);
@@ -258,7 +259,15 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
       </nav>
 
       {/* ── Footer ── */}
-      <footer className="text-center mt-16 px-4">
+      <footer className="text-center mt-16 px-4 space-y-1">
+        {onShowChangelog && (
+          <button
+            onClick={onShowChangelog}
+            className="text-[11px] text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 underline transition-colors"
+          >
+            What's new
+          </button>
+        )}
         <p className="text-[11px] text-gray-400 dark:text-gray-600">
           <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-500 dark:hover:text-gray-400 transition-colors">
             YACPDB

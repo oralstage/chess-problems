@@ -5,3 +5,4 @@ scripts/.cache/
 scripts/import-data*.sql
 *.local
 public/stockfish/
+src/data/*.json
