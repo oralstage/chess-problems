@@ -111,7 +111,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             <div className="flex flex-col items-center gap-4">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
-                  Daily Problem
+                  Daily Problem — {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 </span>
                 {dailySolved && (
                   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
