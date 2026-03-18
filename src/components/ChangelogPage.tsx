@@ -4,6 +4,21 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-03-18 (2)',
+    sections: [
+      {
+        title: 'Updates',
+        items: [
+          'Piece count (W+B) shown next to stipulation badge.',
+          'Fairy problems excluded from problem sets (~4,600 removed).',
+          'Theme keywords merged case-insensitively in filters.',
+          'Feedback link in footer (GitHub Issues).',
+          'Faster problem loading with quick-start optimization.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-03-18',
     sections: [
       {
