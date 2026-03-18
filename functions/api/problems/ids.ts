@@ -1,3 +1,5 @@
+import { addFairyExclusion } from '../fairy-filter';
+
 /**
  * GET /api/problems/ids
  *
@@ -50,6 +52,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (minYear) { conditions.push('source_year >= ?'); bindings.push(parseInt(minYear)); }
   const maxYear = params.get('maxYear');
   if (maxYear) { conditions.push('source_year <= ?'); bindings.push(parseInt(maxYear)); }
+
+  addFairyExclusion(conditions, bindings);
 
   const where = conditions.join(' AND ');
   const nullHandling = sortBy === 'source_year' ? 'NULLS LAST' : '';

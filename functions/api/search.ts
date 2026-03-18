@@ -1,3 +1,5 @@
+import { addFairyExclusion } from './fairy-filter';
+
 /**
  * GET /api/search
  *
@@ -17,13 +19,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'author param required (min 2 chars)' }, { status: 400 });
   }
 
+  const conditions: string[] = ['authors LIKE ?'];
+  const bindings: (string | number)[] = [`%${author}%`];
+  addFairyExclusion(conditions, bindings);
+
   const result = await context.env.DB.prepare(
     `SELECT id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award
      FROM problems
-     WHERE authors LIKE ?
+     WHERE ${conditions.join(' AND ')}
      ORDER BY source_year DESC, difficulty_score ASC
      LIMIT ?`
-  ).bind(`%${author}%`, limit).all();
+  ).bind(...bindings, limit).all();
 
   const results = result.results.map((row: Record<string, unknown>) => ({
     id: row.id,

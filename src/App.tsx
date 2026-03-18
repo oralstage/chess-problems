@@ -495,7 +495,10 @@ export default function App() {
       : filters.maxMoves;
     if (minMoves > 0) result = result.filter(p => p.moveCount >= minMoves);
     if (maxMoves > 0) result = result.filter(p => p.moveCount <= maxMoves);
-    if (filters.keywords.length > 0) result = result.filter(p => filters.keywords.some(kw => p.keywords?.includes(kw)));
+    if (filters.keywords.length > 0) {
+      const lowerKws = filters.keywords.map(k => k.toLowerCase());
+      result = result.filter(p => lowerKws.some(lk => p.keywords?.some(pk => pk.toLowerCase() === lk)));
+    }
     if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
     // Status filter
     if (filters.statusFilter !== 'all' && currentGenre) {

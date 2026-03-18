@@ -1,3 +1,5 @@
+import { addFairyExclusion } from './fairy-filter';
+
 /**
  * GET /api/problems
  *
@@ -75,6 +77,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (minMoves) { conditions.push('move_count >= ?'); bindings.push(parseInt(minMoves)); }
   const maxMoves = params.get('maxMoves');
   if (maxMoves) { conditions.push('move_count <= ?'); bindings.push(parseInt(maxMoves)); }
+
+  // Exclude fairy problems (detected by keywords)
+  addFairyExclusion(conditions, bindings);
 
   const where = conditions.join(' AND ');
 

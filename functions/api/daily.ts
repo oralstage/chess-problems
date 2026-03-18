@@ -1,3 +1,5 @@
+import { addFairyExclusion } from './fairy-filter';
+
 /**
  * GET /api/daily
  *
@@ -6,10 +8,16 @@
  * Includes full solutionText for immediate solving.
  */
 export const onRequestGet: PagesFunction<Env> = async (context) => {
+  // Build conditions for #2 direct problems, excluding fairy
+  const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'"];
+  const bindings: (string | number)[] = [];
+  addFairyExclusion(conditions, bindings);
+  const where = conditions.join(' AND ');
+
   // Count #2 direct problems
   const countResult = await context.env.DB.prepare(
-    `SELECT COUNT(*) as cnt FROM problems WHERE genre = 'direct' AND stipulation = '#2'`
-  ).first<{ cnt: number }>();
+    `SELECT COUNT(*) as cnt FROM problems WHERE ${where}`
+  ).bind(...bindings).first<{ cnt: number }>();
   const total = countResult?.cnt || 0;
   if (total === 0) {
     return Response.json({ error: 'No daily problems available' }, { status: 404 });
@@ -27,10 +35,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     `SELECT id, fen, authors, source_name, source_year, stipulation, move_count,
             genre, difficulty, difficulty_score, piece_count, keywords, award, solution_text
      FROM problems
-     WHERE genre = 'direct' AND stipulation = '#2'
+     WHERE ${where}
      ORDER BY difficulty_score ASC
      LIMIT 1 OFFSET ?`
-  ).bind(idx).first();
+  ).bind(...bindings, idx).first();
 
   if (!row) {
     return Response.json({ error: 'Daily problem not found' }, { status: 404 });

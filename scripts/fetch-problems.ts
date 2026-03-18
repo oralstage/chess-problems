@@ -92,11 +92,14 @@ function algebraicToFen(alg: { white: string[]; black: string[] }, sideToMove: '
   return ranks.join('/') + ` ${sideToMove} - - 0 1`;
 }
 
-function hasFairyPieces(alg: { white: string[]; black: string[] }): boolean {
+function hasFairyPieces(alg: Record<string, unknown>): boolean {
+  // Neutral pieces = fairy
+  if (alg.neutral && Array.isArray(alg.neutral) && (alg.neutral as string[]).length > 0) return true;
+
   const validPieces = new Set(['K', 'Q', 'R', 'B', 'S', 'N', 'P']);
   for (const pieces of [alg.white, alg.black]) {
     if (!Array.isArray(pieces)) return true;
-    for (const ps of pieces) {
+    for (const ps of (pieces as string[])) {
       const t = ps.trim();
       if (t.length < 2) return true;
       const fc = t[0];
@@ -104,6 +107,12 @@ function hasFairyPieces(alg: { white: string[]; black: string[] }): boolean {
       if (!validPieces.has(fc.toUpperCase())) return true;
     }
   }
+  return false;
+}
+
+function hasFairyConditions(entry: Record<string, unknown>): boolean {
+  // Fairy conditions (Maximummer, Circe, etc.)
+  if (entry.conditions && Array.isArray(entry.conditions) && (entry.conditions as string[]).length > 0) return true;
   return false;
 }
 
@@ -282,8 +291,9 @@ async function main() {
         // Check if we still need this genre
         if (counts[finalGenre] >= targets[finalGenre]) continue;
 
-        // Check for fairy pieces
+        // Check for fairy pieces and conditions
         if (hasFairyPieces(entry.algebraic)) continue;
+        if (hasFairyConditions(entry)) continue;
 
         // Convert to FEN
         const fen = algebraicToFen(entry.algebraic, stip.sideToMove);

@@ -1,3 +1,5 @@
+import { addFairyExclusion } from './fairy-filter';
+
 /**
  * GET /api/stats
  *
@@ -7,10 +9,16 @@
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const genre = new URL(context.request.url).searchParams.get('genre');
 
+  // Build fairy exclusion once for reuse
+  const fairyConds: string[] = [];
+  const fairyBindings: (string | number)[] = [];
+  addFairyExclusion(fairyConds, fairyBindings);
+  const fairyWhere = fairyConds.join(' AND ');
+
   // Genre counts
   const genreCounts = await context.env.DB.prepare(
-    `SELECT genre, COUNT(*) as count FROM problems GROUP BY genre`
-  ).all();
+    `SELECT genre, COUNT(*) as count FROM problems WHERE ${fairyWhere} GROUP BY genre`
+  ).bind(...fairyBindings).all();
 
   const counts: Record<string, number> = {};
   for (const row of genreCounts.results) {
@@ -19,8 +27,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   // Move-count breakdown per genre (for category counts on home page)
   const moveCountResult = await context.env.DB.prepare(
-    `SELECT genre, move_count, COUNT(*) as count FROM problems WHERE genre IN ('direct', 'help') GROUP BY genre, move_count ORDER BY genre, move_count`
-  ).all();
+    `SELECT genre, move_count, COUNT(*) as count FROM problems WHERE genre IN ('direct', 'help') AND ${fairyWhere} GROUP BY genre, move_count ORDER BY genre, move_count`
+  ).bind(...fairyBindings).all();
   const moveCounts: Record<string, Record<number, number>> = {};
   for (const row of moveCountResult.results) {
     const g = row.genre as string;
@@ -37,8 +45,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   if (genre && ['direct', 'help', 'self', 'study', 'retro'].includes(genre)) {
     const stipResult = await context.env.DB.prepare(
-      `SELECT DISTINCT stipulation FROM problems WHERE genre = ? ORDER BY stipulation`
-    ).bind(genre).all();
+      `SELECT DISTINCT stipulation FROM problems WHERE genre = ? AND ${fairyWhere} ORDER BY stipulation`
+    ).bind(genre, ...fairyBindings).all();
     stipulations = stipResult.results.map((r: Record<string, unknown>) => r.stipulation as string);
 
     const rangeResult = await context.env.DB.prepare(
@@ -46,8 +54,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
               MIN(piece_count) as minPieces, MAX(piece_count) as maxPieces,
               MIN(CASE WHEN move_count > 0 THEN move_count END) as minMoves,
               MAX(move_count) as maxMoves
-       FROM problems WHERE genre = ?`
-    ).bind(genre).first<{ minYear: number; maxYear: number; minPieces: number; maxPieces: number; minMoves: number; maxMoves: number }>();
+       FROM problems WHERE genre = ? AND ${fairyWhere}`
+    ).bind(genre, ...fairyBindings).first<{ minYear: number; maxYear: number; minPieces: number; maxPieces: number; minMoves: number; maxMoves: number }>();
 
     if (rangeResult) {
       yearRange = { min: rangeResult.minYear || 0, max: rangeResult.maxYear || 0 };
@@ -57,8 +65,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     // Get all unique keywords for this genre
     const kwResult = await context.env.DB.prepare(
-      `SELECT keywords FROM problems WHERE genre = ? AND keywords != '[]'`
-    ).bind(genre).all();
+      `SELECT keywords FROM problems WHERE genre = ? AND keywords != '[]' AND ${fairyWhere}`
+    ).bind(genre, ...fairyBindings).all();
 
     const kwSet = new Set<string>();
     for (const row of kwResult.results) {

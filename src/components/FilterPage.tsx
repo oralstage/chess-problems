@@ -132,15 +132,28 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
     });
   }, [allProblems]);
 
-  // All unique keywords
+  // All unique keywords (case-insensitive merged)
   const allKeywords = useMemo(() => {
-    const set = new Set<string>();
+    const countMap = new Map<string, Map<string, number>>(); // lowerCase -> (original -> count)
     for (const p of allProblems) {
       for (const kw of p.keywords || []) {
-        set.add(kw);
+        const lower = kw.toLowerCase();
+        if (!countMap.has(lower)) countMap.set(lower, new Map());
+        const variants = countMap.get(lower)!;
+        variants.set(kw, (variants.get(kw) || 0) + 1);
       }
     }
-    return Array.from(set).sort();
+    // Pick the most common variant as the canonical form
+    const result: string[] = [];
+    for (const variants of countMap.values()) {
+      let best = '';
+      let bestCount = 0;
+      for (const [variant, count] of variants) {
+        if (count > bestCount) { best = variant; bestCount = count; }
+      }
+      result.push(best);
+    }
+    return result.sort();
   }, [allProblems]);
 
   // Piece count range
@@ -232,7 +245,10 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
     if (filters.maxYear > 0) result = result.filter(p => (p.sourceYear || 9999) <= filters.maxYear);
     if (filters.minMoves > 0) result = result.filter(p => p.moveCount >= filters.minMoves);
     if (filters.maxMoves > 0) result = result.filter(p => p.moveCount <= filters.maxMoves);
-    if (filters.keywords.length > 0) result = result.filter(p => filters.keywords.some(kw => p.keywords?.includes(kw)));
+    if (filters.keywords.length > 0) {
+      const lowerKws = filters.keywords.map(k => k.toLowerCase());
+      result = result.filter(p => lowerKws.some(lk => p.keywords?.some(pk => pk.toLowerCase() === lk)));
+    }
     if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
     return result.length;
   }, [allProblems, filters]);
