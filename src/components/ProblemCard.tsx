@@ -9,6 +9,16 @@ interface ProblemCardProps {
   genrePrefix?: string;
 }
 
+function pieceCounts(fen: string): string {
+  const board = fen.split(' ')[0];
+  let white = 0, black = 0;
+  for (const ch of board) {
+    if (ch >= 'A' && ch <= 'Z') white++;
+    else if (ch >= 'a' && ch <= 'z') black++;
+  }
+  return `${white}+${black}`;
+}
+
 function stipulationDisplay(stip: string): string {
   if (stip.startsWith('h#')) return `h#${stip.slice(2)}`;
   if (stip.startsWith('s#')) return `s#${stip.slice(2)}`;
@@ -31,6 +41,9 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
         )}
         <span className="px-2 py-0.5 rounded-md text-sm font-bold font-mono bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
           {stipulationDisplay(problem.stipulation)}
+        </span>
+        <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+          {pieceCounts(problem.fen)}
         </span>
       </div>
 
