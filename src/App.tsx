@@ -20,7 +20,7 @@ import { BookmarksPage } from './components/BookmarksPage';
 import { ChangelogPage } from './components/ChangelogPage';
 import { HistoryPage } from './components/HistoryPage';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
-import { fetchAllProblems, fetchProblem, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights } from './services/api';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
 
@@ -790,24 +790,40 @@ export default function App() {
       setShowTutorial(true);
     }
 
-    // Quick-start: if we have a saved problem ID, fetch it directly (single API call)
-    // while genre data loads in background
+    // Quick-start: fetch a single problem immediately while genre data loads in background
     const savedId = currentProblemId[category];
-    if (savedId && !genreLoaded[genre]) {
+    if (!genreLoaded[genre]) {
       try {
-        const full = await fetchProblem(savedId);
-        const quickProblem = metaToChessProblem(full, full.solutionText);
-        loadAndStartProblem(quickProblem);
-        cacheProblem(quickProblem);
-        updateHash(category, quickProblem.id);
+        if (savedId) {
+          // Saved problem — fetch directly
+          const full = await fetchProblem(savedId);
+          const quickProblem = metaToChessProblem(full, full.solutionText);
+          loadAndStartProblem(quickProblem);
+          cacheProblem(quickProblem);
+          updateHash(category, quickProblem.id);
+        } else {
+          // No saved problem — fetch first problem from API with category filters
+          const params: Record<string, string> = {};
+          if (def.minMoves != null) params.minMoves = String(def.minMoves);
+          if (def.maxMoves != null && def.maxMoves > 0) params.maxMoves = String(def.maxMoves);
+          const { problems: firstPage } = await fetchProblemsPage(genre, 0, 1, params);
+          if (firstPage.length > 0) {
+            const full = await fetchProblem(firstPage[0].id);
+            const quickProblem = metaToChessProblem(full, full.solutionText);
+            loadAndStartProblem(quickProblem);
+            cacheProblem(quickProblem);
+            setCurrentProblemId(prev => ({ ...prev, [category]: quickProblem.id }));
+            updateHash(category, quickProblem.id);
+          }
+        }
         // Load genre data in background (don't await)
         loadGenre(genre);
         return;
       } catch { /* fall through to full load */ }
     }
 
-    // Load genre data if not loaded yet
-    let problems = await loadGenre(genre);
+    // Genre already loaded — use cached data
+    let problems = genreData[genre];
 
     // Apply category-level move filter
     if (def.minMoves != null) {
