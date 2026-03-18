@@ -7,7 +7,7 @@ interface FeedbackPanelProps {
   hintActive: boolean;
   onReset: () => void;
   onShowSolution: () => void;
-  onNextProblem: () => void;
+  onNextProblem?: () => void;
   onRandomProblem?: () => void;
   onShowHint: () => void;
   onHideHint?: () => void;
@@ -19,6 +19,10 @@ interface FeedbackPanelProps {
   analysisActive?: boolean;
   lichessAnalysisUrl?: string;
   lichessPlayUrl?: string;
+  onGoHome?: () => void;
+  onMoreProblems?: () => void;
+  moreCategoryLabel?: string;
+  solutionLoading?: boolean;
 }
 
 export function FeedbackPanel({
@@ -39,6 +43,10 @@ export function FeedbackPanel({
   analysisActive,
   lichessAnalysisUrl,
   lichessPlayUrl,
+  onGoHome,
+  onMoreProblems,
+  moreCategoryLabel,
+  solutionLoading,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
@@ -99,20 +107,43 @@ export function FeedbackPanel({
             >
               Try Again
             </button>
-            <button
-              onClick={onNextProblem}
-              className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-            >
-              Next
-            </button>
-            {onRandomProblem && (
-              <button
-                onClick={onRandomProblem}
-                className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
-                title="Random problem"
-              >
-                Random
-              </button>
+            {onGoHome ? (
+              <>
+                <button
+                  onClick={onGoHome}
+                  className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Home
+                </button>
+                {onMoreProblems && (
+                  <button
+                    onClick={onMoreProblems}
+                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    {moreCategoryLabel || 'More Problems'} →
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                {onNextProblem && (
+                  <button
+                    onClick={onNextProblem}
+                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    Next
+                  </button>
+                )}
+                {onRandomProblem && (
+                  <button
+                    onClick={onRandomProblem}
+                    className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
+                    title="Random problem"
+                  >
+                    Random
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -121,7 +152,10 @@ export function FeedbackPanel({
       {/* Solving state */}
       {status === 'solving' && (
         <div className="flex items-center gap-2">
-          {!hintActive && (
+          {solutionLoading && (
+            <span className="text-xs text-gray-400 dark:text-gray-500 animate-pulse">Loading...</span>
+          )}
+          {!solutionLoading && !hintActive && (
             <button
               onClick={onShowHint}
               className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
@@ -129,7 +163,7 @@ export function FeedbackPanel({
               Show Hint
             </button>
           )}
-          {hintActive && (
+          {!solutionLoading && hintActive && (
             <button
               onClick={onHideHint}
               className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
@@ -145,34 +179,40 @@ export function FeedbackPanel({
               Reset
             </button>
           )}
-          <button
-            onClick={onShowSolution}
-            className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
-          >
-            Give Up
-          </button>
+          {!solutionLoading && (
+            <button
+              onClick={onShowSolution}
+              className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
+            >
+              Give Up
+            </button>
+          )}
           {refutationText && (
             <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
               Refutation: {refutationText}
             </span>
           )}
-          <div className="ml-auto flex items-center gap-1.5">
-            <button
-              onClick={onNextProblem}
-              className="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
-            >
-              Next
-            </button>
-            {onRandomProblem && (
-              <button
-                onClick={onRandomProblem}
-                className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
-                title="Random problem"
-              >
-                Random
-              </button>
-            )}
-          </div>
+          {!onGoHome && (
+            <div className="ml-auto flex items-center gap-1.5">
+              {onNextProblem && (
+                <button
+                  onClick={onNextProblem}
+                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
+                >
+                  Next
+                </button>
+              )}
+              {onRandomProblem && (
+                <button
+                  onClick={onRandomProblem}
+                  className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
+                  title="Random problem"
+                >
+                  Random
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -218,20 +258,43 @@ export function FeedbackPanel({
             >
               Try Again
             </button>
-            <button
-              onClick={onNextProblem}
-              className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
-            >
-              Next
-            </button>
-            {onRandomProblem && (
-              <button
-                onClick={onRandomProblem}
-                className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
-                title="Random problem"
-              >
-                Random
-              </button>
+            {onGoHome ? (
+              <>
+                <button
+                  onClick={onGoHome}
+                  className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+                >
+                  Home
+                </button>
+                {onMoreProblems && (
+                  <button
+                    onClick={onMoreProblems}
+                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    {moreCategoryLabel || 'More Problems'} →
+                  </button>
+                )}
+              </>
+            ) : (
+              <>
+                {onNextProblem && (
+                  <button
+                    onClick={onNextProblem}
+                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    Next
+                  </button>
+                )}
+                {onRandomProblem && (
+                  <button
+                    onClick={onRandomProblem}
+                    className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
+                    title="Random problem"
+                  >
+                    Random
+                  </button>
+                )}
+              </>
             )}
           </div>
         </div>

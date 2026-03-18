@@ -148,6 +148,7 @@ function useWindowWidth() {
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const [view, setView] = useState<AppView>('mode-select');
+  const [isDaily, setIsDaily] = useState(false);
   const [currentGenre, setCurrentGenre] = useState<Genre | null>(null);
   const [currentCategory, setCurrentCategory] = useLocalStorage<Category | null>('cp-current-category', null);
   const [progress, setProgress] = useLocalStorage<Record<Genre, ProblemProgress>>('cp-progress', {
@@ -276,10 +277,16 @@ export default function App() {
       /\{[^}]*[Bb]lack to move/i.test(p.solutionText)
       || /^\.{2,}/.test(solutionStart)
       || /^\d+\.{3}/.test(solutionStart)
+      || /^\d+\.\s+\.{2,}/.test(solutionStart)
     );
+    // Logical first color: who moves first in this problem
     const firstColor = (p.genre === 'help' || (p.genre === 'retro' && p.stipulation.startsWith('h#'))) ? 'b'
       : isRetroBlack ? 'b' : 'w';
-    const allNodes = parseSolution(p.solutionText, firstColor);
+    // Parser color: for solutions with "..." notation, the dots already encode colors,
+    // so parser should use 'w' to avoid double-flip
+    const solutionHasDots = /\.{3}/.test(p.solutionText) || /\.\s+\.{2}/.test(p.solutionText);
+    const parserColor = (isRetroBlack && solutionHasDots) ? 'w' : firstColor;
+    const allNodes = parseSolution(p.solutionText, parserColor);
     // Retro + {(illegal)}: flip colors
     if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
       const flipColors = (nodes: typeof allNodes): void => {
@@ -305,6 +312,11 @@ export default function App() {
   // Load a problem into the solver (fetches solutionText from API if needed)
   const loadAndStartProblem = useCallback(async (p: ChessProblem) => {
     loadedProblemIdRef.current = p.id;
+    // Show board immediately if solution needs to be fetched
+    const needsFetch = p.solutionTree.length === 0;
+    if (needsFetch) {
+      problem.loadProblem(p); // show board with empty solutionTree (hint/give-up won't work yet)
+    }
     const ready = await ensureSolution(p);
     // Guard: if another problem was loaded while we were fetching, don't overwrite it
     if (loadedProblemIdRef.current !== p.id) return;
@@ -340,7 +352,9 @@ export default function App() {
 
   const handleSolveDaily = useCallback(() => {
     if (!dailyProblem) return;
+    setIsDaily(true);
     setCurrentGenre('direct');
+    setCurrentCategory(null);
     setView('solving');
     loadAndStartProblem(dailyProblem);
     cacheProblem(dailyProblem);
@@ -781,9 +795,10 @@ export default function App() {
     });
   }, [loadGenre, loadAndStartProblem, ensureSolution, problem, setCurrentProblemId, setCurrentCategory, progress, cacheProblem, resolveHashSlug, allSlugs, categoryFromGenreProblem]);
 
-  const selectMode = useCallback(async (category: Category) => {
+  const selectMode = useCallback(async (category: Category, opts?: { skipSavedId?: boolean }) => {
     const def = CATEGORY_DEFS.find(d => d.category === category)!;
     const genre = def.genre;
+    setIsDaily(false);
     setCurrentGenre(genre);
     setCurrentCategory(category);
     setView('solving');
@@ -794,8 +809,9 @@ export default function App() {
     }
 
     // Quick-start: fetch a single problem immediately while genre data loads in background
-    const savedId = currentProblemId[category];
+    const savedId = opts?.skipSavedId ? null : currentProblemId[category];
     if (!genreLoaded[genre]) {
+      let quickStarted = false;
       try {
         if (savedId) {
           // Saved problem — fetch directly
@@ -804,6 +820,7 @@ export default function App() {
           loadAndStartProblem(quickProblem);
           cacheProblem(quickProblem);
           updateHash(category, quickProblem.id);
+          quickStarted = true;
         } else {
           // No saved problem — fetch first problem from API with category filters
           const params: Record<string, string> = {};
@@ -817,16 +834,21 @@ export default function App() {
             cacheProblem(quickProblem);
             setCurrentProblemId(prev => ({ ...prev, [category]: quickProblem.id }));
             updateHash(category, quickProblem.id);
+            quickStarted = true;
           }
         }
-        // Load genre data in background (don't await)
+      } catch { /* quick-start failed — will fall through to full load below */ }
+
+      if (quickStarted) {
+        // Load genre data in background (don't await), don't replace the displayed problem
         loadGenre(genre);
         return;
-      } catch { /* fall through to full load */ }
+      }
+      // Quick-start failed — fall through to full load
     }
 
-    // Genre already loaded — use cached data
-    let problems = genreData[genre];
+    // Load genre data (await if not yet loaded)
+    let problems = genreLoaded[genre] ? genreData[genre] : await loadGenre(genre);
 
     // Apply category-level move filter
     if (def.minMoves != null) {
@@ -874,10 +896,66 @@ export default function App() {
 
   const goBack = useCallback(() => {
     setView('mode-select');
+    setIsDaily(false);
     setCurrentGenre(null);
     setCurrentCategory(null);
     updateHash(null, null, false);
   }, [updateHash, setCurrentCategory]);
+
+  const handleDailyMore = useCallback(async () => {
+    const dailyProblemId = problem.problem?.id;
+    setIsDaily(false);
+    if (genreLoaded.direct) {
+      // Genre already loaded — find and show next problem instantly
+      setCurrentGenre('direct');
+      setCurrentCategory('twomover');
+      const def = CATEGORY_DEFS.find(d => d.category === 'twomover')!;
+      let problems = genreData.direct;
+      if (def.minMoves != null) {
+        problems = problems.filter(p => def.maxMoves === 0 ? p.moveCount >= def.minMoves! : p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!);
+      }
+      const genreProgress = progress.direct || {};
+      const savedTwomoverId = currentProblemId['twomover'];
+      let next: ChessProblem | undefined;
+
+      // Resume from saved twomover position if available
+      if (savedTwomoverId) {
+        const savedIdx = problems.findIndex(p => p.id === savedTwomoverId);
+        if (savedIdx >= 0) {
+          // If saved problem is already solved, find next unsolved after it
+          if (genreProgress[String(savedTwomoverId)] === 'solved' || savedTwomoverId === dailyProblemId) {
+            next = problems.slice(savedIdx + 1).find(p =>
+              p.id !== dailyProblemId &&
+              genreProgress[String(p.id)] !== 'solved' &&
+              genreProgress[String(p.id)] !== 'skipped'
+            );
+          } else {
+            next = problems[savedIdx];
+          }
+        }
+      }
+
+      // Fallback: find first unsolved problem (excluding daily)
+      if (!next) {
+        next = problems.find(p =>
+          p.id !== dailyProblemId &&
+          genreProgress[String(p.id)] !== 'solved' &&
+          genreProgress[String(p.id)] !== 'skipped'
+        );
+      }
+      if (!next) next = problems.find(p => p.id !== dailyProblemId);
+      if (!next) next = problems[0];
+      if (next) {
+        loadAndStartProblem(next);
+        cacheProblem(next);
+        setCurrentProblemId(prev => ({ ...prev, twomover: next!.id }));
+        updateHash('twomover', next.id);
+      }
+    } else {
+      // Genre not loaded — selectMode will quick-start from saved position or API
+      selectMode('twomover');
+    }
+  }, [selectMode, problem, genreLoaded, genreData, progress, currentProblemId, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, setCurrentCategory]);
 
   const handleHistorySelect = useCallback(async (genre: Genre, selected: ChessProblem) => {
     setShowHistory(false);
@@ -922,6 +1000,28 @@ export default function App() {
     problem.showSolution();
   }, [currentGenre, problem, setProgress, setTimestamps]);
 
+  // Fetch a random problem via API (used when genre data hasn't loaded yet)
+  const fetchRandomFromApi = useCallback(async () => {
+    if (!currentGenre) return;
+    const catDef = currentCategory ? CATEGORY_DEFS.find(d => d.category === currentCategory) : null;
+    const params: Record<string, string> = {};
+    if (catDef?.minMoves != null) params.minMoves = String(catDef.minMoves);
+    if (catDef?.maxMoves != null && catDef.maxMoves > 0) params.maxMoves = String(catDef.maxMoves);
+    const total = problemCounts[currentCategory || currentGenre as Category] || 1000;
+    const randomOffset = Math.floor(Math.random() * total);
+    try {
+      const { problems: page } = await fetchProblemsPage(currentGenre, randomOffset, 1, params);
+      if (page.length > 0 && page[0].id !== problem.problem?.id) {
+        const full = await fetchProblem(page[0].id);
+        const p = metaToChessProblem(full, full.solutionText);
+        loadAndStartProblem(p);
+        cacheProblem(p);
+        setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']: p.id }));
+        updateHash(currentCategory || currentGenre, p.id);
+      }
+    } catch { /* API error — ignore */ }
+  }, [currentGenre, currentCategory, problemCounts, problem.problem, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
+
   const handleNextProblem = useCallback(() => {
     if (!currentGenre || !problem.problem) return;
 
@@ -939,8 +1039,12 @@ export default function App() {
       setTimestamps(prev => ({ ...prev, [tsKey]: Date.now() }));
     }
 
-    // Find next
+    // Find next from in-memory data, or fall back to API
     const problems = filteredProblems;
+    if (problems.length === 0) {
+      fetchRandomFromApi();
+      return;
+    }
     const currentIdx = problems.findIndex(p => p.id === problem.problem!.id);
     const nextProblem = problems[currentIdx + 1] || problems[0];
 
@@ -950,13 +1054,16 @@ export default function App() {
       setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:nextProblem.id }));
       updateHash(currentCategory || currentGenre, nextProblem.id);
     }
-  }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setProgress, setTimestamps, setCurrentProblemId, updateHash, cacheProblem]);
+  }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setProgress, setTimestamps, setCurrentProblemId, updateHash, cacheProblem, fetchRandomFromApi]);
 
   // Navigate to prev/next problem without marking solved
   const handleNavProblem = useCallback((direction: -1 | 1) => {
     if (!currentGenre || !problem.problem) return;
     const problems = filteredProblems;
-    if (problems.length === 0) return;
+    if (problems.length === 0) {
+      fetchRandomFromApi();
+      return;
+    }
     const currentIdx = problems.findIndex(p => p.id === problem.problem!.id);
     if (currentIdx === -1) {
       // Current problem not in filtered set — go to first
@@ -976,22 +1083,33 @@ export default function App() {
     setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:next.id }));
     setAnalysisResult(null);
     updateHash(currentCategory || currentGenre, next.id);
-  }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
+  }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem, fetchRandomFromApi]);
 
   const handleRandomProblem = useCallback(() => {
     if (!currentGenre) return;
     const problems = filteredProblems;
+    if (problems.length === 0) {
+      fetchRandomFromApi();
+      return;
+    }
     if (problems.length <= 1) return;
+    const genreProgress = progress[currentGenre] || {};
+    // Only pick problems not yet attempted (not solved, not failed)
+    const unseen = problems.filter(p =>
+      p.id !== problem.problem?.id &&
+      !genreProgress[String(p.id)]
+    );
+    const pool = unseen.length > 0 ? unseen : problems;
     let next: typeof problems[0];
     do {
-      const idx = Math.floor(Math.random() * problems.length);
-      next = problems[idx];
-    } while (next.id === problem.problem?.id && problems.length > 1);
+      const idx = Math.floor(Math.random() * pool.length);
+      next = pool[idx];
+    } while (next.id === problem.problem?.id && pool.length > 1);
     loadAndStartProblem(next);
     cacheProblem(next);
     setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:next.id }));
     updateHash(currentCategory || currentGenre, next.id);
-  }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
+  }, [currentGenre, problem, loadAndStartProblem, filteredProblems, progress, setCurrentProblemId, updateHash, cacheProblem, fetchRandomFromApi]);
 
   const toggleBookmark = useCallback(() => {
     if (!currentGenre || !problem.problem) return;
@@ -1005,6 +1123,20 @@ export default function App() {
   const isBookmarked = currentGenre && problem.problem
     ? (bookmarks[currentGenre] || []).includes(String(problem.problem.id))
     : false;
+
+  // Auto-save progress when problem is solved correctly (don't wait for Next click)
+  useEffect(() => {
+    if (problem.status === 'correct' && problem.problem && currentGenre) {
+      const pid = String(problem.problem.id);
+      setProgress(prev => {
+        const genreProgress = prev[currentGenre] || {};
+        if (genreProgress[pid] === 'solved') return prev; // already saved
+        return { ...prev, [currentGenre]: { ...genreProgress, [pid]: 'solved' as const } };
+      });
+      const tsKey = `${currentGenre}:${pid}`;
+      setTimestamps(prev => prev[tsKey] ? prev : { ...prev, [tsKey]: Date.now() });
+    }
+  }, [problem.status, problem.problem, currentGenre, setProgress, setTimestamps]);
 
   // Arrows for board: analysis arrow (blue, only when active) or refutation arrow (red)
   // MUST pass [] (not undefined) to react-chessboard to clear arrows
@@ -1250,10 +1382,11 @@ export default function App() {
                 feedback={problem.feedback}
                 moveHistory={problem.moveHistory}
                 hintActive={!!problem.hintSquares}
+                solutionLoading={problem.problem?.solutionTree?.length === 0}
                 onReset={problem.resetProblem}
                 onShowSolution={handleGiveUp}
-                onNextProblem={handleNextProblem}
-                onRandomProblem={handleRandomProblem}
+                onNextProblem={isDaily ? undefined : handleNextProblem}
+                onRandomProblem={isDaily ? undefined : handleRandomProblem}
                 onShowHint={problem.showHint}
                 onHideHint={problem.hideHint}
                 onAnalyze={handleAnalyze}
@@ -1262,6 +1395,9 @@ export default function App() {
                 stockfishLoading={stockfish.readyState === 'loading'}
                 refutationText={problem.refutationText}
                 analysisActive={analysisActive}
+                onGoHome={isDaily ? goBack : undefined}
+                onMoreProblems={isDaily ? handleDailyMore : undefined}
+                moreCategoryLabel="More Twomovers"
                 lichessAnalysisUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/analysis/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
                 lichessPlayUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/editor/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
               />
@@ -1286,6 +1422,7 @@ export default function App() {
                   fullNodes={problem.problem.fullSolutionTree}
                   initialFen={problem.initialFen}
                   solutionText={problem.problem.solutionText}
+                  firstColor={(problem.initialFen.split(' ')[1] || 'w') as 'w' | 'b'}
                   playback={problem.playback}
                   onGoTo={problem.playbackGoTo}
                   onFirst={problem.playbackFirst}

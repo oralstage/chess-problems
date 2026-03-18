@@ -423,6 +423,11 @@ export function useProblem(stockfish?: StockfishApi) {
   const tryMove = useCallback((from: string, to: string, promotion?: string): boolean => {
     const { problem, currentNodes, status, playback, movesRemaining } = state;
 
+    // Block moves while solution is still loading (solutionTree empty)
+    if (problem && problem.solutionTree.length === 0 && status === 'solving' && !playback) {
+      return false;
+    }
+
     // Playback exploration
     if (playback && (status === 'correct' || status === 'viewing')) {
       const currentFen = playback.exploring
@@ -800,6 +805,11 @@ export function useProblem(stockfish?: StockfishApi) {
     if (state.problem) loadProblem(state.problem);
   }, [state.problem, loadProblem]);
 
+  const clearProblem = useCallback(() => {
+    if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    setState(prev => ({ ...prev, problem: null, fen: '', initialFen: '', status: 'idle', playback: null, moveHistory: [], currentNodes: [], hintSquares: null, feedback: '', feedbackSquare: null, feedbackType: null }));
+  }, []);
+
   // ── Give Up / Show Solution ──
   const showSolution = useCallback(() => {
     const { problem, initialFen } = state;
@@ -902,6 +912,7 @@ export function useProblem(stockfish?: StockfishApi) {
       setState(prev => ({ ...prev, refutationText: text, refutationArrow: arrow }));
     },
     loadProblem,
+    clearProblem,
     tryMove,
     showHint,
     hideHint,

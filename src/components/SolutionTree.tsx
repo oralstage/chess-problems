@@ -6,6 +6,7 @@ interface SolutionTreeProps {
   fullNodes: SolutionNode[];
   initialFen: string;
   solutionText: string;
+  firstColor?: 'w' | 'b';
   playback: {
     positions: { fen: string; lastMove: { from: string; to: string } | null; san: string }[];
     mainLine: SolutionNode[];
@@ -242,10 +243,13 @@ function VariationLineView({ line, startMoveNum, onNodeClick, activeNode }: {
   return (
     <span className="inline">
       {movesAfterRoot.map((m, i) => {
-        // Add move number for white moves
-        const moveNum = startMoveNum + Math.floor((i + 1) / 2);
+        // Track move numbers by counting pairs of moves
         const isWhiteMove = m.node.color === 'w';
-        const showNum = isWhiteMove && i > 0;
+        const prevColors = movesAfterRoot.slice(0, i).map(x => x.node.color);
+        // Move number = startMoveNum + number of white moves seen so far (including current if white)
+        const whitesSoFar = prevColors.filter(c => c === 'w').length;
+        const moveNum = startMoveNum + whitesSoFar + (isWhiteMove ? 1 : 0);
+        const showNum = isWhiteMove;
         const isBlackFirst = i === 0 && m.node.color === 'b';
 
         return (
@@ -261,7 +265,7 @@ function VariationLineView({ line, startMoveNum, onNodeClick, activeNode }: {
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -336,7 +340,10 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, playback, on
                       : 'italic text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
                 }`}
               >
-                {i % 2 === 0 ? `${Math.floor(i / 2) + 1}.` : ''}{positions[i + 1]?.san || node.moveSan}
+                {firstColor === 'b'
+                  ? (i % 2 === 1 ? `${Math.floor(i / 2) + 2}.` : i === 0 ? '1...' : '')
+                  : (i % 2 === 0 ? `${Math.floor(i / 2) + 1}.` : '')
+                }{positions[i + 1]?.san || node.moveSan}
               </button>
             ))}
           </div>

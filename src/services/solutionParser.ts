@@ -628,7 +628,8 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
   // Detect PGN-style solutions (wrapped in {})
   // A true PGN solution is entirely wrapped in {} with optional result.
   // If content continues after the closing }, it's a comment followed by indent-based notation.
-  const trimmedInput = solutionText.trim();
+  // Normalize "1. ... h5" → "1...h5" (black move with spaces around dots)
+  const trimmedInput = solutionText.trim().replace(/(\d+)\.\s+\.\.\./g, '$1...');
   if (trimmedInput.startsWith('{')) {
     const closingBrace = trimmedInput.indexOf('}');
     const afterBrace = closingBrace >= 0 ? trimmedInput.slice(closingBrace + 1).trim() : '';
@@ -640,9 +641,9 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     return parseSolution(afterBrace, firstMoveColor);
   }
 
+  let processedText = trimmedInput;
   // Handle twin problems: strip "a)" prefix and only parse the first twin section
   // Twins b), c), etc. modify the position and can't be solved with the original FEN
-  let processedText = trimmedInput;
   const twinMatch = processedText.match(/^[a-z]\)\s*/i);
   if (twinMatch) {
     processedText = processedText.slice(twinMatch[0].length);

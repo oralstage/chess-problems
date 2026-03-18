@@ -1,5 +1,8 @@
 # Chess Problems
 
+## ⚠️ Important Rules
+- **本番サイトへのデプロイは絶対にユーザーの明示的な許可なしに行わないこと。** ビルドやステージングへのデプロイは可だが、本番（`--project-name=chess-problems`）は必ずユーザーに確認してから。
+
 ## Project
 - URL: https://chess-problems.pages.dev/
 - Stack: React 19 + TypeScript + Vite 7 + Tailwind CSS 4 + Cloudflare D1 + Pages Functions
@@ -240,3 +243,30 @@
 - **Tries/Key open by default**: `<details open>` on Tries and Key Variations sections so they're expanded on load.
 - **Root-level refutation fix**: `v.refutation.moves.slice(1)` returned empty for root-level refutations (only 1 element). Fixed with conditional: check if first node equals rootNode before slicing.
 - **loadedProblemIdRef guard**: Ref-based guard in `App.tsx` prevents late async callbacks (from `ensureSolution` or `loadGenre`) from resetting problem state when user navigates quickly between problems. Fixes intermittent "try again" reset bug.
+
+### Quick-Start Fix (2026-03-18)
+- **Bug**: `selectMode` quick-start fetches 1 problem from API immediately. If the API call fails (e.g. local dev where `/api/problems` returns HTML), the catch block fell through to the "genre already loaded" path — but `genreData[genre]` was empty (loadGenre was never called), leaving the UI stuck on "Loading problems..." forever.
+- **Fix**: Restructured `selectMode` to track `quickStarted` success flag. On success: load genre in background, return. On failure: fall through to `await loadGenre(genre)` to properly load all data before finding the next unsolved problem.
+- **Production behavior**: Quick-start succeeds → problem shows instantly → background load doesn't replace it (confirmed via staging).
+
+### Daily Problem Navigation (2026-03-18)
+- **Issue**: Daily problem (from `/api/daily`) has no genre context loaded, so Next/Random buttons don't work after solving.
+- **Fix**: Added `isDaily` state flag. Set `true` in `handleSolveDaily`, cleared in `goBack`/`selectMode`.
+- When `isDaily=true`, FeedbackPanel hides Next/Random and instead shows:
+  - **Home** button → returns to ModeSelector
+  - **More Twomovers →** button → calls `handleDailyMore` to enter #2 category
+- Solving state also hides Next/Random when daily (only Show Hint + Give Up shown).
+- `handleDailyMore` defined after `selectMode` (avoids forward reference error).
+- Daily API currently only returns `#2` direct mates; if expanded to other genres, update `moreCategoryLabel` dynamically based on problem's genre/moveCount.
+- **`handleDailyMore` resume logic**: When genre data is loaded, resumes from saved `currentProblemId['twomover']` position (not from the start). Falls back to first unsolved problem. Excludes daily problem ID from selection. When genre data not loaded, calls `selectMode('twomover')` (no `skipSavedId` — daily ID is stored under `currentProblemId.direct`, not `twomover`).
+- **Daily problem date sync**: `/api/daily` accepts `?date=YYYY-MM-DD` query param (client's local date). Client sends its local date so the problem matches the displayed "Daily Problem — Mar 19" label. Without this, UTC vs local timezone mismatch caused the date label to change before the problem did.
+
+### Instant Board Display & API Fallback (2026-03-19)
+- **Instant board**: `loadAndStartProblem` now shows the board (FEN) immediately even before solutionText is fetched. Shows "Loading..." in FeedbackPanel; Hint/Give Up hidden until solution loads. Move attempts blocked while solutionTree is empty.
+- **API fallback for Next/Random**: When `filteredProblems` is empty (genre data still loading in background), `handleNextProblem`/`handleRandomProblem`/`handleNavProblem` fall back to `fetchRandomFromApi()` which fetches a random problem directly via API (`fetchProblemsPage` with random offset).
+- **`clearProblem`**: Added to `useProblem` hook — resets state to idle with no problem, showing loading animation.
+
+### Progress Auto-Save & History Fix (2026-03-19)
+- **Auto-save on solve**: `useEffect` watches `problem.status` — when it becomes `'correct'`, progress is immediately saved as `'solved'` in localStorage. Previously progress was only saved when clicking Next, so the problem list showed ✗ for solved problems.
+- **Random skips solved**: `handleRandomProblem` filters out already-attempted problems (solved or failed). Falls back to full pool if all problems are attempted.
+- **History page fix**: `HistoryPage` no longer requires `genreLoaded[genre]` to display entries. Shows all progress entries immediately; lazy-fetches problem details (FEN, author) from API for entries without genre data loaded. Shows placeholder (♚ icon) while fetching.

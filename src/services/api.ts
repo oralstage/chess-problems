@@ -114,7 +114,10 @@ export async function fetchProblem(id: number): Promise<ProblemMeta & { solution
  * Fetch today's daily problem (includes solutionText).
  */
 export async function fetchDaily(): Promise<ProblemMeta & { solutionText: string }> {
-  const res = await fetch(`${API_BASE}/daily`);
+  // Send client's local date so the daily problem matches the displayed date
+  const now = new Date();
+  const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const res = await fetch(`${API_BASE}/daily?date=${dateStr}`);
   if (!res.ok) throw new Error(`Daily API error: ${res.status}`);
   return res.json();
 }

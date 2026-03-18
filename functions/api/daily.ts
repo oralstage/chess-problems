@@ -6,6 +6,10 @@ import { addFairyExclusion } from './fairy-filter';
  * Returns today's daily problem (a #2 direct mate).
  * Uses golden-ratio hashing on the date to pick deterministically.
  * Includes full solutionText for immediate solving.
+ *
+ * Accepts optional `?date=YYYY-MM-DD` query param (client's local date)
+ * so the problem matches the date displayed in the UI.
+ * Falls back to UTC date if not provided.
  */
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   // Build conditions for #2 direct problems, excluding fairy
@@ -23,9 +27,19 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'No daily problems available' }, { status: 404 });
   }
 
-  // Golden-ratio hash to pick today's problem (same logic as client getDailyIndex)
-  const now = new Date();
-  const dayNum = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+  // Use client's local date if provided, otherwise UTC
+  const url = new URL(context.request.url);
+  const dateParam = url.searchParams.get('date');
+  let dayNum: number;
+  if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+    const [y, m, d] = dateParam.split('-').map(Number);
+    dayNum = y * 10000 + m * 100 + d;
+  } else {
+    const now = new Date();
+    dayNum = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+  }
+
+  // Golden-ratio hash to pick today's problem
   const GOLDEN = 2654435761;
   const hash = ((dayNum * GOLDEN) >>> 0) / 4294967296;
   const idx = Math.floor(hash * total);
