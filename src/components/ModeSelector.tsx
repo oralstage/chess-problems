@@ -260,14 +260,24 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
 
       {/* ── Footer ── */}
       <footer className="text-center mt-16 px-4 space-y-1">
-        {onShowChangelog && (
-          <button
-            onClick={onShowChangelog}
+        <div className="flex items-center justify-center gap-3">
+          {onShowChangelog && (
+            <button
+              onClick={onShowChangelog}
+              className="text-[11px] text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 underline transition-colors"
+            >
+              What's new
+            </button>
+          )}
+          <a
+            href="https://github.com/oralstage/chess-problems/issues"
+            target="_blank"
+            rel="noopener noreferrer"
             className="text-[11px] text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 underline transition-colors"
           >
-            What's new
-          </button>
-        )}
+            Feedback &amp; Bug Reports
+          </a>
+        </div>
         <p className="text-[11px] text-gray-400 dark:text-gray-600">
           <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-500 dark:hover:text-gray-400 transition-colors">
             YACPDB
