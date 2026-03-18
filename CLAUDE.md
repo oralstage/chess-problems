@@ -176,6 +176,38 @@
 - Commerce Disclosure page (`TermsPage.tsx`) at `#/terms`: Business Name, Product/Service, Donations/Payments (USD via Stripe/Ko-fi), Refund Policy, Privacy Policy, Payment Security, Contact (Ko-fi only).
 - "About & Terms" link on home page footer — keep small/subtle (`text-xs text-gray-400`). URL was submitted directly to Stripe for review.
 
+### Staging / Production Workflow
+- **Staging**: `npx wrangler pages deploy dist --project-name=chess-problems-staging` (https://chess-problems-staging.pages.dev/)
+- **Production**: `npx wrangler pages deploy dist --project-name=chess-problems` (https://chess-problems.pages.dev/)
+- Always deploy to staging first. Only deploy to production after user confirms.
+- On production deploy, update `CHANGELOG` array in `src/components/ChangelogPage.tsx` with user-facing summary.
+- GitHub: https://github.com/oralstage/chess-problems (public). `git push` after commits.
+
+### New API Endpoints
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/search?author=X&limit=N` | Search problems by author name (partial match, all genres) |
+
+### New Components (2026-03-18)
+| Component | Purpose |
+|-----------|---------|
+| `src/components/SearchPage.tsx` | Full-screen author search with mini boards, genre filter, sort |
+| `src/components/BookmarksPage.tsx` | Full-screen bookmarks list with mini boards |
+| `src/components/ChangelogPage.tsx` | "What's new" page linked from home footer |
+
+### Category System (2026-03-18)
+- `Category` type in `types.ts`: UI-level subcategories (twomover, threemover, moremover, help2, help3, helpmore, self, study, retro)
+- `CATEGORY_DEFS` array defines title, brief, genre mapping, and move count filters
+- `currentCategory` state in App.tsx (localStorage persisted) — determines move count filter and hash URL
+- Accordion ModeSelector with expandable groups (Direct Mates, Helpmates)
+- Stats API returns `moveCounts` per genre for accurate category counts
+
+### Retro Black-to-Move (2026-03-18)
+- Detection in `ensureSolution()`: `{Black to move}`, `{(illegal}`, leading `....` or `1...` notation
+- FEN turn flipped to `b` in `ensureSolution()` and detected in `useProblem.ts` via `fenTurn`
+- "Black to move" shown after solving only (red text, no box) — deducing whose turn is part of the puzzle
+- `fixEnPassantFen` updated to handle retro h# (black first move)
+
 ### Stale Closure Bug in selectMode
 - After `await loadGenre(genre)`, the captured `updateHash` callback references old `problemsByGenre` (empty). Fix: use `problems.findIndex()` directly and call `history.replaceState()` instead of `updateHash()`. Remove `updateHash` from `selectMode` dependency array.
 
