@@ -4,30 +4,19 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
-    date: '2026-03-18 (2)',
-    sections: [
-      {
-        title: 'Updates',
-        items: [
-          'Piece count (W+B) shown next to stipulation badge.',
-          'Fairy problems excluded from problem sets (~4,600 removed).',
-          'Theme keywords merged case-insensitively in filters.',
-          'Feedback link in footer (GitHub Issues).',
-          'Faster problem loading with quick-start optimization.',
-        ],
-      },
-    ],
-  },
-  {
     date: '2026-03-18',
     sections: [
       {
         title: 'Updates',
         items: [
-          'Browse by category — choose Twomovers, Threemovers, Moremovers, or Helpmate by move count directly from the home screen.',
+          'Browse by category — Twomovers, Threemovers, Moremovers, and Helpmates by move count from the home screen.',
           'Search problems by composer name.',
           'Bookmarks and History pages with board thumbnails.',
+          'Piece count (W+B) shown next to stipulation badge.',
           'Retro problems: Black-to-move detection and display.',
+          'Studies: Lichess links for analysis and playing against the computer.',
+          'Fairy problems excluded (~4,600 removed).',
+          'Faster problem loading.',
           'Various solution parsing and playback fixes.',
         ],
       },

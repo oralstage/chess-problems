@@ -45,13 +45,12 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   study: {
     title: 'Study',
     icon: '♜',
-    description: 'The form closest to actual gameplay. No move limit — White must achieve a win or a draw. Often features endgame positions composed by world champions.',
+    description: 'Endgame compositions. Win studies: convert an advantage into a decisive win. Draw studies: save a losing position with stalemate, perpetual check, or fortress.',
     rules: [
-      'You play White',
-      '"+" = White wins, "=" = draw is the goal',
-      'No move limit',
-      'Black\'s responses are played automatically',
-      'Endgame positions are most common',
+      'You play White — Black responds automatically',
+      'Win studies end when a decisive advantage is reached (e.g. queening a pawn)',
+      'Draw studies end when a theoretical draw is achieved',
+      'Solutions end when the outcome is decided — to continue playing, use the Lichess links. "Analysis ↗" opens the analysis board. "Play ↗" opens the board editor — click "CONTINUE FROM HERE", then choose "Play against the computer"',
     ],
   },
   retro: {

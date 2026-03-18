@@ -108,7 +108,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
               <input
                 type="text"
                 value={query}
-                onChange={(e) => { setQuery(e.target.value); onQueryChange?.(e.target.value); setResults(null); onResultsChange?.(null); }}
+                onChange={(e) => { setQuery(e.target.value); onQueryChange?.(e.target.value); }}
                 placeholder="e.g. Loyd, Kasparyan, Nunn"
                 autoFocus
                 className="w-full px-3 py-2 pr-8 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"

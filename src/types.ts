@@ -24,7 +24,7 @@ export const CATEGORY_DEFS: CategoryDef[] = [
   { category: 'helpmore', title: 'Helpmate in 4+', brief: 'Cooperate to mate in 4+ moves', genre: 'help', group: 'Helpmates', minMoves: 4, maxMoves: 0 },
   // Standalone categories
   { category: 'self', title: 'Selfmates', brief: 'White forces Black to deliver mate', genre: 'self' },
-  { category: 'study', title: 'Studies', brief: 'Win or draw with no move limit', genre: 'study' },
+  { category: 'study', title: 'Studies', brief: 'Endgame compositions — win or draw', genre: 'study' },
   { category: 'retro', title: 'Retros', brief: 'Deduce the history of the position', genre: 'retro' },
 ];
 

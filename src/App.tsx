@@ -1262,6 +1262,8 @@ export default function App() {
                 stockfishLoading={stockfish.readyState === 'loading'}
                 refutationText={problem.refutationText}
                 analysisActive={analysisActive}
+                lichessAnalysisUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/analysis/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
+                lichessPlayUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/editor/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
               />
 
               {(problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {

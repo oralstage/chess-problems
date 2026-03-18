@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Genre, ChessProblem } from '../types';
+import { fetchProblem, metaToChessProblem } from '../services/api';
 
 const GENRE_PREFIX: Record<string, string> = { direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' };
 const GENRE_LABEL: Record<string, string> = { direct: 'Direct', help: 'Helpmate', self: 'Selfmate', study: 'Study', retro: 'Retro' };
@@ -13,24 +14,61 @@ interface BookmarksPageProps {
   onClose: () => void;
 }
 
-export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProblem, onClose }: BookmarksPageProps) {
-  const totalBookmarked = Object.values(bookmarks).reduce((sum, ids) => sum + (ids?.length || 0), 0);
-  const loading = totalBookmarked > 0 && Object.entries(bookmarks).some(([g, ids]) => (ids?.length || 0) > 0 && !genreLoaded[g as Genre]);
+interface BookmarkEntry {
+  problem: ChessProblem;
+  genre: Genre;
+}
 
-  const entries = useMemo(() => {
-    const result: { problem: ChessProblem; genre: Genre }[] = [];
-    for (const genre of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
-      if (!genreLoaded[genre]) continue;
-      const ids = bookmarks[genre] || [];
-      if (ids.length === 0) continue;
-      const problemMap = new Map(genreData[genre].map(p => [String(p.id), p]));
-      for (const id of ids) {
-        const problem = problemMap.get(id);
-        if (problem) result.push({ problem, genre });
+export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProblem, onClose }: BookmarksPageProps) {
+  const [entries, setEntries] = useState<BookmarkEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const loadedRef = useRef(false);
+
+  // Snapshot bookmarks on mount only
+  useEffect(() => {
+    if (loadedRef.current) return;
+    loadedRef.current = true;
+
+    let cancelled = false;
+    const bookmarksSnapshot = { ...bookmarks };
+
+    async function loadBookmarks() {
+      const results: BookmarkEntry[] = [];
+
+      for (const genre of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
+        const ids = bookmarksSnapshot[genre] || [];
+        if (ids.length === 0) continue;
+
+        for (const id of ids) {
+          // Try from loaded genre data first
+          if (genreLoaded[genre]) {
+            const found = genreData[genre].find(p => String(p.id) === id);
+            if (found) {
+              results.push({ problem: found, genre });
+              continue;
+            }
+          }
+          // Fetch from API
+          try {
+            const meta = await fetchProblem(Number(id));
+            const problem = metaToChessProblem(meta);
+            results.push({ problem, genre });
+          } catch {
+            // Problem not found — skip
+          }
+        }
+      }
+
+      if (!cancelled) {
+        setEntries(results);
+        setLoading(false);
       }
     }
-    return result;
-  }, [genreData, genreLoaded, bookmarks]);
+
+    loadBookmarks();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col overflow-hidden">
@@ -39,7 +77,7 @@ export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProbl
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">
             Bookmarks
-            <span className="text-base font-normal text-gray-400 ml-1.5">({entries.length})</span>
+            <span className="text-base font-normal text-gray-400 ml-1.5">({loading ? '...' : entries.length})</span>
           </h2>
           <button
             onClick={onClose}
@@ -59,7 +97,7 @@ export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProbl
             </div>
           ) : entries.length === 0 ? (
             <div className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
-              {totalBookmarked > 0 ? 'Loading...' : 'No bookmarked problems yet'}
+              No bookmarked problems yet
             </div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">

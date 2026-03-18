@@ -17,6 +17,8 @@ interface FeedbackPanelProps {
   stockfishLoading?: boolean;
   refutationText?: string | null;
   analysisActive?: boolean;
+  lichessAnalysisUrl?: string;
+  lichessPlayUrl?: string;
 }
 
 export function FeedbackPanel({
@@ -35,6 +37,8 @@ export function FeedbackPanel({
   stockfishLoading,
   refutationText,
   analysisActive,
+  lichessAnalysisUrl,
+  lichessPlayUrl,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
@@ -68,6 +72,18 @@ export function FeedbackPanel({
               >
                 {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
               </button>
+            )}
+            {lichessAnalysisUrl && (
+              <a href={lichessAnalysisUrl} target="_blank" rel="noopener noreferrer"
+                className="px-2.5 py-1.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors">
+                Analysis ↗
+              </a>
+            )}
+            {lichessPlayUrl && (
+              <a href={lichessPlayUrl} target="_blank" rel="noopener noreferrer"
+                className="px-2.5 py-1.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors">
+                Play ↗
+              </a>
             )}
             {stockfishLoading && (
               <span className="text-xs text-gray-400">Loading Stockfish...</span>
@@ -175,6 +191,18 @@ export function FeedbackPanel({
               >
                 {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
               </button>
+            )}
+            {lichessAnalysisUrl && (
+              <a href={lichessAnalysisUrl} target="_blank" rel="noopener noreferrer"
+                className="px-2.5 py-1.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors">
+                Analysis ↗
+              </a>
+            )}
+            {lichessPlayUrl && (
+              <a href={lichessPlayUrl} target="_blank" rel="noopener noreferrer"
+                className="px-2.5 py-1.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors">
+                Play ↗
+              </a>
             )}
             {stockfishLoading && (
               <span className="text-xs text-gray-400">Loading Stockfish...</span>

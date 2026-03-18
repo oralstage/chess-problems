@@ -286,8 +286,9 @@ function parseSegments(solutionText: string): Segment[] {
   const segments: Segment[] = [];
   const rawLines = solutionText.split('\n');
 
-  // Join continuation lines: when a line ends with "- " or "-" and the next line
-  // starts with a move continuation (e.g., "Be5- \n f4+" → "Be5-f4+")
+  // Join continuation lines:
+  // 1. Line ends with "-" (move split: "Be5-\nf4+" → "Be5-f4+")
+  // 2. Line ends with "N." (move number split: "5.\nNd7" → "5. Nd7")
   const joinedLines: string[] = [];
   for (let i = 0; i < rawLines.length; i++) {
     const line = rawLines[i];
@@ -297,6 +298,11 @@ function parseSegments(solutionText: string): Segment[] {
       const nextTrimmed = rawLines[i + 1].trimStart();
       joinedLines.push(trimmedEnd + nextTrimmed);
       i++; // skip next line
+    } else if (/\d+\.\s*$/.test(trimmedEnd) && i + 1 < rawLines.length) {
+      // Line ends with move number (e.g., "5.") — join with next line
+      const nextTrimmed = rawLines[i + 1].trimStart();
+      joinedLines.push(trimmedEnd + ' ' + nextTrimmed);
+      i++;
     } else {
       joinedLines.push(line);
     }

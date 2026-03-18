@@ -279,8 +279,10 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           </a>
         </div>
         <div className="flex justify-center mt-2">
-          <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer">
-            <img src="https://storage.ko-fi.com/cdn/kofi2.png?v=6" alt="Buy Me a Coffee at ko-fi.com" className="h-7 hover:opacity-80 transition-opacity" />
+          <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-[#779952] hover:bg-[#6b8a49] text-white text-xs font-medium rounded-full transition-colors"
+          >
+            ☕ Support on Ko-fi
           </a>
         </div>
       </footer>

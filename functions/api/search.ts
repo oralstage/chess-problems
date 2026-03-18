@@ -19,8 +19,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'author param required (min 2 chars)' }, { status: 400 });
   }
 
-  const conditions: string[] = ['authors LIKE ?'];
-  const bindings: (string | number)[] = [`%${author}%`];
+  const conditions: string[] = [];
+  const bindings: (string | number)[] = [];
+
+  // Split search terms by space and require all to match (AND)
+  const terms = author.split(/\s+/).filter(t => t.length > 0);
+  for (const term of terms) {
+    conditions.push('authors LIKE ?');
+    bindings.push(`%${term}%`);
+  }
   addFairyExclusion(conditions, bindings);
 
   const result = await context.env.DB.prepare(
