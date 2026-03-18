@@ -57,13 +57,12 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   retro: {
     title: 'Retro',
     icon: '♚',
-    description: 'Retrograde analysis problems. You must deduce the history of the position — what moves led here? — to find the solution. Castling rights, en passant legality, and proof games are common themes.',
+    description: 'Retrograde analysis problems. Figure out the history of the position to determine whose turn it is, whether castling is legal, or if en passant is possible — then solve.',
     rules: [
-      'Analyze the position\'s history before making moves',
-      'Castling and en passant rights depend on deduced history',
-      'The stipulation varies: #1, #2, h#2, etc.',
-      'Some positions have no forward moves — purely analytical',
-      'Check the stipulation badge on each problem',
+      'Usually White to move, but if White\'s move would be impossible, it\'s Black\'s turn',
+      'Castling and en passant rights depend on what moves could have led to this position',
+      'Check the stipulation badge — it varies: #1, #2, h#2, etc.',
+      'You can move both White and Black pieces to explore',
     ],
   },
 };

@@ -168,6 +168,7 @@ export default function App() {
   const [showProblemInfo, setShowProblemInfo] = useState(false);
   const [showSearchPage, setShowSearchPage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<import('./services/api').SearchResult[] | null>(null);
   const [showBookmarksPage, setShowBookmarksPage] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
@@ -1154,6 +1155,7 @@ export default function App() {
                   genreStats={genreStats}
                   hideMoveFilter={categoryDef?.maxMoves != null && categoryDef.maxMoves > 0}
                   moveFilterMin={categoryDef?.maxMoves === 0 ? categoryDef.minMoves : undefined}
+                  showStipulationFilter={currentGenre === 'retro' || currentGenre === 'study'}
                 />
               )}
 
@@ -1346,6 +1348,8 @@ export default function App() {
           onClose={() => setShowSearchPage(false)}
           initialQuery={searchQuery}
           onQueryChange={setSearchQuery}
+          cachedResults={searchResults}
+          onResultsChange={setSearchResults}
           onSelectResult={async (result) => {
             setShowSearchPage(false);
             const genre = result.genre as Genre;

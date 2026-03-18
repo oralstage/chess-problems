@@ -8,6 +8,8 @@ interface SearchPageProps {
   onSelectResult: (result: SearchResult) => void;
   initialQuery?: string;
   onQueryChange?: (q: string) => void;
+  cachedResults?: SearchResult[] | null;
+  onResultsChange?: (results: SearchResult[] | null) => void;
 }
 
 const GENRE_PREFIX: Record<string, string> = { direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' };
@@ -15,9 +17,9 @@ const GENRE_LABEL: Record<string, string> = { direct: 'Direct', help: 'Helpmate'
 
 type SortKey = 'year-desc' | 'year-asc' | 'stipulation';
 
-export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChange }: SearchPageProps) {
+export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChange, cachedResults, onResultsChange }: SearchPageProps) {
   const [query, setQuery] = useState(initialQuery || '');
-  const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [results, setResults] = useState<SearchResult[] | null>(cachedResults ?? null);
   const [searching, setSearching] = useState(false);
   const [genreFilter, setGenreFilter] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortKey>('year-desc');
@@ -31,8 +33,10 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
     try {
       const data = await searchByAuthor(q, 200);
       setResults(data);
+      onResultsChange?.(data);
     } catch {
       setResults([]);
+      onResultsChange?.([]);
     }
     setSearching(false);
   };
@@ -100,14 +104,27 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
         {/* Search input */}
         <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
           <form className="flex gap-2" onSubmit={handleSearch}>
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => { setQuery(e.target.value); onQueryChange?.(e.target.value); }}
-              placeholder="e.g. Loyd, Kasparyan, Nunn"
-              autoFocus
-              className="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-            />
+            <div className="flex-1 min-w-0 relative">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => { setQuery(e.target.value); onQueryChange?.(e.target.value); setResults(null); onResultsChange?.(null); }}
+                placeholder="e.g. Loyd, Kasparyan, Nunn"
+                autoFocus
+                className="w-full px-3 py-2 pr-8 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+              />
+              {query && (
+                <button
+                  type="button"
+                  onClick={() => { setQuery(''); onQueryChange?.(''); setResults(null); onResultsChange?.(null); }}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
             <button
               type="submit"
               disabled={query.trim().length < 2 || searching}

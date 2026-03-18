@@ -23,6 +23,7 @@ interface FilterPageProps {
   genreStats?: { yearRange: { min: number; max: number }; pieceRange: { min: number; max: number }; moveRange: { min: number; max: number } } | null;
   hideMoveFilter?: boolean;
   moveFilterMin?: number;
+  showStipulationFilter?: boolean;
 }
 
 function pieceCount(fen: string): number {
@@ -114,8 +115,22 @@ function DualRangeSlider({
   );
 }
 
-export function FilterPage({ allProblems, filters, onFiltersChange, onClose, genreStats, hideMoveFilter, moveFilterMin }: FilterPageProps) {
+export function FilterPage({ allProblems, filters, onFiltersChange, onClose, genreStats, hideMoveFilter, moveFilterMin, showStipulationFilter }: FilterPageProps) {
   const [themeSearch, setThemeSearch] = useState('');
+
+  // All unique stipulations
+  const allStipulations = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of allProblems) {
+      if (p.stipulation) set.add(p.stipulation);
+    }
+    return Array.from(set).sort((a, b) => {
+      // Sort: # before h# before s#, then by number
+      const order = (s: string) => s.startsWith('h#') ? 1 : s.startsWith('s#') ? 2 : 0;
+      if (order(a) !== order(b)) return order(a) - order(b);
+      return a.localeCompare(b, undefined, { numeric: true });
+    });
+  }, [allProblems]);
 
   // All unique keywords
   const allKeywords = useMemo(() => {
@@ -254,6 +269,63 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
+          {/* Type filter — for genres with mixed stipulation types (e.g. Retro) */}
+          {showStipulationFilter && (() => {
+            // Group stipulations into types: Direct (#), Helpmate (h#), Selfmate (s#), Other
+            const typeMap: { label: string; match: (s: string) => boolean }[] = [
+              { label: 'Direct', match: s => s.startsWith('#') && !s.startsWith('h#') && !s.startsWith('s#') },
+              { label: 'Helpmate', match: s => s.startsWith('h#') },
+              { label: 'Selfmate', match: s => s.startsWith('s#') },
+              { label: 'Win', match: s => s === '+' },
+              { label: 'Draw', match: s => s === '=' },
+            ];
+            const availableTypes = typeMap.filter(t =>
+              allStipulations.some(s => t.match(s))
+            );
+            if (availableTypes.length <= 1) return null;
+
+            // Selected types: derive from stipulations filter
+            const selectedLabels = new Set<string>();
+            for (const s of filters.stipulations) {
+              for (const t of typeMap) {
+                if (t.match(s)) { selectedLabels.add(t.label); break; }
+              }
+            }
+
+            const toggleType = (type: typeof typeMap[0]) => {
+              const matching = allStipulations.filter(s => type.match(s));
+              if (selectedLabels.has(type.label)) {
+                update({ stipulations: filters.stipulations.filter(s => !type.match(s)) });
+              } else {
+                update({ stipulations: [...filters.stipulations.filter(s => !type.match(s)), ...matching] });
+              }
+            };
+
+            return (
+              <section>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Type</h3>
+                <div className="flex flex-wrap gap-1.5">
+                  {availableTypes.map(t => {
+                    const isSelected = selectedLabels.has(t.label);
+                    return (
+                      <button
+                        key={t.label}
+                        onClick={() => toggleType(t)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                          isSelected
+                            ? 'bg-green-600 text-white dark:bg-green-500'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
+                        }`}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })()}
+
           {/* Move count range — hidden for fixed-move categories (#1, #2, #3) */}
           {!hideMoveFilter && (
           <section>
