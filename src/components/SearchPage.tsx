@@ -7,6 +7,7 @@ interface SearchPageProps {
   onClose: () => void;
   onSelectResult: (result: SearchResult) => void;
   initialQuery?: string;
+  onQueryChange?: (q: string) => void;
 }
 
 const GENRE_PREFIX: Record<string, string> = { direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' };
@@ -14,7 +15,7 @@ const GENRE_LABEL: Record<string, string> = { direct: 'Direct', help: 'Helpmate'
 
 type SortKey = 'year-desc' | 'year-asc' | 'stipulation';
 
-export function SearchPage({ onClose, onSelectResult, initialQuery }: SearchPageProps) {
+export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChange }: SearchPageProps) {
   const [query, setQuery] = useState(initialQuery || '');
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
@@ -73,14 +74,27 @@ export function SearchPage({ onClose, onSelectResult, initialQuery }: SearchPage
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">Search by Author</h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
-          >
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {results != null && results.length > 0 && (
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortKey)}
+                className="text-xs bg-transparent text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 focus:outline-none cursor-pointer"
+              >
+                <option value="year-desc">Newest</option>
+                <option value="year-asc">Oldest</option>
+                <option value="stipulation">By type</option>
+              </select>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+            >
+              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Search input */}
@@ -89,7 +103,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery }: SearchPage
             <input
               type="text"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); onQueryChange?.(e.target.value); }}
               placeholder="e.g. Loyd, Kasparyan, Nunn"
               autoFocus
               className="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
@@ -126,17 +140,6 @@ export function SearchPage({ onClose, onSelectResult, initialQuery }: SearchPage
                 {GENRE_LABEL[g] || g} ({genreCounts[g] || 0})
               </button>
             ))}
-            <div className="ml-auto shrink-0">
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortKey)}
-                className="text-xs bg-transparent text-gray-500 dark:text-gray-400 border-none focus:outline-none cursor-pointer"
-              >
-                <option value="year-desc">Newest first</option>
-                <option value="year-asc">Oldest first</option>
-                <option value="stipulation">By type</option>
-              </select>
-            </div>
           </div>
         )}
 

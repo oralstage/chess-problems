@@ -278,12 +278,11 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             Feedback &amp; Bug Reports
           </a>
         </div>
-        <p className="text-[11px] text-gray-400 dark:text-gray-600">
-          <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-500 dark:hover:text-gray-400 transition-colors">
-            YACPDB
+        <div className="flex justify-center mt-2">
+          <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer">
+            <img src="https://storage.ko-fi.com/cdn/kofi2.png?v=6" alt="Buy Me a Coffee at ko-fi.com" className="h-7 hover:opacity-80 transition-opacity" />
           </a>
-          {' '}&mdash; Yet Another Chess Problem Database
-        </p>
+        </div>
       </footer>
     </div>
   );

@@ -167,6 +167,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showProblemInfo, setShowProblemInfo] = useState(false);
   const [showSearchPage, setShowSearchPage] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [showBookmarksPage, setShowBookmarksPage] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
@@ -1343,6 +1344,8 @@ export default function App() {
       {showSearchPage && (
         <SearchPage
           onClose={() => setShowSearchPage(false)}
+          initialQuery={searchQuery}
+          onQueryChange={setSearchQuery}
           onSelectResult={async (result) => {
             setShowSearchPage(false);
             const genre = result.genre as Genre;

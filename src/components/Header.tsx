@@ -22,23 +22,6 @@ const GENRE_NAMES: Record<Genre, string> = {
   retro: 'Retro',
 };
 
-function KofiButton() {
-  return (
-    <a
-      href="https://ko-fi.com/A0A21W2W51"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="shrink-0"
-    >
-      <img
-        src="https://storage.ko-fi.com/cdn/kofi2.png?v=6"
-        alt="Buy Me a Coffee at ko-fi.com"
-        className="h-7 hover:opacity-80 transition-opacity"
-      />
-    </a>
-  );
-}
-
 function ThemeToggle({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme: () => void }) {
   return (
     <button
@@ -63,7 +46,6 @@ export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onSho
   if (view === 'mode-select') {
     return (
       <header className="flex items-center justify-end gap-2 py-3 px-4">
-        <KofiButton />
         <ThemeToggle theme={theme} onToggleTheme={onToggleTheme} />
         {onOpenMenu && (
           <button
