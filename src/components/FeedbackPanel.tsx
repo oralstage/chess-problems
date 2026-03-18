@@ -140,7 +140,13 @@ export function FeedbackPanel({
               Refutation: {refutationText}
             </span>
           )}
-          <div className="ml-auto">
+          <div className="ml-auto flex items-center gap-1.5">
+            <button
+              onClick={onNextProblem}
+              className="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
+            >
+              Next
+            </button>
             {onRandomProblem && (
               <button
                 onClick={onRandomProblem}

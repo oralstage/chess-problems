@@ -26,6 +26,11 @@ interface SolutionTreeProps {
 function tryExecuteNode(chess: Chess, node: SolutionNode): { from: string; to: string } | null {
   const uci = node.moveUci;
 
+  // Wildcard "any move" — pick a legal move by the specified piece type
+  if (uci === 'any') {
+    return executeWildcardMove(chess, node.moveSan);
+  }
+
   if (uci.startsWith('san:')) {
     try {
       const move = chess.move(uci.slice(4));
@@ -59,6 +64,36 @@ function tryExecuteNode(chess: Chess, node: SolutionNode): { from: string; to: s
   }
 
   return null;
+}
+
+/**
+ * Execute a wildcard ("any move") by picking a legal move matching the piece type.
+ * E.g., "N~" picks any legal knight move, "~" picks any legal move.
+ */
+function executeWildcardMove(chess: Chess, san: string): { from: string; to: string } | null {
+  const pieceMatch = san.match(/^([KQRBN])/);
+  const pieceType = pieceMatch ? pieceMatch[1].toLowerCase() : null;
+
+  const tryWithCurrentTurn = () => {
+    const legalMoves = chess.moves({ verbose: true });
+    const candidates = pieceType
+      ? legalMoves.filter(m => m.piece === pieceType)
+      : legalMoves;
+    if (candidates.length > 0) {
+      const move = chess.move(candidates[0]);
+      if (move) return { from: move.from, to: move.to };
+    }
+    return null;
+  };
+
+  const result = tryWithCurrentTurn();
+  if (result) return result;
+
+  // Try with flipped turn
+  const parts = chess.fen().split(' ');
+  parts[1] = parts[1] === 'w' ? 'b' : 'w';
+  chess.load(parts.join(' '));
+  return tryWithCurrentTurn();
 }
 
 // ── Flatten tree into compact variation lines ──

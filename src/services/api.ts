@@ -26,6 +26,7 @@ export interface ProblemMeta {
 
 export interface StatsResponse {
   counts: Record<string, number>;
+  moveCounts?: Record<string, Record<string, number>>;
   stipulations: string[];
   keywords: string[];
   yearRange: { min: number; max: number };
@@ -116,6 +117,32 @@ export async function fetchDaily(): Promise<ProblemMeta & { solutionText: string
   const res = await fetch(`${API_BASE}/daily`);
   if (!res.ok) throw new Error(`Daily API error: ${res.status}`);
   return res.json();
+}
+
+/**
+ * Search problems by author name.
+ */
+export interface SearchResult {
+  id: number;
+  fen: string;
+  authors: string;
+  sourceName: string;
+  sourceYear: number | null;
+  stipulation: string;
+  moveCount: number;
+  genre: string;
+  difficulty: string;
+  difficultyScore: number;
+  pieceCount: number;
+  keywords: string;
+  award: string;
+}
+
+export async function searchByAuthor(author: string, limit = 50): Promise<SearchResult[]> {
+  const res = await fetch(`${API_BASE}/search?author=${encodeURIComponent(author)}&limit=${limit}`);
+  if (!res.ok) throw new Error(`Search API error: ${res.status}`);
+  const data: { results: SearchResult[] } = await res.json();
+  return data.results;
 }
 
 /**

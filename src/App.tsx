@@ -15,10 +15,13 @@ import { GenreTutorial } from './components/GenreTutorial';
 import { ProblemList } from './components/ProblemList';
 import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
+import { SearchPage } from './components/SearchPage';
+import { BookmarksPage } from './components/BookmarksPage';
 import { HistoryPage } from './components/HistoryPage';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
 import { fetchAllProblems, fetchProblem, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights } from './services/api';
-import type { AppView, Genre, ProblemProgress, ChessProblem } from './types';
+import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
+import { CATEGORY_DEFS } from './types';
 
 /**
  * Fix FEN for problems where the solution requires en passant but the FEN
@@ -28,7 +31,11 @@ import type { AppView, Genre, ProblemProgress, ChessProblem } from './types';
 function fixEnPassantFen(p: ChessProblem): void {
   if (p.solutionTree.length === 0) return;
 
-  const firstColor = p.genre === 'help' ? 'b' : 'w';
+  // Determine first move color from FEN turn
+  const fenTurn = p.fen.split(' ')[1] as 'w' | 'b';
+  const firstColor = p.genre === 'help' ? 'b'
+    : (p.genre === 'retro' && p.stipulation?.startsWith('h#')) ? 'b'
+    : fenTurn;
   const firstNodes = p.solutionTree.filter(n => n.color === firstColor);
 
   for (const node of firstNodes) {
@@ -141,6 +148,7 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const [view, setView] = useState<AppView>('mode-select');
   const [currentGenre, setCurrentGenre] = useState<Genre | null>(null);
+  const [currentCategory, setCurrentCategory] = useLocalStorage<Category | null>('cp-current-category', null);
   const [progress, setProgress] = useLocalStorage<Record<Genre, ProblemProgress>>('cp-progress', {
     direct: {},
     help: {},
@@ -157,6 +165,8 @@ export default function App() {
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showProblemInfo, setShowProblemInfo] = useState(false);
+  const [showSearchPage, setShowSearchPage] = useState(false);
+  const [showBookmarksPage, setShowBookmarksPage] = useState(false);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
     direct: [], help: [], self: [], study: [], retro: [],
   });
@@ -183,11 +193,12 @@ export default function App() {
     } catch { /* ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const filtersRaw = currentGenre ? allFiltersRaw[currentGenre] || defaultFilters : defaultFilters;
+  const filterKey = currentCategory || currentGenre || '';
+  const filtersRaw = filterKey ? allFiltersRaw[filterKey] || defaultFilters : defaultFilters;
   const setFilters = useCallback((value: GlobalFilters) => {
-    if (!currentGenre) return;
-    setAllFilters(prev => ({ ...prev, [currentGenre]: value }));
-  }, [currentGenre, setAllFilters]);
+    if (!filterKey) return;
+    setAllFilters(prev => ({ ...prev, [filterKey]: value }));
+  }, [filterKey, setAllFilters]);
   const filters = useMemo(() => migrateFilters(filtersRaw), [filtersRaw]);
 
   const windowWidth = useWindowWidth();
@@ -254,7 +265,16 @@ export default function App() {
       const full = await fetchProblem(p.id);
       p.solutionText = full.solutionText;
     }
-    const firstColor = (p.genre === 'help' || (p.genre === 'retro' && p.stipulation.startsWith('h#'))) ? 'b' : 'w';
+    // Retro: detect Black to move from solution text
+    // Patterns: {Black to move}, solution starting with "..." or "...." (black move notation)
+    const solutionStart = p.solutionText.replace(/^\{[^}]*\}\s*/, '').trimStart();
+    const isRetroBlack = p.genre === 'retro' && (
+      /\{[^}]*[Bb]lack to move/i.test(p.solutionText)
+      || /^\.{2,}/.test(solutionStart)
+      || /^\d+\.{3}/.test(solutionStart)
+    );
+    const firstColor = (p.genre === 'help' || (p.genre === 'retro' && p.stipulation.startsWith('h#'))) ? 'b'
+      : isRetroBlack ? 'b' : 'w';
     const allNodes = parseSolution(p.solutionText, firstColor);
     // Retro + {(illegal)}: flip colors
     if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
@@ -271,6 +291,10 @@ export default function App() {
     // Fix castling rights if solution contains O-O but FEN has none
     p.fen = fixCastlingRights(p.fen, p.solutionText);
     fixEnPassantFen(p);
+    // Retro: flip FEN turn to black if Black to move
+    if (isRetroBlack && p.fen.includes(' w ')) {
+      p.fen = p.fen.replace(' w ', ' b ');
+    }
     return p;
   }, []);
 
@@ -284,17 +308,17 @@ export default function App() {
   }, [ensureSolution, problem]);
 
   // ── Hash-based routing with browser history ──
-  const updateHash = useCallback((genre: Genre | null, problemId?: number | null, replace = false) => {
+  const updateHash = useCallback((category: Category | Genre | null, problemId?: number | null, replace = false) => {
     const method = replace ? 'replaceState' : 'pushState';
-    if (!genre) {
+    if (!category) {
       history[method](null, '', window.location.pathname);
       return;
     }
     if (problemId) {
-      history[method]({ genre, problemId }, '', `#/${genre}/yacpdb/${problemId}`);
+      history[method]({ category, problemId }, '', `#/${category}/yacpdb/${problemId}`);
       return;
     }
-    history[method]({ genre }, '', `#/${genre}`);
+    history[method]({ category }, '', `#/${category}`);
   }, []);
 
   // ── Daily Problem (fetched from /api/daily, no need to load all direct problems) ──
@@ -403,9 +427,13 @@ export default function App() {
 
   // Fetch genre counts from API on mount
   const [apiCounts, setApiCounts] = useState<Record<string, number>>({});
+  const [apiMoveCounts, setApiMoveCounts] = useState<Record<string, Record<string, number>>>({});
   const [genreStats, setGenreStats] = useState<{ yearRange: { min: number; max: number }; pieceRange: { min: number; max: number }; moveRange: { min: number; max: number } } | null>(null);
   useEffect(() => {
-    fetchStats().then(stats => setApiCounts(stats.counts)).catch(() => {});
+    fetchStats().then(stats => {
+      setApiCounts(stats.counts);
+      if (stats.moveCounts) setApiMoveCounts(stats.moveCounts);
+    }).catch(() => {});
   }, []);
   useEffect(() => {
     if (currentGenre) {
@@ -415,12 +443,38 @@ export default function App() {
 
   const problemCounts = useMemo(() => {
     const ESTIMATED_COUNTS: Record<Genre, number> = { direct: 53177, help: 16457, self: 6164, study: 3077, retro: 178 };
-    const counts: Record<Genre, number> = {} as Record<Genre, number>;
-    for (const g of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
-      counts[g] = genreLoaded[g] ? genreData[g].length : (apiCounts[g] || ESTIMATED_COUNTS[g]);
+    const counts: Record<Category, number> = {} as Record<Category, number>;
+    for (const def of CATEGORY_DEFS) {
+      if (def.minMoves != null) {
+        // Direct subcategories: count by moveCount
+        if (genreLoaded[def.genre]) {
+          counts[def.category] = genreData[def.genre].filter(p => {
+            if (def.maxMoves === 0) return p.moveCount >= def.minMoves!;
+            return p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!;
+          }).length;
+        } else if (apiMoveCounts[def.genre]) {
+          // Use API move counts for accurate numbers
+          let total = 0;
+          for (const [mc, cnt] of Object.entries(apiMoveCounts[def.genre])) {
+            const m = parseInt(mc);
+            if (def.maxMoves === 0) { if (m >= def.minMoves!) total += cnt; }
+            else { if (m >= def.minMoves! && m <= def.maxMoves!) total += cnt; }
+          }
+          counts[def.category] = total;
+        } else {
+          // Fallback estimates
+          const est: Record<string, number> = { onemover: 350, twomover: 36000, threemover: 11000, moremover: 5800 };
+          counts[def.category] = est[def.category] || 0;
+        }
+      } else {
+        counts[def.category] = genreLoaded[def.genre] ? genreData[def.genre].length : (apiCounts[def.genre] || ESTIMATED_COUNTS[def.genre]);
+      }
     }
     return counts;
-  }, [genreData, genreLoaded, apiCounts]);
+  }, [genreData, genreLoaded, apiCounts, apiMoveCounts]);
+
+  // Category-level move filter (from CATEGORY_DEFS)
+  const categoryDef = currentCategory ? CATEGORY_DEFS.find(d => d.category === currentCategory) : null;
 
   const filteredProblems = useMemo(() => {
     if (!currentGenre) return [];
@@ -429,8 +483,14 @@ export default function App() {
     if (filters.maxPieces > 0) result = result.filter(p => pieceCount(p.fen) <= filters.maxPieces);
     if (filters.minYear > 0) result = result.filter(p => (p.sourceYear || 0) >= filters.minYear);
     if (filters.maxYear > 0) result = result.filter(p => (p.sourceYear || 9999) <= filters.maxYear);
-    if (filters.minMoves > 0) result = result.filter(p => p.moveCount >= filters.minMoves);
-    if (filters.maxMoves > 0) result = result.filter(p => p.moveCount <= filters.maxMoves);
+    // Move count filter: category-level (from CATEGORY_DEFS) takes priority
+    const catDef = currentCategory ? CATEGORY_DEFS.find(d => d.category === currentCategory) : null;
+    const minMoves = catDef?.minMoves ?? filters.minMoves;
+    const maxMoves = catDef?.maxMoves != null
+      ? (catDef.maxMoves === 0 ? (filters.maxMoves > 0 ? Math.max(filters.maxMoves, catDef.minMoves ?? 0) : 0) : catDef.maxMoves)
+      : filters.maxMoves;
+    if (minMoves > 0) result = result.filter(p => p.moveCount >= minMoves);
+    if (maxMoves > 0) result = result.filter(p => p.moveCount <= maxMoves);
     if (filters.keywords.length > 0) result = result.filter(p => filters.keywords.some(kw => p.keywords?.includes(kw)));
     if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
     // Status filter
@@ -455,7 +515,7 @@ export default function App() {
       result = [...result].slice().reverse();
     }
     return result;
-  }, [currentGenre, problemsByGenre, filters, progress, bookmarks]);
+  }, [currentGenre, currentCategory, problemsByGenre, filters, progress, bookmarks]);
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -471,6 +531,24 @@ export default function App() {
     return count;
   }, [filters]);
 
+  // Helper: resolve a hash slug to category + genre
+  const resolveHashSlug = useCallback((slug: string): { category: Category; genre: Genre } | null => {
+    // Category slugs (onemover, twomover, help2, etc.)
+    const catDef = CATEGORY_DEFS.find(d => d.category === slug);
+    if (catDef) return { category: catDef.category, genre: catDef.genre };
+    // Legacy genre slugs (direct, help, self, study, retro)
+    const genreSlug = slug as Genre;
+    if (['direct', 'help', 'self', 'study', 'retro'].includes(genreSlug)) {
+      // Map legacy genre to first available category for that genre
+      const cat = CATEGORY_DEFS.find(d => d.genre === genreSlug);
+      if (cat) return { category: cat.category, genre: genreSlug };
+    }
+    return null;
+  }, []);
+
+  // All valid slugs for hash matching
+  const allSlugs = CATEGORY_DEFS.map(d => d.category).join('|') + '|direct|help|self|study|retro';
+
   // Handle browser back/forward navigation
   useEffect(() => {
     const handlePopState = () => {
@@ -479,6 +557,7 @@ export default function App() {
         // Back to home
         setView('mode-select');
         setCurrentGenre(null);
+        setCurrentCategory(null);
         setShowProblemList(false);
         setShowFilterPage(false);
         setShowHamburgerMenu(false);
@@ -486,12 +565,17 @@ export default function App() {
         setShowProblemInfo(false);
         return;
       }
-      const yacpdbMatch = hash.match(/^#\/(direct|help|self|study|retro)\/yacpdb\/(\d+)$/);
-      const genreOnlyMatch = hash.match(/^#\/(direct|help|self|study|retro)$/);
+      const slugRegex = new RegExp(`^#\\/(${allSlugs})\\/yacpdb\\/(\\d+)$`);
+      const yacpdbMatch = hash.match(slugRegex);
+      const slugOnlyRegex = new RegExp(`^#\\/(${allSlugs})$`);
+      const genreOnlyMatch = hash.match(slugOnlyRegex);
       if (yacpdbMatch) {
-        const genre = yacpdbMatch[1] as Genre;
+        const resolved = resolveHashSlug(yacpdbMatch[1]);
+        if (!resolved) return;
+        const { category, genre } = resolved;
         const problemId = parseInt(yacpdbMatch[2]);
         setCurrentGenre(genre);
+        setCurrentCategory(category);
         setView('solving');
         setShowProblemList(false);
         setShowFilterPage(false);
@@ -504,12 +588,15 @@ export default function App() {
           if (target) {
             loadAndStartProblem(target);
             cacheProblem(target);
-            setCurrentProblemId(prev => ({ ...prev, [genre]: target.id }));
+            setCurrentProblemId(prev => ({ ...prev, [category]: target.id }));
           }
         });
       } else if (genreOnlyMatch) {
-        const genre = genreOnlyMatch[1] as Genre;
+        const resolved = resolveHashSlug(genreOnlyMatch[1]);
+        if (!resolved) return;
+        const { category, genre } = resolved;
         setCurrentGenre(genre);
+        setCurrentCategory(category);
         setView('solving');
         setShowProblemList(false);
         setShowFilterPage(false);
@@ -520,7 +607,25 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId]);
+  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, setCurrentCategory, resolveHashSlug, allSlugs]);
+
+  // Helper: determine category from genre + problem moveCount (for legacy URLs)
+  const categoryFromGenreProblem = useCallback((genre: Genre, moveCount?: number): Category => {
+    if (moveCount == null) {
+      return CATEGORY_DEFS.find(d => d.genre === genre)?.category || genre as Category;
+    }
+    if (genre === 'direct') {
+      if (moveCount <= 2) return 'twomover';
+      if (moveCount === 3) return 'threemover';
+      return 'moremover';
+    }
+    if (genre === 'help') {
+      if (moveCount <= 2) return 'help2';
+      if (moveCount === 3) return 'help3';
+      return 'helpmore';
+    }
+    return CATEGORY_DEFS.find(d => d.genre === genre)?.category || genre as Category;
+  }, []);
 
   // Restore from hash on initial load
   const hashRestoredRef = useRef(false);
@@ -535,21 +640,25 @@ export default function App() {
       setView('mode-select');
       return;
     }
-    // New format: #/genre/yacpdb/12345
-    const yacpdbMatch = hash.match(/^#\/(direct|help|self|study|retro)\/yacpdb\/(\d+)$/);
-    // Legacy format: #/genre/12345
+    // New format: #/slug/yacpdb/12345 (slug = category or legacy genre)
+    const slugRegex = new RegExp(`^#\\/(${allSlugs})\\/yacpdb\\/(\\d+)$`);
+    const yacpdbMatch = hash.match(slugRegex);
+    // Legacy format: #/genre/12345 (1-based index)
     const legacyMatch = hash.match(/^#\/(direct|help|self|study|retro)\/(\d+)$/);
     const match = yacpdbMatch || legacyMatch;
     if (!match) {
-      // Check if it's just a genre without problem number
-      const genreOnly = hash.match(/^#\/(direct|help|self|study|retro)$/);
+      // Check if it's just a slug without problem number
+      const slugOnlyRegex = new RegExp(`^#\\/(${allSlugs})$`);
+      const genreOnly = hash.match(slugOnlyRegex);
       if (!genreOnly) return;
-      // Just set genre, no specific problem
-      setCurrentGenre(genreOnly[1] as Genre);
+      const resolved = resolveHashSlug(genreOnly[1]);
+      if (!resolved) return;
+      setCurrentGenre(resolved.genre);
+      setCurrentCategory(resolved.category);
       setView('solving');
-      loadGenre(genreOnly[1] as Genre).then(problems => {
+      loadGenre(resolved.genre).then(problems => {
         if (problems.length === 0) return;
-        const genreProgress = progress[genreOnly[1] as Genre] || {};
+        const genreProgress = progress[resolved.genre] || {};
         let nextProblem: ChessProblem | null = null;
         for (const p of problems) {
           if (genreProgress[String(p.id)] !== 'solved' && genreProgress[String(p.id)] !== 'skipped') {
@@ -561,18 +670,22 @@ export default function App() {
         if (nextProblem) {
           loadAndStartProblem(nextProblem);
           cacheProblem(nextProblem);
-          setCurrentProblemId(prev => ({ ...prev, [genreOnly[1] as Genre]: nextProblem!.id }));
-          history.replaceState(null, '', `#/${genreOnly[1]}/yacpdb/${nextProblem.id}`);
+          setCurrentProblemId(prev => ({ ...prev, [resolved.category]: nextProblem!.id }));
+          history.replaceState(null, '', `#/${resolved.category}/yacpdb/${nextProblem.id}`);
         }
       });
       return;
     }
 
-    const genre = match[1] as Genre;
+    const slug = match[1];
+    const resolved = resolveHashSlug(slug);
+    if (!resolved) return;
+    const { genre } = resolved;
     const isLegacy = !yacpdbMatch;
     const problemNum = match[2] ? parseInt(match[2]) : null;
 
     setCurrentGenre(genre);
+    // Category will be determined after we know moveCount
     setView('solving');
 
     // Instantly show cached problem while genre data loads
@@ -581,9 +694,7 @@ export default function App() {
       const cached = localStorage.getItem('cp-cached-problem');
       if (cached) {
         const cachedProblem = JSON.parse(cached) as ChessProblem;
-        // Only use cache if it matches the hash URL's genre
         if (cachedProblem.genre === genre) {
-          // Rebuild solutionTree synchronously from cached solutionText
           if (cachedProblem.solutionText && (!cachedProblem.solutionTree || cachedProblem.solutionTree.length === 0)) {
             const firstColor = (cachedProblem.genre === 'help' || (cachedProblem.genre === 'retro' && cachedProblem.stipulation.startsWith('h#'))) ? 'b' : 'w';
             cachedProblem.solutionTree = parseSolution(cachedProblem.solutionText, firstColor);
@@ -599,51 +710,50 @@ export default function App() {
             problem.loadProblem(cachedProblem);
             cacheHit = true;
           }
-          setCurrentProblemId(prev => ({ ...prev, [genre]: cachedProblem.id }));
+          const cat = isLegacy ? categoryFromGenreProblem(genre, cachedProblem.moveCount) : resolved.category;
+          setCurrentCategory(cat);
+          setCurrentProblemId(prev => ({ ...prev, [cat]: cachedProblem.id }));
         }
       }
     } catch { /* corrupt cache — ignore */ }
 
     // Quick-start: if no cache hit and we have a specific problem ID, fetch it directly
     if (!cacheHit && problemNum && !isLegacy) {
+      setCurrentCategory(resolved.category);
       fetchProblem(problemNum).then(full => {
         const quickProblem = metaToChessProblem(full, full.solutionText);
         loadAndStartProblem(quickProblem);
         cacheProblem(quickProblem);
-        setCurrentProblemId(prev => ({ ...prev, [genre]: quickProblem.id }));
+        setCurrentProblemId(prev => ({ ...prev, [resolved.category]: quickProblem.id }));
       }).catch(() => {});
     }
 
-    // Load full genre data in background (needed for problem list, navigation, etc.)
+    // Load full genre data in background
     loadGenre(genre).then(problems => {
       if (problems.length === 0) return;
 
       if (problemNum) {
         let target: ChessProblem | undefined;
         if (isLegacy) {
-          // Legacy: problemNum is 1-based index
           if (problemNum >= 1 && problemNum <= problems.length) {
             target = problems[problemNum - 1];
           }
         } else {
-          // New: problemNum is YACPDB ID
           target = problems.find(p => p.id === problemNum);
         }
         if (target) {
-          // Only load if this problem isn't already loaded
-          // (avoid resetting solving/correct/viewing state from late async callbacks)
+          const cat = isLegacy ? categoryFromGenreProblem(genre, target.moveCount) : resolved.category;
+          setCurrentCategory(cat);
           if (target.id !== loadedProblemIdRef.current) {
             loadAndStartProblem(target);
             cacheProblem(target);
-            setCurrentProblemId(prev => ({ ...prev, [genre]: target!.id }));
+            setCurrentProblemId(prev => ({ ...prev, [cat]: target!.id }));
           }
-          // Update to new format if legacy
           if (isLegacy) {
-            history.replaceState(null, '', `#/${genre}/yacpdb/${target.id}`);
+            history.replaceState(null, '', `#/${cat}/yacpdb/${target.id}`);
           }
         }
       } else if (!problem.problem || problem.problem.genre !== genre) {
-        // No cached problem matched — find next unsolved
         const genreProgress = progress[genre] || {};
         let nextProblem: ChessProblem | null = null;
         for (const p of problems) {
@@ -654,33 +764,38 @@ export default function App() {
         }
         if (!nextProblem) nextProblem = problems[0];
         if (nextProblem) {
+          const cat = categoryFromGenreProblem(genre, nextProblem.moveCount);
+          setCurrentCategory(cat);
           loadAndStartProblem(nextProblem);
           cacheProblem(nextProblem);
-          setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem!.id }));
+          setCurrentProblemId(prev => ({ ...prev, [cat]: nextProblem!.id }));
         }
       }
     });
-  }, [loadGenre, loadAndStartProblem, ensureSolution, problem, setCurrentProblemId, progress, cacheProblem]);
+  }, [loadGenre, loadAndStartProblem, ensureSolution, problem, setCurrentProblemId, setCurrentCategory, progress, cacheProblem, resolveHashSlug, allSlugs, categoryFromGenreProblem]);
 
-  const selectMode = useCallback(async (genre: Genre) => {
+  const selectMode = useCallback(async (category: Category) => {
+    const def = CATEGORY_DEFS.find(d => d.category === category)!;
+    const genre = def.genre;
     setCurrentGenre(genre);
+    setCurrentCategory(category);
     setView('solving');
 
-    // Show tutorial if first time
+    // Show tutorial if first time (use genre for tutorial tracking)
     if (!seenTutorials.includes(genre)) {
       setShowTutorial(true);
     }
 
     // Quick-start: if we have a saved problem ID, fetch it directly (single API call)
     // while genre data loads in background
-    const savedId = currentProblemId[genre];
+    const savedId = currentProblemId[category];
     if (savedId && !genreLoaded[genre]) {
       try {
         const full = await fetchProblem(savedId);
         const quickProblem = metaToChessProblem(full, full.solutionText);
         loadAndStartProblem(quickProblem);
         cacheProblem(quickProblem);
-        updateHash(genre, quickProblem.id);
+        updateHash(category, quickProblem.id);
         // Load genre data in background (don't await)
         loadGenre(genre);
         return;
@@ -688,7 +803,15 @@ export default function App() {
     }
 
     // Load genre data if not loaded yet
-    const problems = await loadGenre(genre);
+    let problems = await loadGenre(genre);
+
+    // Apply category-level move filter
+    if (def.minMoves != null) {
+      problems = problems.filter(p => {
+        if (def.maxMoves === 0) return p.moveCount >= def.minMoves!;
+        return p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!;
+      });
+    }
 
     // Find next unsolved problem from the loaded data
     const genreProgress = progress[genre] || {};
@@ -712,12 +835,12 @@ export default function App() {
     if (nextProblem) {
       loadAndStartProblem(nextProblem);
       cacheProblem(nextProblem);
-      setCurrentProblemId(prev => ({ ...prev, [genre]: nextProblem!.id }));
-      updateHash(genre, nextProblem.id);
+      setCurrentProblemId(prev => ({ ...prev, [category]: nextProblem!.id }));
+      updateHash(category, nextProblem.id);
     } else {
-      updateHash(genre);
+      updateHash(category);
     }
-  }, [seenTutorials, loadGenre, loadAndStartProblem, progress, currentProblemId, problem, setCurrentProblemId, cacheProblem, updateHash, genreLoaded]);
+  }, [seenTutorials, loadGenre, loadAndStartProblem, progress, currentProblemId, problem, setCurrentProblemId, setCurrentCategory, cacheProblem, updateHash, genreLoaded]);
 
   const closeTutorial = useCallback(() => {
     setShowTutorial(false);
@@ -729,8 +852,9 @@ export default function App() {
   const goBack = useCallback(() => {
     setView('mode-select');
     setCurrentGenre(null);
+    setCurrentCategory(null);
     updateHash(null, null, false);
-  }, [updateHash]);
+  }, [updateHash, setCurrentCategory]);
 
   const handleHistorySelect = useCallback(async (genre: Genre, selected: ChessProblem) => {
     setShowHistory(false);
@@ -756,9 +880,9 @@ export default function App() {
     if (!currentGenre) return;
     loadAndStartProblem(selected);
     cacheProblem(selected);
-    setCurrentProblemId(prev => ({ ...prev, [currentGenre]: selected.id }));
+    setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:selected.id }));
     setShowProblemList(false);
-    updateHash(currentGenre, selected.id);
+    updateHash(currentCategory || currentGenre, selected.id);
   }, [currentGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
 
   const handleGiveUp = useCallback(() => {
@@ -800,8 +924,8 @@ export default function App() {
     if (nextProblem) {
       loadAndStartProblem(nextProblem);
       cacheProblem(nextProblem);
-      setCurrentProblemId(prev => ({ ...prev, [currentGenre]: nextProblem.id }));
-      updateHash(currentGenre, nextProblem.id);
+      setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:nextProblem.id }));
+      updateHash(currentCategory || currentGenre, nextProblem.id);
     }
   }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setProgress, setTimestamps, setCurrentProblemId, updateHash, cacheProblem]);
 
@@ -816,9 +940,9 @@ export default function App() {
       const next = problems[0];
       loadAndStartProblem(next);
       cacheProblem(next);
-      setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
+      setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:next.id }));
       setAnalysisResult(null);
-      updateHash(currentGenre, next.id);
+      updateHash(currentCategory || currentGenre, next.id);
       return;
     }
     const nextIdx = currentIdx + direction;
@@ -826,9 +950,9 @@ export default function App() {
     const next = problems[nextIdx];
     loadAndStartProblem(next);
     cacheProblem(next);
-    setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
+    setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:next.id }));
     setAnalysisResult(null);
-    updateHash(currentGenre, next.id);
+    updateHash(currentCategory || currentGenre, next.id);
   }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
 
   const handleRandomProblem = useCallback(() => {
@@ -842,8 +966,8 @@ export default function App() {
     } while (next.id === problem.problem?.id && problems.length > 1);
     loadAndStartProblem(next);
     cacheProblem(next);
-    setCurrentProblemId(prev => ({ ...prev, [currentGenre]: next.id }));
-    updateHash(currentGenre, next.id);
+    setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:next.id }));
+    updateHash(currentCategory || currentGenre, next.id);
   }, [currentGenre, problem, loadAndStartProblem, filteredProblems, setCurrentProblemId, updateHash, cacheProblem]);
 
   const toggleBookmark = useCallback(() => {
@@ -877,7 +1001,10 @@ export default function App() {
           currentGenre={currentGenre}
           onBack={goBack}
           onShowHelp={view === 'solving' && currentGenre ? () => setShowTutorial(true) : undefined}
-          onOpenMenu={view === 'solving' ? () => setShowHamburgerMenu(true) : undefined}
+          onOpenMenu={() => setShowHamburgerMenu(true)}
+          onOpenProblemList={view === 'solving' && currentGenre ? () => { setShowProblemList(true); if (currentGenre && !genreLoaded[currentGenre]) loadGenre(currentGenre); } : undefined}
+          onOpenFilters={view === 'solving' && currentGenre ? () => { setFilterOpenedFrom('hamburger'); setShowFilterPage(true); } : undefined}
+          activeFilterCount={activeFilterCount}
         />
 
         <main className="px-4 pb-8">
@@ -939,7 +1066,7 @@ export default function App() {
                   <ProblemCard
                     problem={problem.problem}
                     problemNumber={problem.problem!.id}
-                    genrePrefix="D"
+                    genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[currentGenre || 'direct'] || 'D'}
                     showThemes={problem.status === 'correct' || problem.status === 'viewing'}
                   />
                   <button
@@ -958,7 +1085,7 @@ export default function App() {
                   className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0 ml-1"
                   title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
                 >
-                  <svg className={`w-5 h-5 ${isBookmarked ? 'text-yellow-500' : 'text-gray-300 dark:text-gray-600'}`}
+                  <svg className={`w-5 h-5 ${isBookmarked ? 'text-yellow-500' : 'text-gray-400 dark:text-gray-500'}`}
                     viewBox="0 0 24 24" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round"
                       d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -966,7 +1093,7 @@ export default function App() {
                 </button>
                 <button
                   onClick={() => setShowProblemInfo(true)}
-                  className="w-6 h-6 rounded-full border border-gray-300 dark:border-gray-600 text-xs font-bold text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center shrink-0"
+                  className="w-6 h-6 rounded-full border border-gray-400 dark:border-gray-500 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center shrink-0"
                   title="Problem info"
                 >
                   i
@@ -990,6 +1117,7 @@ export default function App() {
                   statusFilter={filters.statusFilter}
                   onStatusFilterChange={(f) => setFilters({ ...filters, statusFilter: f })}
                   loading={!!genreLoading || !genreLoaded[currentGenre]}
+                  genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[currentGenre] || ''}
                 />
               )}
 
@@ -1013,13 +1141,15 @@ export default function App() {
                           const target = matching[0];
                           loadAndStartProblem(target);
                           cacheProblem(target);
-                          setCurrentProblemId(prev => ({ ...prev, [currentGenre]: target.id }));
-                          updateHash(currentGenre, target.id);
+                          setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:target.id }));
+                          updateHash(currentCategory || currentGenre, target.id);
                         }
                       }
                     }
                   }}
                   genreStats={genreStats}
+                  hideMoveFilter={categoryDef?.maxMoves != null && categoryDef.maxMoves > 0}
+                  moveFilterMin={categoryDef?.maxMoves === 0 ? categoryDef.minMoves : undefined}
                 />
               )}
 
@@ -1109,11 +1239,19 @@ export default function App() {
                 analysisActive={analysisActive}
               />
 
-              {(problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText.includes('{(illegal') && (
-                <div className="text-xs bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 text-red-700 dark:text-red-400">
-                  <span className="font-semibold">White's move is illegal</span> — it's Black's turn.
-                </div>
-              )}
+              {(problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {
+                const st = problem.problem.solutionText;
+                const start = st.replace(/^\{[^}]*\}\s*/, '').trimStart();
+                const isBlack = /\{[^}]*[Bb]lack to move/i.test(st)
+                  || /^\.{2,}/.test(start) || /^\d+\.{3}/.test(start);
+                const isIllegal = st.includes('{(illegal');
+                if (!isBlack && !isIllegal) return null;
+                return (
+                  <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+                    {isIllegal ? "White's move is illegal — it's Black's turn." : 'Black to move'}
+                  </p>
+                );
+              })()}
 
 
               {(problem.status === 'correct' || problem.status === 'viewing') && (
@@ -1148,8 +1286,6 @@ export default function App() {
       <HamburgerMenu
         isOpen={showHamburgerMenu}
         onClose={() => setShowHamburgerMenu(false)}
-        onOpenFilters={() => { setShowHamburgerMenu(false); setFilterOpenedFrom('hamburger'); setShowFilterPage(true); }}
-        onOpenProblemList={() => { setShowHamburgerMenu(false); setShowProblemList(true); if (currentGenre && !genreLoaded[currentGenre]) loadGenre(currentGenre); }}
         onOpenHistory={() => {
           setShowHamburgerMenu(false);
           setShowHistory(true);
@@ -1161,31 +1297,33 @@ export default function App() {
             }
           }
         }}
-        onGoHome={() => { setShowHamburgerMenu(false); goBack(); }}
         onGoToId={async (id: number) => {
-          if (!currentGenre) return;
-          // Try to find in loaded genre data first
-          const existing = (problemsByGenre[currentGenre] || []).find(p => p.id === id);
-          if (existing) {
-            loadAndStartProblem(existing);
-            cacheProblem(existing);
-            setCurrentProblemId(prev => ({ ...prev, [currentGenre]: id }));
-            updateHash(currentGenre, id);
-          } else {
-            // Fetch directly from API
-            try {
-              const full = await fetchProblem(id);
-              const p = metaToChessProblem(full, full.solutionText);
-              loadAndStartProblem(p);
-              cacheProblem(p);
-              setCurrentProblemId(prev => ({ ...prev, [currentGenre]: id }));
-              updateHash(currentGenre, id);
-            } catch {
-              // Problem not found — ignore silently
-            }
+          try {
+            const full = await fetchProblem(id);
+            const p = metaToChessProblem(full, full.solutionText);
+            const genre = p.genre as Genre;
+            const cat = categoryFromGenreProblem(genre, p.moveCount);
+            setCurrentGenre(genre);
+            setCurrentCategory(cat);
+            setView('solving');
+            loadAndStartProblem(p);
+            cacheProblem(p);
+            setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
+            updateHash(cat, p.id);
+            loadGenre(genre);
+          } catch {
+            // Problem not found — ignore silently
           }
         }}
-        activeFilterCount={activeFilterCount}
+        onOpenBookmarks={() => {
+          setShowHamburgerMenu(false);
+          setShowBookmarksPage(true);
+          // Load all genres that have bookmarks
+          for (const g of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
+            if ((bookmarks[g] || []).length > 0 && !genreLoaded[g]) loadGenre(g);
+          }
+        }}
+        onOpenSearch={() => { setShowHamburgerMenu(false); setShowSearchPage(true); }}
       />
 
       {showHistory && (
@@ -1196,6 +1334,42 @@ export default function App() {
           timestamps={timestamps}
           onSelectProblem={handleHistorySelect}
           onClose={() => setShowHistory(false)}
+        />
+      )}
+
+      {showSearchPage && (
+        <SearchPage
+          onClose={() => setShowSearchPage(false)}
+          onSelectResult={async (result) => {
+            setShowSearchPage(false);
+            const genre = result.genre as Genre;
+            setCurrentGenre(genre);
+            setView('solving');
+            const cat = categoryFromGenreProblem(genre, result.moveCount);
+            setCurrentCategory(cat);
+            try {
+              const full = await fetchProblem(result.id);
+              const p = metaToChessProblem(full, full.solutionText);
+              loadAndStartProblem(p);
+              cacheProblem(p);
+              setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
+              updateHash(cat, p.id);
+              loadGenre(genre);
+            } catch { /* ignore */ }
+          }}
+        />
+      )}
+
+      {showBookmarksPage && (
+        <BookmarksPage
+          genreData={genreData}
+          genreLoaded={genreLoaded}
+          bookmarks={bookmarks}
+          onSelectProblem={(genre, selected) => {
+            setShowBookmarksPage(false);
+            handleHistorySelect(genre, selected);
+          }}
+          onClose={() => setShowBookmarksPage(false)}
         />
       )}
 

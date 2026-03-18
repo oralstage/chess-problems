@@ -17,6 +17,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     counts[row.genre as string] = row.count as number;
   }
 
+  // Move-count breakdown per genre (for category counts on home page)
+  const moveCountResult = await context.env.DB.prepare(
+    `SELECT genre, move_count, COUNT(*) as count FROM problems WHERE genre IN ('direct', 'help') GROUP BY genre, move_count ORDER BY genre, move_count`
+  ).all();
+  const moveCounts: Record<string, Record<number, number>> = {};
+  for (const row of moveCountResult.results) {
+    const g = row.genre as string;
+    if (!moveCounts[g]) moveCounts[g] = {};
+    moveCounts[g][row.move_count as number] = row.count as number;
+  }
+
   // If genre specified, return available stipulations and keyword stats
   let stipulations: string[] = [];
   let keywords: string[] = [];
@@ -59,5 +70,5 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     keywords = [...kwSet].sort();
   }
 
-  return Response.json({ counts, stipulations, keywords, yearRange, pieceRange, moveRange });
+  return Response.json({ counts, moveCounts, stipulations, keywords, yearRange, pieceRange, moveRange });
 };

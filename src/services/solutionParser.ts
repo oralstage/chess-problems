@@ -12,6 +12,8 @@ const CASTLING_RE = /^(0-0-0|O-O-O|0-0|O-O)([+#!?]*)/;
 
 function yacpdbToUci(move: string): string {
   const clean = move.replace(/[+#!?]/g, '').trim();
+  // "Any move" wildcard — can't be converted to UCI
+  if (clean.includes('~')) return 'any';
   // Castling: use san: prefix so chess.js handles king position correctly
   if (clean === '0-0' || clean === 'O-O') return 'san:O-O';
   if (clean === '0-0-0' || clean === 'O-O-O') return 'san:O-O-O';
@@ -27,6 +29,7 @@ function yacpdbToUci(move: string): string {
   // Return a "san:" prefix so matching can use SAN comparison instead
   // Normalize S→N and add '=' for promotions without it (e.g., f8Q → f8=Q)
   let sanClean = clean.replace(/S/g, 'N');
+  sanClean = sanClean.replace(/:/g, 'x'); // YACPDB ':' → standard 'x' for captures
   sanClean = sanClean.replace(/^([a-h][18])([QRBN])$/, '$1=$2');
   return 'san:' + sanClean;
 }
@@ -37,6 +40,10 @@ function normalizePiece(p: string): string {
 
 function yacpdbToSanApprox(move: string): string {
   const clean = move.replace(/[!?]/g, '').trim();
+  // "Any move" wildcard — show as "N~", "~", etc.
+  if (clean.includes('~')) {
+    return normalizePiece(clean.replace(/[+#]/g, '').replace('~', '')) + '~' + (clean.includes('#') ? '#' : clean.includes('+') ? '+' : '');
+  }
   if (clean.startsWith('0-0-0') || clean.startsWith('O-O-O')) return 'O-O-O';
   if (clean.startsWith('0-0') || clean.startsWith('O-O')) return 'O-O';
 
@@ -58,8 +65,9 @@ function yacpdbToSanApprox(move: string): string {
     return piece + capture + to + suffix;
   }
 
-  // Already in SAN-like format - normalize S→N and add '=' for bare promotions
+  // Already in SAN-like format - normalize S→N, ':' → 'x', and add '=' for bare promotions
   let san = clean.replace(/S/g, 'N');
+  san = san.replace(/:/g, 'x'); // YACPDB uses ':' for captures, chess.js expects 'x'
   san = san.replace(/^([a-h][18])([QRBN])/, '$1=$2');
   san = san.replace(/^([a-h]x[a-h][18])([QRBN])/, '$1=$2');
   return san;
@@ -76,6 +84,7 @@ function extractMoveStrings(text: string): string[] {
   remaining = remaining.replace(/\bwaiting\b/gi, ''); // "waiting" zugzwang
   remaining = remaining.replace(/\bzugzwang\.?\b/gi, ''); // "zugzwang" marker
   remaining = remaining.replace(/\bep\.?\b/gi, ''); // en passant marker
+
 
   while (remaining.length > 0) {
     remaining = remaining.trim();
@@ -100,6 +109,16 @@ function extractMoveStrings(text: string): string[] {
     if (castling) {
       moves.push(castling[0]);
       remaining = remaining.slice(castling[0].length);
+      continue;
+    }
+
+    // "Any move" notation: "~", "S~", "Sd~", "Be~", etc.
+    const anyMoveMatch = remaining.match(/^([KQRBSNP][a-h]?)?~([+#!?]*)/);
+    if (anyMoveMatch) {
+      const piece = anyMoveMatch[1] || '';
+      const suffix = anyMoveMatch[2] || '';
+      moves.push(piece + '~' + suffix);
+      remaining = remaining.slice(anyMoveMatch[0].length);
       continue;
     }
 
@@ -200,13 +219,99 @@ function expandSlashAlternatives(line: string): string[] {
   return expandedLines;
 }
 
+/**
+ * Expand comma-separated alternative defenses into multiple lines.
+ * e.g., "1... Sd5, Kf4 2. Q:f5#" → ["1... Sd5 2. Q:f5#", "1... Kf4 2. Q:f5#"]
+ * Also handles: "1... Kd1, Sd3/c2 2. Bg4#" and threats like "~ 2. Qc6, Qc7#"
+ *
+ * Pattern: after a move number (e.g., "1..."), a comma separating two move-like tokens
+ * where both sides look like chess moves (piece + square or wildcard).
+ */
+function expandCommaAlternatives(line: string): string[] {
+  const indent = line.length - line.trimStart().length;
+  const prefix = line.slice(0, indent);
+  const content = line.trimStart();
+  if (!content) return [line];
+
+  // Remove braced annotations temporarily
+  const braceParts: string[] = [];
+  let cleanContent = content.replace(/\{[^}]*\}/g, (match) => {
+    braceParts.push(match);
+    return `__BRACE${braceParts.length - 1}__`;
+  });
+
+  // Remove parenthesized content temporarily
+  const parenParts: string[] = [];
+  cleanContent = cleanContent.replace(/\([^)]*\)/g, (match) => {
+    parenParts.push(match);
+    return `__PAREN${parenParts.length - 1}__`;
+  });
+
+  // Look for comma between move-like tokens in defense position
+  // Match: moveNum "..." defense1 "," defense2 continuation
+  // The move-like pattern: optional piece letter + square or piece + ~
+  const moveToken = /(?:[KQRBSNP][a-h]?[1-8]?[x*:]?[a-h][1-8](?:=?[QRBNS])?|[a-h][x*:]?[a-h][1-8](?:=?[QRBNS])?|[KQRBSNP]?[a-h]?~|0-0-0|O-O-O|0-0|O-O|[a-h][1-8](?:=[QRBNS])?)[+#!?]*/;
+  const moveTokenSrc = moveToken.source;
+
+  // Pattern: (prefix with move number) (move1), (move2) (rest with next move number)
+  // We look for comma separating moves after "..." (black's move)
+  const commaPattern = new RegExp(
+    `^(\\d+\\.\\s*\\.{2,3}\\s*)(${moveTokenSrc})\\s*,\\s*(${moveTokenSrc}(?:\\s*(?:\\/\\s*${moveTokenSrc})?)*)\\s+(\\d+\\..*)$`
+  );
+
+  const m = cleanContent.match(commaPattern);
+  if (!m) return [line];
+
+  const moveNumPrefix = m[1]; // "1... "
+  const firstDefense = m[2]; // "Sd5"
+  const restDefenses = m[3]; // "Kf4" (could be "Kf4/c2")
+  const continuation = m[4]; // "2. Q:f5#"
+
+  // Split additional defenses by comma (in case of 3+ alternatives)
+  const allDefenses = [firstDefense, ...restDefenses.split(/\s*,\s*/)];
+
+  const restore = (s: string) => {
+    let result = s;
+    result = result.replace(/__PAREN(\d+)__/g, (_, i) => parenParts[parseInt(i)]);
+    result = result.replace(/__BRACE(\d+)__/g, (_, i) => braceParts[parseInt(i)]);
+    return result;
+  };
+
+  return allDefenses.map(def =>
+    restore(prefix + moveNumPrefix + def.trim() + ' ' + continuation)
+  );
+}
+
 function parseSegments(solutionText: string): Segment[] {
   const segments: Segment[] = [];
   const rawLines = solutionText.split('\n');
 
+  // Join continuation lines: when a line ends with "- " or "-" and the next line
+  // starts with a move continuation (e.g., "Be5- \n f4+" → "Be5-f4+")
+  const joinedLines: string[] = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    const trimmedEnd = line.trimEnd();
+    if (trimmedEnd.endsWith('-') && i + 1 < rawLines.length) {
+      // Join with next line: "Be5- " + "f4+" → "Be5-f4+"
+      const nextTrimmed = rawLines[i + 1].trimStart();
+      joinedLines.push(trimmedEnd + nextTrimmed);
+      i++; // skip next line
+    } else {
+      joinedLines.push(line);
+    }
+  }
+
+  // Expand comma-separated defenses before slash expansion.
+  // Pattern: "1... Sd5, Kf4 2. Q:f5#" → two lines with same continuation
+  const commaExpanded: string[] = [];
+  for (const line of joinedLines) {
+    commaExpanded.push(...expandCommaAlternatives(line));
+  }
+
   // Expand slash alternatives before parsing
   const lines: string[] = [];
-  for (const line of rawLines) {
+  for (const line of commaExpanded) {
     lines.push(...expandSlashAlternatives(line));
   }
 
@@ -317,9 +422,8 @@ function parseSegments(solutionText: string): Segment[] {
 // When all segments have the same indent (common in YACPDB), compute
 // virtual indents from move numbers so the tree builder works correctly.
 
-function assignVirtualIndents(segments: Segment[], firstMoveColor: 'w' | 'b'): void {
+function assignVirtualIndentsForSection(segments: Segment[], firstMoveColor: 'w' | 'b'): void {
   if (segments.length <= 1) return;
-  // Only check non-threat segments for uniform indent (threat segments have indent+1 from extraction)
   const nonThreatSegs = segments.filter(s => !s.isThreat);
   if (nonThreatSegs.length <= 1) return;
   const allSameIndent = nonThreatSegs.every(s => s.indent === nonThreatSegs[0].indent);
@@ -358,6 +462,21 @@ function assignVirtualIndents(segments: Segment[], firstMoveColor: 'w' | 'b'): v
   }
 }
 
+function assignVirtualIndents(segments: Segment[], firstMoveColor: 'w' | 'b'): void {
+  // Process each blank-line-separated section independently
+  // This handles cases where try sections have different indentation from key sections
+  let sectionStart = 0;
+  for (let i = 0; i <= segments.length; i++) {
+    if (i === segments.length || segments[i].afterBlankLine) {
+      const section = segments.slice(sectionStart, i);
+      if (section.length > 0) {
+        assignVirtualIndentsForSection(section, firstMoveColor);
+      }
+      sectionStart = i;
+    }
+  }
+}
+
 // ── Build solution tree ─────────────────────────────────
 
 function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isTry: boolean, isThreat: boolean, annotation: string): SolutionNode {
@@ -380,6 +499,119 @@ function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isTry: boo
 }
 
 /**
+ * Parse PGN-style solution text (wrapped in {}) directly into a tree.
+ * PGN solutions use line breaks for formatting only and () for side variations.
+ */
+function parsePgnSolution(text: string, firstMoveColor: 'w' | 'b'): SolutionNode[] {
+  // Strip outer {} and join all lines into one
+  let content = text.replace(/^\{|\}$/g, '').trim();
+  // Remove result markers
+  content = content.replace(/\s+(?:1-0|0-1|1\/2-1\/2)\s*$/, '');
+  // Join all lines into one (line breaks are just formatting in PGN)
+  content = content.replace(/\n\s*/g, ' ').replace(/\s+/g, ' ').trim();
+  // Remove common non-move tokens
+  content = content.replace(/\bmain\b/gi, '');
+
+  // Tokenize: extract move numbers, moves, (, ), and annotations
+  const tokens: string[] = [];
+  let remaining = content;
+  while (remaining.length > 0) {
+    remaining = remaining.trimStart();
+    if (!remaining) break;
+
+    if (remaining[0] === '(' || remaining[0] === ')') {
+      tokens.push(remaining[0]);
+      remaining = remaining.slice(1);
+      continue;
+    }
+
+    // Move number: "1." or "1..."
+    const numMatch = remaining.match(/^(\d+\.+\s*)/);
+    if (numMatch) {
+      remaining = remaining.slice(numMatch[0].length);
+      // Skip move numbers (they're implicit in PGN)
+      // But detect "..." for black's move
+      if (numMatch[0].includes('...')) {
+        tokens.push('...');
+      }
+      continue;
+    }
+
+    // Castling
+    const castling = remaining.match(CASTLING_RE);
+    if (castling) {
+      tokens.push(castling[0]);
+      remaining = remaining.slice(castling[0].length);
+      continue;
+    }
+
+    // Move
+    const m = remaining.match(ANY_MOVE_RE);
+    if (m && m.index === 0) {
+      tokens.push(m[0]);
+      remaining = remaining.slice(m[0].length);
+      continue;
+    }
+
+    // Skip one character
+    remaining = remaining.slice(1);
+  }
+
+  // Build tree from tokens using a stack-based approach
+  // Track ancestry: ancestors[i] is the parent of ancestors[i+1], lastNode is the deepest
+  const rootNodes: SolutionNode[] = [];
+  const ancestors: SolutionNode[] = []; // stack of ancestor nodes (excluding lastNode)
+  let currentColor = firstMoveColor;
+  let lastNode: SolutionNode | null = null;
+
+  // Saved state for variation branches
+  const savedStates: { ancestors: SolutionNode[]; lastNode: SolutionNode | null; color: 'w' | 'b' }[] = [];
+
+  for (const token of tokens) {
+    if (token === '(') {
+      // Save current state: we'll create an alternative to the last move
+      savedStates.push({
+        ancestors: [...ancestors],
+        lastNode,
+        color: currentColor,
+      });
+      // Go back to the parent of lastNode (the position BEFORE lastNode was played)
+      // The variation will be a sibling of lastNode
+      if (lastNode) {
+        currentColor = lastNode.color; // same color as the move being replaced
+        // lastNode becomes the ancestor tip, so parent of lastNode is the new current
+        lastNode = ancestors.length > 0 ? ancestors[ancestors.length - 1] : null;
+        // Remove the last ancestor since we popped back
+        if (ancestors.length > 0) ancestors.pop();
+      }
+    } else if (token === ')') {
+      if (savedStates.length > 0) {
+        const saved = savedStates.pop()!;
+        ancestors.length = 0;
+        ancestors.push(...saved.ancestors);
+        lastNode = saved.lastNode;
+        currentColor = saved.color;
+      }
+    } else if (token === '...') {
+      // Black to move marker — skip (color alternation handles this)
+    } else {
+      // It's a move
+      const node = makeNode(token, currentColor, false, false, false, '');
+      if (lastNode) {
+        lastNode.children.push(node);
+        ancestors.push(lastNode);
+      } else {
+        rootNodes.push(node);
+      }
+      lastNode = node;
+      currentColor = currentColor === 'w' ? 'b' : 'w';
+    }
+  }
+
+  return rootNodes;
+}
+
+/**
  * Parse YACPDB solution text into a tree structure.
  * @param solutionText - Raw solution text from YACPDB
  * @param firstMoveColor - Color of the side that moves first ('w' for direct/self, 'b' for helpmate)
@@ -387,7 +619,32 @@ function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isTry: boo
 export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 'w'): SolutionNode[] {
   if (!solutionText || !solutionText.trim()) return [];
 
-  const segments = parseSegments(solutionText);
+  // Detect PGN-style solutions (wrapped in {})
+  // A true PGN solution is entirely wrapped in {} with optional result.
+  // If content continues after the closing }, it's a comment followed by indent-based notation.
+  const trimmedInput = solutionText.trim();
+  if (trimmedInput.startsWith('{')) {
+    const closingBrace = trimmedInput.indexOf('}');
+    const afterBrace = closingBrace >= 0 ? trimmedInput.slice(closingBrace + 1).trim() : '';
+    // Only use PGN parser if the entire content is within {} (possibly with trailing result marker)
+    if (!afterBrace || /^(?:1-0|0-1|1\/2-1\/2)?\s*$/.test(afterBrace)) {
+      return parsePgnSolution(trimmedInput, firstMoveColor);
+    }
+    // Otherwise, strip the leading {comment} and parse the rest as indent-based
+    return parseSolution(afterBrace, firstMoveColor);
+  }
+
+  // Handle twin problems: strip "a)" prefix and only parse the first twin section
+  // Twins b), c), etc. modify the position and can't be solved with the original FEN
+  let processedText = trimmedInput;
+  const twinMatch = processedText.match(/^[a-z]\)\s*/i);
+  if (twinMatch) {
+    processedText = processedText.slice(twinMatch[0].length);
+    // Remove everything from the next twin marker onwards (b), +c), etc.)
+    processedText = processedText.replace(/\n\s*\+?[b-z]\)\s.*/is, '');
+  }
+
+  const segments = parseSegments(processedText);
   if (segments.length === 0) return [];
 
   assignVirtualIndents(segments, firstMoveColor);
@@ -421,12 +678,18 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     // Also chain when move number increases on the same line (handles non-uniform indent case)
     const stackTopIndent = stack.length > 0 ? stack[stack.length - 1].indent : -1;
     const moveNumIncreased = seg.moveNum !== null && prevSegMoveNum !== null && seg.moveNum > prevSegMoveNum;
+    // Also treat "1.xxx 1...yyy" (same move number, white→black) as continuation on same line
+    const moveNumContinued = seg.moveNum !== null && prevSegMoveNum !== null
+      && seg.moveNum === prevSegMoveNum && seg.isBlackNum;
     const isSameLineFollow = seg.lineIndex === prevLineIndex && seg.segIndex > 0
-      && !seg.isThreat && (seg.indent > stackTopIndent || moveNumIncreased);
+      && !seg.isThreat && (seg.indent > stackTopIndent || moveNumIncreased || moveNumContinued);
 
     if (!isSameLineFollow) {
       if (seg.afterBlankLine) {
         // Blank line = section break: reset stack to start a new section
+        stack.length = 0;
+      } else if (seg.moveNum === 1 && !seg.isBlackNum && (seg.isKey || seg.isTry) && stack.length > 0) {
+        // Key/try move at move 1 (e.g., "1.Bf6-d8 !") after set play: new root section
         stack.length = 0;
       } else {
         // Pop stack based on indent

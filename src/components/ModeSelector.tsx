@@ -1,49 +1,76 @@
+import { useState, useCallback } from 'react';
 import { Chessboard } from 'react-chessboard';
-import type { Genre, ProblemProgress, ChessProblem } from '../types';
+import type { Category, ChessProblem, ProblemProgress } from '../types';
+import { CATEGORY_DEFS } from '../types';
+
+const EXPANDED_GROUPS_KEY = 'cp-expanded-groups';
 
 interface ModeSelectorProps {
-  onSelectMode: (genre: Genre) => void;
-  progress: Record<Genre, ProblemProgress>;
-  problemCounts: Record<Genre, number>;
+  onSelectMode: (category: Category) => void;
+  progress: Record<string, ProblemProgress>;
+  problemCounts: Record<Category, number>;
   dailyProblem: ChessProblem | null;
   onSolveDaily: () => void;
   dailySolved: boolean;
 }
 
-const MODES: {
-  genre: Genre;
-  title: string;
-  brief: string;
-}[] = [
-  {
-    genre: 'direct',
-    title: 'Direct Mate',
-    brief: 'White to move and force checkmate',
-  },
-  {
-    genre: 'help',
-    title: 'Helpmate',
-    brief: 'Both sides cooperate to achieve mate',
-  },
-  {
-    genre: 'self',
-    title: 'Selfmate',
-    brief: 'White forces Black to deliver mate',
-  },
-  {
-    genre: 'study',
-    title: 'Study',
-    brief: 'Win or draw with no move limit',
-  },
-  {
-    genre: 'retro',
-    title: 'Retro',
-    brief: 'Deduce the history of the position',
-  },
-];
+// Group categories by their group label
+function groupCategories() {
+  const groups: { label: string | null; categories: typeof CATEGORY_DEFS }[] = [];
+  let currentGroup: string | null = null;
+  let currentItems: typeof CATEGORY_DEFS = [];
+
+  for (const def of CATEGORY_DEFS) {
+    if (def.group !== currentGroup) {
+      if (currentItems.length > 0) {
+        groups.push({ label: currentGroup, categories: currentItems });
+      }
+      currentGroup = def.group || null;
+      currentItems = [];
+    }
+    currentItems.push(def);
+  }
+  if (currentItems.length > 0) {
+    groups.push({ label: currentGroup, categories: currentItems });
+  }
+  return groups;
+}
+
+const GROUPS = groupCategories();
+
+const GROUP_BRIEFS: Record<string, string> = {
+  'Direct Mates': 'White to move and force checkmate',
+  'Helpmates': 'Both sides cooperate to achieve mate',
+};
 
 export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved }: ModeSelectorProps) {
-  const availableModes = MODES.filter(m => (problemCounts[m.genre] || 0) > 0);
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(EXPANDED_GROUPS_KEY);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const toggleGroup = useCallback((label: string) => {
+    setExpandedGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      try { localStorage.setItem(EXPANDED_GROUPS_KEY, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Sum counts for a group
+  const groupTotal = (categories: typeof CATEGORY_DEFS) =>
+    categories.reduce((sum, c) => sum + (problemCounts[c.category] || 0), 0);
+
+  // Sum solved for a group
+  const groupSolved = (categories: typeof CATEGORY_DEFS) =>
+    categories.reduce((sum, c) => {
+      const p = progress[c.category] || {};
+      return sum + Object.values(p).filter(s => s === 'solved').length;
+    }, 0);
 
   return (
     <div className="min-h-[80vh] flex flex-col justify-center py-12">
@@ -81,7 +108,6 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             className="group w-full text-left transition-colors"
           >
             <div className="flex flex-col items-center gap-4">
-              {/* Header */}
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
                   Daily Problem
@@ -92,8 +118,6 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                   </span>
                 )}
               </div>
-
-              {/* Board */}
               <div className="shrink-0 rounded-lg overflow-hidden shadow-sm" style={{ width: 320, height: 320 }}>
                 <Chessboard
                   position={dailyProblem.fen}
@@ -105,8 +129,6 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                   customLightSquareStyle={{ backgroundColor: '#edeed1' }}
                 />
               </div>
-
-              {/* Info */}
               <div className="text-center">
                 <div className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-1">
                   Mate in {dailyProblem.moveCount}
@@ -127,40 +149,111 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
         </div>
       )}
 
-      {/* ── Modes ── */}
-      <nav className="space-y-2 px-4">
-        {availableModes.map(mode => {
-          const genreProgress = progress[mode.genre] || {};
-          const solved = Object.values(genreProgress).filter(s => s === 'solved').length;
-          const total = problemCounts[mode.genre] || 0;
+      {/* ── Categories ── */}
+      <nav className="space-y-1 px-4">
+        {GROUPS.map(group => {
+          if (group.label) {
+            // Accordion group (Direct Mates, Helpmates)
+            const isExpanded = expandedGroups.has(group.label);
+            const total = groupTotal(group.categories);
+            const solved = groupSolved(group.categories);
+            if (total === 0) return null;
 
-          return (
-            <button
-              key={mode.genre}
-              onClick={() => onSelectMode(mode.genre)}
-              className="group w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
-            >
-              <div className="flex items-center justify-between">
-                <div className="min-w-0">
-                  <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-                    {mode.title}
-                  </h2>
-                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
-                    {mode.brief}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0 ml-4">
-                  <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums">
-                    {solved > 0 && <span className="font-semibold text-gray-600 dark:text-gray-300">{solved}/</span>}
-                    {total}
-                  </span>
-                  <svg className="w-4 h-4 text-gray-300 dark:text-gray-600 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
+            return (
+              <div key={group.label}>
+                {/* Group header — click to expand/collapse */}
+                <button
+                  onClick={() => toggleGroup(group.label!)}
+                  className="group w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                        {group.label}
+                      </h2>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
+                        {GROUP_BRIEFS[group.label!] || ''}
+                      </p>
+                    </div>
+                    <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums shrink-0 ml-4">
+                      {solved > 0 && <span className="font-semibold text-gray-600 dark:text-gray-300">{solved}/</span>}
+                      {total.toLocaleString()}
+                    </span>
+                  </div>
+                </button>
+
+                {/* Expanded children */}
+                {isExpanded && (
+                  <div className="ml-6 space-y-0.5">
+                    {group.categories.map(mode => {
+                      const catTotal = problemCounts[mode.category] || 0;
+                      if (catTotal === 0) return null;
+                      const catProgress = progress[mode.category] || {};
+                      const catSolved = Object.values(catProgress).filter(s => s === 'solved').length;
+
+                      return (
+                        <button
+                          key={mode.category}
+                          onClick={() => onSelectMode(mode.category)}
+                          className="group w-full text-left px-5 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="min-w-0">
+                              <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200">
+                                {mode.title}
+                              </h3>
+                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                                {mode.brief}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0 ml-4">
+                              <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums">
+                                {catSolved > 0 && <span className="font-semibold text-gray-600 dark:text-gray-300">{catSolved}/</span>}
+                                {catTotal.toLocaleString()}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </button>
-          );
+            );
+          } else {
+            // Standalone categories (Selfmates, Studies, Retros)
+            return group.categories.map(mode => {
+              const total = problemCounts[mode.category] || 0;
+              if (total === 0) return null;
+              const catProgress = progress[mode.category] || {};
+              const solved = Object.values(catProgress).filter(s => s === 'solved').length;
+
+              return (
+                <button
+                  key={mode.category}
+                  onClick={() => onSelectMode(mode.category)}
+                  className="group w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="min-w-0">
+                      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                        {mode.title}
+                      </h2>
+                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
+                        {mode.brief}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0 ml-4">
+                      <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums">
+                        {solved > 0 && <span className="font-semibold text-gray-600 dark:text-gray-300">{solved}/</span>}
+                        {total.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </button>
+              );
+            });
+          }
         })}
       </nav>
 
@@ -170,7 +263,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-500 dark:hover:text-gray-400 transition-colors">
             YACPDB
           </a>
-          {' '}— Yet Another Chess Problem Database
+          {' '}&mdash; Yet Another Chess Problem Database
         </p>
       </footer>
     </div>

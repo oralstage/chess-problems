@@ -29,7 +29,7 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
             {genrePrefix || ''}{problemNumber}
           </span>
         )}
-        <span className="px-2 py-0.5 rounded-md text-sm font-bold font-mono bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+        <span className="px-2 py-0.5 rounded-md text-sm font-bold font-mono bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
           {stipulationDisplay(problem.stipulation)}
         </span>
       </div>

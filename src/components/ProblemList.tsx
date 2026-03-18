@@ -19,10 +19,11 @@ interface ProblemListProps {
   statusFilter: StatusFilter;
   onStatusFilterChange: (f: StatusFilter) => void;
   loading?: boolean;
+  genrePrefix?: string;
 }
 
-const COLS = 4;
-const ROWS = 5;
+const COLS = 3;
+const ROWS = 6;
 const PAGE_SIZE = COLS * ROWS;
 
 export function ProblemList({
@@ -30,7 +31,7 @@ export function ProblemList({
   onSelectProblem, onClose, onOpenFilters, activeFilterCount,
   sortBy, sortOrder, onSortChange,
   statusFilter, onStatusFilterChange,
-  loading,
+  loading, genrePrefix = '',
 }: ProblemListProps) {
   const solved = Object.values(progress).filter(s => s === 'solved').length;
   const failed = Object.values(progress).filter(s => s === 'failed').length;
@@ -232,7 +233,7 @@ export function ProblemList({
                 <button
                   key={p.id}
                   onClick={() => onSelectProblem(p)}
-                  className={`rounded-lg flex flex-col items-center justify-center gap-0 transition-all text-center relative overflow-hidden py-1 px-1 ${
+                  className={`rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all text-center relative overflow-hidden py-2 px-1 ${
                     isCurrent
                       ? 'bg-green-600 text-white ring-2 ring-green-400 shadow-lg shadow-green-500/30'
                       : status === 'solved'
@@ -242,23 +243,17 @@ export function ProblemList({
                           : 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/20'
                   }`}
                 >
-                  <div className="flex items-baseline gap-1 leading-tight">
-                    <span className={`text-lg font-extrabold ${
+                  <div className="flex items-baseline gap-0.5 leading-tight">
+                    <span className={`text-sm font-extrabold ${
                       isCurrent ? 'text-white' : status === 'solved' ? 'text-green-600 dark:text-green-400' : status === 'failed' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-200'
                     }`}>
-                      {globalIndex}
-                    </span>
-                    <span className={`text-sm font-bold font-mono ${
-                      isCurrent ? 'text-green-200' : status === 'solved' ? 'text-green-500/70 dark:text-green-400/70' : 'text-gray-500 dark:text-gray-400'
-                    }`}>
-                      {p.stipulation}
+                      {genrePrefix}{globalIndex}
                     </span>
                   </div>
-
-                  <span className={`text-[11px] font-semibold leading-tight truncate max-w-full ${
-                    isCurrent ? 'text-green-100' : status === 'solved' ? 'text-green-600/70 dark:text-green-500/70' : status === 'failed' ? 'text-orange-600/70' : 'text-gray-600 dark:text-gray-300'
+                  <span className={`text-xs font-bold font-mono ${
+                    isCurrent ? 'text-green-200' : status === 'solved' ? 'text-green-500/70 dark:text-green-400/70' : 'text-gray-500 dark:text-gray-400'
                   }`}>
-                    {p.authors[0]?.split(',')[0] || ''}
+                    {p.stipulation}
                   </span>
 
                   {status === 'solved' && (

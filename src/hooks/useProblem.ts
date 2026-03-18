@@ -97,6 +97,22 @@ function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
 function tryExecuteNode(chess: Chess, node: SolutionNode): ReturnType<Chess['move']> | null {
   const uci = node.moveUci;
 
+  // Wildcard "any move" — pick a legal move by the specified piece type
+  if (uci === 'any') {
+    const pieceMatch = node.moveSan.match(/^([KQRBN])/);
+    const pieceType = pieceMatch ? pieceMatch[1].toLowerCase() : null;
+    const legalMoves = chess.moves({ verbose: true });
+    const candidates = pieceType
+      ? legalMoves.filter(m => m.piece === pieceType)
+      : legalMoves;
+    if (candidates.length > 0) {
+      try {
+        return chess.move(candidates[0]);
+      } catch { /* fall through */ }
+    }
+    return null;
+  }
+
   if (!uci.startsWith('san:') && uci.length >= 4) {
     try {
       const from = uci.slice(0, 2);
@@ -337,7 +353,7 @@ export function useProblem(stockfish?: StockfishApi) {
   const loadProblem = useCallback((problem: ChessProblem) => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
 
-    const firstColor = getFirstMoveColor(problem.genre, problem.stipulation);
+    let firstColor = getFirstMoveColor(problem.genre, problem.stipulation);
     let userColor = getUserColor(problem.genre, problem.stipulation);
 
     // Retro: user controls both colors (must deduce whose turn it is)
@@ -346,6 +362,11 @@ export function useProblem(stockfish?: StockfishApi) {
     }
 
     let fen = problem.fen;
+    // Detect turn from FEN (already adjusted by ensureSolution for retro black-to-move)
+    const fenTurn = fen.split(' ')[1] as 'w' | 'b';
+    if (problem.genre === 'retro' && fenTurn === 'b') {
+      firstColor = 'b';
+    }
     if (firstColor === 'b' && fen.includes(' w ')) {
       fen = fen.replace(' w ', ' b ');
     }

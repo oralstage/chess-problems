@@ -21,6 +21,8 @@ interface FilterPageProps {
   onFiltersChange: (f: GlobalFilters) => void;
   onClose: () => void;
   genreStats?: { yearRange: { min: number; max: number }; pieceRange: { min: number; max: number }; moveRange: { min: number; max: number } } | null;
+  hideMoveFilter?: boolean;
+  moveFilterMin?: number;
 }
 
 function pieceCount(fen: string): number {
@@ -112,7 +114,7 @@ function DualRangeSlider({
   );
 }
 
-export function FilterPage({ allProblems, filters, onFiltersChange, onClose, genreStats }: FilterPageProps) {
+export function FilterPage({ allProblems, filters, onFiltersChange, onClose, genreStats, hideMoveFilter, moveFilterMin }: FilterPageProps) {
   const [themeSearch, setThemeSearch] = useState('');
 
   // All unique keywords
@@ -252,23 +254,28 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
 
         {/* Scrollable content */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-6">
-          {/* Move count range */}
+          {/* Move count range — hidden for fixed-move categories (#1, #2, #3) */}
+          {!hideMoveFilter && (
           <section>
             <DualRangeSlider
-              min={moveRange.min}
+              min={moveFilterMin || moveRange.min}
               max={moveRange.max}
-              valueLow={moveLow}
+              valueLow={Math.max(moveLow, moveFilterMin || moveRange.min)}
               valueHigh={moveHigh}
-              onChange={(low, high) => update({
-                minMoves: low <= moveRange.min ? 0 : low,
-                maxMoves: high >= moveRange.max ? 0 : high,
-              })}
+              onChange={(low, high) => {
+                const effMin = moveFilterMin || moveRange.min;
+                update({
+                  minMoves: low <= effMin ? 0 : low,
+                  maxMoves: high >= moveRange.max ? 0 : high,
+                });
+              }}
               label="Moves"
               formatValue={(low, high, min, max) =>
                 low <= min && high >= max ? 'Moves: Any' : `Moves: ${low}–${high >= max ? `${max}+` : high}`
               }
             />
           </section>
+          )}
 
           {/* Pieces range */}
           <section>
@@ -344,7 +351,11 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
               />
             )}
             <div className="flex flex-wrap gap-1.5">
-              {filteredKeywords.map(kw => {
+              {[...filteredKeywords].sort((a, b) => {
+                const aS = filters.keywords.includes(a) ? 0 : 1;
+                const bS = filters.keywords.includes(b) ? 0 : 1;
+                return aS - bS;
+              }).map(kw => {
                 const isSelected = filters.keywords.includes(kw);
                 return (
                   <button

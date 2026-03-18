@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { Chessboard } from 'react-chessboard';
 import type { Genre, ChessProblem, ProblemProgress } from '../types';
 
 const GENRE_LABELS: Record<Genre, string> = {
@@ -167,41 +168,53 @@ export function HistoryPage({
                   <div className="space-y-0.5">
                     {group.entries.map((entry) => {
                       const p = entry.problem;
+                      const prefix = ({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[entry.genre] || '';
                       return (
                         <button
                           key={`${entry.genre}-${p.id}`}
                           onClick={() => onSelectProblem(entry.genre, p)}
-                          className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex items-center gap-3"
+                          className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex gap-3"
                         >
-                          {/* Status icon */}
-                          <span className={`text-sm font-bold shrink-0 ${
-                            entry.status === 'solved'
-                              ? 'text-green-500 dark:text-green-400'
-                              : 'text-orange-500 dark:text-orange-400'
-                          }`}>
-                            {entry.status === 'solved' ? '✓' : '✗'}
-                          </span>
+                          {/* Mini board */}
+                          <div className="shrink-0 rounded overflow-hidden relative" style={{ width: 56, height: 56 }}>
+                            <Chessboard
+                              position={p.fen}
+                              boardWidth={56}
+                              arePiecesDraggable={false}
+                              animationDuration={0}
+                              customBoardStyle={{ borderRadius: '0' }}
+                              customDarkSquareStyle={{ backgroundColor: '#779952' }}
+                              customLightSquareStyle={{ backgroundColor: '#edeed1' }}
+                            />
+                            {/* Status badge on board */}
+                            <span className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center text-[8px] font-bold text-white rounded-bl ${
+                              entry.status === 'solved' ? 'bg-green-500' : 'bg-orange-500'
+                            }`}>
+                              {entry.status === 'solved' ? '✓' : '✗'}
+                            </span>
+                          </div>
 
                           {/* Problem info */}
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-baseline gap-2">
-                              <span className="font-bold text-sm text-gray-800 dark:text-gray-200 tabular-nums">
-                                #{p.id}
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">
+                                {prefix}{p.id}
                               </span>
-                              <span className="font-bold text-sm text-gray-800 dark:text-gray-200 font-mono">
+                              <span className="px-1.5 py-0.5 rounded text-xs font-bold font-mono bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
                                 {p.stipulation}
                               </span>
-                              <span className="text-xs text-gray-400 dark:text-gray-500 truncate">
-                                {p.authors[0]?.split(',')[0] || 'Unknown'}
-                                {p.sourceYear ? ` (${p.sourceYear})` : ''}
+                              <span className="text-xs text-gray-400 dark:text-gray-500">
+                                {GENRE_LABELS[entry.genre]}
                               </span>
                             </div>
+                            <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">
+                              {p.authors.join(', ')}
+                            </div>
+                            <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
+                              {p.sourceName || ''}
+                              {p.sourceYear ? `, ${p.sourceYear}` : ''}
+                            </div>
                           </div>
-
-                          {/* Genre badge */}
-                          <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400">
-                            {GENRE_LABELS[entry.genre]}
-                          </span>
                         </button>
                       );
                     })}
