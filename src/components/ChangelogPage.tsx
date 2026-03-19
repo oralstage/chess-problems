@@ -12,6 +12,7 @@ const CHANGELOG = [
           'Solve statistics — after solving, tap the stats icon to see what moves others tried. Share your favorite problems and see how solvers approach them.',
           'Daily Problem archive — browse past daily problems from the hamburger menu.',
           'Site statistics on the home page — see how many solvers and problems solved.',
+          'Various bug fixes.',
         ],
       },
     ],
