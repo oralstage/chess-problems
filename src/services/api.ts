@@ -6,6 +6,24 @@
 import type { ChessProblem } from '../types';
 
 const API_BASE = '/api';
+const CACHE_NAME = 'chess-problems-genre-v1';
+
+/** Cached fetch: check Cache API first, fallback to network and store result */
+async function cachedFetch(url: string): Promise<Response> {
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    const cached = await cache.match(url);
+    if (cached) return cached;
+    const res = await fetch(url);
+    if (res.ok) {
+      cache.put(url, res.clone());
+    }
+    return res;
+  } catch {
+    // Cache API unavailable (e.g., opaque origin) — fall back to regular fetch
+    return fetch(url);
+  }
+}
 
 /** Problem without solutionText (list view) */
 export interface ProblemMeta {
@@ -56,8 +74,8 @@ export async function fetchAllProblems(
   const PAGE_SIZE = 5000;
   const allProblems: ProblemMeta[] = [];
 
-  // First page
-  const res = await fetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=0&sortBy=difficulty&sortOrder=asc`);
+  // First page (cached)
+  const res = await cachedFetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=0&sortBy=difficulty&sortOrder=asc`);
   if (!res.ok) throw new Error(`Problems API error: ${res.status}`);
   const data: { problems: ProblemMeta[]; total: number } = await res.json();
   allProblems.push(...data.problems);
@@ -70,10 +88,10 @@ export async function fetchAllProblems(
   // Report first page immediately
   onProgress?.(allProblems, data.total, false);
 
-  // Fetch remaining pages
+  // Fetch remaining pages (cached)
   let page = 1;
   while (allProblems.length < data.total) {
-    const pageRes = await fetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=${page}&sortBy=difficulty&sortOrder=asc`);
+    const pageRes = await cachedFetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=${page}&sortBy=difficulty&sortOrder=asc`);
     if (!pageRes.ok) break;
     const pageData: { problems: ProblemMeta[]; total: number } = await pageRes.json();
     allProblems.push(...pageData.problems);
@@ -105,9 +123,37 @@ export async function fetchProblemsPage(genre: string, page: number, pageSize = 
  * Fetch a single problem with full solutionText for solving.
  */
 export async function fetchProblem(id: number): Promise<ProblemMeta & { solutionText: string }> {
-  const res = await fetch(`${API_BASE}/problems/${id}`);
+  const res = await cachedFetch(`${API_BASE}/problems/${id}`);
   if (!res.ok) throw new Error(`Problem ${id} not found: ${res.status}`);
   return res.json();
+}
+
+/** Fetch problem metadata only (cached, lightweight — for thumbnails/history) */
+export async function fetchProblemMeta(id: number): Promise<ProblemMeta> {
+  // Uses the same endpoint but result is cached — subsequent calls are instant
+  const res = await cachedFetch(`${API_BASE}/problems/${id}`);
+  if (!res.ok) throw new Error(`Problem ${id} not found: ${res.status}`);
+  return res.json();
+}
+
+/** Lightweight problem entry for lists (no FEN, no authors) */
+export interface ProblemStub {
+  id: number;
+  stipulation: string;
+}
+
+/** Fetch lightweight ID+stipulation list for a genre (cached, very fast) */
+export async function fetchProblemIndex(genre: string, filters?: Record<string, string>): Promise<ProblemStub[]> {
+  const params = new URLSearchParams({ genre, sortBy: 'difficulty', sortOrder: 'asc' });
+  if (filters) {
+    for (const [k, v] of Object.entries(filters)) {
+      if (v) params.set(k, v);
+    }
+  }
+  const res = await cachedFetch(`${API_BASE}/problems/ids?${params}`);
+  if (!res.ok) throw new Error(`Index API error: ${res.status}`);
+  const data: { problems: ProblemStub[] } = await res.json();
+  return data.problems;
 }
 
 /**

@@ -20,7 +20,7 @@ import { BookmarksPage } from './components/BookmarksPage';
 import { ChangelogPage } from './components/ChangelogPage';
 import { HistoryPage } from './components/HistoryPage';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights } from './services/api';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
 
@@ -221,6 +221,10 @@ export default function App() {
   const [genreData, setGenreData] = useState<Record<Genre, ChessProblem[]>>({
     direct: [], help: [], self: [], study: [], retro: [],
   });
+  // Lightweight ID index: fetched first, used for problem list and navigation
+  const [genreIndex, setGenreIndex] = useState<Record<Genre, import('./services/api').ProblemStub[]>>({
+    direct: [], help: [], self: [], study: [], retro: [],
+  });
   const [genreLoaded, setGenreLoaded] = useState<Record<Genre, boolean>>({
     direct: false, help: false, self: false, study: false, retro: false,
   });
@@ -236,31 +240,30 @@ export default function App() {
     } catch { /* quota exceeded — ignore */ }
   }, []);
 
-  // Lazy-load genre data on demand (from D1 API) with progressive updates
+  // Load lightweight ID index for a genre (very fast, cached), then full data in background
   const loadGenre = useCallback(async (genre: Genre) => {
-    if (genreLoaded[genre]) return genreData[genre];
+    if (genreLoaded[genre]) return genreIndex[genre];
     setGenreLoading(genre);
     try {
-      const metas = await fetchAllProblems(genre, (partial, _total, done) => {
-        const problems: ChessProblem[] = partial.map(m => metaToChessProblem(m));
-        problems.sort((a, b) => a.difficultyScore - b.difficultyScore);
-        setGenreData(prev => ({ ...prev, [genre]: problems }));
-        if (done) {
-          setGenreLoaded(prev => ({ ...prev, [genre]: true }));
-          setGenreLoading(null);
-        }
-      });
-      const problems: ChessProblem[] = metas.map(m => metaToChessProblem(m));
-      problems.sort((a, b) => a.difficultyScore - b.difficultyScore);
-      setGenreData(prev => ({ ...prev, [genre]: problems }));
+      // 1. Fetch lightweight index first (just IDs + stipulation) — very fast
+      const stubs = await fetchProblemIndex(genre);
+      setGenreIndex(prev => ({ ...prev, [genre]: stubs }));
       setGenreLoaded(prev => ({ ...prev, [genre]: true }));
       setGenreLoading(null);
-      return problems;
+
+      // 2. Load full data in background for filtering/navigation (don't await)
+      fetchAllProblems(genre).then(metas => {
+        const problems: ChessProblem[] = metas.map(m => metaToChessProblem(m));
+        problems.sort((a, b) => a.difficultyScore - b.difficultyScore);
+        setGenreData(prev => ({ ...prev, [genre]: problems }));
+      }).catch(() => {});
+
+      return stubs;
     } catch {
       setGenreLoading(null);
       return [];
     }
-  }, [genreLoaded, genreData]);
+  }, [genreLoaded, genreIndex]);
 
   // Ensure a problem has solutionTree (fetch solutionText from API if needed)
   const ensureSolution = useCallback(async (p: ChessProblem): Promise<ChessProblem> => {
@@ -440,8 +443,36 @@ export default function App() {
     }
   }, [analysisActive]);
 
-  // Genre data is now loaded lazily — problemsByGenre is just genreData
-  const problemsByGenre = genreData;
+  // Genre data: use full data if available, otherwise create stubs from index for problem list display
+  const problemsByGenre = useMemo(() => {
+    const result: Record<Genre, ChessProblem[]> = { direct: [], help: [], self: [], study: [], retro: [] };
+    for (const genre of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
+      if (genreData[genre].length > 0) {
+        result[genre] = genreData[genre];
+      } else if (genreIndex[genre].length > 0) {
+        // Create lightweight stubs for list display (no FEN/authors needed for grid)
+        result[genre] = genreIndex[genre].map(s => ({
+          id: s.id,
+          fen: '',
+          authors: [],
+          sourceName: '',
+          sourceYear: null,
+          stipulation: s.stipulation,
+          moveCount: 0,
+          genre: genre,
+          difficulty: '',
+          difficultyScore: 0,
+          solutionTree: [],
+          fullSolutionTree: [],
+          solutionText: '',
+          keywords: [],
+          pieceCount: 0,
+          award: '',
+        }));
+      }
+    }
+    return result;
+  }, [genreData, genreIndex]);
 
   // Fetch genre counts from API on mount
   const [apiCounts, setApiCounts] = useState<Record<string, number>>({});
@@ -485,7 +516,7 @@ export default function App() {
           counts[def.category] = est[def.category] || 0;
         }
       } else {
-        counts[def.category] = genreLoaded[def.genre] ? genreData[def.genre].length : (apiCounts[def.genre] || ESTIMATED_COUNTS[def.genre]);
+        counts[def.category] = genreLoaded[def.genre] ? genreIndex[def.genre].length : (apiCounts[def.genre] || ESTIMATED_COUNTS[def.genre]);
       }
     }
     return counts;
@@ -603,15 +634,14 @@ export default function App() {
         setShowHamburgerMenu(false);
         setShowHistory(false);
         setShowProblemInfo(false);
-        // Load genre data if needed, then navigate to problem
-        loadGenre(genre).then(problems => {
-          const target = problems.find(p => p.id === problemId);
-          if (target) {
-            loadAndStartProblem(target);
-            cacheProblem(target);
-            setCurrentProblemId(prev => ({ ...prev, [category]: target.id }));
-          }
-        });
+        // Fetch problem directly and load genre index in background
+        loadGenre(genre);
+        fetchProblem(problemId).then(full => {
+          const p = metaToChessProblem(full, full.solutionText);
+          loadAndStartProblem(p);
+          cacheProblem(p);
+          setCurrentProblemId(prev => ({ ...prev, [category]: p.id }));
+        }).catch(() => {});
       } else if (genreOnlyMatch) {
         const resolved = resolveHashSlug(genreOnlyMatch[1]);
         if (!resolved) return;
@@ -677,23 +707,25 @@ export default function App() {
       setCurrentGenre(resolved.genre);
       setCurrentCategory(resolved.category);
       setView('solving');
-      loadGenre(resolved.genre).then(problems => {
-        if (problems.length === 0) return;
+      loadGenre(resolved.genre).then(async (stubs) => {
+        if (stubs.length === 0) return;
         const genreProgress = progress[resolved.genre] || {};
-        let nextProblem: ChessProblem | null = null;
-        for (const p of problems) {
-          if (genreProgress[String(p.id)] !== 'solved' && genreProgress[String(p.id)] !== 'skipped') {
-            nextProblem = p;
+        let nextId: number | null = null;
+        for (const s of stubs) {
+          if (genreProgress[String(s.id)] !== 'solved' && genreProgress[String(s.id)] !== 'skipped') {
+            nextId = s.id;
             break;
           }
         }
-        if (!nextProblem) nextProblem = problems[0];
-        if (nextProblem) {
-          loadAndStartProblem(nextProblem);
-          cacheProblem(nextProblem);
-          setCurrentProblemId(prev => ({ ...prev, [resolved.category]: nextProblem!.id }));
-          history.replaceState(null, '', `#/${resolved.category}/yacpdb/${nextProblem.id}`);
-        }
+        if (!nextId) nextId = stubs[0].id;
+        try {
+          const full = await fetchProblem(nextId);
+          const p = metaToChessProblem(full, full.solutionText);
+          loadAndStartProblem(p);
+          cacheProblem(p);
+          setCurrentProblemId(prev => ({ ...prev, [resolved.category]: p.id }));
+          history.replaceState(null, '', `#/${resolved.category}/yacpdb/${p.id}`);
+        } catch { /* fetch failed */ }
       });
       return;
     }
@@ -749,48 +781,47 @@ export default function App() {
       }).catch(() => {});
     }
 
-    // Load full genre data in background
-    loadGenre(genre).then(problems => {
-      if (problems.length === 0) return;
+    // Load genre index in background (for navigation/problem list)
+    loadGenre(genre).then(async (stubs) => {
+      if (stubs.length === 0) return;
 
-      if (problemNum) {
-        let target: ChessProblem | undefined;
-        if (isLegacy) {
-          if (problemNum >= 1 && problemNum <= problems.length) {
-            target = problems[problemNum - 1];
-          }
-        } else {
-          target = problems.find(p => p.id === problemNum);
+      if (problemNum && isLegacy) {
+        // Legacy URL: convert index to YACPDB ID
+        if (problemNum >= 1 && problemNum <= stubs.length) {
+          const target = stubs[problemNum - 1];
+          try {
+            const full = await fetchProblem(target.id);
+            const p = metaToChessProblem(full, full.solutionText);
+            const cat = categoryFromGenreProblem(genre, p.moveCount);
+            setCurrentCategory(cat);
+            if (!loadedProblemIdRef.current) {
+              loadAndStartProblem(p);
+              cacheProblem(p);
+              setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
+            }
+            history.replaceState(null, '', `#/${cat}/yacpdb/${p.id}`);
+          } catch { /* fetch failed */ }
         }
-        if (target) {
-          const cat = isLegacy ? categoryFromGenreProblem(genre, target.moveCount) : resolved.category;
-          setCurrentCategory(cat);
-          if (target.id !== loadedProblemIdRef.current) {
-            loadAndStartProblem(target);
-            cacheProblem(target);
-            setCurrentProblemId(prev => ({ ...prev, [cat]: target!.id }));
-          }
-          if (isLegacy) {
-            history.replaceState(null, '', `#/${cat}/yacpdb/${target.id}`);
-          }
-        }
-      } else if (!problem.problem || problem.problem.genre !== genre) {
+      } else if (!loadedProblemIdRef.current && !problemNum) {
+        // Slug-only URL with no problem loaded yet
         const genreProgress = progress[genre] || {};
-        let nextProblem: ChessProblem | null = null;
-        for (const p of problems) {
-          if (genreProgress[String(p.id)] !== 'solved' && genreProgress[String(p.id)] !== 'skipped') {
-            nextProblem = p;
+        let nextId: number | null = null;
+        for (const s of stubs) {
+          if (genreProgress[String(s.id)] !== 'solved' && genreProgress[String(s.id)] !== 'skipped') {
+            nextId = s.id;
             break;
           }
         }
-        if (!nextProblem) nextProblem = problems[0];
-        if (nextProblem) {
-          const cat = categoryFromGenreProblem(genre, nextProblem.moveCount);
+        if (!nextId) nextId = stubs[0].id;
+        try {
+          const full = await fetchProblem(nextId);
+          const p = metaToChessProblem(full, full.solutionText);
+          const cat = categoryFromGenreProblem(genre, p.moveCount);
           setCurrentCategory(cat);
-          loadAndStartProblem(nextProblem);
-          cacheProblem(nextProblem);
-          setCurrentProblemId(prev => ({ ...prev, [cat]: nextProblem!.id }));
-        }
+          loadAndStartProblem(p);
+          cacheProblem(p);
+          setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
+        } catch { /* fetch failed */ }
       }
     });
   }, [loadGenre, loadAndStartProblem, ensureSolution, problem, setCurrentProblemId, setCurrentCategory, progress, cacheProblem, resolveHashSlug, allSlugs, categoryFromGenreProblem]);
@@ -847,41 +878,35 @@ export default function App() {
       // Quick-start failed — fall through to full load
     }
 
-    // Load genre data (await if not yet loaded)
-    let problems = genreLoaded[genre] ? genreData[genre] : await loadGenre(genre);
+    // Load ID index (await if not yet loaded)
+    const stubs = genreLoaded[genre] ? genreIndex[genre] : await loadGenre(genre);
 
-    // Apply category-level move filter
-    if (def.minMoves != null) {
-      problems = problems.filter(p => {
-        if (def.maxMoves === 0) return p.moveCount >= def.minMoves!;
-        return p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!;
-      });
-    }
-
-    // Find next unsolved problem from the loaded data
+    // Find next unsolved problem ID from the index
     const genreProgress = progress[genre] || {};
-    let nextProblem: ChessProblem | null = null;
-    if (savedId) {
-      const current = problems.find(p => p.id === savedId);
-      if (current && genreProgress[String(current.id)] !== 'solved') {
-        nextProblem = current;
-      }
+    let nextId: number | null = null;
+    if (savedId && genreProgress[String(savedId)] !== 'solved') {
+      nextId = savedId;
     }
-    if (!nextProblem) {
-      for (const p of problems) {
-        if (genreProgress[String(p.id)] !== 'solved' && genreProgress[String(p.id)] !== 'skipped') {
-          nextProblem = p;
+    if (!nextId) {
+      for (const s of stubs) {
+        if (genreProgress[String(s.id)] !== 'solved' && genreProgress[String(s.id)] !== 'skipped') {
+          nextId = s.id;
           break;
         }
       }
     }
-    if (!nextProblem) nextProblem = problems[0] || null;
+    if (!nextId && stubs.length > 0) nextId = stubs[0].id;
 
-    if (nextProblem) {
-      loadAndStartProblem(nextProblem);
-      cacheProblem(nextProblem);
-      setCurrentProblemId(prev => ({ ...prev, [category]: nextProblem!.id }));
-      updateHash(category, nextProblem.id);
+    if (nextId) {
+      // Fetch full problem details on demand
+      try {
+        const full = await fetchProblem(nextId);
+        const nextProblem = metaToChessProblem(full, full.solutionText);
+        loadAndStartProblem(nextProblem);
+        cacheProblem(nextProblem);
+        setCurrentProblemId(prev => ({ ...prev, [category]: nextProblem.id }));
+        updateHash(category, nextProblem.id);
+      } catch { /* fetch failed */ }
     } else {
       updateHash(category);
     }
@@ -906,68 +931,63 @@ export default function App() {
     const dailyProblemId = problem.problem?.id;
     setIsDaily(false);
     if (genreLoaded.direct) {
-      // Genre already loaded — find and show next problem instantly
+      // Genre index loaded — find next problem from ID list
       setCurrentGenre('direct');
       setCurrentCategory('twomover');
-      const def = CATEGORY_DEFS.find(d => d.category === 'twomover')!;
-      let problems = genreData.direct;
-      if (def.minMoves != null) {
-        problems = problems.filter(p => def.maxMoves === 0 ? p.moveCount >= def.minMoves! : p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!);
-      }
+      const stubs = genreIndex.direct;
       const genreProgress = progress.direct || {};
       const savedTwomoverId = currentProblemId['twomover'];
-      let next: ChessProblem | undefined;
+      let nextId: number | undefined;
 
-      // Resume from saved twomover position if available
       if (savedTwomoverId) {
-        const savedIdx = problems.findIndex(p => p.id === savedTwomoverId);
+        const savedIdx = stubs.findIndex(s => s.id === savedTwomoverId);
         if (savedIdx >= 0) {
-          // If saved problem is already solved, find next unsolved after it
           if (genreProgress[String(savedTwomoverId)] === 'solved' || savedTwomoverId === dailyProblemId) {
-            next = problems.slice(savedIdx + 1).find(p =>
-              p.id !== dailyProblemId &&
-              genreProgress[String(p.id)] !== 'solved' &&
-              genreProgress[String(p.id)] !== 'skipped'
-            );
+            nextId = stubs.slice(savedIdx + 1).find(s =>
+              s.id !== dailyProblemId &&
+              genreProgress[String(s.id)] !== 'solved' &&
+              genreProgress[String(s.id)] !== 'skipped'
+            )?.id;
           } else {
-            next = problems[savedIdx];
+            nextId = savedTwomoverId;
           }
         }
       }
-
-      // Fallback: find first unsolved problem (excluding daily)
-      if (!next) {
-        next = problems.find(p =>
-          p.id !== dailyProblemId &&
-          genreProgress[String(p.id)] !== 'solved' &&
-          genreProgress[String(p.id)] !== 'skipped'
-        );
+      if (!nextId) {
+        nextId = stubs.find(s =>
+          s.id !== dailyProblemId &&
+          genreProgress[String(s.id)] !== 'solved' &&
+          genreProgress[String(s.id)] !== 'skipped'
+        )?.id;
       }
-      if (!next) next = problems.find(p => p.id !== dailyProblemId);
-      if (!next) next = problems[0];
-      if (next) {
-        loadAndStartProblem(next);
-        cacheProblem(next);
-        setCurrentProblemId(prev => ({ ...prev, twomover: next!.id }));
-        updateHash('twomover', next.id);
+      if (!nextId) nextId = stubs.find(s => s.id !== dailyProblemId)?.id;
+      if (!nextId && stubs.length > 0) nextId = stubs[0].id;
+
+      if (nextId) {
+        fetchProblem(nextId).then(full => {
+          const p = metaToChessProblem(full, full.solutionText);
+          loadAndStartProblem(p);
+          cacheProblem(p);
+          setCurrentProblemId(prev => ({ ...prev, twomover: p.id }));
+          updateHash('twomover', p.id);
+        }).catch(() => {});
       }
     } else {
-      // Genre not loaded — selectMode will quick-start from saved position or API
       selectMode('twomover');
     }
-  }, [selectMode, problem, genreLoaded, genreData, progress, currentProblemId, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, setCurrentCategory]);
+  }, [selectMode, problem, genreLoaded, genreIndex, progress, currentProblemId, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, setCurrentCategory]);
 
-  const handleHistorySelect = useCallback(async (genre: Genre, selected: ChessProblem) => {
+  const handleHistorySelect = useCallback((genre: Genre, selected: ChessProblem) => {
     setShowHistory(false);
     setCurrentGenre(genre);
     setView('solving');
-    // Ensure genre data is loaded
-    await loadGenre(genre);
+    // Load genre data in background (don't await — show problem immediately)
+    loadGenre(genre);
     loadAndStartProblem(selected);
     cacheProblem(selected);
     setCurrentProblemId(prev => ({ ...prev, [genre]: selected.id }));
     updateHash(genre, selected.id);
-  }, [loadGenre, loadAndStartProblem, problem, cacheProblem, setCurrentProblemId, updateHash]);
+  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
     // Determine promotion: react-chessboard passes the selected piece (e.g. 'wN', 'wQ')
@@ -1453,13 +1473,6 @@ export default function App() {
         onOpenHistory={() => {
           setShowHamburgerMenu(false);
           setShowHistory(true);
-          // Load all genres that have progress data
-          for (const g of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
-            const prg = progress[g] || {};
-            if (Object.keys(prg).length > 0 && !genreLoaded[g]) {
-              loadGenre(g);
-            }
-          }
         }}
         onGoToId={async (id: number) => {
           try {
@@ -1482,10 +1495,6 @@ export default function App() {
         onOpenBookmarks={() => {
           setShowHamburgerMenu(false);
           setShowBookmarksPage(true);
-          // Load all genres that have bookmarks
-          for (const g of ['direct', 'help', 'self', 'study', 'retro'] as Genre[]) {
-            if ((bookmarks[g] || []).length > 0 && !genreLoaded[g]) loadGenre(g);
-          }
         }}
         onOpenSearch={() => { setShowHamburgerMenu(false); setShowSearchPage(true); }}
       />

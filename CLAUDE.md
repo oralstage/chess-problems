@@ -270,3 +270,32 @@
 - **Auto-save on solve**: `useEffect` watches `problem.status` — when it becomes `'correct'`, progress is immediately saved as `'solved'` in localStorage. Previously progress was only saved when clicking Next, so the problem list showed ✗ for solved problems.
 - **Random skips solved**: `handleRandomProblem` filters out already-attempted problems (solved or failed). Falls back to full pool if all problems are attempted.
 - **History page fix**: `HistoryPage` no longer requires `genreLoaded[genre]` to display entries. Shows all progress entries immediately; lazy-fetches problem details (FEN, author) from API for entries without genre data loaded. Shows placeholder (♚ icon) while fetching.
+
+### Lightweight Index Architecture & Performance Overhaul (2026-03-19)
+
+#### 問題: 全データロードが遅く、UXを壊していた
+- ジャンル選択時に全問題データ（FEN、著者、出典など含む53k件）を一括取得 → 数秒かかる
+- バックグラウンドロード完了時に解いている問題が勝手に切り替わる
+- History/Bookmarksを開くたびにサムネが再ロード
+- リロードのたびに全データ再取得
+
+#### 試行錯誤の過程
+1. **プログレッシブ表示を削除** → 全ページ揃うまで何も表示されなくなり逆効果。元に戻した
+2. **Cache API導入** (`cachedFetch`) → APIレスポンスをブラウザのCache APIに保存。リロード後はネットワーク不要。`fetchAllProblems`と`fetchProblem`の両方に適用
+3. **History/Bookmarksの個別fetchをモジュールレベルキャッシュに** → コンポーネントの開閉でキャッシュが消える問題を解決。ただしリロードで消える
+4. **genreData全取得をやめてgenreIndexに** → `/api/problems/ids`（IDとstipulationだけ）を先に取得し、フルデータはバックグラウンド。しかしProblemListが空になる問題発生
+5. **stubフォールバック** → `genreIndex`からダミーの`ChessProblem`を生成してProblemListに渡す。IDとstipulationだけで問題リストは表示可能
+6. **History/Bookmarksのサムネを並列fetch** → `Promise.all`で全件同時取得。順次→並列で劇的高速化
+
+#### 最終アーキテクチャ
+- **ジャンル選択時**: `/api/problems/ids`（ID+stipulation、軽量）を一発で取得 → 問題リスト即表示
+- **個別問題表示**: `/api/problems/:id`でcachedFetch → FEN・著者・解答を1件だけ取得（Cache APIで永続化）
+- **フルデータ**: バックグラウンドで`fetchAllProblems` → フィルタリング用（完了しなくても基本機能は動く）
+- **History/Bookmarks**: progressのID一覧を即表示 → サムネは`Promise.all`で並列cachedFetch
+- **問題の上書き防止**: `loadedProblemIdRef`ガードを`!loadedProblemIdRef.current`に変更。すでに問題が表示されていたらバックグラウンドロードで絶対に上書きしない
+
+#### その他の修正
+- **デプロイルール**: CLAUDE.mdに「本番デプロイはユーザー許可必須」を追記
+- **Daily Problem日付同期**: `/api/daily`にクライアントのローカル日付を`?date=YYYY-MM-DD`で送信。UTC→ローカルのズレを解消
+- **Bookmark遷移バグ**: `handleHistorySelect`を`async`→同期に変更。`await loadGenre`で永遠に待つ問題を解消
+- **`/api/problems/ids`エンドポイント拡張**: `stipulation`フィールドを追加（問題リストのバッジ表示用）

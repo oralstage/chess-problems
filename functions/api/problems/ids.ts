@@ -59,10 +59,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const nullHandling = sortBy === 'source_year' ? 'NULLS LAST' : '';
 
   const rows = await context.env.DB.prepare(
-    `SELECT id FROM problems WHERE ${where} ORDER BY ${sortBy} ${sortOrder} ${nullHandling}`
+    `SELECT id, stipulation FROM problems WHERE ${where} ORDER BY ${sortBy} ${sortOrder} ${nullHandling}`
   ).bind(...bindings).all();
 
-  const ids = rows.results.map((r: Record<string, unknown>) => r.id as number);
+  const problems = rows.results.map((r: Record<string, unknown>) => ({
+    id: r.id as number,
+    stipulation: r.stipulation as string,
+  }));
 
-  return Response.json({ ids });
+  return Response.json({ problems }, {
+    headers: { 'Cache-Control': 'public, max-age=86400' },
+  });
 };
