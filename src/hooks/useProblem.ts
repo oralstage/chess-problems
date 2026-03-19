@@ -557,8 +557,8 @@ export function useProblem(stockfish?: StockfishApi) {
       } else if (isTerminal) {
         isSolved = true;
       } else {
-        // Only solved if no children AND no more moves expected
-        isSolved = matchingNode.children.length === 0 && movesRemaining <= 1;
+        // Solved if no children (tree ends here — either complete solution or truncated)
+        isSolved = matchingNode.children.length === 0;
       }
 
       if (isSolved) {
@@ -706,12 +706,12 @@ export function useProblem(stockfish?: StockfishApi) {
         return true;
       }
 
-      // Truly no children — advance (tree might be truncated)
+      // Truly no children — tree is truncated. Advance state.
       setState(prev => ({
         ...prev,
         fen: newFen,
         moveHistory: newHistory,
-        currentNodes: matchingNode.children,
+        currentNodes: [],
         feedback: '',
         lastMove: { from, to },
         feedbackSquare: to,

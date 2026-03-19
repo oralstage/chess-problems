@@ -369,5 +369,15 @@
 ### Skip Solved Problem on Category Enter (2026-03-19)
 - `selectMode`で保存されたproblemIdが`solved`の場合、次の未解決問題にスキップ
 
+### German Notation Support (2026-03-19)
+- **`normalizeGerman()`**: D→Q (Dame), T→R (Turm), L→B (Läufer), S→N (Springer)
+- 正規表現（LONG_RE, ANY_MOVE_RE）にもDTL文字を追加
+- `normalizePiece()`も全ドイツ語駒文字に対応
+
+### Truncated Solution Handling (2026-03-19)
+- solution treeのノードにchildrenがなければ即solved（`movesRemaining`チェック削除）
+- D180848等のYACPDBデータ不完全問題で、初手が合えば正解として扱う
+- その後はAnalyze（Stockfish）で検討可能
+
 ### Known Issues
-- **D180848**: YACPDBのsolutionTextが不完全（#4なのに`1.a7-a8=D !`の1手のみ）。正解のa8=Qを指しても不正解になる。YACPDBデータの問題でこちら側では対応不可
+- **不完全なsolutionText**: 一部問題でYACPDBのsolutionTextが途中までしかない（例: D180848 #4で1手のみ）。初手正解で即solved扱い

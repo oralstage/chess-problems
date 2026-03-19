@@ -2,12 +2,17 @@ import type { SolutionNode } from '../types';
 
 // ── Move notation conversion ────────────────────────────
 
+// Normalize German piece notation: D→Q (Dame), T→R (Turm), L→B (Läufer), S→N (Springer)
+function normalizeGerman(s: string): string {
+  return s.replace(/D/g, 'Q').replace(/T/g, 'R').replace(/L/g, 'B').replace(/S/g, 'N');
+}
+
 // Long algebraic: Piece + from + sep + to + promo (sep includes ':' for captures)
-const LONG_RE = /([KQRBSNP]?)([a-h][1-8])([-*x:])([a-h][1-8])(=?[QRBNS])?([+#!?]*)/i;
+const LONG_RE = /([KQRBSNPDTL]?)([a-h][1-8])([-*x:])([a-h][1-8])(=?[QRBNSDTL])?([+#!?]*)/i;
 // Any move pattern (for extracting from text)
 // Note: [a-h][18][QRBNS] handles promotions without '=' (e.g., f8Q instead of f8=Q)
 // Note: ':' is used as capture separator in some notations (e.g., R:c3)
-const ANY_MOVE_RE = /(?:0-0-0|O-O-O|0-0|O-O|[KQRBSNP]?[a-h][1-8][-*x:][a-h][1-8](?:=?[QRBNS])?|[KQRBSNP][a-h]?[1-8]?[x*:]?[a-h][1-8](?:=?[QRBNS])?|[a-h][x*:][a-h][1-8](?:=?[QRBNS])?|[a-h][18][QRBNS]|[a-h][1-8](?:=[QRBNS])?)([+#!?]*)/;
+const ANY_MOVE_RE = /(?:0-0-0|O-O-O|0-0|O-O|[KQRBSNPDTL]?[a-h][1-8][-*x:][a-h][1-8](?:=?[QRBNSDTL])?|[KQRBSNPDTL][a-h]?[1-8]?[x*:]?[a-h][1-8](?:=?[QRBNSDTL])?|[a-h][x*:][a-h][1-8](?:=?[QRBNSDTL])?|[a-h][18][QRBNSDTL]|[a-h][1-8](?:=[QRBNSDTL])?)([+#!?]*)/;
 const CASTLING_RE = /^(0-0-0|O-O-O|0-0|O-O)([+#!?]*)/;
 
 function yacpdbToUci(move: string): string {
@@ -28,14 +33,15 @@ function yacpdbToUci(move: string): string {
   // SAN: we can only extract the destination square (no source info)
   // Return a "san:" prefix so matching can use SAN comparison instead
   // Normalize S→N and add '=' for promotions without it (e.g., f8Q → f8=Q)
-  let sanClean = clean.replace(/S/g, 'N');
+  let sanClean = normalizeGerman(clean);
   sanClean = sanClean.replace(/:/g, 'x'); // YACPDB ':' → standard 'x' for captures
   sanClean = sanClean.replace(/^([a-h][18])([QRBN])$/, '$1=$2');
   return 'san:' + sanClean;
 }
 
 function normalizePiece(p: string): string {
-  return p === 'S' || p === 's' ? 'N' : p;
+  const map: Record<string, string> = { S: 'N', s: 'N', D: 'Q', T: 'R', L: 'B' };
+  return map[p] || p;
 }
 
 function yacpdbToSanApprox(move: string): string {
@@ -65,8 +71,8 @@ function yacpdbToSanApprox(move: string): string {
     return piece + capture + to + suffix;
   }
 
-  // Already in SAN-like format - normalize S→N, ':' → 'x', and add '=' for bare promotions
-  let san = clean.replace(/S/g, 'N');
+  // Already in SAN-like format - normalize German pieces, ':' → 'x', and add '=' for bare promotions
+  let san = normalizeGerman(clean);
   san = san.replace(/:/g, 'x'); // YACPDB uses ':' for captures, chess.js expects 'x'
   san = san.replace(/^([a-h][18])([QRBN])/, '$1=$2');
   san = san.replace(/^([a-h]x[a-h][18])([QRBN])/, '$1=$2');
