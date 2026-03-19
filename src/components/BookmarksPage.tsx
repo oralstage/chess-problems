@@ -1,7 +1,7 @@
 import { useMemo, useEffect, useReducer } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Genre, ChessProblem } from '../types';
-import { fetchProblemMeta, metaToChessProblem } from '../services/api';
+import { fetchProblemBatch, metaToChessProblem } from '../services/api';
 
 const GENRE_PREFIX: Record<string, string> = { direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' };
 const GENRE_LABEL: Record<string, string> = { direct: 'Direct', help: 'Helpmate', self: 'Selfmate', study: 'Study', retro: 'Retro' };
@@ -24,7 +24,7 @@ interface BookmarkEntry {
 }
 
 export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProblem, onClose }: BookmarksPageProps) {
-  const [, forceUpdate] = useReducer(x => x + 1, 0);
+  const [cacheVersion, forceUpdate] = useReducer(x => x + 1, 0);
 
   const entries = useMemo(() => {
     const result: BookmarkEntry[] = [];
@@ -41,22 +41,25 @@ export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProbl
       }
     }
     return result;
-  }, [bookmarks, genreData, genreLoaded]);
+  }, [bookmarks, genreData, genreLoaded, cacheVersion]);
 
   // Fetch missing problem details individually (cached via Cache API)
   useEffect(() => {
-    const toFetch = entries.filter(e => !e.problem && !metaCache.has(`${e.genre}:${e.id}`));
+    const toFetch = entries.filter(e => (!e.problem || !e.problem.fen) && !metaCache.has(`${e.genre}:${e.id}`));
     if (toFetch.length === 0) return;
     let cancelled = false;
     (async () => {
-      const promises = toFetch.map(async (entry) => {
-        const key = `${entry.genre}:${entry.id}`;
-        try {
-          const meta = await fetchProblemMeta(Number(entry.id));
-          if (!cancelled) metaCache.set(key, metaToChessProblem(meta));
-        } catch { /* skip */ }
-      });
-      await Promise.all(promises);
+      try {
+        const ids = toFetch.map(e => Number(e.id));
+        const results = await fetchProblemBatch(ids);
+        if (cancelled) return;
+        for (const meta of results) {
+          const entry = toFetch.find(e => Number(e.id) === meta.id);
+          if (entry) {
+            metaCache.set(`${entry.genre}:${entry.id}`, metaToChessProblem(meta));
+          }
+        }
+      } catch { /* batch failed */ }
       if (!cancelled) forceUpdate();
     })();
     return () => { cancelled = true; };

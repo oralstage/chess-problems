@@ -291,8 +291,15 @@
 - **ジャンル選択時**: `/api/problems/ids`（ID+stipulation、軽量）を一発で取得 → 問題リスト即表示
 - **個別問題表示**: `/api/problems/:id`でcachedFetch → FEN・著者・解答を1件だけ取得（Cache APIで永続化）
 - **フルデータ**: バックグラウンドで`fetchAllProblems` → フィルタリング用（完了しなくても基本機能は動く）
-- **History/Bookmarks**: progressのID一覧を即表示 → サムネは`Promise.all`で並列cachedFetch
+- **History/Bookmarks**: progressのID一覧を即表示 → サムネはバッチAPI（`POST /api/problems/batch`）で1リクエスト取得
 - **問題の上書き防止**: `loadedProblemIdRef`ガードを`!loadedProblemIdRef.current`に変更。すでに問題が表示されていたらバックグラウンドロードで絶対に上書きしない
+
+#### History/Bookmarksサムネ取得のバグ修正過程
+1. **直列fetch（元）**: 37件を1件ずつ順番に取得 → 各リクエストの往復時間が積み重なり非常に遅い
+2. **並列fetch（`Promise.all`）**: 37件同時リクエスト → D1の同時接続制限に引っかかり1分以上かかる
+3. **バッチAPI**: `POST /api/problems/batch` で1リクエスト・1クエリ（`WHERE id IN (...)`）→ 高速
+4. **スタブ問題**: `genreIndex`からFEN空のスタブが`e.problem`に入るため`!e.problem`がfalseになりfetchが走らない → `!e.problem.fen`チェックを追加
+5. **useMemo再計算されない問題**: `metaCache`はモジュールレベルMapなのでuseMemoのdepsに入らない。`forceUpdate()`でre-renderしても`entries`が古いまま → `useReducer`のカウンタ`cacheVersion`をuseMemoのdepsに追加して解決
 
 #### その他の修正
 - **デプロイルール**: CLAUDE.mdに「本番デプロイはユーザー許可必須」を追記

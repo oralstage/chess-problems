@@ -130,10 +130,32 @@ export async function fetchProblem(id: number): Promise<ProblemMeta & { solution
 
 /** Fetch problem metadata only (cached, lightweight — for thumbnails/history) */
 export async function fetchProblemMeta(id: number): Promise<ProblemMeta> {
-  // Uses the same endpoint but result is cached — subsequent calls are instant
   const res = await cachedFetch(`${API_BASE}/problems/${id}`);
   if (!res.ok) throw new Error(`Problem ${id} not found: ${res.status}`);
   return res.json();
+}
+
+/** Fetch multiple problems in a single request (for history/bookmarks) */
+export async function fetchProblemBatch(ids: number[]): Promise<(ProblemMeta & { solutionText: string })[]> {
+  if (ids.length === 0) return [];
+  const res = await fetch(`${API_BASE}/problems/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  });
+  if (!res.ok) throw new Error(`Batch API error: ${res.status}`);
+  const data: { problems: (ProblemMeta & { solutionText: string })[] } = await res.json();
+  // Cache individual results for future use
+  try {
+    const cache = await caches.open(CACHE_NAME);
+    for (const p of data.problems) {
+      const url = `${location.origin}${API_BASE}/problems/${p.id}`;
+      cache.put(url, new Response(JSON.stringify(p), {
+        headers: { 'Content-Type': 'application/json' },
+      }));
+    }
+  } catch { /* cache unavailable */ }
+  return data.problems;
 }
 
 /** Lightweight problem entry for lists (no FEN, no authors) */
