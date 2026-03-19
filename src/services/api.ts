@@ -270,6 +270,177 @@ export function fixCastlingRights(fen: string, solutionText?: string): string {
   return fen;
 }
 
+// ── Session ID ──
+
+const SESSION_ID_KEY = 'cp-session-id';
+
+function generateUUID(): string {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // Fallback
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+/** Get or create a persistent session ID for this browser */
+export function getSessionId(): string {
+  try {
+    let id = localStorage.getItem(SESSION_ID_KEY);
+    if (!id) {
+      id = generateUUID();
+      localStorage.setItem(SESSION_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    return generateUUID(); // localStorage unavailable
+  }
+}
+
+/** Check if dev_mode flag is set in localStorage */
+export function isDevMode(): boolean {
+  try {
+    return localStorage.getItem('cp-dev-mode') === '1';
+  } catch {
+    return false;
+  }
+}
+
+// ── Solve Events ──
+
+export interface SolveEventData {
+  problemId: number;
+  correct: boolean;
+  firstMove?: string;
+  moves: string[];
+  timeSpent?: number;
+}
+
+/** Submit a solve event to the API (fire-and-forget, never throws) */
+export async function submitSolveEvent(data: SolveEventData): Promise<void> {
+  try {
+    // Dedup: don't send duplicate events for the same problem in the same session
+    const dedupKey = `cp-solve-sent-${data.problemId}`;
+    if (sessionStorage.getItem(dedupKey)) return;
+
+    await fetch(`${API_BASE}/solve-event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        problemId: data.problemId,
+        sessionId: getSessionId(),
+        dev: isDevMode(),
+        correct: data.correct,
+        firstMove: data.firstMove,
+        moves: data.moves,
+        timeSpent: data.timeSpent,
+      }),
+    });
+
+    sessionStorage.setItem(dedupKey, '1');
+  } catch {
+    // Fire-and-forget — don't block solving experience
+  }
+}
+
+// ── Solve Stats ──
+
+export interface SolveStats {
+  problemId: number;
+  totalAttempts: number;
+  correctCount: number;
+  accuracyRate: number;
+  avgTimeSpent: number | null;
+  commonWrongFirstMoves: { move: string; count: number }[];
+  commonFirstMoves: { move: string; count: number }[];
+}
+
+/** Fetch solve statistics for a problem */
+export async function fetchSolveStats(problemId: number): Promise<SolveStats> {
+  const res = await fetch(`${API_BASE}/solve-stats/${problemId}`);
+  if (!res.ok) throw new Error(`Stats API error: ${res.status}`);
+  return res.json();
+}
+
+// ── Analytics Event Tracking ──
+
+interface QueuedEvent {
+  event: string;
+  problemId?: number;
+  data?: Record<string, unknown>;
+}
+
+let eventBuffer: QueuedEvent[] = [];
+let flushTimer: ReturnType<typeof setTimeout> | null = null;
+const FLUSH_INTERVAL = 3000; // flush every 3 seconds
+const FLUSH_MAX = 50; // flush if buffer reaches this size
+
+function flushEvents(): void {
+  if (eventBuffer.length === 0) return;
+  const events = eventBuffer;
+  eventBuffer = [];
+  if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
+
+  const payload = JSON.stringify({
+    events,
+    sessionId: getSessionId(),
+    dev: isDevMode(),
+  });
+
+  // Prefer sendBeacon for reliability (works on page unload)
+  if (navigator.sendBeacon) {
+    navigator.sendBeacon(`${API_BASE}/analytics`, payload);
+  } else {
+    fetch(`${API_BASE}/analytics`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+      keepalive: true,
+    }).catch(() => {});
+  }
+}
+
+// Flush on page unload
+if (typeof window !== 'undefined') {
+  window.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flushEvents();
+  });
+  window.addEventListener('pagehide', flushEvents);
+}
+
+/** Track an analytics event (batched, fire-and-forget) */
+export function trackEvent(event: string, problemId?: number, data?: Record<string, unknown>): void {
+  eventBuffer.push({ event, problemId, data });
+  if (eventBuffer.length >= FLUSH_MAX) {
+    flushEvents();
+  } else if (!flushTimer) {
+    flushTimer = setTimeout(flushEvents, FLUSH_INTERVAL);
+  }
+}
+
+// Send session_start on first load
+if (typeof window !== 'undefined') {
+  trackEvent('session_start');
+}
+
+// ── Site Stats ──
+
+export interface SiteStats {
+  uniqueVisitors: number;
+  uniqueSolvers: number;
+  problemsSolved: number;
+  totalAttempts: number;
+}
+
+/** Fetch aggregate site statistics for the home page */
+export async function fetchSiteStats(): Promise<SiteStats> {
+  const res = await fetch(`${API_BASE}/site-stats`);
+  if (!res.ok) throw new Error(`Site stats API error: ${res.status}`);
+  return res.json();
+}
+
 export function metaToChessProblem(meta: ProblemMeta, solutionText?: string): ChessProblem {
   return {
     id: meta.id,

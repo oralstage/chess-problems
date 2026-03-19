@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Chess } from 'chess.js';
 import type { ChessProblem, SolutionNode, Genre } from '../types';
+import { trackEvent } from '../services/api';
 
 export type SolveStatus = 'idle' | 'solving' | 'correct' | 'incorrect' | 'viewing';
 
@@ -486,6 +487,12 @@ export function useProblem(stockfish?: StockfishApi) {
 
     const newFen = afterFen;
     const newHistory = [...state.moveHistory, move.san];
+    trackEvent('move_correct', problem.id, {
+      san: move.san,
+      fen: state.fen,
+      moveNumber: newHistory.length,
+      genre: problem.genre,
+    });
 
     // ══════════════════════════════════════════════
     // Check immediate solve (checkmate / stalemate)
@@ -725,6 +732,13 @@ export function useProblem(stockfish?: StockfishApi) {
     // Wrong move
     const wrongUci = from + to + (move.promotion || '');
     flashWrongMove(to, newFen, from, state.fen, wrongUci);
+    trackEvent('move_wrong', problem.id, {
+      san: move.san,
+      fen: state.fen,
+      moveNumber: state.moveHistory.length + 1,
+      wrongMoveCount: state.wrongMoveCount + 1,
+      genre: problem.genre,
+    });
     return false;
   }, [state, startPlayback, flashWrongMove]);
 
@@ -732,6 +746,11 @@ export function useProblem(stockfish?: StockfishApi) {
   const showHint = useCallback(() => {
     const { fen, problem, currentNodes } = state;
     if (!problem) return;
+    trackEvent('hint_used', problem.id, {
+      moveNumber: state.moveHistory.length + 1,
+      genre: problem.genre,
+      wrongMoveCount: state.wrongMoveCount,
+    });
 
     // Helper: get all legal destination squares for a piece at `from`
     const getAllLegalMoves = (chessFen: string, fromSq: string): string[] => {

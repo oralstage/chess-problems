@@ -19,8 +19,9 @@ import { SearchPage } from './components/SearchPage';
 import { BookmarksPage } from './components/BookmarksPage';
 import { ChangelogPage } from './components/ChangelogPage';
 import { HistoryPage } from './components/HistoryPage';
+import { SolveStatsPanel } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, trackEvent } from './services/api';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
 
@@ -315,6 +316,8 @@ export default function App() {
   // Load a problem into the solver (fetches solutionText from API if needed)
   const loadAndStartProblem = useCallback(async (p: ChessProblem) => {
     loadedProblemIdRef.current = p.id;
+    solveStartTimeRef.current = Date.now();
+    trackEvent('problem_started', p.id, { genre: p.genre, stipulation: p.stipulation });
     // Show board immediately if solution needs to be fetched
     const needsFetch = p.solutionTree.length === 0;
     if (needsFetch) {
@@ -355,6 +358,7 @@ export default function App() {
 
   const handleSolveDaily = useCallback(() => {
     if (!dailyProblem) return;
+    trackEvent('daily_started', dailyProblem.id);
     setIsDaily(true);
     setCurrentGenre('direct');
     setCurrentCategory(null);
@@ -686,6 +690,8 @@ export default function App() {
   const hashRestoredRef = useRef(false);
   // Track which problem ID was loaded to prevent late async callbacks from resetting state
   const loadedProblemIdRef = useRef<number | null>(null);
+  // Track solve timing for solve events
+  const solveStartTimeRef = useRef<number | null>(null);
   useEffect(() => {
     if (hashRestoredRef.current) return;
     hashRestoredRef.current = true;
@@ -1020,6 +1026,21 @@ export default function App() {
       });
       const tsKey = `${currentGenre}:${pid}`;
       setTimestamps(prev => ({ ...prev, [tsKey]: Date.now() }));
+      // Submit give-up solve event
+      const timeSpent = solveStartTimeRef.current ? Date.now() - solveStartTimeRef.current : undefined;
+      submitSolveEvent({
+        problemId: problem.problem.id,
+        correct: false,
+        firstMove: problem.moveHistory[0],
+        moves: problem.moveHistory,
+        timeSpent,
+      });
+      trackEvent('problem_gave_up', problem.problem.id, {
+        genre: currentGenre,
+        category: currentCategory,
+        moveCount: problem.moveHistory.length,
+        timeSpent,
+      });
     }
     problem.showSolution();
   }, [currentGenre, problem, setProgress, setTimestamps]);
@@ -1138,11 +1159,13 @@ export default function App() {
   const toggleBookmark = useCallback(() => {
     if (!currentGenre || !problem.problem) return;
     const pid = String(problem.problem.id);
+    const wasBm = (bookmarks[currentGenre] || []).includes(pid);
+    trackEvent(wasBm ? 'bookmark_removed' : 'bookmark_added', problem.problem.id, { genre: currentGenre });
     setBookmarks(prev => {
       const list = prev[currentGenre] || [];
       return { ...prev, [currentGenre]: list.includes(pid) ? list.filter(id => id !== pid) : [...list, pid] };
     });
-  }, [currentGenre, problem.problem, setBookmarks]);
+  }, [currentGenre, problem.problem, bookmarks, setBookmarks]);
 
   const isBookmarked = currentGenre && problem.problem
     ? (bookmarks[currentGenre] || []).includes(String(problem.problem.id))
@@ -1159,8 +1182,24 @@ export default function App() {
       });
       const tsKey = `${currentGenre}:${pid}`;
       setTimestamps(prev => prev[tsKey] ? prev : { ...prev, [tsKey]: Date.now() });
+      // Submit solve event
+      const timeSpent = solveStartTimeRef.current ? Date.now() - solveStartTimeRef.current : undefined;
+      submitSolveEvent({
+        problemId: problem.problem.id,
+        correct: true,
+        firstMove: problem.moveHistory[0],
+        moves: problem.moveHistory,
+        timeSpent,
+      });
+      trackEvent('problem_solved', problem.problem.id, {
+        genre: currentGenre,
+        category: currentCategory,
+        moveCount: problem.moveHistory.length,
+        timeSpent,
+      });
     }
-  }, [problem.status, problem.problem, currentGenre, setProgress, setTimestamps]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem.status, problem.problem, currentGenre, setProgress, setTimestamps, problem.moveHistory]);
 
   // Arrows for board: analysis arrow (blue, only when active) or refutation arrow (red)
   // MUST pass [] (not undefined) to react-chessboard to clear arrows
@@ -1455,6 +1494,10 @@ export default function App() {
                   onLast={problem.playbackLast}
                   onExplore={problem.playbackExplore}
                 />
+              )}
+
+              {(problem.status === 'correct' || problem.status === 'viewing') && problem.problem && (
+                <SolveStatsPanel problemId={problem.problem.id} />
               )}
             </div>
           )}

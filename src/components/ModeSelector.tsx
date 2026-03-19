@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CATEGORY_DEFS } from '../types';
+import { fetchSiteStats, type SiteStats } from '../services/api';
 
 const EXPANDED_GROUPS_KEY = 'cp-expanded-groups';
 
@@ -45,6 +46,11 @@ const GROUP_BRIEFS: Record<string, string> = {
 };
 
 export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved, onShowChangelog }: ModeSelectorProps) {
+  const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
+  useEffect(() => {
+    fetchSiteStats().then(setSiteStats).catch(() => {});
+  }, []);
+
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     try {
       const stored = localStorage.getItem(EXPANDED_GROUPS_KEY);
@@ -91,14 +97,36 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             Chess Problems
           </h1>
         </div>
-        <p className="text-base text-gray-500 dark:text-gray-400 max-w-lg leading-relaxed mb-3">
+        <p className="text-base text-gray-500 dark:text-gray-400 max-w-lg leading-relaxed">
           Chess problems are composed positions with a unique solution — not tactics from real games, but crafted works of art.
-          Most databases let you browse them; this site lets you solve them interactively on the board with move validation, Stockfish hints, and solution playback.
+          This site lets you solve them interactively on the board with move validation, Stockfish hints, and solution playback.
           All problems from{' '}
           <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             YACPDB
           </a>.
         </p>
+        {siteStats && siteStats.problemsSolved > 0 && (
+          <div className="flex justify-center gap-10 mt-6">
+            <div className="text-center">
+              <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
+                {siteStats.problemsSolved.toLocaleString()}
+              </div>
+              <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
+                problems solved
+              </div>
+            </div>
+            {siteStats.uniqueSolvers > 1 && (
+              <div className="text-center">
+                <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
+                  {siteStats.uniqueSolvers.toLocaleString()}
+                </div>
+                <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
+                  solvers
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ── Daily Problem ── */}
@@ -285,6 +313,9 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             ☕ Support on Ko-fi
           </a>
         </div>
+        <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-3">
+          Anonymous usage data is collected to improve the site. No personal information is stored.
+        </p>
       </footer>
     </div>
   );
