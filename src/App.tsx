@@ -19,9 +19,10 @@ import { SearchPage } from './components/SearchPage';
 import { BookmarksPage } from './components/BookmarksPage';
 import { ChangelogPage } from './components/ChangelogPage';
 import { HistoryPage } from './components/HistoryPage';
+import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { SolveStatsPanel } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, trackEvent } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, trackEvent } from './services/api';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
 
@@ -150,6 +151,7 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const [view, setView] = useState<AppView>('mode-select');
   const [isDaily, setIsDaily] = useState(false);
+  const [dailyDate, setDailyDate] = useState<string | null>(null); // YYYY-MM-DD
   const [currentGenre, setCurrentGenre] = useState<Genre | null>(null);
   const [currentCategory, setCurrentCategory] = useLocalStorage<Category | null>('cp-current-category', null);
   const [progress, setProgress] = useLocalStorage<Record<Genre, ProblemProgress>>('cp-progress', {
@@ -167,6 +169,7 @@ export default function App() {
   const [filterOpenedFrom, setFilterOpenedFrom] = useState<'problemList' | 'hamburger'>('hamburger');
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showDailyHistory, setShowDailyHistory] = useState(false);
   const [showProblemInfo, setShowProblemInfo] = useState(false);
   const [showSearchPage, setShowSearchPage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -330,8 +333,12 @@ export default function App() {
   }, [ensureSolution, problem]);
 
   // ── Hash-based routing with browser history ──
-  const updateHash = useCallback((category: Category | Genre | null, problemId?: number | null, replace = false) => {
+  const updateHash = useCallback((category: Category | Genre | null, problemId?: number | null, replace = false, dailyDateParam?: string) => {
     const method = replace ? 'replaceState' : 'pushState';
+    if (dailyDateParam) {
+      history[method]({ daily: true, date: dailyDateParam }, '', `#/daily/${dailyDateParam}`);
+      return;
+    }
     if (!category) {
       history[method](null, '', window.location.pathname);
       return;
@@ -360,13 +367,16 @@ export default function App() {
     if (!dailyProblem) return;
     trackEvent('daily_started', dailyProblem.id);
     setIsDaily(true);
+    const now = new Date();
+    setDailyDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
     setCurrentGenre('direct');
     setCurrentCategory(null);
     setView('solving');
     loadAndStartProblem(dailyProblem);
     cacheProblem(dailyProblem);
     setCurrentProblemId(prev => ({ ...prev, direct: dailyProblem.id }));
-    updateHash('direct', dailyProblem.id);
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    updateHash(null, null, false, todayStr);
   }, [dailyProblem, problem, cacheProblem, setCurrentProblemId, updateHash]);
 
   // Run analysis when position changes and analysis mode is active
@@ -625,6 +635,13 @@ export default function App() {
         setShowProblemInfo(false);
         return;
       }
+      // Daily problem hash: #/daily/YYYY-MM-DD
+      const dailyMatch = hash.match(/^#\/daily\/(\d{4}-\d{2}-\d{2})$/);
+      if (dailyMatch) {
+        const date = dailyMatch[1];
+        navigateDaily(date);
+        return;
+      }
       const slugRegex = new RegExp(`^#\\/(${allSlugs})\\/yacpdb\\/(\\d+)$`);
       const yacpdbMatch = hash.match(slugRegex);
       const slugOnlyRegex = new RegExp(`^#\\/(${allSlugs})$`);
@@ -699,6 +716,22 @@ export default function App() {
     const hash = window.location.hash;
     if (hash === '#/terms') {
       setView('mode-select');
+      return;
+    }
+    // Daily problem hash: #/daily/YYYY-MM-DD
+    const dailyMatch = hash.match(/^#\/daily\/(\d{4}-\d{2}-\d{2})$/);
+    if (dailyMatch) {
+      const date = dailyMatch[1];
+      setIsDaily(true);
+      setDailyDate(date);
+      setCurrentGenre('direct');
+      setView('solving');
+      fetchDailyByDate(date).then(data => {
+        const p = metaToChessProblem(data, data.solutionText);
+        loadAndStartProblem(p);
+        cacheProblem(p);
+        setCurrentProblemId(prev => ({ ...prev, direct: p.id }));
+      }).catch(() => {});
       return;
     }
     // New format: #/slug/yacpdb/12345 (slug = category or legacy genre)
@@ -937,55 +970,61 @@ export default function App() {
     updateHash(null, null, false);
   }, [updateHash, setCurrentCategory]);
 
-  const handleDailyMore = useCallback(async () => {
-    const dailyProblemId = problem.problem?.id;
-    setIsDaily(false);
-    if (genreLoaded.direct) {
-      // Genre index loaded — find next problem from ID list
+
+  const SITE_OPEN_DATE = '2026-03-15';
+
+  const navigateDaily = useCallback(async (targetDate: string) => {
+    try {
+      const data = await fetchDailyByDate(targetDate);
+      const p = metaToChessProblem(data, data.solutionText);
+      setDailyDate(targetDate);
+      setIsDaily(true);
       setCurrentGenre('direct');
-      setCurrentCategory('twomover');
-      const stubs = genreIndex.direct;
-      const genreProgress = progress.direct || {};
-      const savedTwomoverId = currentProblemId['twomover'];
-      let nextId: number | undefined;
+      setView('solving');
+      loadAndStartProblem(p);
+      cacheProblem(p);
+      setCurrentProblemId(prev => ({ ...prev, direct: p.id }));
+      updateHash(null, null, false, targetDate);
+    } catch { /* ignore */ }
+  }, [loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
 
-      if (savedTwomoverId) {
-        const savedIdx = stubs.findIndex(s => s.id === savedTwomoverId);
-        if (savedIdx >= 0) {
-          if (genreProgress[String(savedTwomoverId)] === 'solved' || savedTwomoverId === dailyProblemId) {
-            nextId = stubs.slice(savedIdx + 1).find(s =>
-              s.id !== dailyProblemId &&
-              genreProgress[String(s.id)] !== 'solved' &&
-              genreProgress[String(s.id)] !== 'skipped'
-            )?.id;
-          } else {
-            nextId = savedTwomoverId;
-          }
-        }
-      }
-      if (!nextId) {
-        nextId = stubs.find(s =>
-          s.id !== dailyProblemId &&
-          genreProgress[String(s.id)] !== 'solved' &&
-          genreProgress[String(s.id)] !== 'skipped'
-        )?.id;
-      }
-      if (!nextId) nextId = stubs.find(s => s.id !== dailyProblemId)?.id;
-      if (!nextId && stubs.length > 0) nextId = stubs[0].id;
+  const handlePrevDaily = useCallback(() => {
+    if (!dailyDate) return;
+    const [y, m, d] = dailyDate.split('-').map(Number);
+    const prev = new Date(y, m - 1, d);
+    prev.setDate(prev.getDate() - 1);
+    const prevStr = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-${String(prev.getDate()).padStart(2, '0')}`;
+    if (prevStr < SITE_OPEN_DATE) return;
+    navigateDaily(prevStr);
+  }, [dailyDate, navigateDaily]);
 
-      if (nextId) {
-        fetchProblem(nextId).then(full => {
-          const p = metaToChessProblem(full, full.solutionText);
-          loadAndStartProblem(p);
-          cacheProblem(p);
-          setCurrentProblemId(prev => ({ ...prev, twomover: p.id }));
-          updateHash('twomover', p.id);
-        }).catch(() => {});
-      }
-    } else {
-      selectMode('twomover');
-    }
-  }, [selectMode, problem, genreLoaded, genreIndex, progress, currentProblemId, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, setCurrentCategory]);
+  const handleNextDaily = useCallback(() => {
+    if (!dailyDate) return;
+    const [y, m, d] = dailyDate.split('-').map(Number);
+    const next = new Date(y, m - 1, d);
+    next.setDate(next.getDate() + 1);
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const nextStr = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}-${String(next.getDate()).padStart(2, '0')}`;
+    if (nextStr > todayStr) return;
+    navigateDaily(nextStr);
+  }, [dailyDate, navigateDaily]);
+
+  const isToday = useMemo(() => {
+    if (!dailyDate) return true;
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return dailyDate === todayStr;
+  }, [dailyDate]);
+
+  const canGoPrevDaily = useMemo(() => {
+    if (!dailyDate) return false;
+    const [y, m, d] = dailyDate.split('-').map(Number);
+    const prev = new Date(y, m - 1, d);
+    prev.setDate(prev.getDate() - 1);
+    const prevStr = `${prev.getFullYear()}-${String(prev.getMonth() + 1).padStart(2, '0')}-${String(prev.getDate()).padStart(2, '0')}`;
+    return prevStr >= SITE_OPEN_DATE;
+  }, [dailyDate]);
 
   const handleHistorySelect = useCallback((genre: Genre, selected: ChessProblem) => {
     setShowHistory(false);
@@ -1034,6 +1073,7 @@ export default function App() {
         firstMove: problem.moveHistory[0],
         moves: problem.moveHistory,
         timeSpent,
+        source: isDaily ? 'daily' : undefined,
       });
       trackEvent('problem_gave_up', problem.problem.id, {
         genre: currentGenre,
@@ -1190,6 +1230,7 @@ export default function App() {
         firstMove: problem.moveHistory[0],
         moves: problem.moveHistory,
         timeSpent,
+        source: isDaily ? 'daily' : undefined,
       });
       trackEvent('problem_solved', problem.problem.id, {
         genre: currentGenre,
@@ -1270,13 +1311,23 @@ export default function App() {
 
           {view === 'solving' && problem.problem && (
             <div className="space-y-4">
+              {isDaily && dailyDate && (
+                <div className="text-center">
+                  <span className="text-xs font-semibold tracking-wider text-green-600 dark:text-green-400 uppercase">
+                    Daily Problem — {(() => {
+                      const [y, m, d] = dailyDate.split('-').map(Number);
+                      return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    })()}
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1 flex-1 min-w-0">
                   <button
-                    onClick={() => handleNavProblem(-1)}
-                    disabled={!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) <= 0}
+                    onClick={isDaily ? handlePrevDaily : () => handleNavProblem(-1)}
+                    disabled={isDaily ? !canGoPrevDaily : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) <= 0)}
                     className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors shrink-0"
-                    title="Previous problem"
+                    title={isDaily ? "Previous day" : "Previous problem"}
                   >
                     <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -1289,10 +1340,10 @@ export default function App() {
                     showThemes={problem.status === 'correct' || problem.status === 'viewing'}
                   />
                   <button
-                    onClick={() => handleNavProblem(1)}
-                    disabled={!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) >= filteredProblems.length - 1}
+                    onClick={isDaily ? handleNextDaily : () => handleNavProblem(1)}
+                    disabled={isDaily ? isToday : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) >= filteredProblems.length - 1)}
                     className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors shrink-0"
-                    title="Next problem"
+                    title={isDaily ? "Next day" : "Next problem"}
                   >
                     <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
@@ -1458,9 +1509,8 @@ export default function App() {
                 stockfishLoading={stockfish.readyState === 'loading'}
                 refutationText={problem.refutationText}
                 analysisActive={analysisActive}
-                onGoHome={isDaily ? goBack : undefined}
-                onMoreProblems={isDaily ? handleDailyMore : undefined}
-                moreCategoryLabel="More Twomovers"
+                onPrevDaily={isDaily && canGoPrevDaily ? handlePrevDaily : undefined}
+                onNextDaily={isDaily && !isToday ? handleNextDaily : undefined}
                 lichessAnalysisUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/analysis/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
                 lichessPlayUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/editor/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
               />
@@ -1517,6 +1567,10 @@ export default function App() {
       <HamburgerMenu
         isOpen={showHamburgerMenu}
         onClose={() => setShowHamburgerMenu(false)}
+        onOpenDailyHistory={() => {
+          setShowHamburgerMenu(false);
+          setShowDailyHistory(true);
+        }}
         onOpenHistory={() => {
           setShowHamburgerMenu(false);
           setShowHistory(true);
@@ -1545,6 +1599,25 @@ export default function App() {
         }}
         onOpenSearch={() => { setShowHamburgerMenu(false); setShowSearchPage(true); }}
       />
+
+      {showDailyHistory && (
+        <DailyHistoryPage
+          progress={progress}
+          onSelectProblem={(genre, selected, date) => {
+            setShowDailyHistory(false);
+            setIsDaily(true);
+            setDailyDate(date);
+            setCurrentGenre(genre);
+            setView('solving');
+            loadGenre(genre);
+            loadAndStartProblem(selected);
+            cacheProblem(selected);
+            setCurrentProblemId(prev => ({ ...prev, [genre]: selected.id }));
+            updateHash(null, null, false, date);
+          }}
+          onClose={() => setShowDailyHistory(false)}
+        />
+      )}
 
       {showHistory && (
         <HistoryPage

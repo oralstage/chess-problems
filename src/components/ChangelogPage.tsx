@@ -4,6 +4,19 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-03-19',
+    sections: [
+      {
+        title: 'Updates',
+        items: [
+          'Daily Problem archive — browse past daily problems from the hamburger menu.',
+          'Navigate between daily problems with Previous / Next buttons.',
+          'Site statistics on the home page — see how many solvers and problems solved.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-03-18',
     sections: [
       {

@@ -21,6 +21,8 @@ interface FeedbackPanelProps {
   lichessPlayUrl?: string;
   onGoHome?: () => void;
   onMoreProblems?: () => void;
+  onPrevDaily?: () => void;
+  onNextDaily?: () => void;
   moreCategoryLabel?: string;
   solutionLoading?: boolean;
 }
@@ -45,6 +47,8 @@ export function FeedbackPanel({
   lichessPlayUrl,
   onGoHome,
   onMoreProblems,
+  onPrevDaily,
+  onNextDaily,
   moreCategoryLabel,
   solutionLoading,
 }: FeedbackPanelProps) {
@@ -100,7 +104,7 @@ export function FeedbackPanel({
               <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={onReset}
               className="px-4 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
@@ -146,6 +150,20 @@ export function FeedbackPanel({
               </>
             )}
           </div>
+          {(onPrevDaily || onNextDaily) && (
+            <div className="flex items-center justify-center gap-3 mt-1">
+              {onPrevDaily && (
+                <button onClick={onPrevDaily} className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                  Previous
+                </button>
+              )}
+              {onNextDaily && (
+                <button onClick={onNextDaily} className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                  Next
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -251,7 +269,7 @@ export function FeedbackPanel({
               <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={onReset}
               className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
@@ -297,6 +315,20 @@ export function FeedbackPanel({
               </>
             )}
           </div>
+          {(onPrevDaily || onNextDaily) && (
+            <div className="flex items-center justify-center gap-3 mt-1">
+              {onPrevDaily && (
+                <button onClick={onPrevDaily} className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                  Previous
+                </button>
+              )}
+              {onNextDaily && (
+                <button onClick={onNextDaily} className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                  Next
+                </button>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

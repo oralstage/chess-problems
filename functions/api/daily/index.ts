@@ -1,4 +1,4 @@
-import { addFairyExclusion } from './fairy-filter';
+import { addFairyExclusion } from '../fairy-filter';
 
 /**
  * GET /api/daily

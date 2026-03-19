@@ -23,6 +23,7 @@ interface SolveEventBody {
   firstMove?: string;
   moves: string[];
   timeSpent?: number;
+  source?: string;
 }
 
 // Simple in-memory rate limiting (per-isolate, resets on cold start)
@@ -73,10 +74,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const timeSpent = typeof body.timeSpent === 'number' ? Math.max(0, Math.min(body.timeSpent, 3_600_000)) : null;
 
   const country = context.request.headers.get('CF-IPCountry') || '';
+  const source = body.source ? String(body.source).slice(0, 20) : '';
 
   await context.env.STATS_DB.prepare(
-    `INSERT INTO solve_events (problem_id, session_id, dev, correct, first_move, moves, move_count, time_spent, country)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO solve_events (problem_id, session_id, dev, correct, first_move, moves, move_count, time_spent, source, country)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     body.problemId,
     body.sessionId,
@@ -86,6 +88,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     JSON.stringify(moves),
     moves.length,
     timeSpent,
+    source,
     country,
   ).run();
 

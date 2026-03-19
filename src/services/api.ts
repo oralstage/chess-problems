@@ -191,6 +191,28 @@ export async function fetchDaily(): Promise<ProblemMeta & { solutionText: string
 }
 
 /**
+ * Fetch daily problem for a specific date (includes solutionText).
+ */
+export async function fetchDailyByDate(date: string): Promise<ProblemMeta & { solutionText: string }> {
+  const res = await fetch(`${API_BASE}/daily?date=${date}`);
+  if (!res.ok) throw new Error(`Daily API error: ${res.status}`);
+  return res.json();
+}
+
+export interface DailyHistoryEntry extends ProblemMeta {
+  date: string;
+}
+
+/**
+ * Fetch past daily problems (last N days).
+ */
+export async function fetchDailyHistory(days = 30): Promise<DailyHistoryEntry[]> {
+  const res = await fetch(`${API_BASE}/daily/history?days=${days}`);
+  if (!res.ok) throw new Error(`Daily history API error: ${res.status}`);
+  return res.json();
+}
+
+/**
  * Search problems by author name.
  */
 export interface SearchResult {
@@ -316,6 +338,7 @@ export interface SolveEventData {
   firstMove?: string;
   moves: string[];
   timeSpent?: number;
+  source?: string;
 }
 
 /** Submit a solve event to the API (fire-and-forget, never throws) */
@@ -336,6 +359,7 @@ export async function submitSolveEvent(data: SolveEventData): Promise<void> {
         firstMove: data.firstMove,
         moves: data.moves,
         timeSpent: data.timeSpent,
+        source: data.source,
       }),
     });
 
