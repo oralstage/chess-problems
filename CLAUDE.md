@@ -9,7 +9,9 @@
 - Dev server: port 5183
 - Deploy: `npm run build && npx wrangler pages deploy dist --project-name=chess-problems`
 - Data source: YACPDB (Yet Another Chess Problem Database)
-- D1 Database: `chess-problems-db` (ID: `43ccd454-aa55-420c-93b6-61333ccad8c1`)
+- D1 Database (問題): `chess-problems-db` (ID: `3c2462f4-e342-48a8-807a-f40616066b02`)
+- D1 Database (統計/本番): `chess-problems-stats` (ID: `00228378-19f2-4074-ba76-be8b5ebe0281`)
+- D1 Database (統計/ステージング): `chess-problems-db-staging` (ID: `ea49673e-d115-4169-bce9-b74f4f632aae`)
 
 ## Commands
 - `npm run dev` - Dev server (port 5183)
@@ -190,6 +192,11 @@
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/search?author=X&limit=N` | Search problems by author name (partial match, all genres) |
+| `POST /api/solve-event` | Record solve attempt (correct/give-up) with moves and timing |
+| `GET /api/solve-stats/:id` | Per-problem solve statistics (accuracy, common moves) |
+| `POST /api/analytics` | Batch insert analytics events |
+| `GET /api/site-stats` | Aggregate site stats (solvers, problems solved) |
+| `GET/POST /api/admin/solve-events` | Admin: list/exclude/delete sessions (Bearer auth) |
 
 ### New Components (2026-03-18)
 | Component | Purpose |
@@ -309,3 +316,30 @@
 - **Daily Problem日付同期**: `/api/daily`にクライアントのローカル日付を`?date=YYYY-MM-DD`で送信。UTC→ローカルのズレを解消
 - **Bookmark遷移バグ**: `handleHistorySelect`を`async`→同期に変更。`await loadGenre`で永遠に待つ問題を解消
 - **`/api/problems/ids`エンドポイント拡張**: `stipulation`フィールドを追加（問題リストのバッジ表示用）
+
+### Anonymous Solve Tracking & Analytics (2026-03-19)
+- **solve_events**: 問題の正解/give-upを記録。problemId, sessionId, correct, firstMove, moves(JSON), moveCount, timeSpent, country
+- **analytics_events**: 全ユーザーインタラクションをバッチ記録。move_correct, move_wrong, hint_used, problem_started, problem_solved, problem_gave_up, bookmark_added/removed, session_start等
+- **Session ID**: ブラウザごとにUUID生成、localStorage(`cp-session-id`)で永続化
+- **Dev mode**: `localStorage.setItem('cp-dev-mode', '1')`で全イベントに`dev: 1`フラグ。後から統計除外可能
+- **Event batching**: `trackEvent()`は3秒バッファ、`navigator.sendBeacon`でページ離脱時も送信
+- **Dedup**: `sessionStorage`で同一問題のsolve_event重複送信を防止
+- **Rate limiting**: IP単位（solve-event: 60/min, analytics: 120/min）
+- **Admin API**: `POST /api/admin/solve-events`でsession単位のイベント除外/削除。Bearer token認証
+- **SolveStatsPanel**: 問題解答後に表示。accuracy, 平均時間, common first moves, common wrong first moves
+
+### Site Stats on Home Page (2026-03-19)
+- **表示**: solvers(左) + problems solved(右)、緑色の大きな数字(`text-4xl sm:text-5xl`)
+- **カウント方法**: `analytics_events`の`move_correct`/`move_wrong`イベントから`COUNT(DISTINCT problem_id)` — 一手でも動かした問題をカウント
+- **キャッシュ**: 1分（`Cache-Control: max-age=60`）
+- **プライバシー通知**: フッターに「Anonymous usage data is collected to improve the site. No personal information is stored.」
+
+### DB分離 (2026-03-19)
+- **問題データ**: `DB` binding → `chess-problems-db` (ID: `3c2462f4-e342-48a8-807a-f40616066b02`)
+- **統計データ(本番)**: `STATS_DB` binding → `chess-problems-stats` (ID: `00228378-19f2-4074-ba76-be8b5ebe0281`)
+- **統計データ(ステージング)**: `STATS_DB` binding → `chess-problems-db-staging` (ID: `ea49673e-d115-4169-bce9-b74f4f632aae`)
+- `wrangler.toml` = 本番用（STATS_DB → chess-problems-stats）
+- `wrangler-staging.toml` = ステージング用（STATS_DB → chess-problems-db-staging）
+- ステージングデプロイ時: `cp wrangler.toml wrangler.toml.bak && cp wrangler-staging.toml wrangler.toml && npx wrangler pages deploy dist --project-name=chess-problems-staging && cp wrangler.toml.bak wrangler.toml && rm wrangler.toml.bak`
+- `scripts/schema.sql` = 問題テーブルのみ、`scripts/schema-stats.sql` = 統計テーブルのみ
+- **国コード記録**: `CF-IPCountry`ヘッダーからsolve_events/analytics_eventsに自動記録

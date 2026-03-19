@@ -33,7 +33,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   // Total attempts and correct count
-  const summary = await context.env.DB.prepare(
+  const summary = await context.env.STATS_DB.prepare(
     `SELECT
        COUNT(*) as total,
        SUM(correct) as correct_count,
@@ -57,7 +57,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   // Common first moves (all attempts)
-  const firstMoves = await context.env.DB.prepare(
+  const firstMoves = await context.env.STATS_DB.prepare(
     `SELECT first_move as move, COUNT(*) as cnt
      FROM solve_events
      WHERE ${filter} AND first_move IS NOT NULL
@@ -67,7 +67,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   ).bind(id).all<{ move: string; cnt: number }>();
 
   // Common wrong first moves (incorrect attempts only)
-  const wrongFirstMoves = await context.env.DB.prepare(
+  const wrongFirstMoves = await context.env.STATS_DB.prepare(
     `SELECT first_move as move, COUNT(*) as cnt
      FROM solve_events
      WHERE ${filter} AND correct = 0 AND first_move IS NOT NULL

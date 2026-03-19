@@ -1,4 +1,4 @@
-name = "chess-problems"
+name = "chess-problems-staging"
 compatibility_date = "2024-12-01"
 pages_build_output_dir = "dist"
 
@@ -9,5 +9,5 @@ database_id = "3c2462f4-e342-48a8-807a-f40616066b02"
 
 [[d1_databases]]
 binding = "STATS_DB"
-database_name = "chess-problems-stats"
-database_id = "00228378-19f2-4074-ba76-be8b5ebe0281"
+database_name = "chess-problems-db-staging"
+database_id = "ea49673e-d115-4169-bce9-b74f4f632aae"

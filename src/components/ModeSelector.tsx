@@ -109,22 +109,20 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           <div className="flex justify-center gap-10 mt-6">
             <div className="text-center">
               <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
+                {siteStats.uniqueSolvers.toLocaleString()}
+              </div>
+              <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
+                solvers
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
                 {siteStats.problemsSolved.toLocaleString()}
               </div>
               <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
                 problems solved
               </div>
             </div>
-            {siteStats.uniqueSolvers > 1 && (
-              <div className="text-center">
-                <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
-                  {siteStats.uniqueSolvers.toLocaleString()}
-                </div>
-                <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
-                  solvers
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>

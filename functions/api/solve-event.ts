@@ -72,9 +72,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const firstMove = body.firstMove ? String(body.firstMove).slice(0, 20) : (moves[0] || null);
   const timeSpent = typeof body.timeSpent === 'number' ? Math.max(0, Math.min(body.timeSpent, 3_600_000)) : null;
 
-  await context.env.DB.prepare(
-    `INSERT INTO solve_events (problem_id, session_id, dev, correct, first_move, moves, move_count, time_spent)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  const country = context.request.headers.get('CF-IPCountry') || '';
+
+  await context.env.STATS_DB.prepare(
+    `INSERT INTO solve_events (problem_id, session_id, dev, correct, first_move, moves, move_count, time_spent, country)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     body.problemId,
     body.sessionId,
@@ -84,6 +86,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     JSON.stringify(moves),
     moves.length,
     timeSpent,
+    country,
   ).run();
 
   return Response.json({ ok: true }, { status: 201 });

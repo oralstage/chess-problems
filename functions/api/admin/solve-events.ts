@@ -24,7 +24,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   if (sessionId) {
     // List events for a specific session
-    const rows = await context.env.DB.prepare(
+    const rows = await context.env.STATS_DB.prepare(
       `SELECT id, problem_id, session_id, dev, correct, first_move, move_count, time_spent, excluded, created_at
        FROM solve_events WHERE session_id = ? ORDER BY created_at DESC LIMIT 200`
     ).bind(sessionId).all();
@@ -32,7 +32,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   // List all sessions with event counts
-  const rows = await context.env.DB.prepare(
+  const rows = await context.env.STATS_DB.prepare(
     `SELECT session_id, dev, excluded,
             COUNT(*) as event_count,
             MIN(created_at) as first_event,
@@ -57,19 +57,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   switch (body.action) {
     case 'exclude': {
-      const result = await context.env.DB.prepare(
+      const result = await context.env.STATS_DB.prepare(
         'UPDATE solve_events SET excluded = 1 WHERE session_id = ?'
       ).bind(body.sessionId).run();
       return Response.json({ ok: true, affected: result.meta.changes });
     }
     case 'include': {
-      const result = await context.env.DB.prepare(
+      const result = await context.env.STATS_DB.prepare(
         'UPDATE solve_events SET excluded = 0 WHERE session_id = ?'
       ).bind(body.sessionId).run();
       return Response.json({ ok: true, affected: result.meta.changes });
     }
     case 'delete': {
-      const result = await context.env.DB.prepare(
+      const result = await context.env.STATS_DB.prepare(
         'DELETE FROM solve_events WHERE session_id = ?'
       ).bind(body.sessionId).run();
       return Response.json({ ok: true, affected: result.meta.changes });

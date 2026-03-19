@@ -56,16 +56,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const sessionId = body.sessionId.slice(0, 64);
 
   // Batch insert using D1 batch API
+  const country = context.request.headers.get('CF-IPCountry') || '';
   const stmts = events.map(e => {
     const eventName = String(e.event).slice(0, 50);
     const problemId = typeof e.problemId === 'number' ? e.problemId : null;
     const data = e.data ? JSON.stringify(e.data) : '{}';
-    return context.env.DB.prepare(
-      'INSERT INTO analytics_events (event_name, problem_id, session_id, dev, data) VALUES (?, ?, ?, ?, ?)'
-    ).bind(eventName, problemId, sessionId, dev, data);
+    return context.env.STATS_DB.prepare(
+      'INSERT INTO analytics_events (event_name, problem_id, session_id, dev, data, country) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(eventName, problemId, sessionId, dev, data, country);
   });
 
-  await context.env.DB.batch(stmts);
+  await context.env.STATS_DB.batch(stmts);
 
   return Response.json({ ok: true, count: events.length }, { status: 201 });
 };
