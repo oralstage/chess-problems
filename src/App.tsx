@@ -451,14 +451,18 @@ export default function App() {
         result[genre] = genreData[genre];
       } else if (genreIndex[genre].length > 0) {
         // Create lightweight stubs for list display (no FEN/authors needed for grid)
-        result[genre] = genreIndex[genre].map(s => ({
+        result[genre] = genreIndex[genre].map(s => {
+          // Infer moveCount from stipulation: "#2"→2, "#3"→3, "h#2"→2, "s#3"→3, etc.
+          const mcMatch = s.stipulation.match(/(\d+)/);
+          const moveCount = mcMatch ? parseInt(mcMatch[1]) : 0;
+          return {
           id: s.id,
           fen: '',
           authors: [],
           sourceName: '',
           sourceYear: null,
           stipulation: s.stipulation,
-          moveCount: 0,
+          moveCount,
           genre: genre,
           difficulty: '',
           difficultyScore: 0,
@@ -468,7 +472,7 @@ export default function App() {
           keywords: [],
           pieceCount: 0,
           award: '',
-        }));
+        };});
       }
     }
     return result;
