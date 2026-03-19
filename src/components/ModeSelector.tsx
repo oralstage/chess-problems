@@ -165,7 +165,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                   {dailyProblem.sourceYear ? `, ${dailyProblem.sourceYear}` : ''}
                 </div>
                 <div className="mt-3 flex items-center justify-center gap-1 text-sm font-semibold text-green-600 dark:text-green-400 group-hover:gap-2 transition-all">
-                  {dailySolved ? 'View solution' : 'Solve'}
+                  Solve
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                   </svg>

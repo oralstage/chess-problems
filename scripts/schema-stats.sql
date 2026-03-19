@@ -10,6 +10,10 @@ CREATE TABLE IF NOT EXISTS solve_events (
   move_count INTEGER NOT NULL,
   time_spent INTEGER,
   excluded INTEGER NOT NULL DEFAULT 0,
+  hint_used INTEGER NOT NULL DEFAULT 0,
+  wrong_move_count INTEGER NOT NULL DEFAULT 0,
+  genre TEXT NOT NULL DEFAULT '',
+  stipulation TEXT NOT NULL DEFAULT '',
   source TEXT NOT NULL DEFAULT '',
   country TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))

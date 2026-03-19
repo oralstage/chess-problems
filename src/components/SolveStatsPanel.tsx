@@ -1,101 +1,66 @@
 import { useState, useEffect } from 'react';
 import { fetchSolveStats, type SolveStats } from '../services/api';
 
-interface Props {
-  problemId: number;
-}
-
-export function SolveStatsPanel({ problemId }: Props) {
+export function useSolveStats(problemId: number | null) {
   const [stats, setStats] = useState<SolveStats | null>(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    setLoading(true);
+    if (!problemId) { setStats(null); return; }
     setStats(null);
     fetchSolveStats(problemId)
       .then(setStats)
-      .catch(() => setStats(null))
-      .finally(() => setLoading(false));
+      .catch(() => setStats(null));
   }, [problemId]);
 
-  if (loading) {
-    return (
-      <div className="text-xs text-gray-400 mt-2">
-        Loading statistics...
-      </div>
-    );
-  }
+  return stats;
+}
 
-  if (!stats || stats.totalAttempts === 0) return null;
-
-  const pct = Math.round(stats.accuracyRate * 100);
-  const avgSec = stats.avgTimeSpent ? Math.round(stats.avgTimeSpent / 1000) : null;
-
+export function SolveStatsModal({ stats, onClose }: { stats: SolveStats; onClose: () => void }) {
   return (
-    <details className="mt-3 text-xs">
-      <summary className="cursor-pointer text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 select-none">
-        Solve Statistics ({stats.totalAttempts} attempt{stats.totalAttempts !== 1 ? 's' : ''})
-      </summary>
-      <div className="mt-2 space-y-2 text-gray-600 dark:text-gray-300">
-        {/* Accuracy */}
-        <div className="flex items-center gap-2">
-          <span className="text-gray-500 dark:text-gray-400 w-20">Accuracy</span>
-          <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 max-w-32">
-            <div
-              className="bg-green-600 h-2.5 rounded-full transition-all"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-          <span className="font-medium tabular-nums">{pct}%</span>
-          <span className="text-gray-400">({stats.correctCount}/{stats.totalAttempts})</span>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-sm w-full mx-4 p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white">Solve Statistics</h3>
+          <button onClick={onClose} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+            <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        {/* Average time */}
-        {avgSec !== null && (
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500 dark:text-gray-400 w-20">Avg time</span>
-            <span className="font-medium tabular-nums">
-              {avgSec >= 60 ? `${Math.floor(avgSec / 60)}m ${avgSec % 60}s` : `${avgSec}s`}
-            </span>
-          </div>
-        )}
-
-        {/* Common first moves */}
-        {stats.commonFirstMoves.length > 0 && (
+        <div className="space-y-2 text-sm">
           <div>
-            <span className="text-gray-500 dark:text-gray-400">Most tried first moves</span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {stats.commonFirstMoves.map(m => (
-                <span
-                  key={m.move}
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 font-mono"
-                >
-                  {m.move}
-                  <span className="text-gray-400 text-[10px]">{m.count}</span>
-                </span>
-              ))}
-            </div>
+            <span className="text-gray-400 dark:text-gray-500">Solved: </span>
+            <span className="text-gray-900 dark:text-gray-100 font-medium">{stats.totalAttempts} time{stats.totalAttempts !== 1 ? 's' : ''}</span>
           </div>
-        )}
-
-        {/* Common wrong first moves */}
-        {stats.commonWrongFirstMoves.length > 0 && (
           <div>
-            <span className="text-gray-500 dark:text-gray-400">Common wrong first moves</span>
-            <div className="flex flex-wrap gap-1 mt-1">
-              {stats.commonWrongFirstMoves.map(m => (
-                <span
-                  key={m.move}
-                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 font-mono"
-                >
-                  {m.move}
-                  <span className="text-red-400 text-[10px]">{m.count}</span>
-                </span>
-              ))}
-            </div>
+            <span className="text-gray-400 dark:text-gray-500">Solvers: </span>
+            <span className="text-gray-900 dark:text-gray-100 font-medium">{stats.uniqueSolvers}</span>
           </div>
-        )}
+
+          {stats.movesByNumber && stats.movesByNumber.length > 0 && (() => {
+            const firstMove = stats.movesByNumber.find(g => g.moveNumber === 1);
+            if (!firstMove || firstMove.moves.length === 0) return null;
+            return (
+              <div className="pt-1">
+                <span className="text-gray-400 dark:text-gray-500">First moves tried: </span>
+                <span className="font-mono">
+                  {firstMove.moves.map((m, i) => (
+                    <span key={m.move}>
+                      {i > 0 ? <span className="text-gray-400">, </span> : ''}
+                      <span className={m.correct ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-gray-900 dark:text-gray-100'}>
+                        {m.move}
+                      </span>
+                      <span className="text-gray-400 dark:text-gray-500 text-xs"> ({m.count})</span>
+                    </span>
+                  ))}
+                </span>
+              </div>
+            );
+          })()}
+        </div>
       </div>
-    </details>
+    </div>
   );
 }

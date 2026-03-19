@@ -20,7 +20,7 @@ import { BookmarksPage } from './components/BookmarksPage';
 import { ChangelogPage } from './components/ChangelogPage';
 import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
-import { SolveStatsPanel } from './components/SolveStatsPanel';
+import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
 import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, trackEvent } from './services/api';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
@@ -171,6 +171,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showDailyHistory, setShowDailyHistory] = useState(false);
   const [showProblemInfo, setShowProblemInfo] = useState(false);
+  const [showSolveStats, setShowSolveStats] = useState(false);
   const [showSearchPage, setShowSearchPage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<import('./services/api').SearchResult[] | null>(null);
@@ -217,6 +218,7 @@ export default function App() {
   const stockfishRef = useRef(stockfish);
   stockfishRef.current = stockfish;
   const problem = useProblem(stockfish);
+  const solveStats = useSolveStats(problem.problem?.id ?? null);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisActive, setAnalysisActive] = useState(false);
@@ -320,6 +322,7 @@ export default function App() {
   const loadAndStartProblem = useCallback(async (p: ChessProblem) => {
     loadedProblemIdRef.current = p.id;
     solveStartTimeRef.current = Date.now();
+    hintUsedRef.current = false;
     trackEvent('problem_started', p.id, { genre: p.genre, stipulation: p.stipulation });
     // Show board immediately if solution needs to be fetched
     const needsFetch = p.solutionTree.length === 0;
@@ -709,6 +712,7 @@ export default function App() {
   const loadedProblemIdRef = useRef<number | null>(null);
   // Track solve timing for solve events
   const solveStartTimeRef = useRef<number | null>(null);
+  const hintUsedRef = useRef(false);
   useEffect(() => {
     if (hashRestoredRef.current) return;
     hashRestoredRef.current = true;
@@ -883,12 +887,15 @@ export default function App() {
     }
 
     // Quick-start: fetch a single problem immediately while genre data loads in background
-    const savedId = opts?.skipSavedId ? null : currentProblemId[category];
+    const genreProgress = progress[genre] || {};
+    const rawSavedId = opts?.skipSavedId ? null : currentProblemId[category];
+    // Skip saved ID if already solved — show next unsolved instead
+    const savedId = rawSavedId && genreProgress[String(rawSavedId)] !== 'solved' ? rawSavedId : null;
     if (!genreLoaded[genre]) {
       let quickStarted = false;
       try {
         if (savedId) {
-          // Saved problem — fetch directly
+          // Saved problem (unsolved) — fetch directly
           const full = await fetchProblem(savedId);
           const quickProblem = metaToChessProblem(full, full.solutionText);
           loadAndStartProblem(quickProblem);
@@ -925,9 +932,8 @@ export default function App() {
     const stubs = genreLoaded[genre] ? genreIndex[genre] : await loadGenre(genre);
 
     // Find next unsolved problem ID from the index
-    const genreProgress = progress[genre] || {};
     let nextId: number | null = null;
-    if (savedId && genreProgress[String(savedId)] !== 'solved') {
+    if (savedId) {
       nextId = savedId;
     }
     if (!nextId) {
@@ -1073,6 +1079,10 @@ export default function App() {
         firstMove: problem.moveHistory[0],
         moves: problem.moveHistory,
         timeSpent,
+        hintUsed: hintUsedRef.current,
+        wrongMoveCount: problem.wrongMoveCount,
+        genre: currentGenre || undefined,
+        stipulation: problem.problem?.stipulation,
         source: isDaily ? 'daily' : undefined,
       });
       trackEvent('problem_gave_up', problem.problem.id, {
@@ -1230,6 +1240,10 @@ export default function App() {
         firstMove: problem.moveHistory[0],
         moves: problem.moveHistory,
         timeSpent,
+        hintUsed: hintUsedRef.current,
+        wrongMoveCount: problem.wrongMoveCount,
+        genre: currentGenre || undefined,
+        stipulation: problem.problem?.stipulation,
         source: isDaily ? 'daily' : undefined,
       });
       trackEvent('problem_solved', problem.problem.id, {
@@ -1368,6 +1382,24 @@ export default function App() {
                 >
                   i
                 </button>
+                {(problem.status === 'correct' || problem.status === 'viewing') && solveStats && (solveStats.totalAttempts > 0 || (solveStats.movesByNumber && solveStats.movesByNumber.length > 0)) && (
+                  <button
+                    onClick={() => setShowSolveStats(true)}
+                    className="relative w-6 h-6 rounded-full border border-gray-400 dark:border-gray-500 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center shrink-0 ml-1"
+                    title="Solve statistics"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 13h4v8H3zM10 9h4v12h-4zM17 5h4v16h-4z" />
+                    </svg>
+                    {solveStats.uniqueSolvers > 0 ? (
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                        {solveStats.uniqueSolvers}
+                      </span>
+                    ) : (
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500" />
+                    )}
+                  </button>
+                )}
               </div>
 
               {showProblemList && currentGenre && (
@@ -1501,7 +1533,7 @@ export default function App() {
                 onShowSolution={handleGiveUp}
                 onNextProblem={isDaily ? undefined : handleNextProblem}
                 onRandomProblem={isDaily ? undefined : handleRandomProblem}
-                onShowHint={problem.showHint}
+                onShowHint={() => { hintUsedRef.current = true; problem.showHint(); }}
                 onHideHint={problem.hideHint}
                 onAnalyze={handleAnalyze}
                 analyzing={analyzing}
@@ -1544,10 +1576,6 @@ export default function App() {
                   onLast={problem.playbackLast}
                   onExplore={problem.playbackExplore}
                 />
-              )}
-
-              {(problem.status === 'correct' || problem.status === 'viewing') && problem.problem && (
-                <SolveStatsPanel problemId={problem.problem.id} />
               )}
             </div>
           )}
@@ -1672,6 +1700,11 @@ export default function App() {
           }}
           onClose={() => setShowBookmarksPage(false)}
         />
+      )}
+
+      {/* Solve Stats Modal */}
+      {showSolveStats && solveStats && (solveStats.totalAttempts > 0 || (solveStats.movesByNumber && solveStats.movesByNumber.length > 0)) && (
+        <SolveStatsModal stats={solveStats} onClose={() => setShowSolveStats(false)} />
       )}
 
       {/* Problem Info Modal */}

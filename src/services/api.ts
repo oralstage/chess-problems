@@ -338,6 +338,10 @@ export interface SolveEventData {
   firstMove?: string;
   moves: string[];
   timeSpent?: number;
+  hintUsed?: boolean;
+  wrongMoveCount?: number;
+  genre?: string;
+  stipulation?: string;
   source?: string;
 }
 
@@ -359,6 +363,10 @@ export async function submitSolveEvent(data: SolveEventData): Promise<void> {
         firstMove: data.firstMove,
         moves: data.moves,
         timeSpent: data.timeSpent,
+        hintUsed: data.hintUsed,
+        wrongMoveCount: data.wrongMoveCount,
+        genre: data.genre,
+        stipulation: data.stipulation,
         source: data.source,
       }),
     });
@@ -375,10 +383,15 @@ export interface SolveStats {
   problemId: number;
   totalAttempts: number;
   correctCount: number;
+  uniqueSolvers: number;
   accuracyRate: number;
   avgTimeSpent: number | null;
+  hintUsedCount: number;
+  avgWrongMoves: number | null;
   commonWrongFirstMoves: { move: string; count: number }[];
   commonFirstMoves: { move: string; count: number }[];
+  allTriedMoves: { move: string; count: number; wrongCount: number }[];
+  movesByNumber: { moveNumber: number; moves: { move: string; count: number; correct: boolean }[] }[];
 }
 
 /** Fetch solve statistics for a problem */

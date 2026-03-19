@@ -343,3 +343,31 @@
 - ステージングデプロイ時: `cp wrangler.toml wrangler.toml.bak && cp wrangler-staging.toml wrangler.toml && npx wrangler pages deploy dist --project-name=chess-problems-staging && cp wrangler.toml.bak wrangler.toml && rm wrangler.toml.bak`
 - `scripts/schema.sql` = 問題テーブルのみ、`scripts/schema-stats.sql` = 統計テーブルのみ
 - **国コード記録**: `CF-IPCountry`ヘッダーからsolve_events/analytics_eventsに自動記録
+
+### Daily Problem Archive & Navigation (2026-03-19)
+- **DailyHistoryPage**: ハンバーガーメニューからアクセス。過去のdaily problems一覧（2026-03-15〜）
+- **`/api/daily/history`**: 過去N日分のdaily problem IDを一括計算・取得
+- **`#/daily/YYYY-MM-DD`**: URL永続化。リロードしてもdailyとして復元
+- **Previous/Next**: 問題ヘッダーの< >ボタンで前後の日に移動、FeedbackPanelにもPrevious/Nextボタン
+- **DAILY PROBLEM — MAR 19**: 日付ラベルをボード上部に表示（isDaily時のみ）
+- **`fetchDailyByDate(date)`**: 特定日のdaily problemを取得するAPI関数
+
+### Solve Statistics Modal (2026-03-19)
+- **統計ボタン**: `i`ボタンの隣に棒グラフアイコン（解答後、データありの場合のみ表示）
+- **赤バッジ**: uniqueSolvers数を表示。solve_eventsなしでanalytics_eventsのみの場合は赤丸のみ
+- **モーダル内容**: Solved（回数）、Solvers（ユニーク数）、First moves tried（初手の試行統計）
+- **正解手は緑**: `correct`フラグで判定（`move_wrong`が0件の手のみ正解扱い）
+- **`useSolveStats`フック**: problemIdからstats取得。`SolveStatsModal`コンポーネントで表示
+- **solve_events追加フィールド**: `hint_used`, `wrong_move_count`, `genre`, `stipulation`
+- **solve-stats API拡張**: `uniqueSolvers`, `hintUsedCount`, `avgWrongMoves`, `allTriedMoves`, `movesByNumber`（手番ごとの試行統計、correct/wrongフラグ付き）
+
+### Threat Display Fix (2026-03-19)
+- **solutionParser修正**: `isThreatParent`フラグを1回でクリアせず維持。`!seg.isBlackNum`でdefenseとthreatを区別
+- **getMainLine修正**: 全子がthreatの場合はkey moveで停止（Key variationsから探索）
+- **影響**: D415097等のthreat-only問題でSolution表示が `1.Qa3 b5#` → `1.Qa3!` のみに改善
+
+### Skip Solved Problem on Category Enter (2026-03-19)
+- `selectMode`で保存されたproblemIdが`solved`の場合、次の未解決問題にスキップ
+
+### Known Issues
+- **D180848**: YACPDBのsolutionTextが不完全（#4なのに`1.a7-a8=D !`の1手のみ）。正解のa8=Qを指しても不正解になる。YACPDBデータの問題でこちら側では対応不可

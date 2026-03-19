@@ -83,12 +83,9 @@ function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
   line.push(current);
   while (current.children.length > 0) {
     const nonThreat = current.children.filter(n => !n.isThreat);
-    const next = nonThreat[0] || current.children[0];
-    // If next node is same color (threat), insert a placeholder for the opponent's move
-    if (next.color === current.color && next.isThreat) {
-      const placeholder = { ...AUTO_MOVE_PLACEHOLDER, color: current.color === 'w' ? 'b' as const : 'w' as const };
-      line.push(placeholder);
-    }
+    // If all children are threats, stop here — user can explore via Key variations
+    if (nonThreat.length === 0) break;
+    const next = nonThreat[0];
     current = next;
     line.push(current);
   }

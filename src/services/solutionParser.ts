@@ -707,17 +707,14 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     }
     // If same-line follow: keep the stack as-is, chain from the last node
 
-    const isThreatChild = stack.length > 0 && stack[stack.length - 1].isThreatParent;
-    // Clear one-shot threat flag so subsequent siblings aren't marked as threats
-    if (isThreatChild && stack.length > 0) {
-      stack[stack.length - 1].isThreatParent = false;
-    }
+    // Threat child: parent has hasThreatLabel and this segment is a white continuation (not a defense)
+    const isThreatChild = stack.length > 0 && stack[stack.length - 1].isThreatParent && !seg.isBlackNum;
 
     // Build nodes for all moves in this segment, chaining them
     let currentColor = color;
 
     // Save stack depth before threat segments so we can restore it after
-    const stackDepthBeforeThreat = seg.isThreat ? stack.length : -1;
+    const stackDepthBeforeThreat = (seg.isThreat || isThreatChild) ? stack.length : -1;
 
     // Slash alternatives are expanded at line level, so just process linearly
     for (let i = 0; i < seg.moves.length; i++) {

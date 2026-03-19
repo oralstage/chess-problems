@@ -23,6 +23,10 @@ interface SolveEventBody {
   firstMove?: string;
   moves: string[];
   timeSpent?: number;
+  hintUsed?: boolean;
+  wrongMoveCount?: number;
+  genre?: string;
+  stipulation?: string;
   source?: string;
 }
 
@@ -75,10 +79,14 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
   const country = context.request.headers.get('CF-IPCountry') || '';
   const source = body.source ? String(body.source).slice(0, 20) : '';
+  const hintUsed = body.hintUsed ? 1 : 0;
+  const wrongMoveCount = typeof body.wrongMoveCount === 'number' ? Math.max(0, Math.min(body.wrongMoveCount, 1000)) : 0;
+  const genre = body.genre ? String(body.genre).slice(0, 10) : '';
+  const stipulation = body.stipulation ? String(body.stipulation).slice(0, 10) : '';
 
   await context.env.STATS_DB.prepare(
-    `INSERT INTO solve_events (problem_id, session_id, dev, correct, first_move, moves, move_count, time_spent, source, country)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO solve_events (problem_id, session_id, dev, correct, first_move, moves, move_count, time_spent, hint_used, wrong_move_count, genre, stipulation, source, country)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     body.problemId,
     body.sessionId,
@@ -88,6 +96,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     JSON.stringify(moves),
     moves.length,
     timeSpent,
+    hintUsed,
+    wrongMoveCount,
+    genre,
+    stipulation,
     source,
     country,
   ).run();
