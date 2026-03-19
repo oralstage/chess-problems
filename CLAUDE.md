@@ -301,6 +301,9 @@
 4. **スタブ問題**: `genreIndex`からFEN空のスタブが`e.problem`に入るため`!e.problem`がfalseになりfetchが走らない → `!e.problem.fen`チェックを追加
 5. **useMemo再計算されない問題**: `metaCache`はモジュールレベルMapなのでuseMemoのdepsに入らない。`forceUpdate()`でre-renderしても`entries`が古いまま → `useReducer`のカウンタ`cacheVersion`をuseMemoのdepsに追加して解決
 
+#### 既知のバグ（未修正）
+- **D415097 threat-only playback**: `getMainLine`がthreat(`2.b5`)を選びプレイバックが白のみ2手になる。原因はsolutionParserがdefense(`1...a4`)をthreatの子ノードとして構築するため`nonThreat`フィルタに引っかからない。インデント/stack復元ロジック（`stackDepthBeforeThreat`）のバグ。Key variationsの表示自体は正しい（`1...a4 2.b5`等）。
+
 #### その他の修正
 - **デプロイルール**: CLAUDE.mdに「本番デプロイはユーザー許可必須」を追記
 - **Daily Problem日付同期**: `/api/daily`にクライアントのローカル日付を`?date=YYYY-MM-DD`で送信。UTC→ローカルのズレを解消
