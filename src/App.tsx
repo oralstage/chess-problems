@@ -839,7 +839,9 @@ export default function App() {
         if (cachedProblem.genre === genre) {
           if (cachedProblem.solutionText && (!cachedProblem.solutionTree || cachedProblem.solutionTree.length === 0)) {
             const firstColor = (cachedProblem.genre === 'help' || (cachedProblem.genre === 'retro' && cachedProblem.stipulation.startsWith('h#'))) ? 'b' : 'w';
-            cachedProblem.solutionTree = parseSolution(cachedProblem.solutionText, firstColor);
+            const allNodes = parseSolution(cachedProblem.solutionText, firstColor);
+            cachedProblem.fullSolutionTree = allNodes;
+            cachedProblem.solutionTree = filterKeyMoves(allNodes, firstColor);
             if (cachedProblem.genre === 'retro' && cachedProblem.solutionText.includes('{(illegal')) {
               const flipColors = (nodes: typeof cachedProblem.solutionTree): void => {
                 for (const n of nodes) { n.color = n.color === 'w' ? 'b' : 'w'; flipColors(n.children); }
@@ -961,20 +963,30 @@ export default function App() {
     // Load ID index (await if not yet loaded)
     const stubs = genreLoaded[genre] ? genreIndex[genre] : await loadGenre(genre);
 
-    // Find next unsolved problem ID from the index
+    // Filter stubs by category's move count range
+    const filteredStubs = stubs.filter(s => {
+      if (!def.minMoves) return true;
+      const mcMatch = s.stipulation.match(/(\d+)/);
+      const mc = mcMatch ? parseInt(mcMatch[1]) : 0;
+      if (mc < def.minMoves) return false;
+      if (def.maxMoves && mc > def.maxMoves) return false;
+      return true;
+    });
+
+    // Find next unsolved problem ID from the filtered index
     let nextId: number | null = null;
     if (savedId) {
       nextId = savedId;
     }
     if (!nextId) {
-      for (const s of stubs) {
+      for (const s of filteredStubs) {
         if (genreProgress[String(s.id)] !== 'solved' && genreProgress[String(s.id)] !== 'skipped') {
           nextId = s.id;
           break;
         }
       }
     }
-    if (!nextId && stubs.length > 0) nextId = stubs[0].id;
+    if (!nextId && filteredStubs.length > 0) nextId = filteredStubs[0].id;
 
     if (nextId) {
       // Fetch full problem details on demand
