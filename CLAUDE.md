@@ -349,6 +349,27 @@
 - **`/api/daily/history`**: 過去N日分のdaily problem IDを一括計算・取得
 - **`#/daily/YYYY-MM-DD`**: URL永続化。リロードしてもdailyとして復元
 - **Previous/Next**: 問題ヘッダーの< >ボタンで前後の日に移動、FeedbackPanelにもPrevious/Nextボタン
+
+### Progress判定の修正 (2026-03-20)
+- **solved**: ヒントなし・ノーミス（`wrongMoveCount === 0 && !hintUsed`）で正解した場合のみ
+- **failed**: 間違いあり、ヒント使用、give upのすべて。間違えた後に正解しても`failed`
+- 一度`solved`になった問題は`failed`にダウングレードしない
+- **フィルター変更後**: 未解答問題を優先的に表示（solvedとfailedをスキップ）
+
+### Solve Statistics Modal (2026-03-20)
+- **統計アイコン**: 解答後に右上に📊アイコン表示。データがあるときのみ（`analytics_events`に`move_correct`/`move_wrong`があれば）
+- **バッジ**: solvedの回数を赤バッジで表示
+- **モーダル内容**: Solved回数、Solvers（ユニーク）、Moves tried（手番ごと、正解手は緑太字）
+- **Moves tried**: `analytics_events`の`move_correct`/`move_wrong`を`moveNumber`別に集計
+
+### Truncated Solution対応 (2026-03-20)
+- **`=D`（ドイツ語表記）**: Queen promotionとして認識。`normalizeMove`で`=D`→`=Q`に変換
+- **solutionが1手のみ**: 1手指した時点で正解扱い。以降はplaybackの矢印で進められる
+- **solutionTree空**: `solutionLoading`判定を`!solutionText && !solutionTree`に変更。パース済みだが空の場合もボタン表示
+
+### selectMode初回進入時のunsolved優先 (2026-03-20)
+- カテゴリ選択時、既にsolved/failedの問題をスキップして最初の未解答問題を表示
+- `genreProgress[id] !== 'solved' && genreProgress[id] !== 'failed'`でフィルタ
 - **DAILY PROBLEM — MAR 19**: 日付ラベルをボード上部に表示（isDaily時のみ）
 - **`fetchDailyByDate(date)`**: 特定日のdaily problemを取得するAPI関数
 

@@ -61,6 +61,15 @@ export function ProblemList({
   const initialPage = currentIdx >= 0 ? Math.floor(currentIdx / PAGE_SIZE) : 0;
   const [page, setPage] = useState(initialPage);
 
+  // Update page when filtered list changes and current problem is on a different page
+  useEffect(() => {
+    const idx = filtered.findIndex(p => p.id === currentProblemId);
+    if (idx >= 0) {
+      const targetPage = Math.floor(idx / PAGE_SIZE);
+      setPage(targetPage);
+    }
+  }, [filtered, currentProblemId]);
+
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const pageProblems = useMemo(
     () => filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE),

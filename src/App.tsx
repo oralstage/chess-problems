@@ -903,20 +903,8 @@ export default function App() {
           updateHash(category, quickProblem.id);
           quickStarted = true;
         } else {
-          // No saved problem — fetch first problem from API with category filters
-          const params: Record<string, string> = {};
-          if (def.minMoves != null) params.minMoves = String(def.minMoves);
-          if (def.maxMoves != null && def.maxMoves > 0) params.maxMoves = String(def.maxMoves);
-          const { problems: firstPage } = await fetchProblemsPage(genre, 0, 1, params);
-          if (firstPage.length > 0) {
-            const full = await fetchProblem(firstPage[0].id);
-            const quickProblem = metaToChessProblem(full, full.solutionText);
-            loadAndStartProblem(quickProblem);
-            cacheProblem(quickProblem);
-            setCurrentProblemId(prev => ({ ...prev, [category]: quickProblem.id }));
-            updateHash(category, quickProblem.id);
-            quickStarted = true;
-          }
+          // No saved unsolved problem — load genre index to find first unsolved
+          // Don't quick-start with API first page, as it may return a solved problem
         }
       } catch { /* quick-start failed — will fall through to full load below */ }
 
@@ -1120,16 +1108,16 @@ export default function App() {
   const handleNextProblem = useCallback(() => {
     if (!currentGenre || !problem.problem) return;
 
-    // Only mark as solved if actually solved (not just viewing after give up)
+    // Mark as solved only if perfect (no mistakes, no hints), otherwise failed
     if (problem.status === 'correct') {
       const pid = String(problem.problem!.id);
-      setProgress(prev => ({
-        ...prev,
-        [currentGenre]: {
-          ...prev[currentGenre],
-          [pid]: 'solved' as const,
-        },
-      }));
+      const perfect = problem.wrongMoveCount === 0 && !hintUsedRef.current;
+      const newStatus = perfect ? 'solved' as const : 'failed' as const;
+      setProgress(prev => {
+        const genreProgress = prev[currentGenre] || {};
+        if (genreProgress[pid] === 'solved') return prev; // don't downgrade
+        return { ...prev, [currentGenre]: { ...genreProgress, [pid]: newStatus } };
+      });
       const tsKey = `${currentGenre}:${pid}`;
       setTimestamps(prev => ({ ...prev, [tsKey]: Date.now() }));
     }
@@ -1221,14 +1209,16 @@ export default function App() {
     ? (bookmarks[currentGenre] || []).includes(String(problem.problem.id))
     : false;
 
-  // Auto-save progress when problem is solved correctly (don't wait for Next click)
+  // Auto-save progress when problem is completed (correct or with mistakes)
   useEffect(() => {
     if (problem.status === 'correct' && problem.problem && currentGenre) {
       const pid = String(problem.problem.id);
+      const perfect = problem.wrongMoveCount === 0 && !hintUsedRef.current;
+      const newStatus = perfect ? 'solved' as const : 'failed' as const;
       setProgress(prev => {
         const genreProgress = prev[currentGenre] || {};
-        if (genreProgress[pid] === 'solved') return prev; // already saved
-        return { ...prev, [currentGenre]: { ...genreProgress, [pid]: 'solved' as const } };
+        if (genreProgress[pid] === 'solved') return prev; // don't downgrade
+        return { ...prev, [currentGenre]: { ...genreProgress, [pid]: newStatus } };
       });
       const tsKey = `${currentGenre}:${pid}`;
       setTimestamps(prev => prev[tsKey] ? prev : { ...prev, [tsKey]: Date.now() });
@@ -1440,7 +1430,9 @@ export default function App() {
                         // If current problem already matches, stay on it
                         const alreadyMatches = matching.some(p => p.id === currentId);
                         if (!alreadyMatches) {
-                          const target = matching[0];
+                          const genreProgress = progress[currentGenre] || {};
+                          const unsolved = matching.find(p => genreProgress[String(p.id)] !== 'solved' && genreProgress[String(p.id)] !== 'failed');
+                          const target = unsolved || matching[0];
                           loadAndStartProblem(target);
                           cacheProblem(target);
                           setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:target.id }));
@@ -1528,7 +1520,7 @@ export default function App() {
                 feedback={problem.feedback}
                 moveHistory={problem.moveHistory}
                 hintActive={!!problem.hintSquares}
-                solutionLoading={problem.problem?.solutionTree?.length === 0}
+                solutionLoading={!problem.problem?.solutionText && !problem.problem?.solutionTree}
                 onReset={problem.resetProblem}
                 onShowSolution={handleGiveUp}
                 onNextProblem={isDaily ? undefined : handleNextProblem}
