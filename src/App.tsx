@@ -933,8 +933,8 @@ export default function App() {
     // Quick-start: fetch a single problem immediately while genre data loads in background
     const genreProgress = progress[genre] || {};
     const rawSavedId = opts?.skipSavedId ? null : currentProblemId[category];
-    // Skip saved ID if already solved — show next unsolved instead
-    const savedId = rawSavedId && genreProgress[String(rawSavedId)] !== 'solved' ? rawSavedId : null;
+    // Skip saved ID if already attempted — show fresh problem instead
+    const savedId = rawSavedId && !genreProgress[String(rawSavedId)] ? rawSavedId : null;
     if (!genreLoaded[genre]) {
       let quickStarted = false;
       try {
@@ -980,7 +980,7 @@ export default function App() {
     }
     if (!nextId) {
       for (const s of filteredStubs) {
-        if (genreProgress[String(s.id)] !== 'solved' && genreProgress[String(s.id)] !== 'skipped') {
+        if (!genreProgress[String(s.id)]) {
           nextId = s.id;
           break;
         }
