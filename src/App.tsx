@@ -22,7 +22,7 @@ import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, trackEvent } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, trackEvent, fetchMyProgress, getSessionId } from './services/api';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
 
@@ -203,6 +203,48 @@ export default function App() {
     } catch { /* ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // One-time progress migration: downgrade incorrectly 'solved' entries to 'failed'
+  // based on server-side solve_events data
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('cp-progress-migrated')) return;
+    } catch { return; }
+
+    fetchMyProgress(getSessionId())
+      .then(serverProgress => {
+        localStorage.setItem('cp-progress-migrated', '1');
+        setProgress(prev => {
+          const updated = { ...prev };
+          let changed = false;
+          for (const [problemIdStr, entry] of Object.entries(serverProgress)) {
+            const genre = entry.genre as Genre;
+            if (!genre || !updated[genre]) continue;
+            const currentStatus = updated[genre][problemIdStr];
+            // Only downgrade: 'solved' -> 'failed' when server says it wasn't a clean solve
+            if (currentStatus === 'solved') {
+              const isCleanSolve = entry.correct && entry.wrongMoveCount === 0 && !entry.hintUsed;
+              if (!isCleanSolve) {
+                if (!changed) {
+                  // Deep copy genres on first mutation
+                  for (const g of Object.keys(updated) as Genre[]) {
+                    updated[g] = { ...updated[g] };
+                  }
+                  changed = true;
+                }
+                updated[genre][problemIdStr] = 'failed';
+              }
+            }
+          }
+          return changed ? updated : prev;
+        });
+      })
+      .catch(() => {
+        // Non-blocking — don't prevent app from working
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const filterKey = currentCategory || currentGenre || '';
   const filtersRaw = filterKey ? allFiltersRaw[filterKey] || defaultFilters : defaultFilters;
   const setFilters = useCallback((value: GlobalFilters) => {

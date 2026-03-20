@@ -462,13 +462,28 @@ if (typeof window !== 'undefined') {
   trackEvent('session_start');
 }
 
+// ── My Progress (for migration) ──
+
+export interface MyProgressEntry {
+  correct: boolean;
+  wrongMoveCount: number;
+  hintUsed: boolean;
+  genre: string;
+}
+
+/** Fetch all solve events for a session (latest per problem) */
+export async function fetchMyProgress(sessionId: string): Promise<Record<string, MyProgressEntry>> {
+  const res = await fetch(`${API_BASE}/my-progress?sessionId=${encodeURIComponent(sessionId)}`);
+  if (!res.ok) throw new Error(`My progress API error: ${res.status}`);
+  return res.json();
+}
+
 // ── Site Stats ──
 
 export interface SiteStats {
-  uniqueVisitors: number;
   uniqueSolvers: number;
-  problemsSolved: number;
-  totalAttempts: number;
+  uniqueProblems: number;
+  timesSolved: number;
 }
 
 /** Fetch aggregate site statistics for the home page */

@@ -18,25 +18,24 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
      WHERE event_name IN ('move_correct', 'move_wrong') AND dev = 0`
   ).first<{ unique_solvers: number }>();
 
-  // Total problems attempted (each attempt counts, including abandoned)
-  const solveStats = await context.env.STATS_DB.prepare(
-    `SELECT COUNT(*) as total_solved
+  // Total times solved (each attempt counts)
+  const timesSolved = await context.env.STATS_DB.prepare(
+    `SELECT COUNT(*) as total
      FROM analytics_events
      WHERE event_name = 'problem_started' AND dev = 0`
-  ).first<{ total_solved: number }>();
+  ).first<{ total: number }>();
 
-  // Unique visitors from analytics_events (session_start events)
-  const visitorStats = await context.env.STATS_DB.prepare(
-    `SELECT COUNT(DISTINCT session_id) as unique_visitors
+  // Unique problems solved (distinct problem_ids)
+  const uniqueProblems = await context.env.STATS_DB.prepare(
+    `SELECT COUNT(DISTINCT problem_id) as total
      FROM analytics_events
-     WHERE event_name = 'session_start' AND dev = 0`
-  ).first<{ unique_visitors: number }>();
+     WHERE event_name = 'problem_started' AND dev = 0 AND problem_id IS NOT NULL`
+  ).first<{ total: number }>();
 
   return Response.json({
-    uniqueVisitors: visitorStats?.unique_visitors || 0,
     uniqueSolvers: solverStats?.unique_solvers || 0,
-    problemsSolved: solveStats?.total_solved || 0,
-    totalAttempts: solveStats?.total_solved || 0,
+    uniqueProblems: uniqueProblems?.total || 0,
+    timesSolved: timesSolved?.total || 0,
   }, {
     headers: { 'Cache-Control': 'public, max-age=60' },
   });

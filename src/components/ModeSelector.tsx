@@ -105,8 +105,8 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             YACPDB
           </a>.
         </p>
-        {siteStats && siteStats.problemsSolved > 0 && (
-          <div className="flex justify-center gap-10 mt-6">
+        {siteStats && siteStats.timesSolved > 0 && (
+          <div className="flex justify-center gap-8 sm:gap-10 mt-6">
             <div className="text-center">
               <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
                 {siteStats.uniqueSolvers.toLocaleString()}
@@ -117,10 +117,18 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             </div>
             <div className="text-center">
               <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
-                {siteStats.problemsSolved.toLocaleString()}
+                {siteStats.uniqueProblems.toLocaleString()}
               </div>
               <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
-                problems solved
+                problems
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
+                {siteStats.timesSolved.toLocaleString()}
+              </div>
+              <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
+                times solved
               </div>
             </div>
           </div>
