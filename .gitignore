@@ -6,3 +6,4 @@ scripts/import-data*.sql
 *.local
 public/stockfish/
 src/data/*.json
+.claude/settings.local.json

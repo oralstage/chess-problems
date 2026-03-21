@@ -98,7 +98,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           </h1>
         </div>
         <p className="text-base text-gray-500 dark:text-gray-400 max-w-lg leading-relaxed">
-          Chess problems are composed positions with a unique solution — not tactics from real games, but crafted works of art.
+          Chess problems are checkmate puzzles with a unique solution — not tactics from real games, but works of art created by composers.
           This site lets you solve them interactively on the board with move validation, Stockfish hints, and solution playback.
           All problems from{' '}
           <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300 transition-colors">

@@ -16,6 +16,13 @@ html {
   font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
+html {
+  background-color: #f9fafb;
+}
+html.dark {
+  background-color: #030712;
+}
+
 /* Subtle noise texture for depth */
 body::before {
   content: '';

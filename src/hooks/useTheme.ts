@@ -12,6 +12,10 @@ export function useTheme() {
 
   const applyTheme = useCallback((mode: ThemeMode) => {
     document.documentElement.classList.toggle('dark', mode === 'dark');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+      meta.setAttribute('content', mode === 'dark' ? '#0a0a0a' : '#ffffff');
+    }
   }, []);
 
   useEffect(() => {

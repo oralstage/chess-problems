@@ -344,6 +344,50 @@
 - `scripts/schema.sql` = 問題テーブルのみ、`scripts/schema-stats.sql` = 統計テーブルのみ
 - **国コード記録**: `CF-IPCountry`ヘッダーからsolve_events/analytics_eventsに自動記録
 
+### Solve Statistics Modal (2026-03-21)
+- **統計ボタン**: 解答後に右上にバッジ付きアイコン（解かれた回数）で表示。`totalAttempts > 0` またはmoves triedデータがあれば表示
+- **表示内容**: Solved回数、ユニークSolvers数、手番ごとのMoves tried（正解手は緑太字）
+- **データソース**: solve_eventsから`totalAttempts`/`uniqueSolvers`、analytics_eventsの`move_correct`/`move_wrong`からmovesByNumber
+- **solve_events追加フィールド**: `hint_used`, `wrong_move_count`, `genre`, `stipulation`
+
+### Progress判定変更 (2026-03-21)
+- **solved**: ヒントなし、一回も間違えず、初見で正解した場合のみ（`wrongMoveCount === 0 && !hintUsed && correct`）
+- **failed**: 間違えた、ヒントを使った、give upした — 全部failed
+- **ダウングレードなし**: 一度solvedになったらfailedにならない
+- **マイグレーション**: 起動時に`/api/my-progress`からsolve_eventsを取得し、過去の不正な`solved`を`failed`に修正（1回のみ、`cp-progress-migrated`フラグ）
+
+### Daily Problem Archive (2026-03-21)
+- **DailyHistoryPage**: 過去のdaily問題一覧（2026-03-15〜今日）。バーガーメニューからアクセス
+- **ナビゲーション**: Previous / Next ボタン、All daily problems ボタン
+- **URL**: `#/daily/YYYY-MM-DD` でリロード対応
+- **solve_eventsのsource**: `'daily'` フラグで通常solveと区別
+
+### Site Stats 3カラム (2026-03-21)
+- **表示**: SOLVERS / PROBLEMS / TIMES SOLVED の3つ
+- **PROBLEMS**: `COUNT(DISTINCT problem_id)` from analytics_events（一手でも動かした問題数）
+- **TIMES SOLVED**: `COUNT(*)` from analytics_events problem_started（途中離脱含む）
+
+### Try手の除外修正 (2026-03-21)
+- **バグ**: キャッシュ復元パスで`filterKeyMoves`が欠けていて、tryを含む全ノードが`solutionTree`に入っていた
+- **修正**: `cacheProblem`時に`fullSolutionTree`を保存し、復元時に`filterKeyMoves`を適用
+
+### Truncated Solution対応 (2026-03-21)
+- **問題**: solutionTextが1手しかない問題（YACPDB データ不足）でボタンがLoading...のまま
+- **修正**: `solutionLoading`を`!solutionText && !solutionTree`に変更。空のsolutionTreeでもボタン表示
+- **1手解答**: solutionが1手しかない場合、その手を指した時点で正解（solved）にする
+
+### German Notation対応 (2026-03-21)
+- `=D` (Dame) → Queen promotion として認識。solutionParser/algebraicToFenで対応
+
+### theme-color (2026-03-21)
+- **iOS Safari**: Safari 26で`theme-color`メタタグ廃止。`html`のbackground-colorから自動取得
+- **対応**: `index.css`で`html`/`html.dark`にbackground-color設定（`#f9fafb`/`#030712`）
+- **`useTheme.ts`**: テーマ切替時に`theme-color`メタタグも動的更新（古いSafari向け）
+
+### 初回表示の未解答問題スキップ (2026-03-21)
+- **selectMode**: カテゴリ初回進入時、`solved`/`failed`の問題をスキップして未解答問題を表示
+- **フィルター変更時**: Done後も未解答問題にジャンプ
+
 ### Daily Problem Archive & Navigation (2026-03-19)
 - **DailyHistoryPage**: ハンバーガーメニューからアクセス。過去のdaily problems一覧（2026-03-15〜）
 - **`/api/daily/history`**: 過去N日分のdaily problem IDを一括計算・取得
