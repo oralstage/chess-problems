@@ -78,8 +78,9 @@
 - Scoring: perfect solve (no mistakes, no hints) = 1.0 (win), anything else = 0.0 (loss)
 - Rating locks on first wrong move (score=0.0 immediately, show hint becomes available)
 - `problem_ratings` and `rating_events` tables in STATS_DB, with `dev` column (0=prod, 1=staging)
+- **All 398,325 direct mate problems pre-populated in `problem_ratings`** with initial ratings. No formula fallback — all matchmaking and display reads from this table only.
 - Staging auto-detected by domain containing "staging" → `isDevMode()` returns true
-- Matchmaking: first checks `problem_ratings` for updated ratings, then falls back to initial formula for unrated problems. Range steps: ±50, ±100, ±150, ±200, ±250, ±300, ±400
+- Matchmaking: reads from `problem_ratings` table. Range steps: ±50, ±100, ±150, ±200, ±250, ±300, ±400. Excludes already-solved problems via `solve_events`.
 - Player rating stored in localStorage (`cp-player-rating`), problem ratings in D1
 - **D1 binding limit**: D1 SQL has a 100-binding limit. Use literal IDs in `NOT IN` clauses (safe for numeric IDs) instead of parameterized bindings when excluding solved/rated problem IDs.
 
