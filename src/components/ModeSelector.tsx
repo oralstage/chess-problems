@@ -99,11 +99,10 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
         </div>
         <p className="text-base text-gray-500 dark:text-gray-400 max-w-lg leading-relaxed">
           Chess problems are checkmate puzzles with unique solutions — composed works of art, not tactics from games.
-          Solve them interactively on the board.
-          Over 500,000 problems from{' '}
+          Solve over 500,000 problems interactively from{' '}
           <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             YACPDB
-          </a>.
+          </a> database.
         </p>
         {/* {siteStats && siteStats.timesSolved > 0 && (
           <div className="flex justify-center items-end gap-6 sm:gap-8 mt-6 flex-wrap">
