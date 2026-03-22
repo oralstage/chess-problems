@@ -21,7 +21,7 @@ import { ChangelogPage } from './components/ChangelogPage';
 import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
-import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods } from './services/solutionParser';
+import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins } from './services/solutionParser';
 import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
@@ -193,6 +193,7 @@ export default function App() {
   const [isRatedMode, setIsRatedMode] = useState(false);
   const [recentRatedIds, setRecentRatedIds] = useState<number[]>([]);
   const [stipulationToast, setStipulationToast] = useState<string | null>(null);
+  const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
   const prevMoveCountRef = useRef<number | null>(null);
 
   // Per-genre filters (each genre has its own independent filter settings)
@@ -328,6 +329,9 @@ export default function App() {
 
   // Ensure a problem has solutionTree (fetch solutionText from API if needed)
   const ensureSolution = useCallback(async (p: ChessProblem): Promise<ChessProblem> => {
+    // Save original FEN before twin modifications (needed for parseTwins)
+    const originalFen = p._twinApplied ? (p._originalFen || p.fen) : p.fen;
+    if (!p._originalFen) p._originalFen = originalFen;
     // Apply twin FEN modifications regardless of cache state
     if (p.solutionText && !p._twinApplied) {
       const twinMods = extractTwinFenMods(p.solutionText);
@@ -379,6 +383,10 @@ export default function App() {
     }
     p.fullSolutionTree = allNodes;
     p.solutionTree = filterKeyMoves(allNodes, firstColor);
+    // Generate twin data for twin problems
+    if (!p.twins) {
+      p.twins = parseTwins(p.solutionText, p._originalFen || originalFen, parserColor) ?? undefined;
+    }
     // Fix castling rights if solution contains O-O but FEN has none
     p.fen = fixCastlingRights(p.fen, p.solutionText);
     fixEnPassantFen(p);
@@ -397,6 +405,7 @@ export default function App() {
     setLastRatingDelta(null);
     setLastProblemRating(null);
     setProblemRatingBefore(null);
+    setActiveTwinId(null);
     trackEvent('problem_started', p.id, { genre: p.genre, stipulation: p.stipulation });
     // Show board immediately if solution needs to be fetched
     const needsFetch = p.solutionTree.length === 0;
@@ -1850,7 +1859,9 @@ export default function App() {
 
               {(problem.status === 'correct' || problem.status === 'viewing') && (
                 <SolutionTree
-                  fullNodes={problem.problem.fullSolutionTree}
+                  fullNodes={activeTwinId && problem.problem.twins
+                    ? (problem.problem.twins.find(t => t.id === activeTwinId)?.fullSolutionTree || problem.problem.fullSolutionTree)
+                    : problem.problem.fullSolutionTree}
                   initialFen={problem.initialFen}
                   solutionText={problem.problem.solutionText}
                   firstColor={(problem.initialFen.split(' ')[1] || 'w') as 'w' | 'b'}
@@ -1861,6 +1872,15 @@ export default function App() {
                   onNext={problem.playbackNext}
                   onLast={problem.playbackLast}
                   onExplore={problem.playbackExplore}
+                  twins={problem.problem.twins}
+                  activeTwinId={activeTwinId || (problem.problem.twins?.[0]?.id)}
+                  onSelectTwin={(id) => {
+                    setActiveTwinId(id);
+                    const twin = problem.problem?.twins?.find(t => t.id === id);
+                    if (twin) {
+                      problem.switchTwinPlayback(twin.fen, twin.solutionTree);
+                    }
+                  }}
                 />
               )}
             </div>

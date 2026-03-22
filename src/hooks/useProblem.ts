@@ -939,6 +939,16 @@ export function useProblem(stockfish?: StockfishApi) {
     playbackPrev,
     playbackNext,
     playbackLast,
+    switchTwinPlayback: useCallback((twinFen: string, twinSolutionTree: SolutionNode[]) => {
+      let pb = startPlayback(twinFen, twinSolutionTree);
+      if (pb && pb.positions.length > 1) {
+        pb = { ...pb, moveIndex: 0 };
+      }
+      setState(prev => ({
+        ...prev,
+        playback: pb,
+      }));
+    }, [startPlayback]),
     playbackExplore: useCallback((fen: string, lastMove: { from: string; to: string } | null) => {
       setState(prev => {
         if (!prev.playback) return prev;

@@ -652,11 +652,54 @@ export function extractTwinFenMods(solutionText: string): { from: string; to: st
   });
 }
 
+/** FEN modification: move, add, or remove a piece */
+type FenMod =
+  | { type: 'move'; from: string; to: string }
+  | { type: 'add'; square: string; piece: string }   // piece = FEN char like 'P','p','N','n'
+  | { type: 'remove'; square: string };
+
+/** Convert YACPDB piece code to FEN char: wK→K, bK→k, wP→P, bS→n */
+function pieceToFen(colorPiece: string): string {
+  const color = colorPiece[0]; // 'w' or 'b'
+  let piece = colorPiece[1].toUpperCase();
+  if (piece === 'S') piece = 'N'; // Knight
+  return color === 'w' ? piece : piece.toLowerCase();
+}
+
+/** Parse twin modification line into FenMod array */
+export function parseTwinMods(modLine: string): FenMod[] {
+  const mods: FenMod[] = [];
+  if (!modLine) return mods;
+
+  // Move: "bKa7-->a6" or "wKc2 --> c1"
+  const movePattern = /([bw][KQRBSP])([a-h][1-8])\s*-->\s*([a-h][1-8])/gi;
+  let m;
+  while ((m = movePattern.exec(modLine)) !== null) {
+    mods.push({ type: 'move', from: m[2], to: m[3] });
+  }
+
+  // Remove: "-wRf3" or "-bBg8"
+  const removePattern = /-([bw][KQRBSP])([a-h][1-8])/gi;
+  while ((m = removePattern.exec(modLine)) !== null) {
+    mods.push({ type: 'remove', square: m[2] });
+  }
+
+  // Add: "+wBb3" or "+bSg8"
+  const addPattern = /\+([bw][KQRBSP])([a-h][1-8])/gi;
+  while ((m = addPattern.exec(modLine)) !== null) {
+    // Skip if this is "+b)" twin marker (not a piece addition)
+    if (m[1].toLowerCase() === 'b)' || /^\+[b-z]\)/.test(m[0])) continue;
+    mods.push({ type: 'add', square: m[2], piece: pieceToFen(m[1]) });
+  }
+
+  return mods;
+}
+
 /**
  * Apply twin position modifications to a FEN string.
- * Moves pieces from one square to another.
+ * Supports move, add, and remove operations.
  */
-export function applyTwinMods(fen: string, mods: { from: string; to: string }[]): string {
+export function applyTwinMods(fen: string, mods: FenMod[] | { from: string; to: string }[]): string {
   const parts = fen.split(' ');
   const rows = parts[0].split('/');
 
@@ -676,12 +719,32 @@ export function applyTwinMods(fen: string, mods: { from: string; to: string }[])
   const sq = (s: string) => ({ col: s.charCodeAt(0) - 97, row: 8 - parseInt(s[1]) });
 
   for (const mod of mods) {
-    const f = sq(mod.from);
-    const t = sq(mod.to);
-    const piece = board[f.row][f.col];
-    if (piece) {
-      board[f.row][f.col] = '';
-      board[t.row][t.col] = piece;
+    if ('type' in mod) {
+      // New FenMod format
+      if (mod.type === 'move') {
+        const f = sq(mod.from);
+        const t = sq(mod.to);
+        const piece = board[f.row][f.col];
+        if (piece) {
+          board[f.row][f.col] = '';
+          board[t.row][t.col] = piece;
+        }
+      } else if (mod.type === 'remove') {
+        const s = sq(mod.square);
+        board[s.row][s.col] = '';
+      } else if (mod.type === 'add') {
+        const s = sq(mod.square);
+        board[s.row][s.col] = mod.piece;
+      }
+    } else {
+      // Legacy {from, to} format
+      const f = sq(mod.from);
+      const t = sq(mod.to);
+      const piece = board[f.row][f.col];
+      if (piece) {
+        board[f.row][f.col] = '';
+        board[t.row][t.col] = piece;
+      }
     }
   }
 
@@ -703,6 +766,87 @@ export function applyTwinMods(fen: string, mods: { from: string; to: string }[])
 
   parts[0] = newRows.join('/');
   return parts.join(' ');
+}
+
+export interface TwinData {
+  id: string;          // "a", "b", "c"...
+  label: string;       // "a) diagram", "b) bKa7→a6"
+  fen: string;
+  solutionTree: SolutionNode[];
+  fullSolutionTree: SolutionNode[];
+}
+
+/**
+ * Parse all twins from solution text.
+ * Returns array of twin data with computed FENs and solution trees.
+ * Returns null if not a twin problem.
+ */
+export function parseTwins(solutionText: string, originalFen: string, firstMoveColor: 'w' | 'b' = 'w'): TwinData[] | null {
+  if (!solutionText) return null;
+  const trimmed = solutionText.trim();
+  if (!trimmed.match(/^a\)/i)) return null; // Not a twin problem
+
+  // Split into twin sections: "a) ...", "b) ...", "+c) ..."
+  const twinRegex = /(?:^|\n)\s*(\+?)([a-z])\)\s*/gi;
+  const splits: { id: string; cumulative: boolean; start: number; modLine: string }[] = [];
+  let match;
+  while ((match = twinRegex.exec(trimmed)) !== null) {
+    splits.push({
+      id: match[2].toLowerCase(),
+      cumulative: match[1] === '+',
+      start: match.index + match[0].length,
+      modLine: '',
+    });
+  }
+
+  if (splits.length < 2) return null; // Need at least a) and b)
+
+  // Extract each twin's content
+  const twins: { id: string; cumulative: boolean; modLine: string; solutionText: string }[] = [];
+  for (let i = 0; i < splits.length; i++) {
+    const end = i + 1 < splits.length ? trimmed.lastIndexOf('\n', splits[i + 1].start - 1) : trimmed.length;
+    const content = trimmed.slice(splits[i].start, end > splits[i].start ? end : trimmed.length);
+    // First line is the mod line, rest is solution
+    const lines = content.split('\n');
+    const firstLine = lines[0].trim();
+    // Check if first line is a modification or the start of the solution
+    const hasMod = /[bw][KQRBSP][a-h][1-8]\s*-->|^-[bw][KQRBSP]|^\+[bw][KQRBSP][a-h]/.test(firstLine);
+    const modLine = hasMod ? firstLine : '';
+    const solText = hasMod ? lines.slice(1).join('\n') : content;
+    twins.push({
+      id: splits[i].id,
+      cumulative: splits[i].cumulative,
+      modLine,
+      solutionText: solText.trim(),
+    });
+  }
+
+  // Build FENs: a) starts from originalFen, +b) is cumulative from previous, b) from original
+  const result: TwinData[] = [];
+  let prevFen = originalFen;
+
+  for (const twin of twins) {
+    const baseFen = twin.cumulative ? prevFen : originalFen;
+    const mods = parseTwinMods(twin.modLine);
+    const fen = mods.length > 0 ? applyTwinMods(baseFen, mods) : baseFen;
+    prevFen = fen;
+
+    // Parse solution for this twin
+    const solNodes = parseSolution(twin.solutionText, firstMoveColor);
+    const label = twin.modLine
+      ? `${twin.id}) ${twin.modLine}`
+      : `${twin.id}) diagram`;
+
+    result.push({
+      id: twin.id,
+      label,
+      fen,
+      solutionTree: filterKeyMoves(solNodes, firstMoveColor),
+      fullSolutionTree: solNodes,
+    });
+  }
+
+  return result.length >= 2 ? result : null;
 }
 
 /**

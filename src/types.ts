@@ -60,6 +60,8 @@ export interface ChessProblem {
   keywords: string[];
   award: string;
   _twinApplied?: boolean;
+  _originalFen?: string;
+  twins?: import('./services/solutionParser').TwinData[];
 }
 
 export type ProblemStatus = 'solved' | 'skipped' | 'in-progress' | 'failed';

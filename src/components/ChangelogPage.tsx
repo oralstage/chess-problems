@@ -16,6 +16,7 @@ const CHANGELOG = [
         title: 'Updates',
         items: [
           'Redesigned Daily Problem display on the home page.',
+          'Twin problems — solutions now show all twin variants (a, b, c...) with navigation buttons to switch between positions.',
           'Various bug fixes.',
         ],
       },
