@@ -22,7 +22,7 @@ import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, trackEvent, fetchMyProgress, getSessionId } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
 
@@ -172,6 +172,8 @@ export default function App() {
   const [showDailyHistory, setShowDailyHistory] = useState(false);
   const [showProblemInfo, setShowProblemInfo] = useState(false);
   const [showSolveStats, setShowSolveStats] = useState(false);
+  const [showSiteStats, setShowSiteStats] = useState(false);
+  const [siteStats, setSiteStats] = useState<import('./services/api').SiteStats | null>(null);
   const [showSearchPage, setShowSearchPage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<import('./services/api').SearchResult[] | null>(null);
@@ -1319,6 +1321,10 @@ export default function App() {
           onBack={goBack}
           onShowHelp={view === 'solving' && currentGenre ? () => setShowTutorial(true) : undefined}
           onOpenMenu={() => setShowHamburgerMenu(true)}
+          onShowSiteStats={view === 'mode-select' ? () => {
+            setShowSiteStats(true);
+            if (!siteStats) fetchSiteStats().then(setSiteStats).catch(() => {});
+          } : undefined}
           onOpenProblemList={view === 'solving' && currentGenre ? () => { setShowProblemList(true); if (currentGenre && !genreLoaded[currentGenre]) loadGenre(currentGenre); } : undefined}
           onOpenFilters={view === 'solving' && currentGenre ? () => { setFilterOpenedFrom('hamburger'); setShowFilterPage(true); } : undefined}
           activeFilterCount={activeFilterCount}
@@ -1816,6 +1822,45 @@ export default function App() {
           </div>
         );
       })()}
+
+      {/* Site Stats Modal */}
+      {showSiteStats && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowSiteStats(false)} />
+          <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-sm w-full mx-4 p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-white">Site Stats</h3>
+              <button onClick={() => setShowSiteStats(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
+                <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {siteStats ? (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Problems available</span>
+                  <span className="text-lg font-bold text-green-600 dark:text-green-400">500,000+</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Problems solved</span>
+                  <span className="text-lg font-bold text-green-600 dark:text-green-400">{siteStats.uniqueProblems.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center py-2 border-b border-gray-100 dark:border-gray-800">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Solvers</span>
+                  <span className="text-lg font-bold text-green-600 dark:text-green-400">{siteStats.uniqueSolvers.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center py-2">
+                  <span className="text-sm text-gray-500 dark:text-gray-400">Total solves</span>
+                  <span className="text-lg font-bold text-green-600 dark:text-green-400">{siteStats.timesSolved.toLocaleString()}</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4 text-gray-400">Loading...</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

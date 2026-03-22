@@ -12,6 +12,7 @@ interface HeaderProps {
   onOpenProblemList?: () => void;
   onOpenFilters?: () => void;
   activeFilterCount?: number;
+  onShowSiteStats?: () => void;
 }
 
 const GENRE_NAMES: Record<Genre, string> = {
@@ -42,7 +43,7 @@ function ThemeToggle({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme
   );
 }
 
-export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp, onOpenMenu, onOpenProblemList, onOpenFilters, activeFilterCount }: HeaderProps) {
+export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp, onOpenMenu, onOpenProblemList, onOpenFilters, activeFilterCount, onShowSiteStats: _onShowSiteStats }: HeaderProps) {
   if (view === 'mode-select') {
     return (
       <header className="flex items-center justify-end gap-2 py-3 px-4">

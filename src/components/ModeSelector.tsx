@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CATEGORY_DEFS } from '../types';
-import { fetchSiteStats, type SiteStats } from '../services/api';
+// import { fetchSiteStats, type SiteStats } from '../services/api';
 
 const EXPANDED_GROUPS_KEY = 'cp-expanded-groups';
 
@@ -46,10 +46,10 @@ const GROUP_BRIEFS: Record<string, string> = {
 };
 
 export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved, onShowChangelog }: ModeSelectorProps) {
-  const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
-  useEffect(() => {
-    fetchSiteStats().then(setSiteStats).catch(() => {});
-  }, []);
+  // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
+  // useEffect(() => {
+  //   fetchSiteStats().then(setSiteStats).catch(() => {});
+  // }, []);
 
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
     try {
@@ -103,21 +103,13 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           All problems from{' '}
           <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
             YACPDB
-          </a>.
+          </a>'s collection of over 500,000 compositions.
         </p>
-        {siteStats && siteStats.timesSolved > 0 && (
-          <div className="flex justify-center gap-8 sm:gap-10 mt-6">
+        {/* {siteStats && siteStats.timesSolved > 0 && (
+          <div className="flex justify-center items-end gap-6 sm:gap-8 mt-6 flex-wrap">
             <div className="text-center">
               <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
-                {siteStats.uniqueSolvers.toLocaleString()}
-              </div>
-              <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
-                solvers
-              </div>
-            </div>
-            <div className="text-center">
-              <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
-                {siteStats.uniqueProblems.toLocaleString()}
+                500K+
               </div>
               <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
                 problems
@@ -125,14 +117,30 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             </div>
             <div className="text-center">
               <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
+                {siteStats.uniqueProblems.toLocaleString()}
+              </div>
+              <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
+                problems solved
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
+                {siteStats.uniqueSolvers.toLocaleString()}
+              </div>
+              <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
+                by solvers
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl sm:text-5xl font-extrabold text-green-600 dark:text-green-400 tabular-nums leading-none">
                 {siteStats.timesSolved.toLocaleString()}
               </div>
               <div className="text-xs uppercase tracking-wider text-gray-400 dark:text-gray-500 mt-1.5">
-                times solved
+                total solves
               </div>
             </div>
           </div>
-        )}
+        )} */}
       </div>
 
       {/* ── Daily Problem ── */}
@@ -142,18 +150,11 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             onClick={onSolveDaily}
             className="group w-full text-left transition-colors"
           >
-            <div className="flex flex-col items-center gap-4">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold uppercase tracking-wider text-green-600 dark:text-green-400">
-                  Daily Problem — {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </span>
-                {dailySolved && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
-                    Solved &#10003;
-                  </span>
-                )}
+            <div className="flex flex-col items-center">
+              <div className="text-sm font-bold uppercase tracking-wider text-green-600 dark:text-green-400 mb-3">
+                Daily Problem — {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </div>
-              <div className="shrink-0 rounded-lg overflow-hidden shadow-sm" style={{ width: 320, height: 320 }}>
+              <div className="relative shrink-0 rounded-t-lg overflow-hidden shadow-sm" style={{ width: 320, height: 320 }}>
                 <Chessboard
                   position={dailyProblem.fen}
                   boardWidth={320}
@@ -164,20 +165,20 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                   customLightSquareStyle={{ backgroundColor: '#edeed1' }}
                 />
               </div>
-              <div className="text-center">
-                <div className="text-2xl sm:text-3xl font-extrabold text-gray-900 dark:text-white mb-1">
-                  Mate in {dailyProblem.moveCount}
+              <div className="flex items-center justify-between w-[320px] bg-gray-800 dark:bg-gray-800 px-3 py-2 rounded-b-lg">
+                <div className="flex items-center gap-1.5 text-sm text-white">
+                  <span className="font-bold">Mate in {dailyProblem.moveCount}</span>
+                  <span className="text-gray-400">·</span>
+                  <span className="text-gray-300 text-xs truncate">
+                    {dailyProblem.authors[0] || 'Unknown'}
+                    {dailyProblem.sourceYear ? `, ${dailyProblem.sourceYear}` : ''}
+                  </span>
                 </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">
-                  {dailyProblem.authors[0]?.split(',')[0] || 'Unknown'}
-                  {dailyProblem.sourceYear ? `, ${dailyProblem.sourceYear}` : ''}
-                </div>
-                <div className="mt-3 flex items-center justify-center gap-1 text-sm font-semibold text-green-600 dark:text-green-400 group-hover:gap-2 transition-all">
-                  Solve
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </div>
+                {dailySolved ? (
+                  <span className="text-xs text-green-400 font-bold">Solved ✓</span>
+                ) : (
+                  <span className="text-xs text-green-400 font-bold">Solve ›</span>
+                )}
               </div>
             </div>
           </button>
