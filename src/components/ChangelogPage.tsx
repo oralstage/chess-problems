@@ -7,10 +7,15 @@ const CHANGELOG = [
     date: '2026-03-22',
     sections: [
       {
+        title: 'New',
+        items: [
+          'Rated Mode — solve Direct Mate problems matched to your skill level with a Glicko-2 rating system. Your rating adjusts based on your performance: solve perfectly to gain points, any mistakes or giving up loses points.',
+        ],
+      },
+      {
         title: 'Updates',
         items: [
           'Redesigned Daily Problem display on the home page.',
-          'Removed site statistics from the home page.',
           'Various bug fixes.',
         ],
       },
