@@ -13,10 +13,11 @@ import { addFairyExclusion } from './fairy-filter';
 import { difficultyToRating } from '../utils/glicko2';
 
 /**
- * SQL expression that approximates the problem rating formula:
- * 600 + (move_count - 2) * 300 + piece_count * 50
+ * SQL expression that matches the client-side difficultyToRating formula:
+ * 600 + (move_count - 2) * 300 + piece_count * 50 + solutionComponent
+ * where solutionComponent = clamp((difficulty_score - move_count*100 - piece_count*2) * 5, 0, 50)
  */
-const RATING_EXPR = '(600 + (move_count - 2) * 300 + piece_count * 50)';
+const RATING_EXPR = '(600 + (move_count - 2) * 300 + piece_count * 50 + MIN(MAX((difficulty_score - move_count * 100 - piece_count * 2) * 5, 0), 50))';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);

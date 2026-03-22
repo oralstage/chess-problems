@@ -189,6 +189,7 @@ export default function App() {
   const { playerRating, isRated, updateAfterSolve, getProblemInitialRating } = usePlayerRating();
   const [lastRatingDelta, setLastRatingDelta] = useState<number | null>(null);
   const [lastProblemRating, setLastProblemRating] = useState<number | null>(null);
+  const [problemRatingBefore, setProblemRatingBefore] = useState<number | null>(null);
   const [isRatedMode, setIsRatedMode] = useState(false);
   const [recentRatedIds, setRecentRatedIds] = useState<number[]>([]);
   const [stipulationToast, setStipulationToast] = useState<string | null>(null);
@@ -379,6 +380,7 @@ export default function App() {
     hintUsedRef.current = false;
     setLastRatingDelta(null);
     setLastProblemRating(null);
+    setProblemRatingBefore(null);
     trackEvent('problem_started', p.id, { genre: p.genre, stipulation: p.stipulation });
     // Show board immediately if solution needs to be fetched
     const needsFetch = p.solutionTree.length === 0;
@@ -1263,9 +1265,10 @@ export default function App() {
         moveCount: problem.moveHistory.length,
         timeSpent,
       });
-      // Rating update on give-up (rated mode only)
+      // Rating update on give-up (rated mode only — only if not already locked by wrong move)
       if (isRatedMode && !isRated(problem.problem.id)) {
         const probRating = getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
+        setProblemRatingBefore(probRating.rating);
         setLastProblemRating(probRating.rating);
         const result = updateAfterSolve(problem.problem.id, probRating, 0.0);
         if (result) setLastRatingDelta(result.delta);
@@ -1445,6 +1448,7 @@ export default function App() {
       if (isRatedMode && !isRated(problem.problem.id)) {
         const score = perfect ? 1.0 : 0.0;
         const probRating = getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
+        setProblemRatingBefore(probRating.rating);
         setLastProblemRating(probRating.rating);
         const result = updateAfterSolve(problem.problem.id, probRating, score);
         if (result) setLastRatingDelta(result.delta);
@@ -1460,6 +1464,26 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.status, problem.problem, currentGenre, setProgress, setTimestamps, problem.moveHistory]);
+
+  // Lock rating on first wrong move in rated mode
+  useEffect(() => {
+    if (isRatedMode && problem.wrongMoveCount === 1 && problem.problem && !isRated(problem.problem.id)) {
+      const probRating = getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
+      setProblemRatingBefore(probRating.rating);
+      setLastProblemRating(probRating.rating);
+      const result = updateAfterSolve(problem.problem.id, probRating, 0.0);
+      if (result) setLastRatingDelta(result.delta);
+      submitRatingEvent({
+        problemId: problem.problem.id,
+        score: 0.0,
+        playerRating: playerRating.rating,
+        playerRd: playerRating.rd,
+      }).then(res => {
+        if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem.wrongMoveCount]);
 
   // Arrows for board: analysis arrow (blue, only when active) or refutation arrow (red)
   // MUST pass [] (not undefined) to react-chessboard to clear arrows
@@ -1758,7 +1782,7 @@ export default function App() {
                 moveHistory={problem.moveHistory}
                 hintActive={!!problem.hintSquares}
                 solutionLoading={!problem.problem?.solutionText && !problem.problem?.solutionTree}
-                onReset={() => { problem.resetProblem(); setLastRatingDelta(null); }}
+                onReset={() => { problem.resetProblem(); setLastRatingDelta(null); analysisActiveRef.current = false; setAnalysisActive(false); setAnalysisResult(null); setAnalysisArrow(null); setAnalyzing(false); }}
                 onShowSolution={handleGiveUp}
                 onNextProblem={isDaily ? undefined : isRatedMode ? (problem.status !== 'solving' ? handleNextRatedProblem : undefined) : handleNextProblem}
                 onRandomProblem={(isDaily || isRatedMode) ? undefined : handleRandomProblem}
@@ -1778,6 +1802,7 @@ export default function App() {
                 playerRating={isRatedMode ? playerRating.rating : undefined}
                 playerRd={isRatedMode ? playerRating.rd : undefined}
                 problemRating={isRatedMode ? (lastProblemRating ?? (problem.problem ? getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount).rating : undefined)) : undefined}
+                problemRatingDelta={isRatedMode && problemRatingBefore != null && lastProblemRating != null ? Math.round(lastProblemRating - problemRatingBefore) : undefined}
                 hideHintUntilWrong={isRatedMode}
                 wrongMoveCount={problem.wrongMoveCount}
               />

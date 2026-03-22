@@ -29,6 +29,7 @@ interface FeedbackPanelProps {
   playerRating?: number;
   playerRd?: number;
   problemRating?: number;
+  problemRatingDelta?: number | null;
   hideHintUntilWrong?: boolean;
   wrongMoveCount?: number;
 }
@@ -61,6 +62,7 @@ export function FeedbackPanel({
   playerRating,
   playerRd,
   problemRating,
+  problemRatingDelta,
   hideHintUntilWrong,
   wrongMoveCount = 0,
 }: FeedbackPanelProps) {
@@ -85,16 +87,16 @@ export function FeedbackPanel({
       {playerRating != null && (
         <div className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-gray-100 dark:bg-gray-800/60">
           <span className="text-base font-semibold text-gray-700 dark:text-gray-200">
-            Rating: {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(playerRating)}
+            Rating: {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(ratingDelta != null ? playerRating - ratingDelta : playerRating)}
           </span>
-          {ratingDelta != null && (status === 'correct' || status === 'viewing') && (
+          {ratingDelta != null && (
             <span className={`text-base font-bold ${ratingDelta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
               {ratingDelta >= 0 ? '+' : ''}{ratingDelta}
             </span>
           )}
-          {problemRating != null && status !== 'solving' && (
-            <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
-              Problem: {Math.round(problemRating)}
+          {problemRating != null && ratingDelta != null && (
+            <span className="text-xs text-gray-500 dark:text-gray-300 ml-auto">
+              Problem: {Math.round(problemRatingDelta != null ? problemRating - problemRatingDelta : problemRating)}
             </span>
           )}
         </div>
