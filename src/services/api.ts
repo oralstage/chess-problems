@@ -324,7 +324,7 @@ export function getSessionId(): string {
 /** Check if dev_mode flag is set in localStorage */
 export function isDevMode(): boolean {
   try {
-    return localStorage.getItem('cp-dev-mode') === '1';
+    return localStorage.getItem('cp-dev-mode') === '1' || window.location.hostname.includes('staging');
   } catch {
     return false;
   }
@@ -543,8 +543,17 @@ export async function fetchRatedProblem(rating: number): Promise<RatedProblemRes
     rating: String(rating),
     sessionId: getSessionId(),
   });
+  if (isDevMode()) params.set('dev', '1');
   const res = await fetch(`${API_BASE}/rated-problem?${params}`);
   if (!res.ok) throw new Error(`Rated problem API error: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchProblemRating(problemId: number): Promise<{ rating: number; rd: number; source: string }> {
+  const params = new URLSearchParams({ id: String(problemId) });
+  if (isDevMode()) params.set('dev', '1');
+  const res = await fetch(`${API_BASE}/problem-rating?${params}`);
+  if (!res.ok) throw new Error(`Problem rating API error: ${res.status}`);
   return res.json();
 }
 

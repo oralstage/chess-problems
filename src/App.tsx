@@ -22,7 +22,7 @@ import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
@@ -1464,6 +1464,16 @@ export default function App() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.status, problem.problem, currentGenre, setProgress, setTimestamps, problem.moveHistory]);
+
+  // Fetch current problem rating in rated mode (for history/cache loads)
+  useEffect(() => {
+    if (isRatedMode && problem.problem && lastProblemRating == null) {
+      fetchProblemRating(problem.problem.id).then(res => {
+        setLastProblemRating(res.rating);
+      }).catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRatedMode, problem.problem?.id]);
 
   // Lock rating on first wrong move in rated mode
   useEffect(() => {

@@ -94,7 +94,7 @@ export function FeedbackPanel({
               {ratingDelta >= 0 ? '+' : ''}{ratingDelta}
             </span>
           )}
-          {problemRating != null && ratingDelta != null && (
+          {problemRating != null && (status === 'correct' || status === 'viewing' || ratingDelta != null) && (
             <span className="text-xs text-gray-500 dark:text-gray-300 ml-auto">
               Problem: {Math.round(problemRatingDelta != null ? problemRating - problemRatingDelta : problemRating)}
             </span>
