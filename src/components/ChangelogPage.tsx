@@ -4,6 +4,19 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-03-22',
+    sections: [
+      {
+        title: 'Updates',
+        items: [
+          'Redesigned Daily Problem display on the home page.',
+          'Removed site statistics from the home page.',
+          'Various bug fixes.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-03-19',
     sections: [
       {
