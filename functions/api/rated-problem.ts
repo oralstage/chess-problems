@@ -106,9 +106,9 @@ async function tryRatedProblem(
 ): Promise<ReturnType<typeof buildProblem> | null> {
   // Query problem_ratings for IDs in range
   const excludeClause = solvedIds.length > 0
-    ? `AND problem_id NOT IN (${solvedIds.map(() => '?').join(',')})`
+    ? `AND problem_id NOT IN (${solvedIds.join(',')})`
     : '';
-  const ratingBindings: (number | string)[] = [dev, minRating, maxRating, ...solvedIds];
+  const ratingBindings: (number | string)[] = [dev, minRating, maxRating];
 
   const ratedRows = await context.env.STATS_DB.prepare(
     `SELECT problem_id, rating FROM problem_ratings
@@ -169,8 +169,8 @@ async function tryUnratedProblem(
   const bindings: (string | number)[] = ['direct', minRating, maxRating];
 
   if (excludeIds.length > 0) {
-    conditions.push(`id NOT IN (${excludeIds.map(() => '?').join(',')})`);
-    bindings.push(...excludeIds);
+    // Use literal IDs instead of bindings to avoid D1's 100-binding limit
+    conditions.push(`id NOT IN (${excludeIds.join(',')})`);
   }
 
   addFairyExclusion(conditions, bindings);
