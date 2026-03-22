@@ -1292,7 +1292,10 @@ export default function App() {
       });
       // Rating update on give-up (rated mode only — only if not already locked by wrong move)
       if (isRatedMode && !isRated(problem.problem.id)) {
-        const probRating = getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
+        const serverRating = lastProblemRating;
+        const probRating = serverRating
+          ? { rating: serverRating, rd: 350 }
+          : getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
         setProblemRatingBefore(probRating.rating);
         setLastProblemRating(probRating.rating);
         const result = updateAfterSolve(problem.problem.id, probRating, 0.0);
@@ -1472,7 +1475,10 @@ export default function App() {
       // Rating update (rated mode only)
       if (isRatedMode && !isRated(problem.problem.id)) {
         const score = perfect ? 1.0 : 0.0;
-        const probRating = getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
+        const serverRating = lastProblemRating;
+        const probRating = serverRating
+          ? { rating: serverRating, rd: 350 }
+          : getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
         setProblemRatingBefore(probRating.rating);
         setLastProblemRating(probRating.rating);
         const result = updateAfterSolve(problem.problem.id, probRating, score);
@@ -1503,7 +1509,10 @@ export default function App() {
   // Lock rating on first wrong move in rated mode
   useEffect(() => {
     if (isRatedMode && problem.wrongMoveCount === 1 && problem.problem && !isRated(problem.problem.id)) {
-      const probRating = getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
+      const serverRating = lastProblemRating;
+      const probRating = serverRating
+        ? { rating: serverRating, rd: 350 }
+        : getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
       setProblemRatingBefore(probRating.rating);
       setLastProblemRating(probRating.rating);
       const result = updateAfterSolve(problem.problem.id, probRating, 0.0);
