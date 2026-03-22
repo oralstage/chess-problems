@@ -14,7 +14,7 @@
  * }
  */
 
-import { updateRating, difficultyToRating, type Glicko2Rating } from '../utils/glicko2';
+import { updateRating, type Glicko2Rating } from '../utils/glicko2';
 
 interface RatingEventBody {
   problemId: number;
@@ -39,9 +39,8 @@ function isRateLimited(ip: string): boolean {
   return entry.count > 60;
 }
 
-/** Get problem rating from DB, or compute default from difficultyScore */
+/** Get problem rating from problem_ratings table */
 async function getProblemRating(env: Env, problemId: number, dev: number): Promise<Glicko2Rating> {
-  // Check problem_ratings table first
   const row = await env.STATS_DB.prepare(
     'SELECT rating, rd, volatility FROM problem_ratings WHERE problem_id = ? AND dev = ?'
   ).bind(problemId, dev).first<{ rating: number; rd: number; volatility: number }>();
@@ -50,16 +49,7 @@ async function getProblemRating(env: Env, problemId: number, dev: number): Promi
     return { rating: row.rating, rd: row.rd, vol: row.volatility };
   }
 
-  // Fall back to heuristic from problems table
-  const problem = await env.DB.prepare(
-    'SELECT difficulty_score, move_count, piece_count FROM problems WHERE id = ?'
-  ).bind(problemId).first<{ difficulty_score: number; move_count: number; piece_count: number }>();
-
-  if (problem) {
-    return { rating: difficultyToRating(problem.difficulty_score, problem.move_count, problem.piece_count), rd: 350, vol: 0.06 };
-  }
-
-  // Problem not found — use default
+  // Fallback for problems not yet in problem_ratings (e.g. fairy, helpmate)
   return { rating: 1500, rd: 350, vol: 0.06 };
 }
 
