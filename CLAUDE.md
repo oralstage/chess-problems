@@ -40,6 +40,9 @@
 | `GET /api/problems/:id` | Single problem with full solutionText |
 | `GET /api/problems/ids?genre=X&...` | All matching problem IDs for navigation |
 | `GET /api/daily` | Today's daily problem (#2 direct mate, with solutionText, 1h cache) |
+| `GET /api/rated-problem?rating=X&sessionId=Y&dev=0\|1` | Matchmaking: random problem near player's rating, excluding solved |
+| `POST /api/rating-event` | Submit solve result, updates player+problem Glicko-2 ratings |
+| `GET /api/problem-rating?id=X&dev=0\|1` | Get a problem's current rating from problem_ratings |
 
 ### Key Files
 | File | Purpose |
@@ -69,6 +72,22 @@
 - **Stockfish**: Optional, lazy-loaded. Used only for hints and analysis, NOT for validation.
 
 ## Lessons Learned / Known Issues
+
+### Rated Mode (Glicko-2)
+- Player starts at rating 800, RD 350. Problems have initial ratings based on formula: `600 + (moveCount-2)*300 + pieceCount*50 + solutionComponent(0-50)`
+- Scoring: perfect solve (no mistakes, no hints) = 1.0 (win), anything else = 0.0 (loss)
+- Rating locks on first wrong move (score=0.0 immediately, show hint becomes available)
+- `problem_ratings` and `rating_events` tables in STATS_DB, with `dev` column (0=prod, 1=staging)
+- Staging auto-detected by domain containing "staging" → `isDevMode()` returns true
+- Matchmaking: first checks `problem_ratings` for updated ratings, then falls back to initial formula for unrated problems. Range steps: ±50, ±100, ±150, ±200, ±250, ±300, ±400
+- Player rating stored in localStorage (`cp-player-rating`), problem ratings in D1
+
+### Twin Problems
+- Twin problems have multiple positions (a, b, c...) with modification instructions like `bKa7-->a6`
+- Currently only a) is parsed and presented. `extractTwinFenMods()` + `applyTwinMods()` in solutionParser.ts apply FEN modifications
+- ~3,285 twin problems have no position change in a) (diagram as-is), ~3,874 have position changes
+- Detection: solution_text starting with `a)` or containing `+b)`
+- Future: support all twins with navigation (like YACPDB's UI)
 
 ### solutionParser.ts (most bug-prone)
 - Parenthesized threats `(2.Rd1#)` and bracket threats `[2.Qf7#]` must be extracted BEFORE splitting on move numbers (`\d+\.`), otherwise the regex breaks the content inside parens.

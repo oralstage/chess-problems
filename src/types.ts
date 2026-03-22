@@ -59,6 +59,7 @@ export interface ChessProblem {
   solutionText: string;
   keywords: string[];
   award: string;
+  _twinApplied?: boolean;
 }
 
 export type ProblemStatus = 'solved' | 'skipped' | 'in-progress' | 'failed';

@@ -121,7 +121,7 @@ async function tryRatedProblem(
 
   // Fetch problem data from main DB
   for (const rated of ratedRows.results) {
-    const conditions: string[] = ['id = ?', 'genre = ?', 'move_count >= 2', "solution_text NOT LIKE '%+b)%'", "solution_text NOT LIKE 'a)%'"];
+    const conditions: string[] = ['id = ?', 'genre = ?', 'move_count >= 2'];
     const bindings: (string | number)[] = [rated.problem_id, 'direct'];
     addFairyExclusion(conditions, bindings);
 
@@ -165,8 +165,6 @@ async function tryUnratedProblem(
     'move_count >= 2',
     `${RATING_EXPR} >= ?`,
     `${RATING_EXPR} <= ?`,
-    "solution_text NOT LIKE '%+b)%'",
-    "solution_text NOT LIKE 'a)%'",
   ];
   const bindings: (string | number)[] = ['direct', minRating, maxRating];
 

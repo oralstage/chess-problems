@@ -624,6 +624,88 @@ function parsePgnSolution(text: string, firstMoveColor: 'w' | 'b'): SolutionNode
 }
 
 /**
+ * Extract twin position modifications from solution text.
+ * Returns FEN modifications for the a) twin if present.
+ * Format: "a) bKa7-->a6" means move black King from a7 to a6.
+ * Piece codes: b/w + K/Q/R/B/S/P, where S = Knight.
+ */
+export function extractTwinFenMods(solutionText: string): { from: string; to: string; }[] | null {
+  if (!solutionText) return null;
+  const trimmed = solutionText.trim();
+  // Match "a) <modifications>" at the start
+  const aMatch = trimmed.match(/^a\)\s*(.*?)(?:\n|$)/i);
+  if (!aMatch) return null;
+  const modLine = aMatch[1].trim();
+  if (!modLine) return null; // a) with no modification — diagram position
+
+  // Match patterns like "bKa7-->a6", "wRh1-->h3"
+  const modPattern = /[bw][KQRBSP][a-h][1-8]\s*-->\s*[a-h][1-8]/gi;
+  const mods = modLine.match(modPattern);
+  if (!mods || mods.length === 0) return null;
+
+  return mods.map(mod => {
+    const clean = mod.replace(/\s/g, '');
+    // e.g. "bKa7-->a6"
+    const from = clean.slice(2, 4); // "a7"
+    const to = clean.slice(7, 9);   // "a6"
+    return { from, to };
+  });
+}
+
+/**
+ * Apply twin position modifications to a FEN string.
+ * Moves pieces from one square to another.
+ */
+export function applyTwinMods(fen: string, mods: { from: string; to: string }[]): string {
+  const parts = fen.split(' ');
+  const rows = parts[0].split('/');
+
+  // Convert FEN board to 8x8 array
+  const board: string[][] = rows.map(row => {
+    const cells: string[] = [];
+    for (const ch of row) {
+      if (ch >= '1' && ch <= '8') {
+        for (let i = 0; i < parseInt(ch); i++) cells.push('');
+      } else {
+        cells.push(ch);
+      }
+    }
+    return cells;
+  });
+
+  const sq = (s: string) => ({ col: s.charCodeAt(0) - 97, row: 8 - parseInt(s[1]) });
+
+  for (const mod of mods) {
+    const f = sq(mod.from);
+    const t = sq(mod.to);
+    const piece = board[f.row][f.col];
+    if (piece) {
+      board[f.row][f.col] = '';
+      board[t.row][t.col] = piece;
+    }
+  }
+
+  // Convert back to FEN
+  const newRows = board.map(row => {
+    let fenRow = '';
+    let empty = 0;
+    for (const cell of row) {
+      if (cell === '') {
+        empty++;
+      } else {
+        if (empty > 0) { fenRow += empty; empty = 0; }
+        fenRow += cell;
+      }
+    }
+    if (empty > 0) fenRow += empty;
+    return fenRow;
+  });
+
+  parts[0] = newRows.join('/');
+  return parts.join(' ');
+}
+
+/**
  * Parse YACPDB solution text into a tree structure.
  * @param solutionText - Raw solution text from YACPDB
  * @param firstMoveColor - Color of the side that moves first ('w' for direct/self, 'b' for helpmate)

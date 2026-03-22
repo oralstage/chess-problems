@@ -21,7 +21,7 @@ import { ChangelogPage } from './components/ChangelogPage';
 import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
-import { parseSolution, filterKeyMoves } from './services/solutionParser';
+import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods } from './services/solutionParser';
 import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
@@ -328,6 +328,14 @@ export default function App() {
 
   // Ensure a problem has solutionTree (fetch solutionText from API if needed)
   const ensureSolution = useCallback(async (p: ChessProblem): Promise<ChessProblem> => {
+    // Apply twin FEN modifications regardless of cache state
+    if (p.solutionText && !p._twinApplied) {
+      const twinMods = extractTwinFenMods(p.solutionText);
+      if (twinMods) {
+        p.fen = applyTwinMods(p.fen, twinMods);
+        p._twinApplied = true;
+      }
+    }
     if (p.solutionTree.length > 0) return p; // already has solution
     if (!p.solutionText) {
       // Fetch solutionText from API
@@ -350,6 +358,14 @@ export default function App() {
     // so parser should use 'w' to avoid double-flip
     const solutionHasDots = /\.{3}/.test(p.solutionText) || /\.\s+\.{2}/.test(p.solutionText);
     const parserColor = (isRetroBlack && solutionHasDots) ? 'w' : firstColor;
+    // Apply twin FEN modifications if not already done
+    if (!p._twinApplied) {
+      const twinMods = extractTwinFenMods(p.solutionText);
+      if (twinMods) {
+        p.fen = applyTwinMods(p.fen, twinMods);
+        p._twinApplied = true;
+      }
+    }
     const allNodes = parseSolution(p.solutionText, parserColor);
     // Retro + {(illegal)}: flip colors
     if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
