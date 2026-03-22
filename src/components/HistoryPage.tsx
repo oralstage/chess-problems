@@ -30,7 +30,7 @@ interface HistoryPageProps {
   genreLoaded: Record<Genre, boolean>;
   progress: Record<Genre, ProblemProgress>;
   timestamps: Record<string, number>;
-  onSelectProblem: (genre: Genre, problem: ChessProblem) => void;
+  onSelectProblem: (genre: Genre, problem: ChessProblem, rated?: boolean) => void;
   onClose: () => void;
 }
 
@@ -60,6 +60,14 @@ export function HistoryPage({
 }: HistoryPageProps) {
   const [filter, setFilter] = useState<HistoryFilter>('all');
   const [cacheVersion, forceUpdate] = useReducer(x => x + 1, 0);
+
+  // Load rated problem IDs from localStorage
+  const ratedIds = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('cp-rated-ids');
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set<string>();
+    } catch { return new Set<string>(); }
+  }, []);
 
   const entries = useMemo(() => {
     const result: HistoryEntry[] = [];
@@ -184,7 +192,7 @@ export function HistoryPage({
                       return (
                         <button
                           key={`${entry.genre}-${entry.id}`}
-                          onClick={() => { if (p) onSelectProblem(entry.genre, p); }}
+                          onClick={() => { if (p) onSelectProblem(entry.genre, p, ratedIds.has(entry.id)); }}
                           disabled={!p}
                           className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex gap-3 disabled:opacity-60"
                         >
@@ -205,7 +213,9 @@ export function HistoryPage({
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{prefix}{entry.id}</span>
                               {p && <span className="px-1.5 py-0.5 rounded text-xs font-bold font-mono bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">{p.stipulation}</span>}
-                              <span className="text-xs text-gray-400 dark:text-gray-500">{GENRE_LABELS[entry.genre]}</span>
+                              <span className={`text-xs ${ratedIds.has(entry.id) ? 'text-amber-500 dark:text-amber-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                                {ratedIds.has(entry.id) ? 'Rated' : GENRE_LABELS[entry.genre]}
+                              </span>
                             </div>
                             {p ? (
                               <>

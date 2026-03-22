@@ -14,6 +14,9 @@ interface ModeSelectorProps {
   onSolveDaily: () => void;
   dailySolved: boolean;
   onShowChangelog?: () => void;
+  onStartRated?: () => void;
+  playerRating?: number;
+  playerRd?: number;
 }
 
 // Group categories by their group label
@@ -45,7 +48,7 @@ const GROUP_BRIEFS: Record<string, string> = {
   'Helpmates': 'Both sides cooperate to achieve mate',
 };
 
-export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved, onShowChangelog }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onStartRated, playerRating, playerRd }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -179,6 +182,33 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                   <span className="text-xs text-green-400 font-bold">Solve ›</span>
                 )}
               </div>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* ── Rated Mode ── */}
+      {onStartRated && (
+        <div className="px-4 mb-4">
+          <button
+            onClick={onStartRated}
+            className="w-full py-4 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 dark:from-amber-600 dark:to-orange-600 hover:from-amber-600 hover:to-orange-600 dark:hover:from-amber-500 dark:hover:to-orange-500 transition-all text-white shadow-md"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-left">Rated Mode</h3>
+                <p className="text-sm text-white/80 text-left">Solve problems matched to your level</p>
+              </div>
+              {playerRating != null && (
+                <div className="text-right">
+                  <div className="text-2xl font-bold">
+                    {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(playerRating)}
+                  </div>
+                  <div className="text-xs text-white/70">
+                    {(playerRd ?? 350) > 200 ? 'Provisional' : 'Your Rating'}
+                  </div>
+                </div>
+              )}
             </div>
           </button>
         </div>

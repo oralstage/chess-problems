@@ -69,4 +69,14 @@ body::before {
 .animate-delay-3 { animation-delay: 0.3s; }
 .animate-delay-4 { animation-delay: 0.4s; }
 
+@keyframes stipulation-toast {
+  0% { opacity: 0; transform: scale(0.8); }
+  15% { opacity: 1; transform: scale(1); }
+  70% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.95); }
+}
+.animate-stipulation-toast {
+  animation: stipulation-toast 2.5s ease-in-out forwards;
+}
+
 /* cp-bounce: now using Web Animations API in App.tsx (CSS @keyframes didn't work on Safari) */

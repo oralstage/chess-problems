@@ -13,6 +13,7 @@ interface HeaderProps {
   onOpenFilters?: () => void;
   activeFilterCount?: number;
   onShowSiteStats?: () => void;
+  ratedMode?: boolean;
 }
 
 const GENRE_NAMES: Record<Genre, string> = {
@@ -43,7 +44,7 @@ function ThemeToggle({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme
   );
 }
 
-export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp, onOpenMenu, onOpenProblemList, onOpenFilters, activeFilterCount, onShowSiteStats: _onShowSiteStats }: HeaderProps) {
+export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp, onOpenMenu, onOpenProblemList, onOpenFilters, activeFilterCount, onShowSiteStats: _onShowSiteStats, ratedMode }: HeaderProps) {
   if (view === 'mode-select') {
     return (
       <header className="flex items-center justify-end gap-2 py-3 px-4">
@@ -77,7 +78,7 @@ export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onSho
           </svg>
         </button>
         <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-          {currentGenre ? GENRE_NAMES[currentGenre] : 'Chess Problems'}
+          {ratedMode ? 'Rated' : currentGenre ? GENRE_NAMES[currentGenre] : 'Chess Problems'}
         </h1>
         {onShowHelp && (
           <button

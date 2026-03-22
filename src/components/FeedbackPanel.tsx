@@ -25,6 +25,12 @@ interface FeedbackPanelProps {
   onNextDaily?: () => void;
   moreCategoryLabel?: string;
   solutionLoading?: boolean;
+  ratingDelta?: number | null;
+  playerRating?: number;
+  playerRd?: number;
+  problemRating?: number;
+  hideHintUntilWrong?: boolean;
+  wrongMoveCount?: number;
 }
 
 export function FeedbackPanel({
@@ -51,6 +57,12 @@ export function FeedbackPanel({
   onNextDaily,
   moreCategoryLabel,
   solutionLoading,
+  ratingDelta,
+  playerRating,
+  playerRd,
+  problemRating,
+  hideHintUntilWrong,
+  wrongMoveCount = 0,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
@@ -66,6 +78,25 @@ export function FeedbackPanel({
               </span>
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Rating bar (always shown in rated mode) */}
+      {playerRating != null && (
+        <div className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-gray-100 dark:bg-gray-800/60">
+          <span className="text-base font-semibold text-gray-700 dark:text-gray-200">
+            Rating: {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(playerRating)}
+          </span>
+          {ratingDelta != null && (status === 'correct' || status === 'viewing') && (
+            <span className={`text-base font-bold ${ratingDelta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+              {ratingDelta >= 0 ? '+' : ''}{ratingDelta}
+            </span>
+          )}
+          {problemRating != null && status !== 'solving' && (
+            <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">
+              Problem: {Math.round(problemRating)}
+            </span>
+          )}
         </div>
       )}
 
@@ -173,7 +204,7 @@ export function FeedbackPanel({
           {solutionLoading && (
             <span className="text-xs text-gray-400 dark:text-gray-500 animate-pulse">Loading...</span>
           )}
-          {!solutionLoading && !hintActive && (
+          {!solutionLoading && !hintActive && !(hideHintUntilWrong && wrongMoveCount === 0) && (
             <button
               onClick={onShowHint}
               className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"

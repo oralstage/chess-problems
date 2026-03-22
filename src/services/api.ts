@@ -493,6 +493,61 @@ export async function fetchSiteStats(): Promise<SiteStats> {
   return res.json();
 }
 
+// ── Rating Events ──
+
+export interface RatingEventData {
+  problemId: number;
+  score: number; // 1.0 or 0.0
+  playerRating: number;
+  playerRd: number;
+}
+
+export interface RatingEventResponse {
+  ok: boolean;
+  duplicate?: boolean;
+  problemRating: { rating: number; rd: number };
+}
+
+/** Submit a rating event and return updated problem rating */
+export async function submitRatingEvent(data: RatingEventData): Promise<RatingEventResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE}/rating-event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        problemId: data.problemId,
+        sessionId: getSessionId(),
+        dev: isDevMode(),
+        score: data.score,
+        playerRating: data.playerRating,
+        playerRd: data.playerRd,
+      }),
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
+// ── Rated Mode (Matchmaking) ──
+
+export interface RatedProblemResponse extends ProblemMeta {
+  solutionText: string;
+  problemRating: number;
+}
+
+/** Fetch a random problem matched to the player's rating (excludes already-solved) */
+export async function fetchRatedProblem(rating: number): Promise<RatedProblemResponse> {
+  const params = new URLSearchParams({
+    rating: String(rating),
+    sessionId: getSessionId(),
+  });
+  const res = await fetch(`${API_BASE}/rated-problem?${params}`);
+  if (!res.ok) throw new Error(`Rated problem API error: ${res.status}`);
+  return res.json();
+}
+
 export function metaToChessProblem(meta: ProblemMeta, solutionText?: string): ChessProblem {
   return {
     id: meta.id,
@@ -505,6 +560,7 @@ export function metaToChessProblem(meta: ProblemMeta, solutionText?: string): Ch
     genre: meta.genre as ChessProblem['genre'],
     difficulty: meta.difficulty,
     difficultyScore: meta.difficultyScore,
+    pieceCount: meta.pieceCount,
     solutionTree: [],
     fullSolutionTree: [],
     solutionText: solutionText || '',

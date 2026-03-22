@@ -22,7 +22,8 @@ import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
+import { usePlayerRating } from './hooks/usePlayerRating';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
 
@@ -183,6 +184,15 @@ export default function App() {
     direct: [], help: [], self: [], study: [], retro: [],
   });
   const [timestamps, setTimestamps] = useLocalStorage<Record<string, number>>('cp-timestamps', {});
+
+  // Player rating (Glicko-2)
+  const { playerRating, isRated, updateAfterSolve, getProblemInitialRating } = usePlayerRating();
+  const [lastRatingDelta, setLastRatingDelta] = useState<number | null>(null);
+  const [lastProblemRating, setLastProblemRating] = useState<number | null>(null);
+  const [isRatedMode, setIsRatedMode] = useState(false);
+  const [recentRatedIds, setRecentRatedIds] = useState<number[]>([]);
+  const [stipulationToast, setStipulationToast] = useState<string | null>(null);
+  const prevMoveCountRef = useRef<number | null>(null);
 
   // Per-genre filters (each genre has its own independent filter settings)
   const defaultFilters: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' as StatusFilter };
@@ -367,6 +377,8 @@ export default function App() {
     loadedProblemIdRef.current = p.id;
     solveStartTimeRef.current = Date.now();
     hintUsedRef.current = false;
+    setLastRatingDelta(null);
+    setLastProblemRating(null);
     trackEvent('problem_started', p.id, { genre: p.genre, stipulation: p.stipulation });
     // Show board immediately if solution needs to be fetched
     const needsFetch = p.solutionTree.length === 0;
@@ -380,10 +392,18 @@ export default function App() {
   }, [ensureSolution, problem]);
 
   // ── Hash-based routing with browser history ──
-  const updateHash = useCallback((category: Category | Genre | null, problemId?: number | null, replace = false, dailyDateParam?: string) => {
+  const updateHash = useCallback((category: Category | Genre | null, problemId?: number | null, replace = false, dailyDateParam?: string, rated = false) => {
     const method = replace ? 'replaceState' : 'pushState';
     if (dailyDateParam) {
       history[method]({ daily: true, date: dailyDateParam }, '', `#/daily/${dailyDateParam}`);
+      return;
+    }
+    if (rated) {
+      if (problemId) {
+        history[method]({ rated: true, problemId }, '', `#/rated/yacpdb/${problemId}`);
+      } else {
+        history[method]({ rated: true }, '', `#/rated`);
+      }
       return;
     }
     if (!category) {
@@ -425,6 +445,91 @@ export default function App() {
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     updateHash(null, null, false, todayStr);
   }, [dailyProblem, problem, cacheProblem, setCurrentProblemId, updateHash]);
+
+  // ── Rated Mode ──
+
+  const RATED_PROBLEM_KEY = 'cp-rated-problem';
+
+  const saveRatedProblem = useCallback((data: import('./services/api').RatedProblemResponse) => {
+    try { localStorage.setItem(RATED_PROBLEM_KEY, JSON.stringify(data)); } catch {}
+  }, []);
+
+  const clearRatedProblem = useCallback(() => {
+    try { localStorage.removeItem(RATED_PROBLEM_KEY); } catch {}
+  }, []);
+
+  const fetchAndStartRatedProblem = useCallback(async () => {
+    try {
+      const data = await fetchRatedProblem(playerRating.rating);
+      const p = metaToChessProblem(data, data.solutionText);
+      // Show toast if move count changed
+      if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
+        const label = data.moveCount === 2 ? 'Mate in 2' : data.moveCount === 3 ? 'Mate in 3' : `Mate in ${data.moveCount}`;
+        setStipulationToast(label);
+        setTimeout(() => setStipulationToast(null), 2500);
+      }
+      prevMoveCountRef.current = data.moveCount;
+      loadAndStartProblem(p);
+      cacheProblem(p);
+      saveRatedProblem(data);
+      setLastProblemRating(data.problemRating);
+      setRecentRatedIds(prev => [...prev.slice(-49), data.id]);
+      updateHash(null, data.id, true, undefined, true);
+    } catch {
+      // API error — ignore
+    }
+  }, [playerRating.rating, recentRatedIds, loadAndStartProblem, cacheProblem, saveRatedProblem, updateHash]);
+
+  const handleStartRated = useCallback(() => {
+    setIsRatedMode(true);
+    setIsDaily(false);
+    setCurrentGenre('direct');
+    setCurrentCategory(null);
+    setView('solving');
+    setRecentRatedIds([]);
+    // Show tutorial if first time
+    if (!seenTutorials.includes('rated')) {
+      setShowTutorial(true);
+      setSeenTutorials(prev => [...prev, 'rated']);
+    }
+
+    // Restore saved problem if available and not yet solved
+    try {
+      const saved = localStorage.getItem(RATED_PROBLEM_KEY);
+      if (saved) {
+        const data = JSON.parse(saved) as import('./services/api').RatedProblemResponse;
+        const pid = String(data.id);
+        const alreadySolved = progress.direct?.[pid] === 'solved' || progress.direct?.[pid] === 'failed';
+        if (!alreadySolved) {
+          const p = metaToChessProblem(data, data.solutionText);
+          loadAndStartProblem(p);
+          cacheProblem(p);
+          if (data.problemRating) setLastProblemRating(data.problemRating);
+          updateHash(null, data.id, true, undefined, true);
+          return;
+        }
+      }
+    } catch {}
+    // No saved problem or already solved — fetch new one
+    fetchAndStartRatedProblem();
+  }, [fetchAndStartRatedProblem, progress, loadAndStartProblem, cacheProblem]);
+
+  const handleNextRatedProblem = useCallback(() => {
+    if (!problem.problem) return;
+    clearRatedProblem();
+    // Progress tracking (same as handleNextProblem)
+    if (problem.status === 'correct' && currentGenre) {
+      const pid = String(problem.problem.id);
+      const perfect = problem.wrongMoveCount === 0 && !hintUsedRef.current;
+      const newStatus = perfect ? 'solved' as const : 'failed' as const;
+      setProgress(prev => {
+        const genreProgress = prev[currentGenre] || {};
+        if (genreProgress[pid] === 'solved') return prev;
+        return { ...prev, [currentGenre]: { ...genreProgress, [pid]: newStatus } };
+      });
+    }
+    fetchAndStartRatedProblem();
+  }, [problem, currentGenre, setProgress, fetchAndStartRatedProblem]);
 
   // Run analysis when position changes and analysis mode is active
   useEffect(() => {
@@ -675,11 +780,18 @@ export default function App() {
         setView('mode-select');
         setCurrentGenre(null);
         setCurrentCategory(null);
+        setIsRatedMode(false);
         setShowProblemList(false);
         setShowFilterPage(false);
         setShowHamburgerMenu(false);
         setShowHistory(false);
         setShowProblemInfo(false);
+        return;
+      }
+      // Rated mode hash: #/rated or #/rated/yacpdb/123
+      const ratedMatch = hash.match(/^#\/rated(\/yacpdb\/(\d+))?$/);
+      if (ratedMatch) {
+        handleStartRated();
         return;
       }
       // Daily problem hash: #/daily/YYYY-MM-DD
@@ -764,6 +876,12 @@ export default function App() {
     const hash = window.location.hash;
     if (hash === '#/terms') {
       setView('mode-select');
+      return;
+    }
+    // Rated mode hash: #/rated or #/rated/yacpdb/123
+    const ratedMatch = hash.match(/^#\/rated(\/yacpdb\/(\d+))?$/);
+    if (ratedMatch) {
+      handleStartRated();
       return;
     }
     // Daily problem hash: #/daily/YYYY-MM-DD
@@ -1015,6 +1133,7 @@ export default function App() {
   const goBack = useCallback(() => {
     setView('mode-select');
     setIsDaily(false);
+    setIsRatedMode(false);
     setCurrentGenre(null);
     setCurrentCategory(null);
     updateHash(null, null, false);
@@ -1076,16 +1195,25 @@ export default function App() {
     return prevStr >= SITE_OPEN_DATE;
   }, [dailyDate]);
 
-  const handleHistorySelect = useCallback((genre: Genre, selected: ChessProblem) => {
+  const handleHistorySelect = useCallback((genre: Genre, selected: ChessProblem, rated?: boolean) => {
     setShowHistory(false);
     setCurrentGenre(genre);
     setView('solving');
-    // Load genre data in background (don't await — show problem immediately)
-    loadGenre(genre);
-    loadAndStartProblem(selected);
-    cacheProblem(selected);
-    setCurrentProblemId(prev => ({ ...prev, [genre]: selected.id }));
-    updateHash(genre, selected.id);
+    if (rated) {
+      setIsRatedMode(true);
+      setIsDaily(false);
+      setCurrentCategory(null);
+      loadAndStartProblem(selected);
+      cacheProblem(selected);
+      updateHash(null, selected.id, false, undefined, true);
+    } else {
+      setIsRatedMode(false);
+      loadGenre(genre);
+      loadAndStartProblem(selected);
+      cacheProblem(selected);
+      setCurrentProblemId(prev => ({ ...prev, [genre]: selected.id }));
+      updateHash(genre, selected.id);
+    }
   }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
@@ -1127,7 +1255,7 @@ export default function App() {
         wrongMoveCount: problem.wrongMoveCount,
         genre: currentGenre || undefined,
         stipulation: problem.problem?.stipulation,
-        source: isDaily ? 'daily' : undefined,
+        source: isRatedMode ? 'rated' : isDaily ? 'daily' : undefined,
       });
       trackEvent('problem_gave_up', problem.problem.id, {
         genre: currentGenre,
@@ -1135,9 +1263,24 @@ export default function App() {
         moveCount: problem.moveHistory.length,
         timeSpent,
       });
+      // Rating update on give-up (rated mode only)
+      if (isRatedMode && !isRated(problem.problem.id)) {
+        const probRating = getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
+        setLastProblemRating(probRating.rating);
+        const result = updateAfterSolve(problem.problem.id, probRating, 0.0);
+        if (result) setLastRatingDelta(result.delta);
+        submitRatingEvent({
+          problemId: problem.problem.id,
+          score: 0.0,
+          playerRating: playerRating.rating,
+          playerRd: playerRating.rd,
+        }).then(res => {
+          if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
+        });
+      }
     }
     problem.showSolution();
-  }, [currentGenre, problem, setProgress, setTimestamps]);
+  }, [currentGenre, problem, setProgress, setTimestamps, isRatedMode, isRated, getProblemInitialRating, updateAfterSolve, playerRating]);
 
   // Fetch a random problem via API (used when genre data hasn't loaded yet)
   const fetchRandomFromApi = useCallback(async () => {
@@ -1290,7 +1433,7 @@ export default function App() {
         wrongMoveCount: problem.wrongMoveCount,
         genre: currentGenre || undefined,
         stipulation: problem.problem?.stipulation,
-        source: isDaily ? 'daily' : undefined,
+        source: isRatedMode ? 'rated' : isDaily ? 'daily' : undefined,
       });
       trackEvent('problem_solved', problem.problem.id, {
         genre: currentGenre,
@@ -1298,6 +1441,22 @@ export default function App() {
         moveCount: problem.moveHistory.length,
         timeSpent,
       });
+      // Rating update (rated mode only)
+      if (isRatedMode && !isRated(problem.problem.id)) {
+        const score = perfect ? 1.0 : 0.0;
+        const probRating = getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount);
+        setLastProblemRating(probRating.rating);
+        const result = updateAfterSolve(problem.problem.id, probRating, score);
+        if (result) setLastRatingDelta(result.delta);
+        submitRatingEvent({
+          problemId: problem.problem.id,
+          score,
+          playerRating: playerRating.rating,
+          playerRd: playerRating.rd,
+        }).then(res => {
+          if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
+        });
+      }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.status, problem.problem, currentGenre, setProgress, setTimestamps, problem.moveHistory]);
@@ -1319,15 +1478,16 @@ export default function App() {
           view={view}
           currentGenre={currentGenre}
           onBack={goBack}
-          onShowHelp={view === 'solving' && currentGenre ? () => setShowTutorial(true) : undefined}
+          onShowHelp={view === 'solving' && (currentGenre || isRatedMode) ? () => setShowTutorial(true) : undefined}
           onOpenMenu={() => setShowHamburgerMenu(true)}
           onShowSiteStats={view === 'mode-select' ? () => {
             setShowSiteStats(true);
             if (!siteStats) fetchSiteStats().then(setSiteStats).catch(() => {});
           } : undefined}
-          onOpenProblemList={view === 'solving' && currentGenre ? () => { setShowProblemList(true); if (currentGenre && !genreLoaded[currentGenre]) loadGenre(currentGenre); } : undefined}
-          onOpenFilters={view === 'solving' && currentGenre ? () => { setFilterOpenedFrom('hamburger'); setShowFilterPage(true); } : undefined}
-          activeFilterCount={activeFilterCount}
+          onOpenProblemList={view === 'solving' && currentGenre && !isRatedMode ? () => { setShowProblemList(true); if (currentGenre && !genreLoaded[currentGenre]) loadGenre(currentGenre); } : undefined}
+          onOpenFilters={view === 'solving' && currentGenre && !isRatedMode ? () => { setFilterOpenedFrom('hamburger'); setShowFilterPage(true); } : undefined}
+          activeFilterCount={isRatedMode ? 0 : activeFilterCount}
+          ratedMode={isRatedMode}
         />
 
         <main className="px-4 pb-8">
@@ -1341,6 +1501,9 @@ export default function App() {
                 onSolveDaily={handleSolveDaily}
                 dailySolved={dailySolved}
                 onShowChangelog={() => setShowChangelog(true)}
+                onStartRated={handleStartRated}
+                playerRating={playerRating.rating}
+                playerRd={playerRating.rd}
               />
           )}
 
@@ -1385,8 +1548,18 @@ export default function App() {
                   </span>
                 </div>
               )}
+              {/* Rated mode header removed — rating shown in bottom bar */}
+              {/* Stipulation change toast */}
+              {stipulationToast && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+                  <div className="bg-black/70 text-white text-3xl font-bold px-8 py-4 rounded-2xl animate-stipulation-toast">
+                    {stipulationToast}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1 flex-1 min-w-0">
+                  {!isRatedMode && (
                   <button
                     onClick={isDaily ? handlePrevDaily : () => handleNavProblem(-1)}
                     disabled={isDaily ? !canGoPrevDaily : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) <= 0)}
@@ -1397,12 +1570,15 @@ export default function App() {
                       <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </button>
+                  )}
                   <ProblemCard
                     problem={problem.problem}
                     problemNumber={problem.problem!.id}
                     genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[currentGenre || 'direct'] || 'D'}
                     showThemes={problem.status === 'correct' || problem.status === 'viewing'}
+                    ratedMode={isRatedMode}
                   />
+                  {!isRatedMode && (
                   <button
                     onClick={isDaily ? handleNextDaily : () => handleNavProblem(1)}
                     disabled={isDaily ? isToday : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) >= filteredProblems.length - 1)}
@@ -1413,6 +1589,7 @@ export default function App() {
                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>
                   </button>
+                  )}
                 </div>
                 <button
                   onClick={toggleBookmark}
@@ -1581,10 +1758,10 @@ export default function App() {
                 moveHistory={problem.moveHistory}
                 hintActive={!!problem.hintSquares}
                 solutionLoading={!problem.problem?.solutionText && !problem.problem?.solutionTree}
-                onReset={problem.resetProblem}
+                onReset={() => { problem.resetProblem(); setLastRatingDelta(null); }}
                 onShowSolution={handleGiveUp}
-                onNextProblem={isDaily ? undefined : handleNextProblem}
-                onRandomProblem={isDaily ? undefined : handleRandomProblem}
+                onNextProblem={isDaily ? undefined : isRatedMode ? handleNextRatedProblem : handleNextProblem}
+                onRandomProblem={(isDaily || isRatedMode) ? undefined : handleRandomProblem}
                 onShowHint={() => { hintUsedRef.current = true; problem.showHint(); }}
                 onHideHint={problem.hideHint}
                 onAnalyze={handleAnalyze}
@@ -1597,6 +1774,12 @@ export default function App() {
                 onNextDaily={isDaily && !isToday ? handleNextDaily : undefined}
                 lichessAnalysisUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/analysis/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
                 lichessPlayUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/editor/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
+                ratingDelta={isRatedMode ? lastRatingDelta : undefined}
+                playerRating={isRatedMode ? playerRating.rating : undefined}
+                playerRd={isRatedMode ? playerRating.rd : undefined}
+                problemRating={isRatedMode ? (lastProblemRating ?? (problem.problem ? getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount).rating : undefined)) : undefined}
+                hideHintUntilWrong={isRatedMode}
+                wrongMoveCount={problem.wrongMoveCount}
               />
 
               {(problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {
@@ -1640,8 +1823,33 @@ export default function App() {
         </main>
       </div>
 
-      {showTutorial && currentGenre && (
+      {showTutorial && currentGenre && !isRatedMode && (
         <GenreTutorial genre={currentGenre} onClose={closeTutorial} />
+      )}
+
+      {/* Rated Mode tutorial */}
+      {showTutorial && isRatedMode && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <span className="text-3xl">&#9876;</span>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Rated Mode</h2>
+            </div>
+            <ol className="space-y-3 text-sm text-gray-700 dark:text-gray-300 list-decimal list-inside">
+              <li>Direct Mate problems only (#2, #3, #4+) — mixed by difficulty</li>
+              <li>Problems are matched to your rating level</li>
+              <li>Solve correctly on first try (no mistakes, no hints) to gain rating</li>
+              <li>Any mistake or giving up loses rating</li>
+              <li>Hints appear only after your first wrong move</li>
+            </ol>
+            <button
+              onClick={() => setShowTutorial(false)}
+              className="mt-5 w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-base transition-colors"
+            >
+              Start Solving
+            </button>
+          </div>
+        </div>
       )}
 
       <HamburgerMenu

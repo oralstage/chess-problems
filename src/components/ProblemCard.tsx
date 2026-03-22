@@ -7,6 +7,7 @@ interface ProblemCardProps {
   showThemes?: boolean;
   problemNumber?: number;
   genrePrefix?: string;
+  ratedMode?: boolean;
 }
 
 function pieceCounts(fen: string): string {
@@ -28,7 +29,7 @@ function stipulationDisplay(stip: string): string {
   return stip;
 }
 
-export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }: ProblemCardProps) {
+export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix, ratedMode }: ProblemCardProps) {
   const [expandedTag, setExpandedTag] = useState<string | null>(null);
 
   return (
@@ -39,7 +40,7 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
             {genrePrefix || ''}{problemNumber}
           </span>
         )}
-        <span className="px-2 py-0.5 rounded-md text-sm font-bold font-mono bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+        <span className={`rounded-md font-bold font-mono px-2 py-0.5 text-sm ${ratedMode ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'}`}>
           {stipulationDisplay(problem.stipulation)}
         </span>
         <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
