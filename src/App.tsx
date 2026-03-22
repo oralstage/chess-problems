@@ -1760,7 +1760,7 @@ export default function App() {
                 solutionLoading={!problem.problem?.solutionText && !problem.problem?.solutionTree}
                 onReset={() => { problem.resetProblem(); setLastRatingDelta(null); }}
                 onShowSolution={handleGiveUp}
-                onNextProblem={isDaily ? undefined : isRatedMode ? handleNextRatedProblem : handleNextProblem}
+                onNextProblem={isDaily ? undefined : isRatedMode ? (problem.status !== 'solving' ? handleNextRatedProblem : undefined) : handleNextProblem}
                 onRandomProblem={(isDaily || isRatedMode) ? undefined : handleRandomProblem}
                 onShowHint={() => { hintUsedRef.current = true; problem.showHint(); }}
                 onHideHint={problem.hideHint}
