@@ -81,13 +81,15 @@
 - Staging auto-detected by domain containing "staging" → `isDevMode()` returns true
 - Matchmaking: first checks `problem_ratings` for updated ratings, then falls back to initial formula for unrated problems. Range steps: ±50, ±100, ±150, ±200, ±250, ±300, ±400
 - Player rating stored in localStorage (`cp-player-rating`), problem ratings in D1
+- **D1 binding limit**: D1 SQL has a 100-binding limit. Use literal IDs in `NOT IN` clauses (safe for numeric IDs) instead of parameterized bindings when excluding solved/rated problem IDs.
 
 ### Twin Problems
 - Twin problems have multiple positions (a, b, c...) with modification instructions like `bKa7-->a6`
-- Currently only a) is parsed and presented. `extractTwinFenMods()` + `applyTwinMods()` in solutionParser.ts apply FEN modifications
+- `parseTwins()` in solutionParser.ts extracts all twins, applies FEN modifications (move `-->`, add `+`, remove `-`), and parses each twin's solution tree
+- `+b)` = cumulative change from previous twin's FEN, `b)` (no +) = change from original FEN
+- Solving uses a) only. After solve/give-up, Solution section shows twin navigation buttons (a, b, c...) to view all twin positions and solutions
 - ~3,285 twin problems have no position change in a) (diagram as-is), ~3,874 have position changes
-- Detection: solution_text starting with `a)` or containing `+b)`
-- Future: support all twins with navigation (like YACPDB's UI)
+- Some twin formats not yet supported: `rotate`, `shift`, short forms like `Q -> g7`
 
 ### solutionParser.ts (most bug-prone)
 - Parenthesized threats `(2.Rd1#)` and bracket threats `[2.Qf7#]` must be extracted BEFORE splitting on move numbers (`\d+\.`), otherwise the regex breaks the content inside parens.
