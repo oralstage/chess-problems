@@ -507,7 +507,7 @@ export default function App() {
     }
   }, [playerRating.rating, recentRatedIds, loadAndStartProblem, cacheProblem, saveRatedProblem, updateHash]);
 
-  const handleStartRated = useCallback(() => {
+  const handleStartRated = useCallback((specificProblemId?: number) => {
     setIsRatedMode(true);
     setIsDaily(false);
     setCurrentGenre('direct');
@@ -518,6 +518,24 @@ export default function App() {
     if (!seenTutorials.includes('rated')) {
       setShowTutorial(true);
       setSeenTutorials(prev => [...prev, 'rated']);
+    }
+
+    // If a specific problem ID is requested (e.g. from URL or history), load it directly
+    if (specificProblemId) {
+      fetchProblem(specificProblemId).then(full => {
+        const p = metaToChessProblem(full, full.solutionText);
+        loadAndStartProblem(p);
+        cacheProblem(p);
+        updateHash(null, full.id, true, undefined, true);
+        // Fetch current problem rating from server
+        fetchProblemRating(full.id).then(res => {
+          if (res.rating != null) setLastProblemRating(res.rating);
+        }).catch(() => {});
+      }).catch(() => {
+        // If specific problem not found, fall back to random
+        fetchAndStartRatedProblem();
+      });
+      return;
     }
 
     // Restore saved problem if available and not yet solved
@@ -818,7 +836,8 @@ export default function App() {
       // Rated mode hash: #/rated or #/rated/yacpdb/123
       const ratedMatch = hash.match(/^#\/rated(\/yacpdb\/(\d+))?$/);
       if (ratedMatch) {
-        handleStartRated();
+        const ratedProblemId = ratedMatch[2] ? parseInt(ratedMatch[2]) : undefined;
+        handleStartRated(ratedProblemId);
         return;
       }
       // Daily problem hash: #/daily/YYYY-MM-DD
@@ -908,7 +927,8 @@ export default function App() {
     // Rated mode hash: #/rated or #/rated/yacpdb/123
     const ratedMatch = hash.match(/^#\/rated(\/yacpdb\/(\d+))?$/);
     if (ratedMatch) {
-      handleStartRated();
+      const ratedProblemId = ratedMatch[2] ? parseInt(ratedMatch[2]) : undefined;
+      handleStartRated(ratedProblemId);
       return;
     }
     // Daily problem hash: #/daily/YYYY-MM-DD
