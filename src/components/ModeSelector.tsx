@@ -84,6 +84,28 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
 
   return (
     <div className="min-h-[80vh] flex flex-col justify-center py-12">
+      {/* ── Book Promo Banner ── */}
+      <div className="px-4 mb-6">
+        <a
+          href="https://www.amazon.com/dp/B0GV27N3RM"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 hover:border-amber-400 dark:hover:border-amber-600 transition-all group"
+        >
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+              New to chess problems?
+            </span>
+            <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
+              Get the beginner's guide on Kindle
+            </span>
+          </div>
+          <svg className="w-4 h-4 shrink-0 text-gray-400 group-hover:text-[#FF9900] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </a>
+      </div>
+
       {/* ── Hero ── */}
       <div className="px-5 mb-10">
         <div className="flex items-center gap-4 mb-3">
