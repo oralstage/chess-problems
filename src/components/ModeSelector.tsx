@@ -90,7 +90,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           href="https://www.amazon.com/dp/B0GV27N3RM"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 hover:border-amber-400 dark:hover:border-amber-600 transition-all group"
+          className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-amber-50 dark:bg-gray-800/60 border border-amber-200 dark:border-gray-600/50 hover:border-amber-400 dark:hover:border-gray-500 transition-all group"
         >
           <div className="min-w-0 flex-1">
             <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
