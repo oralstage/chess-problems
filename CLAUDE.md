@@ -466,5 +466,16 @@
 - D180848等のYACPDBデータ不完全問題で、初手が合えば正解として扱う
 - その後はAnalyze（Stockfish）で検討可能
 
+### Beginner's Guide Book Promo Banner (2026-03-27)
+- **バナー**: ランディングページ上部に「New to chess problems? Get the beginner's guide on Kindle」バナー追加
+- **リンク先**: Amazon Kindle (`B0GV27N3RM`)
+- **スタイル**: ダークモード対応（`bg-amber-900/30 border-amber-700/50`）、ライトモード（`bg-amber-50 border-amber-200`）
+- **コンポーネント**: `ModeSelector.tsx` 内、タイトル上部に配置
+
+### Daily Problem Author Name Overflow Fix (2026-03-27)
+- **問題**: 作者名が長い場合にSolveボタンがはみ出る
+- **修正**: 左側コンテナに`min-w-0`、"Mate in X"・区切り・Solveボタンに`shrink-0`を追加
+- **効果**: 長い作者名がtruncateで切れ、Solveボタンが常に表示される
+
 ### Known Issues
 - **不完全なsolutionText**: 一部問題でYACPDBのsolutionTextが途中までしかない（例: D180848 #4で1手のみ）。初手正解で即solved扱い
