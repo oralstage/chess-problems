@@ -190,18 +190,18 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                 />
               </div>
               <div className="flex items-center justify-between w-[320px] bg-gray-800 dark:bg-gray-800 px-3 py-2 rounded-b-lg">
-                <div className="flex items-center gap-1.5 text-sm text-white">
-                  <span className="font-bold">Mate in {dailyProblem.moveCount}</span>
-                  <span className="text-gray-400">·</span>
+                <div className="flex items-center gap-1.5 text-sm text-white min-w-0">
+                  <span className="font-bold shrink-0">Mate in {dailyProblem.moveCount}</span>
+                  <span className="text-gray-400 shrink-0">·</span>
                   <span className="text-gray-300 text-xs truncate">
                     {dailyProblem.authors[0] || 'Unknown'}
                     {dailyProblem.sourceYear ? `, ${dailyProblem.sourceYear}` : ''}
                   </span>
                 </div>
                 {dailySolved ? (
-                  <span className="text-xs text-green-400 font-bold">Solved ✓</span>
+                  <span className="text-xs text-green-400 font-bold shrink-0">Solved ✓</span>
                 ) : (
-                  <span className="text-xs text-green-400 font-bold">Solve ›</span>
+                  <span className="text-xs text-green-400 font-bold shrink-0">Solve ›</span>
                 )}
               </div>
             </div>
