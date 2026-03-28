@@ -2006,12 +2006,14 @@ export default function App() {
               <span className="text-3xl">&#9876;</span>
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Rated Mode</h2>
             </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Direct Mate problems matched to your rating level. White plays first and forces checkmate in a specified number of moves, regardless of Black's defense.
+            </p>
             <ol className="space-y-3 text-sm text-gray-700 dark:text-gray-300 list-decimal list-inside">
               <li>You play White</li>
               <li>Checkmate Black within the specified number of moves</li>
               <li>#2 = mate in 2, #3 = mate in 3, etc.</li>
               <li>The solution doesn't have to be a series of checks</li>
-              <li>Problems are matched to your rating level</li>
             </ol>
             <button
               onClick={() => setShowTutorial(false)}
