@@ -14,7 +14,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
       'You play White',
       'Checkmate Black within the specified number of moves',
       'Black\'s best defenses are played automatically',
-      'There is exactly one correct first move — the "key"',
+      'The solution doesn\'t have to be a series of checks',
       '#2 = mate in 2, #3 = mate in 3, etc.',
     ],
   },

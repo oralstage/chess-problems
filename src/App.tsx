@@ -2007,11 +2007,11 @@ export default function App() {
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Rated Mode</h2>
             </div>
             <ol className="space-y-3 text-sm text-gray-700 dark:text-gray-300 list-decimal list-inside">
-              <li>Direct Mate problems only (#2, #3, #4+) — mixed by difficulty</li>
+              <li>You play White</li>
+              <li>Checkmate Black within the specified number of moves</li>
+              <li>#2 = mate in 2, #3 = mate in 3, etc.</li>
+              <li>The solution doesn't have to be a series of checks</li>
               <li>Problems are matched to your rating level</li>
-              <li>Solve correctly on first try (no mistakes, no hints) to gain rating</li>
-              <li>Any mistake or giving up loses rating</li>
-              <li>Hints appear only after your first wrong move</li>
             </ol>
             <button
               onClick={() => setShowTutorial(false)}
