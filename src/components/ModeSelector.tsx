@@ -14,7 +14,7 @@ interface ModeSelectorProps {
   onSolveDaily: () => void;
   dailySolved: boolean;
   onShowChangelog?: () => void;
-  onStartRated?: () => void;
+  onStartRated?: (problemId?: number, fromCache?: boolean) => void;
   playerRating?: number;
   playerRd?: number;
 }
@@ -214,7 +214,22 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
       {onStartRated && (
         <div className="px-4 mb-4">
           <button
-            onClick={onStartRated}
+            onClick={() => {
+              // Read cache synchronously before React re-renders
+              try {
+                const saved = localStorage.getItem('cp-rated-problem');
+                if (saved) {
+                  const data = JSON.parse(saved);
+                  const pid = String(data.id);
+                  const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
+                  if (prog.direct?.[pid] !== 'solved' && prog.direct?.[pid] !== 'failed') {
+                    onStartRated(data.id, true);
+                    return;
+                  }
+                }
+              } catch {}
+              onStartRated();
+            }}
             className="w-full py-4 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 dark:from-amber-600 dark:to-orange-600 hover:from-amber-600 hover:to-orange-600 dark:hover:from-amber-500 dark:hover:to-orange-500 transition-all text-white shadow-md"
           >
             <div className="flex items-center justify-between">

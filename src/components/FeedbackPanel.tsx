@@ -32,6 +32,7 @@ interface FeedbackPanelProps {
   problemRatingDelta?: number | null;
   hideHintUntilWrong?: boolean;
   wrongMoveCount?: number;
+  onBackToRated?: () => void;
 }
 
 export function FeedbackPanel({
@@ -65,6 +66,7 @@ export function FeedbackPanel({
   problemRatingDelta,
   hideHintUntilWrong,
   wrongMoveCount = 0,
+  onBackToRated,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
@@ -163,6 +165,14 @@ export function FeedbackPanel({
               </>
             ) : (
               <>
+                {onBackToRated && (
+                  <button
+                    onClick={onBackToRated}
+                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    Back to Rated
+                  </button>
+                )}
                 {onNextProblem && (
                   <button
                     onClick={onNextProblem}
@@ -328,6 +338,14 @@ export function FeedbackPanel({
               </>
             ) : (
               <>
+                {onBackToRated && (
+                  <button
+                    onClick={onBackToRated}
+                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    Back to Rated
+                  </button>
+                )}
                 {onNextProblem && (
                   <button
                     onClick={onNextProblem}

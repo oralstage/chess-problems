@@ -191,6 +191,7 @@ export default function App() {
   const [lastProblemRating, setLastProblemRating] = useState<number | null>(null);
   const [problemRatingBefore, setProblemRatingBefore] = useState<number | null>(null);
   const [isRatedMode, setIsRatedMode] = useState(false);
+  // Removed isSpecificRatedProblem - now determined by comparing current problem with cache
   const [recentRatedIds, setRecentRatedIds] = useState<number[]>([]);
   const [stipulationToast, setStipulationToast] = useState<string | null>(null);
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
@@ -507,7 +508,23 @@ export default function App() {
     }
   }, [playerRating.rating, recentRatedIds, loadAndStartProblem, cacheProblem, saveRatedProblem, updateHash]);
 
-  const handleStartRated = useCallback((specificProblemId?: number) => {
+  const fetchRatedRef = useRef(fetchAndStartRatedProblem);
+  fetchRatedRef.current = fetchAndStartRatedProblem;
+  const loadAndStartProblemRef = useRef(loadAndStartProblem);
+  loadAndStartProblemRef.current = loadAndStartProblem;
+  const cacheProblemRef = useRef(cacheProblem);
+  cacheProblemRef.current = cacheProblem;
+  const updateHashRef = useRef(updateHash);
+  updateHashRef.current = updateHash;
+
+  const ratedLoadingRef = useRef(false);
+  const handleStartRatedImpl = (specificProblemId?: number, _fromCache?: boolean) => {
+    // Prevent double invocation (React StrictMode, popstate race, etc.)
+    if (ratedLoadingRef.current) return;
+    ratedLoadingRef.current = true;
+    // Use microtask to ensure the flag is set before any re-invocation in the same tick
+    Promise.resolve().then(() => { setTimeout(() => { ratedLoadingRef.current = false; }, 2000); });
+
     setIsRatedMode(true);
     setIsDaily(false);
     setCurrentGenre('direct');
@@ -520,44 +537,62 @@ export default function App() {
       setSeenTutorials(prev => [...prev, 'rated']);
     }
 
+    // If navigating from home (URL doesn't already have #/rated), push a history entry
+    // Use history.pushState directly to avoid triggering popstate
+    const currentHash = window.location.hash;
+    const isAlreadyRatedUrl = currentHash.startsWith('#/rated');
+    if (!isAlreadyRatedUrl) {
+      window.history.pushState(null, '', '#/rated');
+    }
+
     // If a specific problem ID is requested (e.g. from URL or history), load it directly
+    // Don't overwrite rated cache — cache preserves the current matchmaking problem
     if (specificProblemId) {
+      // No longer tracking isSpecificRatedProblem - determined by cache comparison
       fetchProblem(specificProblemId).then(full => {
         const p = metaToChessProblem(full, full.solutionText);
-        loadAndStartProblem(p);
-        cacheProblem(p);
-        updateHash(null, full.id, true, undefined, true);
+        loadAndStartProblemRef.current(p);
+        updateHashRef.current(null, full.id, true, undefined, true);
         // Fetch current problem rating from server
         fetchProblemRating(full.id).then(res => {
           if (res.rating != null) setLastProblemRating(res.rating);
         }).catch(() => {});
       }).catch(() => {
         // If specific problem not found, fall back to random
-        fetchAndStartRatedProblem();
+        fetchRatedRef.current();
       });
       return;
     }
 
+    // Cache path - current problem IS the cached problem
     // Restore saved problem if available and not yet solved
+    // Read everything from localStorage directly to minimize React dependencies
     try {
       const saved = localStorage.getItem(RATED_PROBLEM_KEY);
       if (saved) {
         const data = JSON.parse(saved) as import('./services/api').RatedProblemResponse;
         const pid = String(data.id);
-        const alreadySolved = progress.direct?.[pid] === 'solved' || progress.direct?.[pid] === 'failed';
+        const currentProgress = JSON.parse(localStorage.getItem('cp-progress') || '{}');
+        const alreadySolved = currentProgress.direct?.[pid] === 'solved' || currentProgress.direct?.[pid] === 'failed';
         if (!alreadySolved) {
           const p = metaToChessProblem(data, data.solutionText);
-          loadAndStartProblem(p);
-          cacheProblem(p);
+          loadAndStartProblemRef.current(p);
+          cacheProblemRef.current(p);
           if (data.problemRating) setLastProblemRating(data.problemRating);
-          updateHash(null, data.id, true, undefined, true);
+          updateHashRef.current(null, data.id, true, undefined, true);
           return;
         }
       }
     } catch {}
     // No saved problem or already solved — fetch new one
-    fetchAndStartRatedProblem();
-  }, [fetchAndStartRatedProblem, progress, loadAndStartProblem, cacheProblem]);
+    fetchRatedRef.current();
+  };
+  const handleStartRatedRef = useRef(handleStartRatedImpl);
+  handleStartRatedRef.current = handleStartRatedImpl;
+  const handleStartRated = useCallback((specificProblemId?: number, fromCache?: boolean) => {
+    handleStartRatedRef.current(specificProblemId, fromCache);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleNextRatedProblem = useCallback(() => {
     if (!problem.problem) return;
@@ -833,11 +868,18 @@ export default function App() {
         setShowProblemInfo(false);
         return;
       }
-      // Rated mode hash: #/rated or #/rated/yacpdb/123
-      const ratedMatch = hash.match(/^#\/rated(\/yacpdb\/(\d+))?$/);
+      // Rated mode hash: #/rated/yacpdb/123 (with specific ID only)
+      // #/rated without ID is handled by the Rated Mode button click, not popstate
+      const ratedMatch = hash.match(/^#\/rated\/yacpdb\/(\d+)$/);
       if (ratedMatch) {
-        const ratedProblemId = ratedMatch[2] ? parseInt(ratedMatch[2]) : undefined;
+        const ratedProblemId = parseInt(ratedMatch[1]);
         handleStartRated(ratedProblemId);
+        return;
+      }
+      // #/rated without ID - just set rated mode view without fetching new problem
+      if (hash === '#/rated') {
+        setIsRatedMode(true);
+        setView('solving');
         return;
       }
       // Daily problem hash: #/daily/YYYY-MM-DD
@@ -888,7 +930,7 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, setCurrentCategory, resolveHashSlug, allSlugs]);
+  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, setCurrentCategory, resolveHashSlug, allSlugs, handleStartRated]);
 
   // Helper: determine category from genre + problem moveCount (for legacy URLs)
   const categoryFromGenreProblem = useCallback((genre: Genre, moveCount?: number): Category => {
@@ -1848,7 +1890,36 @@ export default function App() {
                 solutionLoading={!problem.problem?.solutionText && !problem.problem?.solutionTree}
                 onReset={() => { problem.resetProblem(); setLastRatingDelta(null); analysisActiveRef.current = false; setAnalysisActive(false); setAnalysisResult(null); setAnalysisArrow(null); setAnalyzing(false); }}
                 onShowSolution={handleGiveUp}
-                onNextProblem={isDaily ? undefined : isRatedMode ? (problem.status !== 'solving' ? handleNextRatedProblem : undefined) : handleNextProblem}
+                onNextProblem={isDaily ? undefined : isRatedMode ? (problem.status !== 'solving' ? (() => {
+                  // Show "Next" only if current problem IS the cached rated problem
+                  try {
+                    const cached = JSON.parse(localStorage.getItem('cp-rated-problem') || '{}');
+                    if (cached.id && cached.id === problem.problem?.id) return handleNextRatedProblem;
+                  } catch {}
+                  return undefined;
+                })() : undefined) : handleNextProblem}
+                onBackToRated={isRatedMode && problem.status !== 'solving' && (() => {
+                  // Show "Back to Rated" if current problem is NOT the cached rated problem
+                  try {
+                    const cached = JSON.parse(localStorage.getItem('cp-rated-problem') || '{}');
+                    if (cached.id && cached.id !== problem.problem?.id) return true;
+                  } catch {}
+                  return false;
+                })() ? () => {
+                  try {
+                    const saved = localStorage.getItem('cp-rated-problem');
+                    if (saved) {
+                      const data = JSON.parse(saved);
+                      const pid = String(data.id);
+                      const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
+                      if (prog.direct?.[pid] !== 'solved' && prog.direct?.[pid] !== 'failed') {
+                        handleStartRated(data.id, true);
+                        return;
+                      }
+                    }
+                  } catch {}
+                  handleStartRated();
+                } : undefined}
                 onRandomProblem={(isDaily || isRatedMode) ? undefined : handleRandomProblem}
                 onShowHint={() => { hintUsedRef.current = true; problem.showHint(); }}
                 onHideHint={problem.hideHint}
