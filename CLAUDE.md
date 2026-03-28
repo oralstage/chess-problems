@@ -83,7 +83,10 @@
 - Matchmaking: reads from `problem_ratings` table. Range steps: ±50, ±100, ±150, ±200, ±250, ±300, ±400. Excludes already-solved problems via `solve_events`.
 - Player rating stored in localStorage (`cp-player-rating`), problem ratings in D1
 - **D1 binding limit**: D1 SQL has a 100-binding limit. Use literal IDs in `NOT IN` clauses (safe for numeric IDs) instead of parameterized bindings when excluding solved/rated problem IDs.
-- **URL routing**: `#/rated/yacpdb/{id}` loads a specific problem in rated mode. `#/rated` (no ID) loads from cache or fetches random. `handleStartRated(specificProblemId?)` handles both cases.
+- **URL routing**: `#/rated/yacpdb/{id}` loads a specific problem in rated mode. `#/rated` (no ID) loads from cache or fetches random.
+- **Cache persistence**: ModeSelector reads `cp-rated-problem` from localStorage before calling handleStartRated, passing cached problem ID to preserve the current problem across home navigation. Cache is NOT overwritten when opening specific problems (history/URL).
+- **Back to Rated**: When viewing a non-cached problem in rated mode (from history/URL), "Back to Rated" button appears instead of "Next". Determined by comparing current problem ID with cached problem ID.
+- **handleStartRated architecture**: Uses ref pattern (`handleStartRatedImpl` → `handleStartRatedRef` → stable `useCallback`) to avoid React StrictMode double-invocation issues. All internal functions (loadAndStartProblem, cacheProblem, updateHash, fetchAndStartRatedProblem) accessed via refs.
 
 ### Twin Problems
 - Twin problems have multiple positions (a, b, c...) with modification instructions like `bKa7-->a6`
