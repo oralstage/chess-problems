@@ -15,9 +15,10 @@ interface BoardProps {
   hintSquares?: string[] | null; // [fromSquare, ...toSquares]
   arrows?: [string, string, string?][] | null;
   allowAnyColor?: boolean; // Allow moving pieces of either color (retro problems)
+  classicMode?: boolean; // Classic B&W diagram style (hatched dark squares)
 }
 
-export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor }: BoardProps) {
+export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, classicMode }: BoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
   const boardWidth = width || 400;
@@ -194,7 +195,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
   }, [disabled, allowAnyColor, fen]);
 
   return (
-    <div className="relative">
+    <div className={`relative ${classicMode ? 'board-classic' : ''}`}>
       <Chessboard
         position={fen}
         onPieceDrop={handlePieceDrop}

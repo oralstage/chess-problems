@@ -79,5 +79,26 @@ body::before {
   animation: stipulation-toast 2.5s ease-in-out forwards;
 }
 
+/* Classic diagram mode: hatched dark squares */
+.board-classic [data-square-color="black"] {
+  background-color: white !important;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M-2,2 l4,-4 M0,10 l10,-10 M8,12 l4,-4' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E") !important;
+  background-size: 10px 10px !important;
+}
+.board-classic [data-square-color="white"] {
+  background-color: white !important;
+  background-image: none !important;
+}
+.board-classic [data-piece] > svg,
+.board-classic [data-piece] > img {
+  filter: drop-shadow(1px 0 0 white) drop-shadow(-1px 0 0 white) drop-shadow(0 1px 0 white) drop-shadow(0 -1px 0 white) drop-shadow(1px 1px 0 white) drop-shadow(-1px -1px 0 white) drop-shadow(1px -1px 0 white) drop-shadow(-1px 1px 0 white) !important;
+}
+/* Coordinate labels: black text with white outline for readability on hatched squares */
+.board-classic div[style*="z-index: 3"],
+.board-classic div[style*="zIndex"] {
+  color: black !important;
+  text-shadow: 1px 0 0 white, -1px 0 0 white, 0 1px 0 white, 0 -1px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white !important;
+}
+
 /* cp-bounce: now using Web Animations API in App.tsx (CSS @keyframes didn't work on Safari) */
 

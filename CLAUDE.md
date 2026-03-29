@@ -96,13 +96,15 @@
 - ~3,285 twin problems have no position change in a) (diagram as-is), ~3,874 have position changes
 - Some twin formats not yet supported: `rotate`, `shift`, short forms like `Q -> g7`
 
-### Classic B&W Diagram Mode (not yet implemented)
-- To add a B&W toggle: add `classicMode` prop to Board.tsx, wrap board div with `.board-classic` class
-- CSS: `.board-classic [data-square-color="black"]` → white background + SVG diagonal hatch pattern (`url("data:image/svg+xml,...")`)
-- `.board-classic [data-square-color="white"]` → plain white
-- react-chessboard uses `data-square-color="black"|"white"` on each square div
-- The `!important` flag is needed to override react-chessboard's inline `backgroundColor` styles
-- For print: `@media print` with `-webkit-print-color-adjust: exact` and `print-color-adjust: exact` to force background rendering
+### Classic B&W Diagram Mode
+- Toggle via printer icon in Header (next to theme toggle), only shown during solving view
+- `classicMode` prop on Board.tsx → wraps board div with `.board-classic` class
+- CSS in index.css: `.board-classic [data-square-color="black"]` → white bg + SVG diagonal hatch (10px spacing), `[data-square-color="white"]` → plain white
+- Pieces get white outline via `filter: drop-shadow(...)` (8 directions)
+- Coordinate labels (a-h, 1-8) forced black with white `text-shadow` outline
+- `!important` needed everywhere to override react-chessboard inline styles
+- Auto-resets to normal mode when navigating back to home (`goBack`)
+- Hatch density adjustable via SVG `width`/`height` and `background-size` in CSS
 
 ### solutionParser.ts (most bug-prone)
 - Parenthesized threats `(2.Rd1#)` and bracket threats `[2.Qf7#]` must be extracted BEFORE splitting on move numbers (`\d+\.`), otherwise the regex breaks the content inside parens.

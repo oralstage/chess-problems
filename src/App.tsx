@@ -271,6 +271,7 @@ export default function App() {
   const windowWidth = useWindowWidth();
   const boardWidth = Math.min(windowWidth < 480 ? windowWidth : windowWidth - 32, 480);
 
+  const [classicBoard, setClassicBoard] = useState(false);
   const stockfish = useStockfish();
   const stockfishRef = useRef(stockfish);
   stockfishRef.current = stockfish;
@@ -1223,6 +1224,7 @@ export default function App() {
     setView('mode-select');
     setIsDaily(false);
     setIsRatedMode(false);
+    setClassicBoard(false);
     setCurrentGenre(null);
     setCurrentCategory(null);
     updateHash(null, null, false);
@@ -1618,6 +1620,8 @@ export default function App() {
           onOpenFilters={view === 'solving' && currentGenre && !isRatedMode ? () => { setFilterOpenedFrom('hamburger'); setShowFilterPage(true); } : undefined}
           activeFilterCount={isRatedMode ? 0 : activeFilterCount}
           ratedMode={isRatedMode}
+          classicBoard={classicBoard}
+          onToggleClassicBoard={view === 'solving' ? () => setClassicBoard(v => !v) : undefined}
         />
 
         <main className="px-4 pb-8">
@@ -1829,6 +1833,7 @@ export default function App() {
                   hintSquares={problem.hintSquares}
                   arrows={boardArrows}
                   allowAnyColor={currentGenre === 'retro'}
+                  classicMode={classicBoard}
                 />
               </div>
 
