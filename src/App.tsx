@@ -269,7 +269,7 @@ export default function App() {
   const filters = useMemo(() => migrateFilters(filtersRaw), [filtersRaw]);
 
   const windowWidth = useWindowWidth();
-  const boardWidth = Math.min(windowWidth - 32, 480);
+  const boardWidth = Math.min(windowWidth < 480 ? windowWidth : windowWidth - 32, 480);
 
   const stockfish = useStockfish();
   const stockfishRef = useRef(stockfish);
@@ -1816,7 +1816,7 @@ export default function App() {
               )}
 
               <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 pb-1">
-              <div className="flex justify-center">
+              <div className="flex justify-center -mx-4 sm:mx-0">
                 <Board
                   fen={problem.fen}
                   onPieceDrop={handlePieceDrop}
