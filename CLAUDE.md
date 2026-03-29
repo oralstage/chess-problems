@@ -96,6 +96,14 @@
 - ~3,285 twin problems have no position change in a) (diagram as-is), ~3,874 have position changes
 - Some twin formats not yet supported: `rotate`, `shift`, short forms like `Q -> g7`
 
+### Classic B&W Diagram Mode (not yet implemented)
+- To add a B&W toggle: add `classicMode` prop to Board.tsx, wrap board div with `.board-classic` class
+- CSS: `.board-classic [data-square-color="black"]` → white background + SVG diagonal hatch pattern (`url("data:image/svg+xml,...")`)
+- `.board-classic [data-square-color="white"]` → plain white
+- react-chessboard uses `data-square-color="black"|"white"` on each square div
+- The `!important` flag is needed to override react-chessboard's inline `backgroundColor` styles
+- For print: `@media print` with `-webkit-print-color-adjust: exact` and `print-color-adjust: exact` to force background rendering
+
 ### solutionParser.ts (most bug-prone)
 - Parenthesized threats `(2.Rd1#)` and bracket threats `[2.Qf7#]` must be extracted BEFORE splitting on move numbers (`\d+\.`), otherwise the regex breaks the content inside parens.
 - Try/key filtering: YACPDB solutions include "tries" (wrong moves marked with `?`) before the key move (`!`). Parser filters root nodes to keep only `isKey && color === firstMoveColor`.
