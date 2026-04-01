@@ -202,12 +202,13 @@ export function useReviewQueue() {
       if (current[idStr]) {
         next[idStr] = current[idStr];
       } else {
+        const initDays = status === 'failed' ? MIN_INTERVAL_WRONG : MIN_INTERVAL_CORRECT;
         next[idStr] = {
           problemId: parseInt(idStr),
           stability:  status === 'failed' ? W[0] : W[2],
           difficulty: status === 'failed' ? initDifficulty(1) : initDifficulty(3),
           isNew:      true,
-          dueDate:    t,
+          dueDate:    addDays(t, initDays),
         };
         changed = true;
       }
@@ -307,12 +308,13 @@ export function useReviewQueue() {
         next[idStr] = current[idStr];
       } else {
         // New entry
+        const initDays = status === 'failed' ? MIN_INTERVAL_WRONG : MIN_INTERVAL_CORRECT;
         next[idStr] = {
           problemId: parseInt(idStr),
           stability:  status === 'failed' ? W[0] : W[2],
           difficulty: status === 'failed' ? initDifficulty(1) : initDifficulty(3),
           isNew:      true,
-          dueDate:    today,
+          dueDate:    addDays(today, initDays),
         };
         changed = true;
       }
