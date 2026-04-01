@@ -276,7 +276,7 @@ export function useReviewQueue() {
         stability,
         difficulty,
         isNew: false,
-        dueDate: addDays(t, interval),
+        dueDate: addDays(t, interval, 1),
       },
     }));
 
