@@ -88,6 +88,17 @@
 - **Back to Rated**: When viewing a non-cached problem in rated mode (from history/URL), "Back to Rated" button appears instead of "Next". Determined by comparing current problem ID with cached problem ID.
 - **handleStartRated architecture**: Uses ref pattern (`handleStartRatedImpl` → `handleStartRatedRef` → stable `useCallback`) to avoid React StrictMode double-invocation issues. All internal functions (loadAndStartProblem, cacheProblem, updateHash, fetchAndStartRatedProblem) accessed via refs.
 
+### Review Mode (FSRS-4.5)
+- Only problems played in Rated Mode appear in Review Mode (tracked via `cp-rated-ids` in localStorage)
+- FSRS-4.5 algorithm: 17-parameter model. Core formulas: retrievability R = (1 + FACTOR*t/S)^DECAY, nextRecallStability, nextForgetStability, nextDifficulty. DECAY=-0.5, FACTOR≈0.2346
+- Minimum intervals: wrong answer = 7 days (`MIN_INTERVAL_WRONG`), correct answer = 14 days (`MIN_INTERVAL_CORRECT`). FSRS output grows exponentially with repeated correct solves.
+- Grading is objective (automatic): correct = wrongMoveCount===0 && !hintUsed, wrong = anything else
+- Session persistence: `cp-review-session` stores `{ problemIds: number[], index: number }`. `startOrResume()` resumes if current problem still in queue, otherwise builds fresh shuffled queue.
+- `cp-review-queue`: stores `ReviewCard { problemId, stability, difficulty, isNew, dueDate }` per problem
+- `reviewNextInterval` state resets to null when new problem loads (status='solving')
+- No Random button, no rating delta, Show Hint hidden until first wrong move
+- Review Mode does NOT tag history records as 'rated' (source=undefined in submitSolveEvent)
+
 ### Twin Problems
 - Twin problems have multiple positions (a, b, c...) with modification instructions like `bKa7-->a6`
 - `parseTwins()` in solutionParser.ts extracts all twins, applies FEN modifications (move `-->`, add `+`, remove `-`), and parses each twin's solution tree

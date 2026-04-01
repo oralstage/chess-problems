@@ -4,6 +4,24 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-04-01',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Review Mode — reinforce problems you\'ve played in Rated Mode using spaced repetition (FSRS algorithm). Problems reappear at growing intervals: 14+ days after a correct solve, 7+ days after a mistake.',
+        ],
+      },
+      {
+        title: 'Updates',
+        items: [
+          'Home screen redesigned with clearer RATED PLAY / FREE PLAY sections.',
+          '"Next review: ~X days" shown after solving in Review Mode.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-03-22',
     sections: [
       {
