@@ -54,9 +54,10 @@ export function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-function addDays(base: string, days: number): string {
+function addDays(base: string, days: number, jitter = 0): string {
   const d = new Date(base + 'T00:00:00');
-  d.setDate(d.getDate() + Math.max(1, Math.round(days)));
+  const offset = jitter > 0 ? Math.floor(Math.random() * (jitter * 2 + 1)) - jitter : 0;
+  d.setDate(d.getDate() + Math.max(1, Math.round(days) + offset));
   return d.toISOString().slice(0, 10);
 }
 
@@ -208,7 +209,7 @@ export function useReviewQueue() {
           stability:  status === 'failed' ? W[0] : W[2],
           difficulty: status === 'failed' ? initDifficulty(1) : initDifficulty(3),
           isNew:      true,
-          dueDate:    addDays(t, initDays),
+          dueDate:    addDays(t, initDays, 1),
         };
         changed = true;
       }
@@ -314,7 +315,7 @@ export function useReviewQueue() {
           stability:  status === 'failed' ? W[0] : W[2],
           difficulty: status === 'failed' ? initDifficulty(1) : initDifficulty(3),
           isNew:      true,
-          dueDate:    addDays(today, initDays),
+          dueDate:    addDays(today, initDays, 1),
         };
         changed = true;
       }
