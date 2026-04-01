@@ -15,6 +15,9 @@ interface ModeSelectorProps {
   dailySolved: boolean;
   onShowChangelog?: () => void;
   onStartRated?: (problemId?: number, fromCache?: boolean) => void;
+  onStartReview?: () => void;
+  reviewDueCount?: number;
+  reviewTotalCount?: number;
   playerRating?: number;
   playerRd?: number;
 }
@@ -48,7 +51,7 @@ const GROUP_BRIEFS: Record<string, string> = {
   'Helpmates': 'Both sides cooperate to achieve mate',
 };
 
-export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onStartRated, playerRating, playerRd }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, playerRating, playerRd }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -210,47 +213,81 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
         </div>
       )}
 
-      {/* ── Rated Mode ── */}
+      {/* ── Rated Play section ── */}
       {onStartRated && (
-        <div className="px-4 mb-4">
-          <button
-            onClick={() => {
-              // Read cache synchronously before React re-renders
-              try {
-                const saved = localStorage.getItem('cp-rated-problem');
-                if (saved) {
-                  const data = JSON.parse(saved);
-                  const pid = String(data.id);
-                  const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-                  if (prog.direct?.[pid] !== 'solved' && prog.direct?.[pid] !== 'failed') {
-                    onStartRated(data.id, true);
-                    return;
+        <div className="px-4 mb-6">
+          <div className="text-sm font-bold uppercase tracking-widest text-gray-700 dark:text-gray-300 mb-2 px-1 border-b border-gray-200 dark:border-gray-700 pb-1.5">Rated Play</div>
+          <div className="space-y-2">
+            {/* Rated Mode */}
+            <button
+              onClick={() => {
+                try {
+                  const saved = localStorage.getItem('cp-rated-problem');
+                  if (saved) {
+                    const data = JSON.parse(saved);
+                    const pid = String(data.id);
+                    const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
+                    if (prog.direct?.[pid] !== 'solved' && prog.direct?.[pid] !== 'failed') {
+                      onStartRated(data.id, true);
+                      return;
+                    }
                   }
-                }
-              } catch {}
-              onStartRated();
-            }}
-            className="w-full py-4 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 dark:from-amber-600 dark:to-orange-600 hover:from-amber-600 hover:to-orange-600 dark:hover:from-amber-500 dark:hover:to-orange-500 transition-all text-white shadow-md"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-xl font-bold text-left">Rated Mode</h3>
-                <p className="text-sm text-white/80 text-left">Solve problems matched to your level</p>
-              </div>
-              {playerRating != null && (
-                <div className="text-right">
-                  <div className="text-2xl font-bold">
-                    {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(playerRating)}
-                  </div>
-                  <div className="text-xs text-white/70">
-                    {(playerRd ?? 350) > 200 ? 'Provisional' : 'Your Rating'}
-                  </div>
+                } catch {}
+                onStartRated();
+              }}
+              className="group w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+            >
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Rated Mode</h3>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">Solve problems matched to your level</p>
                 </div>
-              )}
-            </div>
-          </button>
+                {playerRating != null && (
+                  <div className="text-right shrink-0 ml-4">
+                    <div className="text-xl font-bold text-gray-700 dark:text-gray-200">
+                      {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(playerRating)}
+                    </div>
+                    <div className="text-xs text-gray-400 dark:text-gray-500">
+                      {(playerRd ?? 350) > 200 ? 'Provisional' : 'Rating'}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </button>
+
+            {/* Review Mode */}
+            <button
+              onClick={onStartReview}
+              disabled={reviewDueCount === 0}
+              className="group w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Review Mode</h3>
+                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
+                    {reviewTotalCount === 0
+                      ? 'Play Rated Mode to build your review queue'
+                      : reviewDueCount === 0
+                        ? 'Reinforce Rated Mode problems · none due today'
+                        : 'Reinforce Rated Mode problems · spaced repetition'}
+                  </p>
+                </div>
+                {reviewTotalCount > 0 && (
+                  <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums shrink-0 ml-4">
+                    {reviewDueCount > 0 && <span className="font-semibold text-gray-600 dark:text-gray-300">{reviewDueCount} due</span>}
+                    {reviewDueCount === 0 && '0 due'}
+                  </span>
+                )}
+              </div>
+            </button>
+          </div>
         </div>
       )}
+
+      {/* ── Free Play section ── */}
+      <div className="px-5 mb-2">
+        <div className="text-sm font-bold uppercase tracking-widest text-gray-700 dark:text-gray-300 px-0 border-b border-gray-200 dark:border-gray-700 pb-1.5">Free Play</div>
+      </div>
 
       {/* ── Categories ── */}
       <nav className="space-y-1 px-4">

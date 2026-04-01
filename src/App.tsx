@@ -24,6 +24,7 @@ import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins } from './services/solutionParser';
 import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
+import { useReviewQueue } from './hooks/useReviewQueue';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
 
@@ -193,6 +194,15 @@ export default function App() {
   const [isRatedMode, setIsRatedMode] = useState(false);
   // Removed isSpecificRatedProblem - now determined by comparing current problem with cache
   const [recentRatedIds, setRecentRatedIds] = useState<number[]>([]);
+
+  // Review Mode (spaced repetition)
+  // cp-rated-ids: problem IDs played in Rated Mode (source of truth for review queue)
+  const [ratedIds, setRatedIds] = useLocalStorage<string[]>('cp-rated-ids', []);
+  const reviewQueue = useReviewQueue();
+  const [isReviewMode, setIsReviewMode] = useState(false);
+  const [reviewProblemQueue, setReviewProblemQueue] = useState<number[]>([]);
+  const [reviewQueueIndex, setReviewQueueIndex] = useState(0);
+  const [reviewNextInterval, setReviewNextInterval] = useState<number | null>(null);
   const [stipulationToast, setStipulationToast] = useState<string | null>(null);
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
   const prevMoveCountRef = useRef<number | null>(null);
@@ -257,6 +267,28 @@ export default function App() {
       .catch(() => {
         // Non-blocking — don't prevent app from working
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Build flat map of rated problem ID → status for review queue seeding
+  const ratedProgress = useMemo<Record<string, string>>(() => {
+    const directProgress = progress.direct || {};
+    if (ratedIds.length === 0) {
+      // Migration fallback: if no rated IDs tracked yet, use progress.direct
+      // (all direct problems as approximation until user plays Rated Mode again)
+      return directProgress;
+    }
+    const result: Record<string, string> = {};
+    for (const id of ratedIds) {
+      const status = directProgress[id];
+      if (status) result[id] = status;
+    }
+    return result;
+  }, [ratedIds, progress.direct]);
+
+  // Seed review queue from rated progress on mount (so dueCount shows correctly on home screen)
+  useEffect(() => {
+    reviewQueue.seedOnly(ratedProgress);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -594,6 +626,57 @@ export default function App() {
     handleStartRatedRef.current(specificProblemId, fromCache);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ── Review Mode ──
+  const handleStartReview = useCallback(() => {
+    const session = reviewQueue.startOrResume(ratedProgress);
+    if (!session) return; // nothing due
+
+    const firstId = session.problemIds[session.index];
+    setReviewProblemQueue(session.problemIds);
+    setReviewQueueIndex(session.index);
+    setIsReviewMode(true);
+    setIsRatedMode(false);
+    setIsDaily(false);
+    setCurrentCategory(null);
+    setView('solving');
+
+    fetchProblem(firstId).then(full => {
+      const p = metaToChessProblem(full, full.solutionText);
+      setCurrentGenre(p.genre);
+      loadAndStartProblemRef.current(p);
+    }).catch(() => { /* ignore */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reviewQueue, progress]);
+
+  const handleReviewNext = useCallback(() => {
+    if (!problem.problem) return;
+    const correct = problem.status === 'correct' && problem.wrongMoveCount === 0 && !hintUsedRef.current;
+    const currentSession: import('./hooks/useReviewQueue').ReviewSessionState = {
+      problemIds: reviewProblemQueue,
+      index: reviewQueueIndex,
+    };
+    const nextSession = reviewQueue.recordAndAdvance(problem.problem.id, correct, currentSession);
+
+    if (!nextSession) {
+      // Queue exhausted — go home
+      setView('mode-select');
+      setIsReviewMode(false);
+      setIsDaily(false);
+      setCurrentGenre(null);
+      setCurrentCategory(null);
+      return;
+    }
+
+    setReviewQueueIndex(nextSession.index);
+    const nextId = nextSession.problemIds[nextSession.index];
+    fetchProblem(nextId).then(full => {
+      const p = metaToChessProblem(full, full.solutionText);
+      setCurrentGenre(p.genre);
+      loadAndStartProblemRef.current(p);
+    }).catch(() => { /* ignore */ });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem.problem, problem.status, problem.wrongMoveCount, reviewQueue, reviewQueueIndex, reviewProblemQueue]);
 
   const handleNextRatedProblem = useCallback(() => {
     if (!problem.problem) return;
@@ -1224,6 +1307,7 @@ export default function App() {
     setView('mode-select');
     setIsDaily(false);
     setIsRatedMode(false);
+    setIsReviewMode(false);
     setClassicBoard(false);
     setCurrentGenre(null);
     setCurrentCategory(null);
@@ -1354,6 +1438,10 @@ export default function App() {
         moveCount: problem.moveHistory.length,
         timeSpent,
       });
+      // Track rated problem ID on give-up
+      if (isRatedMode) {
+        setRatedIds(prev => prev.includes(pid) ? prev : [...prev, pid]);
+      }
       // Rating update on give-up (rated mode only — only if not already locked by wrong move)
       if (isRatedMode && !isRated(problem.problem.id)) {
         const serverRating = lastProblemRating;
@@ -1536,6 +1624,10 @@ export default function App() {
         moveCount: problem.moveHistory.length,
         timeSpent,
       });
+      // Track rated problem ID
+      if (isRatedMode) {
+        setRatedIds(prev => prev.includes(pid) ? prev : [...prev, pid]);
+      }
       // Rating update (rated mode only)
       if (isRatedMode && !isRated(problem.problem.id)) {
         const score = perfect ? 1.0 : 0.0;
@@ -1560,15 +1652,26 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.status, problem.problem, currentGenre, setProgress, setTimestamps, problem.moveHistory]);
 
-  // Fetch current problem rating in rated mode (for history/cache loads)
+  // Fetch current problem rating in rated/review mode
   useEffect(() => {
-    if (isRatedMode && problem.problem && lastProblemRating == null) {
+    if ((isRatedMode || isReviewMode) && problem.problem && lastProblemRating == null) {
       fetchProblemRating(problem.problem.id).then(res => {
         setLastProblemRating(res.rating);
       }).catch(() => {});
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRatedMode, problem.problem?.id]);
+  }, [isRatedMode, isReviewMode, problem.problem?.id]);
+
+  // Compute next review interval when problem completes in review mode
+  useEffect(() => {
+    if (isReviewMode && problem.problem && problem.status !== 'solving') {
+      const correct = problem.status === 'correct' && problem.wrongMoveCount === 0 && !hintUsedRef.current;
+      setReviewNextInterval(reviewQueue.peekNextInterval(problem.problem.id, correct));
+    } else {
+      setReviewNextInterval(null);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReviewMode, problem.status, problem.problem?.id]);
 
   // Lock rating on first wrong move in rated mode
   useEffect(() => {
@@ -1610,16 +1713,17 @@ export default function App() {
           view={view}
           currentGenre={currentGenre}
           onBack={goBack}
-          onShowHelp={view === 'solving' && (currentGenre || isRatedMode) ? () => setShowTutorial(true) : undefined}
+          onShowHelp={view === 'solving' && (currentGenre || isRatedMode || isReviewMode) ? () => setShowTutorial(true) : undefined}
           onOpenMenu={() => setShowHamburgerMenu(true)}
           onShowSiteStats={view === 'mode-select' ? () => {
             setShowSiteStats(true);
             if (!siteStats) fetchSiteStats().then(setSiteStats).catch(() => {});
           } : undefined}
-          onOpenProblemList={view === 'solving' && currentGenre && !isRatedMode ? () => { setShowProblemList(true); if (currentGenre && !genreLoaded[currentGenre]) loadGenre(currentGenre); } : undefined}
-          onOpenFilters={view === 'solving' && currentGenre && !isRatedMode ? () => { setFilterOpenedFrom('hamburger'); setShowFilterPage(true); } : undefined}
-          activeFilterCount={isRatedMode ? 0 : activeFilterCount}
+          onOpenProblemList={view === 'solving' && currentGenre && !isRatedMode && !isReviewMode ? () => { setShowProblemList(true); if (currentGenre && !genreLoaded[currentGenre]) loadGenre(currentGenre); } : undefined}
+          onOpenFilters={view === 'solving' && currentGenre && !isRatedMode && !isReviewMode ? () => { setFilterOpenedFrom('hamburger'); setShowFilterPage(true); } : undefined}
+          activeFilterCount={(isRatedMode || isReviewMode) ? 0 : activeFilterCount}
           ratedMode={isRatedMode}
+          reviewMode={isReviewMode}
           classicBoard={classicBoard}
           onToggleClassicBoard={view === 'solving' ? () => setClassicBoard(v => !v) : undefined}
         />
@@ -1636,6 +1740,9 @@ export default function App() {
                 dailySolved={dailySolved}
                 onShowChangelog={() => setShowChangelog(true)}
                 onStartRated={handleStartRated}
+                onStartReview={handleStartReview}
+                reviewDueCount={reviewQueue.dueCount}
+                reviewTotalCount={reviewQueue.totalCount}
                 playerRating={playerRating.rating}
                 playerRd={playerRating.rd}
               />
@@ -1895,7 +2002,7 @@ export default function App() {
                 solutionLoading={!problem.problem?.solutionText && !problem.problem?.solutionTree}
                 onReset={() => { problem.resetProblem(); setLastRatingDelta(null); analysisActiveRef.current = false; setAnalysisActive(false); setAnalysisResult(null); setAnalysisArrow(null); setAnalyzing(false); }}
                 onShowSolution={handleGiveUp}
-                onNextProblem={isDaily ? undefined : isRatedMode ? (problem.status !== 'solving' ? (() => {
+                onNextProblem={isDaily ? undefined : isReviewMode ? (problem.status !== 'solving' ? handleReviewNext : undefined) : isRatedMode ? (problem.status !== 'solving' ? (() => {
                   // Show "Next" only if current problem IS the cached rated problem
                   try {
                     const cached = JSON.parse(localStorage.getItem('cp-rated-problem') || '{}');
@@ -1925,7 +2032,7 @@ export default function App() {
                   } catch {}
                   handleStartRated();
                 } : undefined}
-                onRandomProblem={(isDaily || isRatedMode) ? undefined : handleRandomProblem}
+                onRandomProblem={(isDaily || isRatedMode || isReviewMode) ? undefined : handleRandomProblem}
                 onShowHint={() => { hintUsedRef.current = true; problem.showHint(); }}
                 onHideHint={problem.hideHint}
                 onAnalyze={handleAnalyze}
@@ -1941,10 +2048,11 @@ export default function App() {
                 ratingDelta={isRatedMode ? lastRatingDelta : undefined}
                 playerRating={isRatedMode ? playerRating.rating : undefined}
                 playerRd={isRatedMode ? playerRating.rd : undefined}
-                problemRating={isRatedMode ? (lastProblemRating ?? (problem.problem ? getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount).rating : undefined)) : undefined}
+                problemRating={(isRatedMode || isReviewMode) ? (lastProblemRating ?? (problem.problem ? getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount).rating : undefined)) : undefined}
                 problemRatingDelta={isRatedMode && problemRatingBefore != null && lastProblemRating != null ? Math.round(lastProblemRating - problemRatingBefore) : undefined}
-                hideHintUntilWrong={isRatedMode}
+                hideHintUntilWrong={isRatedMode || isReviewMode}
                 wrongMoveCount={problem.wrongMoveCount}
+                reviewNextDays={isReviewMode && reviewNextInterval != null ? reviewNextInterval : undefined}
               />
 
               {(problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {
@@ -1999,8 +2107,36 @@ export default function App() {
         </main>
       </div>
 
-      {showTutorial && currentGenre && !isRatedMode && (
+      {showTutorial && currentGenre && !isRatedMode && !isReviewMode && (
         <GenreTutorial genre={currentGenre} onClose={closeTutorial} />
+      )}
+
+      {/* Review Mode tutorial */}
+      {showTutorial && isReviewMode && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <span className="text-3xl">🔁</span>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Review Mode</h2>
+            </div>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Reinforce problems you've attempted in Rated Mode using spaced repetition (FSRS algorithm).
+              Problems appear based on the forgetting curve — the better you know a problem, the less frequently it appears.
+            </p>
+            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+              <li>✓ Solve the problem as usual</li>
+              <li>✓ Perfect solve → next review scheduled further out</li>
+              <li>✓ Any mistake → review scheduled sooner</li>
+              <li>✓ Your rating is <strong>not</strong> affected</li>
+            </ul>
+            <button
+              onClick={() => setShowTutorial(false)}
+              className="mt-5 w-full py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-semibold text-base transition-colors"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Rated Mode tutorial */}

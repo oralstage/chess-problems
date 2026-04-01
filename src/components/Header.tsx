@@ -14,6 +14,7 @@ interface HeaderProps {
   activeFilterCount?: number;
   onShowSiteStats?: () => void;
   ratedMode?: boolean;
+  reviewMode?: boolean;
   classicBoard?: boolean;
   onToggleClassicBoard?: () => void;
 }
@@ -46,7 +47,7 @@ function ThemeToggle({ theme, onToggleTheme }: { theme: ThemeMode; onToggleTheme
   );
 }
 
-export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp, onOpenMenu, onOpenProblemList, onOpenFilters, activeFilterCount, onShowSiteStats: _onShowSiteStats, ratedMode, classicBoard, onToggleClassicBoard }: HeaderProps) {
+export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onShowHelp, onOpenMenu, onOpenProblemList, onOpenFilters, activeFilterCount, onShowSiteStats: _onShowSiteStats, ratedMode, reviewMode, classicBoard, onToggleClassicBoard }: HeaderProps) {
   if (view === 'mode-select') {
     return (
       <header className="flex items-center justify-end gap-2 py-3 px-4">
@@ -80,7 +81,7 @@ export function Header({ theme, onToggleTheme, view, currentGenre, onBack, onSho
           </svg>
         </button>
         <h1 className="text-lg font-bold text-gray-900 dark:text-gray-100">
-          {ratedMode ? 'Rated' : currentGenre ? GENRE_NAMES[currentGenre] : 'Chess Problems'}
+          {reviewMode ? 'Review' : ratedMode ? 'Rated' : currentGenre ? GENRE_NAMES[currentGenre] : 'Chess Problems'}
         </h1>
         {onShowHelp && (
           <button

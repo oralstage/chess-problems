@@ -33,6 +33,7 @@ interface FeedbackPanelProps {
   hideHintUntilWrong?: boolean;
   wrongMoveCount?: number;
   onBackToRated?: () => void;
+  reviewNextDays?: number;
 }
 
 export function FeedbackPanel({
@@ -67,6 +68,7 @@ export function FeedbackPanel({
   hideHintUntilWrong,
   wrongMoveCount = 0,
   onBackToRated,
+  reviewNextDays,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
@@ -85,7 +87,15 @@ export function FeedbackPanel({
         </div>
       )}
 
-      {/* Rating bar (always shown in rated mode) */}
+      {/* Next review interval (review mode only, shown after solving) */}
+      {reviewNextDays != null && (
+        <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-sm">
+          <span>🔁</span>
+          <span>Next review: <strong>~{reviewNextDays} day{reviewNextDays !== 1 ? 's' : ''}</strong></span>
+        </div>
+      )}
+
+      {/* Rating bar (rated mode) */}
       {playerRating != null && (
         <div className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-gray-100 dark:bg-gray-800/60">
           <span className="text-base font-semibold text-gray-700 dark:text-gray-200">
@@ -96,11 +106,19 @@ export function FeedbackPanel({
               {ratingDelta >= 0 ? '+' : ''}{ratingDelta}
             </span>
           )}
-          {problemRating != null && (status === 'correct' || status === 'viewing' || ratingDelta != null) && (
+          {problemRating != null && (status === 'correct' || status === 'viewing') && (
             <span className="text-xs text-gray-500 dark:text-gray-300 ml-auto">
               Problem: {Math.round(problemRatingDelta != null ? problemRating - problemRatingDelta : problemRating)}
             </span>
           )}
+        </div>
+      )}
+
+      {/* Problem rating (review mode — no player rating shown) */}
+      {playerRating == null && problemRating != null && (status === 'correct' || status === 'viewing') && (
+        <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-gray-100 dark:bg-gray-800/60">
+          <span className="text-xs text-gray-500 dark:text-gray-400">Problem rating:</span>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{Math.round(problemRating)}</span>
         </div>
       )}
 
