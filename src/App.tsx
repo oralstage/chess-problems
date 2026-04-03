@@ -2053,6 +2053,7 @@ export default function App() {
                 hideHintUntilWrong={isRatedMode || isReviewMode}
                 wrongMoveCount={problem.wrongMoveCount}
                 reviewNextDays={isReviewMode && reviewNextInterval != null ? reviewNextInterval : undefined}
+                classicBoard={classicBoard}
               />
 
               {(problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {

@@ -34,6 +34,7 @@ interface FeedbackPanelProps {
   wrongMoveCount?: number;
   onBackToRated?: () => void;
   reviewNextDays?: number;
+  classicBoard?: boolean;
 }
 
 export function FeedbackPanel({
@@ -69,6 +70,7 @@ export function FeedbackPanel({
   wrongMoveCount = 0,
   onBackToRated,
   reviewNextDays,
+  classicBoard,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
@@ -88,7 +90,7 @@ export function FeedbackPanel({
       )}
 
       {/* Next review interval (review mode only, shown after solving) */}
-      {reviewNextDays != null && (
+      {!classicBoard && reviewNextDays != null && (
         <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-sm">
           <span>🔁</span>
           <span>Next review: <strong>~{reviewNextDays} day{reviewNextDays !== 1 ? 's' : ''}</strong></span>
@@ -96,7 +98,7 @@ export function FeedbackPanel({
       )}
 
       {/* Rating bar (rated mode) */}
-      {playerRating != null && (
+      {!classicBoard && playerRating != null && (
         <div className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-gray-100 dark:bg-gray-800/60">
           <span className="text-base font-semibold text-gray-700 dark:text-gray-200">
             Rating: {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(ratingDelta != null ? playerRating - ratingDelta : playerRating)}
@@ -115,7 +117,7 @@ export function FeedbackPanel({
       )}
 
       {/* Problem rating (review mode — no player rating shown) */}
-      {playerRating == null && problemRating != null && (status === 'correct' || status === 'viewing') && (
+      {!classicBoard && playerRating == null && problemRating != null && (status === 'correct' || status === 'viewing') && (
         <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-gray-100 dark:bg-gray-800/60">
           <span className="text-xs text-gray-500 dark:text-gray-400">Problem rating:</span>
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{Math.round(problemRating)}</span>
@@ -234,7 +236,7 @@ export function FeedbackPanel({
           {solutionLoading && (
             <span className="text-xs text-gray-400 dark:text-gray-500 animate-pulse">Loading...</span>
           )}
-          {!solutionLoading && !hintActive && !(hideHintUntilWrong && wrongMoveCount === 0) && (
+          {!classicBoard && !solutionLoading && !hintActive && !(hideHintUntilWrong && wrongMoveCount === 0) && (
             <button
               onClick={onShowHint}
               className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
@@ -242,7 +244,7 @@ export function FeedbackPanel({
               Show Hint
             </button>
           )}
-          {!solutionLoading && hintActive && (
+          {!classicBoard && !solutionLoading && hintActive && (
             <button
               onClick={onHideHint}
               className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
@@ -258,7 +260,7 @@ export function FeedbackPanel({
               Reset
             </button>
           )}
-          {!solutionLoading && (
+          {!classicBoard && !solutionLoading && (
             <button
               onClick={onShowSolution}
               className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
@@ -271,7 +273,7 @@ export function FeedbackPanel({
               Refutation: {refutationText}
             </span>
           )}
-          {!onGoHome && (
+          {!classicBoard && !onGoHome && (
             <div className="ml-auto flex items-center gap-1.5">
               {onNextProblem && (
                 <button

@@ -7,52 +7,87 @@ import { addFairyExclusion } from '../fairy-filter';
  * Uses golden-ratio hashing on the date to pick deterministically.
  * Includes full solutionText for immediate solving.
  *
- * Accepts optional `?date=YYYY-MM-DD` query param (client's local date)
- * so the problem matches the date displayed in the UI.
+ * Accepts optional `?date=YYYY-MM-DD` query param (client's local date).
  * Falls back to UTC date if not provided.
+ *
+ * Speed strategy (fastest to slowest):
+ *   1. Worker Cache API  — edge memory, 0 D1 queries
+ *   2. daily_cache table — 1 D1 query (id lookup only)
+ *   3. Full calculation  — 2 D1 queries + INSERT into daily_cache (once per day)
  */
 export const onRequestGet: PagesFunction<Env> = async (context) => {
-  // Build conditions for #2 direct problems, excluding fairy
-  const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'"];
-  const bindings: (string | number)[] = [];
-  addFairyExclusion(conditions, bindings);
-  const where = conditions.join(' AND ');
-
-  // Count #2 direct problems
-  const countResult = await context.env.DB.prepare(
-    `SELECT COUNT(*) as cnt FROM problems WHERE ${where}`
-  ).bind(...bindings).first<{ cnt: number }>();
-  const total = countResult?.cnt || 0;
-  if (total === 0) {
-    return Response.json({ error: 'No daily problems available' }, { status: 404 });
-  }
-
-  // Use client's local date if provided, otherwise UTC
   const url = new URL(context.request.url);
   const dateParam = url.searchParams.get('date');
-  let dayNum: number;
+
+  // Normalize date key
+  let dateKey: string;
   if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    const [y, m, d] = dateParam.split('-').map(Number);
-    dayNum = y * 10000 + m * 100 + d;
+    dateKey = dateParam;
   } else {
     const now = new Date();
-    dayNum = now.getFullYear() * 10000 + (now.getMonth() + 1) * 100 + now.getDate();
+    dateKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
   }
 
-  // Golden-ratio hash to pick today's problem
-  const GOLDEN = 2654435761;
-  const hash = ((dayNum * GOLDEN) >>> 0) / 4294967296;
-  const idx = Math.floor(hash * total);
+  // ── 1. Worker Cache API (edge memory) ──
+  const cache = caches.default;
+  const cacheKey = new Request(`https://chess-problems-cache/daily/${dateKey}`);
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
 
-  // Fetch the problem at that offset, ordered by difficulty
+  // ── 2. Check daily_cache table ──
+  const cachedRow = await context.env.STATS_DB.prepare(
+    'SELECT problem_id FROM daily_cache WHERE date = ?'
+  ).bind(dateKey).first<{ problem_id: number }>();
+
+  let problemId: number;
+
+  if (cachedRow) {
+    problemId = cachedRow.problem_id;
+  } else {
+    // ── 3. Full calculation ──
+    const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'"];
+    const bindings: (string | number)[] = [];
+    addFairyExclusion(conditions, bindings);
+    const where = conditions.join(' AND ');
+
+    const countResult = await context.env.DB.prepare(
+      `SELECT COUNT(*) as cnt FROM problems WHERE ${where}`
+    ).bind(...bindings).first<{ cnt: number }>();
+    const total = countResult?.cnt || 0;
+    if (total === 0) {
+      return Response.json({ error: 'No daily problems available' }, { status: 404 });
+    }
+
+    const [y, m, d] = dateKey.split('-').map(Number);
+    const dayNum = y * 10000 + m * 100 + d;
+    const GOLDEN = 2654435761;
+    const hash = ((dayNum * GOLDEN) >>> 0) / 4294967296;
+    const idx = Math.floor(hash * total);
+
+    const idRow = await context.env.DB.prepare(
+      `SELECT id FROM problems WHERE ${conditions.join(' AND ')} ORDER BY difficulty_score ASC LIMIT 1 OFFSET ?`
+    ).bind(...bindings, idx).first<{ id: number }>();
+
+    if (!idRow) {
+      return Response.json({ error: 'Daily problem not found' }, { status: 404 });
+    }
+
+    problemId = idRow.id;
+
+    // Store in daily_cache for future requests
+    context.waitUntil(
+      context.env.STATS_DB.prepare(
+        'INSERT OR IGNORE INTO daily_cache (date, problem_id) VALUES (?, ?)'
+      ).bind(dateKey, problemId).run()
+    );
+  }
+
+  // Fetch full problem data by ID
   const row = await context.env.DB.prepare(
     `SELECT id, fen, authors, source_name, source_year, stipulation, move_count,
             genre, difficulty, difficulty_score, piece_count, keywords, award, solution_text
-     FROM problems
-     WHERE ${where}
-     ORDER BY difficulty_score ASC
-     LIMIT 1 OFFSET ?`
-  ).bind(...bindings, idx).first();
+     FROM problems WHERE id = ?`
+  ).bind(problemId).first();
 
   if (!row) {
     return Response.json({ error: 'Daily problem not found' }, { status: 404 });
@@ -75,10 +110,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     solutionText: row.solution_text,
   };
 
-  return Response.json(problem, {
-    headers: {
-      // Cache for 1 hour (daily problem changes once per day)
-      'Cache-Control': 'public, max-age=3600',
-    },
+  const response = Response.json(problem, {
+    headers: { 'Cache-Control': 'public, max-age=86400' },
   });
+
+  // Store in Worker Cache for this edge node
+  context.waitUntil(cache.put(cacheKey, response.clone()));
+
+  return response;
 };
