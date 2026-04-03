@@ -73,6 +73,14 @@
 
 ## Lessons Learned / Known Issues
 
+### Daily Problem Caching
+- `/api/daily` uses a 3-tier caching strategy:
+  1. **Worker Cache API** (edge memory): 0 D1 queries, fastest
+  2. **`daily_cache` table** in STATS_DB: 1 D1 query (`WHERE id = ?`), populated on first request of each day
+  3. **Full calculation** (COUNT + OFFSET): 2 D1 queries + INSERT, only runs once per day (first request globally)
+- `daily_cache` schema: `date TEXT PRIMARY KEY, problem_id INTEGER NOT NULL`
+- `Cache-Control: public, max-age=86400` on responses
+
 ### Rated Mode (Glicko-2)
 - Player starts at rating 800, RD 350. Problems have initial ratings based on formula: `600 + (moveCount-2)*300 + pieceCount*50 + solutionComponent(0-50)`
 - Scoring: perfect solve (no mistakes, no hints) = 1.0 (win), anything else = 0.0 (loss)
