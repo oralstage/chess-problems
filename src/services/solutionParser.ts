@@ -945,8 +945,11 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     // Build nodes for all moves in this segment, chaining them
     let currentColor = color;
 
-    // Save stack depth before threat segments so we can restore it after
-    const stackDepthBeforeThreat = (seg.isThreat || isThreatChild) ? stack.length : -1;
+    // Save stack depth before threat segments so we can restore it after.
+    // Only restore for parenthesized threats (seg.isThreat), NOT for hasThreatLabel children
+    // (isThreatChild). hasThreatLabel threats span multiple lines — their children need to
+    // stay on the stack so subsequent indented segments attach correctly via indent-based popping.
+    const stackDepthBeforeThreat = seg.isThreat ? stack.length : -1;
 
     // Slash alternatives are expanded at line level, so just process linearly
     for (let i = 0; i < seg.moves.length; i++) {

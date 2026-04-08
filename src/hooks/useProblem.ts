@@ -239,19 +239,29 @@ function matchMoveToTree(
   nodes: SolutionNode[],
 ): SolutionNode | null {
   const uci = from + to + (movePromotion || '');
-  for (const node of nodes) {
-    if (node.moveUci === uci) return node;
-    if (node.moveSan === moveSan) return node;
+  const matchNode = (node: SolutionNode): boolean => {
+    if (node.moveUci === uci) return true;
+    if (node.moveSan === moveSan) return true;
     const nodeSanClean = node.moveSan.replace(/[+#!?]/g, '');
     const moveSanClean = moveSan.replace(/[+#!?]/g, '');
-    if (nodeSanClean === moveSanClean) return node;
+    if (nodeSanClean === moveSanClean) return true;
     const verifyChess = new Chess(preFen);
     const verifiedMove = tryExecuteNode(verifyChess, node);
     if (verifiedMove && verifiedMove.from === from && verifiedMove.to === to) {
-      // For promotions, also check the promotion piece matches
-      if (movePromotion && verifiedMove.promotion && verifiedMove.promotion !== movePromotion) continue;
-      return node;
+      if (movePromotion && verifiedMove.promotion && verifiedMove.promotion !== movePromotion) return false;
+      return true;
     }
+    return false;
+  };
+  // Prioritize non-threat nodes: when the same move exists in both a threat
+  // continuation and a defense branch, the defense branch is the correct path.
+  const nonThreat = nodes.filter(n => !n.isThreat);
+  const threat = nodes.filter(n => n.isThreat);
+  for (const node of nonThreat) {
+    if (matchNode(node)) return node;
+  }
+  for (const node of threat) {
+    if (matchNode(node)) return node;
   }
   return null;
 }
