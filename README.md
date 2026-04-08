@@ -10,6 +10,8 @@ Interactive solver for [YACPDB](https://www.yacpdb.org) chess problems with move
 - Move validation against the solution tree
 - Stockfish-powered hints
 - Solution playback with clickable moves
+- **Rated Mode** — Glicko-2 matchmaking that picks problems near your skill level. Perfect solve = rating up, any mistake = rating down
+- **Review Mode** — FSRS-4.5 spaced repetition for problems you've played in Rated Mode. Reinforces weak spots on a schedule
 - Search problems by composer
 - Bookmarks and solve history
 - Daily problem

@@ -7,3 +7,4 @@ scripts/import-data*.sql
 public/stockfish/
 src/data/*.json
 .claude/settings.local.json
+CLAUDE.md
