@@ -4,6 +4,40 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-04-25',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Difficulty selector added to Rated Mode.',
+        ],
+      },
+    ],
+  },
+  {
+    date: '2026-04-22',
+    sections: [
+      {
+        title: 'Updates',
+        items: [
+          'Stipulation badges are now color-coded by move count in Direct Mate, Rated, and Review modes — #2 green, #3 blue, #4 amber, #5 pink, #6 purple, #7 cyan — making difficulty easier to spot at a glance.',
+          'In Rated Mode, a toast now reliably announces "Mate in N" whenever the move count changes between problems.',
+        ],
+      },
+    ],
+  },
+  {
+    date: '2026-04-17',
+    sections: [
+      {
+        title: 'Updates',
+        items: [
+          'Cooked problems — when a problem has more than one key that mates (an unintended cook), a yellow badge now appears next to the Solution heading after solving, so you know to check the Key variations for alternative solutions.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-04-01',
     sections: [
       {

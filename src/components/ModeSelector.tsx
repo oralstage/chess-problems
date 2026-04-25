@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CATEGORY_DEFS } from '../types';
+import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
 const EXPANDED_GROUPS_KEY = 'cp-expanded-groups';
@@ -222,9 +223,8 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             <button
               onClick={() => {
                 try {
-                  const saved = localStorage.getItem('cp-rated-problem');
-                  if (saved) {
-                    const data = JSON.parse(saved);
+                  const data = loadRatedProblemSlot<{ id: number }>(loadRatedDifficulty());
+                  if (data) {
                     const pid = String(data.id);
                     const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
                     if (prog.direct?.[pid] !== 'solved' && prog.direct?.[pid] !== 'failed') {

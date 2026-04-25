@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import type { ChessProblem, ProblemProgress } from '../types';
+import { getStipulationTextColorClasses } from '../utils/stipulationColor';
 
 type StatusFilter = 'all' | 'unsolved' | 'solved' | 'failed' | 'bookmarked';
 
@@ -260,7 +261,7 @@ export function ProblemList({
                     </span>
                   </div>
                   <span className={`text-xs font-bold font-mono ${
-                    isCurrent ? 'text-green-200' : status === 'solved' ? 'text-green-500/70 dark:text-green-400/70' : 'text-gray-500 dark:text-gray-400'
+                    isCurrent ? 'text-green-200' : status === 'solved' ? 'text-green-500/70 dark:text-green-400/70' : getStipulationTextColorClasses(p.stipulation, p.genre)
                   }`}>
                     {p.stipulation}
                   </span>

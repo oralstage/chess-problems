@@ -1,4 +1,5 @@
 import type { SolveStatus } from '../hooks/useProblem';
+import { type RatedDifficulty, RATED_DIFFICULTIES, RATED_DIFFICULTY_LABEL, RATED_DIFFICULTY_OFFSET } from '../utils/ratedDifficulty';
 
 interface FeedbackPanelProps {
   status: SolveStatus;
@@ -35,6 +36,8 @@ interface FeedbackPanelProps {
   onBackToRated?: () => void;
   reviewNextDays?: number;
   classicBoard?: boolean;
+  ratedDifficulty?: RatedDifficulty;
+  onChangeDifficulty?: (d: RatedDifficulty) => void;
 }
 
 export function FeedbackPanel({
@@ -71,6 +74,8 @@ export function FeedbackPanel({
   onBackToRated,
   reviewNextDays,
   classicBoard,
+  ratedDifficulty,
+  onChangeDifficulty,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
@@ -108,8 +113,25 @@ export function FeedbackPanel({
               {ratingDelta >= 0 ? '+' : ''}{ratingDelta}
             </span>
           )}
+          {ratedDifficulty && onChangeDifficulty && (
+            <select
+              value={ratedDifficulty}
+              onChange={(e) => onChangeDifficulty(e.target.value as RatedDifficulty)}
+              className="ml-auto text-xs px-2 py-1 rounded bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-green-500"
+              aria-label="Difficulty"
+            >
+              {RATED_DIFFICULTIES.map(d => {
+                const o = RATED_DIFFICULTY_OFFSET[d];
+                return (
+                  <option key={d} value={d}>
+                    {RATED_DIFFICULTY_LABEL[d]}{o === 0 ? '' : ` (${o > 0 ? '+' : ''}${o})`}
+                  </option>
+                );
+              })}
+            </select>
+          )}
           {problemRating != null && (status === 'correct' || status === 'viewing') && (
-            <span className="text-xs text-gray-500 dark:text-gray-300 ml-auto">
+            <span className={`text-xs text-gray-500 dark:text-gray-300 ${ratedDifficulty && onChangeDifficulty ? '' : 'ml-auto'}`}>
               Problem: {Math.round(problemRatingDelta != null ? problemRating - problemRatingDelta : problemRating)}
             </span>
           )}

@@ -23,6 +23,7 @@ interface SolutionTreeProps {
   twins?: TwinData[];
   activeTwinId?: string;
   onSelectTwin?: (id: string) => void;
+  isCooked?: boolean;
 }
 
 /**
@@ -269,7 +270,7 @@ function VariationLineView({ line, startMoveNum, onNodeClick, activeNode }: {
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, twins, activeTwinId, onSelectTwin }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, twins, activeTwinId, onSelectTwin, isCooked }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -319,8 +320,18 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">Solution</h3>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">Solution</h3>
+          {isCooked && (
+            <span
+              className="text-xs font-semibold px-2 py-0.5 rounded bg-yellow-300 text-yellow-900 dark:bg-yellow-400 dark:text-yellow-950"
+              title="This problem has more than one move that mates (unintended cook). See the Key variations below."
+            >
+              ⚠ Cooked — another key also mates
+            </span>
+          )}
+        </div>
         {exploring && (
           <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
             Free play — click a move to return

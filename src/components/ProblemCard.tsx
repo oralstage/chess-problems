@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import type { ChessProblem } from '../types';
 import { findTheme } from '../data/themes';
+import { getStipulationColorClasses } from '../utils/stipulationColor';
 
 interface ProblemCardProps {
   problem: ChessProblem;
   showThemes?: boolean;
   problemNumber?: number;
   genrePrefix?: string;
-  ratedMode?: boolean;
 }
 
 function pieceCounts(fen: string): string {
@@ -29,8 +29,9 @@ function stipulationDisplay(stip: string): string {
   return stip;
 }
 
-export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix, ratedMode }: ProblemCardProps) {
+export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }: ProblemCardProps) {
   const [expandedTag, setExpandedTag] = useState<string | null>(null);
+  const stipColor = getStipulationColorClasses(problem.stipulation, problem.genre);
 
   return (
     <div className="space-y-1.5 min-w-0">
@@ -40,7 +41,7 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix, r
             {genrePrefix || ''}{problemNumber}
           </span>
         )}
-        <span className={`rounded-md font-bold font-mono px-2 py-0.5 text-sm ${ratedMode ? 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300' : 'bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300'}`}>
+        <span className={`rounded-md font-bold font-mono px-2 py-0.5 text-sm ${stipColor}`}>
           {stipulationDisplay(problem.stipulation)}
         </span>
         <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">

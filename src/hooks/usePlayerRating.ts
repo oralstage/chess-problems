@@ -97,7 +97,12 @@ export function usePlayerRating() {
     const fresh = defaultRating();
     saveRating(fresh);
     saveRatedIds(new Set());
-    try { localStorage.removeItem('cp-rated-problem'); } catch {}
+    try {
+      // Clear all per-difficulty rated problem slots (and legacy single slot)
+      const difficulties = ['very-easy', 'easy', 'normal', 'hard', 'very-hard'];
+      for (const d of difficulties) localStorage.removeItem(`cp-rated-problem-${d}`);
+      localStorage.removeItem('cp-rated-problem');
+    } catch {}
     setState({ rating: fresh, ratedIds: new Set() });
   }, []);
 

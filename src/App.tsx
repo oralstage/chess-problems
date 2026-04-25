@@ -25,6 +25,16 @@ import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parse
 import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import { useReviewQueue } from './hooks/useReviewQueue';
+import { getStipulationToastClasses } from './utils/stipulationColor';
+import {
+  type RatedDifficulty,
+  RATED_DIFFICULTY_OFFSET,
+  loadRatedDifficulty,
+  saveRatedDifficulty as saveRatedDifficultyPref,
+  loadRatedProblem as loadRatedProblemSlot,
+  saveRatedProblem as saveRatedProblemSlot,
+  clearAllRatedProblems,
+} from './utils/ratedDifficulty';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
 import { CATEGORY_DEFS } from './types';
 
@@ -193,7 +203,14 @@ export default function App() {
   const [problemRatingBefore, setProblemRatingBefore] = useState<number | null>(null);
   const [isRatedMode, setIsRatedMode] = useState(false);
   // Removed isSpecificRatedProblem - now determined by comparing current problem with cache
-  const [recentRatedIds, setRecentRatedIds] = useState<number[]>([]);
+  const [, setRecentRatedIds] = useState<number[]>([]);
+  const [ratedDifficulty, setRatedDifficultyState] = useState<RatedDifficulty>(() => loadRatedDifficulty());
+  const ratedDifficultyRef = useRef(ratedDifficulty);
+  ratedDifficultyRef.current = ratedDifficulty;
+  const setRatedDifficulty = useCallback((d: RatedDifficulty) => {
+    setRatedDifficultyState(d);
+    saveRatedDifficultyPref(d);
+  }, []);
 
   // Review Mode (spaced repetition)
   // cp-rated-ids: problem IDs played in Rated Mode (source of truth for review queue)
@@ -203,7 +220,8 @@ export default function App() {
   const [reviewProblemQueue, setReviewProblemQueue] = useState<number[]>([]);
   const [reviewQueueIndex, setReviewQueueIndex] = useState(0);
   const [reviewNextInterval, setReviewNextInterval] = useState<number | null>(null);
-  const [stipulationToast, setStipulationToast] = useState<string | null>(null);
+  const [stipulationToast, setStipulationToast] = useState<{ label: string; moveCount: number } | null>(null);
+  const [fetchErrorToast, setFetchErrorToast] = useState<string | null>(null);
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
   const prevMoveCountRef = useRef<number | null>(null);
 
@@ -508,38 +526,32 @@ export default function App() {
   }, [dailyProblem, problem, cacheProblem, setCurrentProblemId, updateHash]);
 
   // ── Rated Mode ──
+  // Per-difficulty cache slots: cp-rated-problem-{difficulty}
+  // Switching difficulty mid-solve restores that slot's problem (if any) without
+  // touching other slots. Solving (Next button) clears ALL slots since rating moved.
 
-  const RATED_PROBLEM_KEY = 'cp-rated-problem';
-
-  const saveRatedProblem = useCallback((data: import('./services/api').RatedProblemResponse) => {
-    try { localStorage.setItem(RATED_PROBLEM_KEY, JSON.stringify(data)); } catch {}
-  }, []);
-
-  const clearRatedProblem = useCallback(() => {
-    try { localStorage.removeItem(RATED_PROBLEM_KEY); } catch {}
-  }, []);
-
-  const fetchAndStartRatedProblem = useCallback(async () => {
+  const fetchAndStartRatedProblem = useCallback(async (difficulty?: RatedDifficulty) => {
+    const d = difficulty ?? ratedDifficultyRef.current;
+    const offset = RATED_DIFFICULTY_OFFSET[d];
     try {
-      const data = await fetchRatedProblem(playerRating.rating);
+      const data = await fetchRatedProblem(playerRating.rating + offset);
       const p = metaToChessProblem(data, data.solutionText);
-      // Show toast if move count changed
       if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
-        const label = data.moveCount === 2 ? 'Mate in 2' : data.moveCount === 3 ? 'Mate in 3' : `Mate in ${data.moveCount}`;
-        setStipulationToast(label);
+        setStipulationToast({ label: `Mate in ${data.moveCount}`, moveCount: data.moveCount });
         setTimeout(() => setStipulationToast(null), 2500);
       }
       prevMoveCountRef.current = data.moveCount;
       loadAndStartProblem(p);
       cacheProblem(p);
-      saveRatedProblem(data);
+      saveRatedProblemSlot(d, data);
       setLastProblemRating(data.problemRating);
       setRecentRatedIds(prev => [...prev.slice(-49), data.id]);
       updateHash(null, data.id, true, undefined, true);
     } catch {
-      // API error — ignore
+      setFetchErrorToast(`No problems found near rating ${Math.round(playerRating.rating + offset)}. Try a different difficulty.`);
+      setTimeout(() => setFetchErrorToast(null), 4000);
     }
-  }, [playerRating.rating, recentRatedIds, loadAndStartProblem, cacheProblem, saveRatedProblem, updateHash]);
+  }, [playerRating.rating, loadAndStartProblem, cacheProblem, updateHash]);
 
   const fetchRatedRef = useRef(fetchAndStartRatedProblem);
   fetchRatedRef.current = fetchAndStartRatedProblem;
@@ -584,6 +596,7 @@ export default function App() {
       // No longer tracking isSpecificRatedProblem - determined by cache comparison
       fetchProblem(specificProblemId).then(full => {
         const p = metaToChessProblem(full, full.solutionText);
+        prevMoveCountRef.current = p.moveCount;
         loadAndStartProblemRef.current(p);
         updateHashRef.current(null, full.id, true, undefined, true);
         // Fetch current problem rating from server
@@ -597,18 +610,16 @@ export default function App() {
       return;
     }
 
-    // Cache path - current problem IS the cached problem
-    // Restore saved problem if available and not yet solved
-    // Read everything from localStorage directly to minimize React dependencies
+    // Cache path — read from current difficulty's slot
     try {
-      const saved = localStorage.getItem(RATED_PROBLEM_KEY);
-      if (saved) {
-        const data = JSON.parse(saved) as import('./services/api').RatedProblemResponse;
+      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(ratedDifficultyRef.current);
+      if (data) {
         const pid = String(data.id);
         const currentProgress = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-        const alreadySolved = currentProgress.direct?.[pid] === 'solved' || currentProgress.direct?.[pid] === 'failed';
-        if (!alreadySolved) {
+        const alreadyAttempted = currentProgress.direct?.[pid] === 'solved' || currentProgress.direct?.[pid] === 'failed';
+        if (!alreadyAttempted) {
           const p = metaToChessProblem(data, data.solutionText);
+          prevMoveCountRef.current = p.moveCount;
           loadAndStartProblemRef.current(p);
           cacheProblemRef.current(p);
           if (data.problemRating) setLastProblemRating(data.problemRating);
@@ -617,7 +628,7 @@ export default function App() {
         }
       }
     } catch {}
-    // No saved problem or already solved — fetch new one
+    // No saved problem at current difficulty or already attempted — fetch new
     fetchRatedRef.current();
   };
   const handleStartRatedRef = useRef(handleStartRatedImpl);
@@ -680,8 +691,8 @@ export default function App() {
 
   const handleNextRatedProblem = useCallback(() => {
     if (!problem.problem) return;
-    clearRatedProblem();
-    // Progress tracking (same as handleNextProblem)
+    // Clear ALL difficulty slots — rating moved, all cached problems are now stale
+    clearAllRatedProblems();
     if (problem.status === 'correct' && currentGenre) {
       const pid = String(problem.problem.id);
       const perfect = problem.wrongMoveCount === 0 && !hintUsedRef.current;
@@ -694,6 +705,39 @@ export default function App() {
     }
     fetchAndStartRatedProblem();
   }, [problem, currentGenre, setProgress, fetchAndStartRatedProblem]);
+
+  /**
+   * Switch difficulty in Rated mode.
+   * - If the new difficulty has an unattempted cached problem, restore it.
+   * - Otherwise, fetch a fresh problem at that difficulty's offset.
+   * Other slots are left intact so the user can switch back without losing their thinking.
+   */
+  const handleChangeDifficulty = useCallback((d: RatedDifficulty) => {
+    if (d === ratedDifficultyRef.current) return;
+    setRatedDifficulty(d);
+    try {
+      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(d);
+      if (data) {
+        const pid = String(data.id);
+        const currentProgress = JSON.parse(localStorage.getItem('cp-progress') || '{}');
+        const alreadyAttempted = currentProgress.direct?.[pid] === 'solved' || currentProgress.direct?.[pid] === 'failed';
+        if (!alreadyAttempted) {
+          const p = metaToChessProblem(data, data.solutionText);
+          if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
+            setStipulationToast({ label: `Mate in ${data.moveCount}`, moveCount: data.moveCount });
+            setTimeout(() => setStipulationToast(null), 2500);
+          }
+          prevMoveCountRef.current = data.moveCount;
+          loadAndStartProblemRef.current(p);
+          cacheProblemRef.current(p);
+          if (data.problemRating) setLastProblemRating(data.problemRating);
+          updateHashRef.current(null, data.id, true, undefined, true);
+          return;
+        }
+      }
+    } catch {}
+    fetchAndStartRatedProblem(d);
+  }, [setRatedDifficulty, fetchAndStartRatedProblem]);
 
   // Run analysis when position changes and analysis mode is active
   useEffect(() => {
@@ -1748,6 +1792,15 @@ export default function App() {
               />
           )}
 
+          {/* Top-level fetch error toast (shown even during loading state) */}
+          {fetchErrorToast && (
+            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+              <div className="bg-red-600/95 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-lg max-w-sm text-center">
+                {fetchErrorToast}
+              </div>
+            </div>
+          )}
+
           {view === 'solving' && !problem.problem && (genreLoading || (currentGenre && !genreLoaded[currentGenre])) && (
             <div className="text-center py-16">
               <div className="flex justify-center gap-1 mb-4">
@@ -1793,8 +1846,8 @@ export default function App() {
               {/* Stipulation change toast */}
               {stipulationToast && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-                  <div className="bg-black/70 text-white text-3xl font-bold px-8 py-4 rounded-2xl animate-stipulation-toast">
-                    {stipulationToast}
+                  <div className={`text-white text-3xl font-bold px-8 py-4 rounded-2xl animate-stipulation-toast ${getStipulationToastClasses(stipulationToast.moveCount)}`}>
+                    {stipulationToast.label}
                   </div>
                 </div>
               )}
@@ -1817,7 +1870,6 @@ export default function App() {
                     problemNumber={problem.problem!.id}
                     genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[currentGenre || 'direct'] || 'D'}
                     showThemes={problem.status === 'correct' || problem.status === 'viewing'}
-                    ratedMode={isRatedMode}
                   />
                   {!isRatedMode && (
                   <button
@@ -2003,33 +2055,27 @@ export default function App() {
                 onReset={() => { problem.resetProblem(); setLastRatingDelta(null); analysisActiveRef.current = false; setAnalysisActive(false); setAnalysisResult(null); setAnalysisArrow(null); setAnalyzing(false); }}
                 onShowSolution={handleGiveUp}
                 onNextProblem={isDaily ? undefined : isReviewMode ? (problem.status !== 'solving' ? handleReviewNext : undefined) : isRatedMode ? (problem.status !== 'solving' ? (() => {
-                  // Show "Next" only if current problem IS the cached rated problem
-                  try {
-                    const cached = JSON.parse(localStorage.getItem('cp-rated-problem') || '{}');
-                    if (cached.id && cached.id === problem.problem?.id) return handleNextRatedProblem;
-                  } catch {}
+                  // Show "Next" only if current problem IS the cached rated problem at current difficulty
+                  const cached = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
+                  if (cached && cached.id === problem.problem?.id) return handleNextRatedProblem;
                   return undefined;
                 })() : undefined) : handleNextProblem}
                 onBackToRated={isRatedMode && problem.status !== 'solving' && (() => {
-                  // Show "Back to Rated" if current problem is NOT the cached rated problem
-                  try {
-                    const cached = JSON.parse(localStorage.getItem('cp-rated-problem') || '{}');
-                    if (cached.id && cached.id !== problem.problem?.id) return true;
-                  } catch {}
-                  return false;
+                  // Show "Back to Rated" if current problem is NOT the cached rated problem at current difficulty
+                  const cached = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
+                  return !!(cached && cached.id !== problem.problem?.id);
                 })() ? () => {
-                  try {
-                    const saved = localStorage.getItem('cp-rated-problem');
-                    if (saved) {
-                      const data = JSON.parse(saved);
-                      const pid = String(data.id);
+                  const data = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
+                  if (data) {
+                    const pid = String(data.id);
+                    try {
                       const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
                       if (prog.direct?.[pid] !== 'solved' && prog.direct?.[pid] !== 'failed') {
                         handleStartRated(data.id, true);
                         return;
                       }
-                    }
-                  } catch {}
+                    } catch {}
+                  }
                   handleStartRated();
                 } : undefined}
                 onRandomProblem={(isDaily || isRatedMode || isReviewMode) ? undefined : handleRandomProblem}
@@ -2054,6 +2100,8 @@ export default function App() {
                 wrongMoveCount={problem.wrongMoveCount}
                 reviewNextDays={isReviewMode && reviewNextInterval != null ? reviewNextInterval : undefined}
                 classicBoard={classicBoard}
+                ratedDifficulty={isRatedMode ? ratedDifficulty : undefined}
+                onChangeDifficulty={isRatedMode ? handleChangeDifficulty : undefined}
               />
 
               {(problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {
@@ -2095,6 +2143,7 @@ export default function App() {
                       problem.switchTwinPlayback(twin.fen, twin.solutionTree);
                     }
                   }}
+                  isCooked={problem.problem.keywords?.includes('Cooked')}
                 />
               )}
             </div>
