@@ -1,8 +1,10 @@
 import { useState, useCallback, useRef } from 'react';
 import { updateRating, defaultRating, difficultyToRating, type Glicko2Rating } from '../utils/glicko2';
+import { pushPlayerRating } from '../services/api';
 
 const RATING_KEY = 'cp-player-rating';
 const RATED_IDS_KEY = 'cp-rated-ids';
+const SESSION_ID_KEY = 'cp-session-id';
 const MAX_RATED_IDS = 5000;
 
 interface PlayerRatingState {
@@ -80,6 +82,8 @@ export function usePlayerRating() {
 
     saveRating(newRating);
     saveRatedIds(newIds);
+    // Push to server so it persists across devices
+    pushPlayerRating(newRating, newIds.size);
 
     setState({ rating: newRating, ratedIds: newIds });
     return { newRating, delta };
@@ -106,11 +110,35 @@ export function usePlayerRating() {
     setState({ rating: fresh, ratedIds: new Set() });
   }, []);
 
+  /**
+   * Restore rating from a recovery code (= sessionId).
+   * Replaces the local sessionId with the provided code, then sets the rating
+   * to the value reconstructed from the server's rating_events.
+   *
+   * Caller is responsible for fetching the rating from /api/my-rating first.
+   */
+  const restoreRating = useCallback((code: string, restored: Glicko2Rating) => {
+    try {
+      // Replace sessionId so future events are attributed to the recovered identity
+      localStorage.setItem(SESSION_ID_KEY, code);
+      // Clear any cached rated problem slots (they belonged to the old session)
+      const difficulties = ['very-easy', 'easy', 'normal', 'hard', 'very-hard'];
+      for (const d of difficulties) localStorage.removeItem(`cp-rated-problem-${d}`);
+      localStorage.removeItem('cp-rated-problem');
+    } catch {}
+    saveRating(restored);
+    // Reset ratedIds — will be repopulated as the user re-encounters problems.
+    // (Server-side dedup via rating_events PK still prevents double-counting.)
+    saveRatedIds(new Set());
+    setState({ rating: restored, ratedIds: new Set() });
+  }, []);
+
   return {
     playerRating: state.rating,
     isRated,
     updateAfterSolve,
     getProblemInitialRating,
     resetRating,
+    restoreRating,
   };
 }

@@ -39,3 +39,43 @@ CREATE INDEX IF NOT EXISTS idx_analytics_event ON analytics_events(event_name);
 CREATE INDEX IF NOT EXISTS idx_analytics_session ON analytics_events(session_id);
 CREATE INDEX IF NOT EXISTS idx_analytics_created ON analytics_events(created_at);
 CREATE INDEX IF NOT EXISTS idx_analytics_problem ON analytics_events(problem_id, event_name);
+
+-- Latest player Glicko-2 rating per session — written on each rating event,
+-- so the Sync feature can read it directly instead of replaying all events.
+CREATE TABLE IF NOT EXISTS player_ratings (
+  session_id TEXT NOT NULL,
+  dev INTEGER NOT NULL DEFAULT 0,
+  rating REAL NOT NULL,
+  rd REAL NOT NULL,
+  volatility REAL NOT NULL,
+  solve_count INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (session_id, dev)
+);
+
+-- Bookmarks: synced across devices via session_id
+CREATE TABLE IF NOT EXISTS bookmarks (
+  session_id TEXT NOT NULL,
+  genre TEXT NOT NULL,
+  problem_id INTEGER NOT NULL,
+  dev INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (session_id, genre, problem_id, dev)
+);
+
+CREATE INDEX IF NOT EXISTS idx_bookmarks_session ON bookmarks(session_id, dev);
+
+-- Review Mode (FSRS-4.5) state per problem per session
+CREATE TABLE IF NOT EXISTS review_state (
+  session_id TEXT NOT NULL,
+  problem_id INTEGER NOT NULL,
+  dev INTEGER NOT NULL DEFAULT 0,
+  stability REAL NOT NULL,
+  difficulty REAL NOT NULL,
+  is_new INTEGER NOT NULL DEFAULT 1,
+  due_date TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (session_id, problem_id, dev)
+);
+
+CREATE INDEX IF NOT EXISTS idx_review_state_session ON review_state(session_id, dev);

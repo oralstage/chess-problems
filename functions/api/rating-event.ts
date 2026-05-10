@@ -23,6 +23,7 @@ interface RatingEventBody {
   score: number;
   playerRating: number;
   playerRd: number;
+  playerVol?: number;
 }
 
 // Rate limiting (per-isolate)
@@ -112,7 +113,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     throw e;
   }
 
-  // Update problem rating (problem "plays" against the player with inverted score)
+  // Update the problem's rating (problem "plays" against the player with inverted score).
+  // The player's own rating is mirrored separately by the client via /api/save-rating —
+  // we never recompute it server-side, so client and server stay in lockstep.
   const problemScore = 1 - body.score;
   const newProblemRating = updateRating(
     problemRating,
@@ -120,7 +123,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     problemScore,
   );
 
-  // Upsert problem_ratings
   await context.env.STATS_DB.prepare(
     `INSERT INTO problem_ratings (problem_id, dev, rating, rd, volatility, solve_count, updated_at)
      VALUES (?, ?, ?, ?, ?, 1, datetime('now'))

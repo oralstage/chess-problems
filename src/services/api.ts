@@ -478,6 +478,143 @@ export async function fetchMyProgress(sessionId: string): Promise<Record<string,
   return res.json();
 }
 
+// ── My Rating (for Backup/Restore) ──
+
+export interface MyRating {
+  rating: number;
+  rd: number;
+  vol: number;
+  solveCount: number;
+  firstEventAt: string | null;
+  lastEventAt: string | null;
+}
+
+/**
+ * Reconstruct a player's current rating from server-side rating_events.
+ * Returns null if no events found for the session (i.e. invalid code or fresh session).
+ */
+export async function fetchMyRating(sessionId: string): Promise<MyRating | null> {
+  const dev = isDevMode() ? 1 : 0;
+  const res = await fetch(`${API_BASE}/my-rating?sessionId=${encodeURIComponent(sessionId)}&dev=${dev}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`My rating API error: ${res.status}`);
+  return res.json();
+}
+
+// ── Full snapshot (Sync feature) ──
+
+export type SyncGenre = 'direct' | 'help' | 'self' | 'study' | 'retro';
+
+export interface SyncReviewCard {
+  problemId: number;
+  stability: number;
+  difficulty: number;
+  isNew: boolean;
+  dueDate: string;
+}
+
+export interface MySnapshot {
+  rating: { rating: number; rd: number; vol: number; solveCount: number } | null;
+  progress: Record<SyncGenre, Record<string, 'solved' | 'failed'>>;
+  timestamps: Record<string, number>;
+  bookmarks: Record<SyncGenre, string[]>;
+  reviewQueue: Record<string, SyncReviewCard>;
+}
+
+/**
+ * Fetch the full server-side snapshot for a session: rating, progress, bookmarks,
+ * review queue. Used by the Sync feature to mirror an account onto another device.
+ * Returns null when the session has no data (invalid code).
+ */
+export async function fetchMySnapshot(sessionId: string): Promise<MySnapshot | null> {
+  const dev = isDevMode() ? 1 : 0;
+  const res = await fetch(`${API_BASE}/my-snapshot?sessionId=${encodeURIComponent(sessionId)}&dev=${dev}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`My snapshot API error: ${res.status}`);
+  return res.json();
+}
+
+// ── Player rating sync (push client value as source of truth) ──
+
+/**
+ * Push the client's current Glicko-2 rating to the server. Fire-and-forget;
+ * the client's localStorage stays authoritative on this device.
+ */
+export function pushPlayerRating(rating: { rating: number; rd: number; vol: number }, solveCount?: number): void {
+  const dev = isDevMode();
+  fetch(`${API_BASE}/save-rating`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: getSessionId(),
+      rating: rating.rating,
+      rd: rating.rd,
+      vol: rating.vol,
+      ...(typeof solveCount === 'number' ? { solveCount } : {}),
+      dev,
+    }),
+    keepalive: true,
+  }).catch(() => { /* ignore network errors */ });
+}
+
+// ── Bookmark sync ──
+
+/** Push a bookmark add/remove to the server. Fire-and-forget; failures are logged but ignored. */
+export function pushBookmark(genre: string, problemId: number, action: 'add' | 'remove'): void {
+  const dev = isDevMode();
+  fetch(`${API_BASE}/bookmark`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: getSessionId(),
+      genre,
+      problemId,
+      action,
+      dev,
+    }),
+    keepalive: true,
+  }).catch(() => { /* ignore network errors — local state is source of truth until next sync */ });
+}
+
+// ── Review state sync ──
+
+/** Upsert a single review card on the server. Fire-and-forget. */
+export function pushReviewCard(card: SyncReviewCard): void {
+  const dev = isDevMode();
+  fetch(`${API_BASE}/review-state`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: getSessionId(),
+      ...card,
+      dev,
+    }),
+    keepalive: true,
+  }).catch(() => { /* ignore */ });
+}
+
+// ── One-time migration upload ──
+
+/**
+ * Upload all locally stored bookmarks + review queue to the server in one call.
+ * Server uses INSERT OR IGNORE so existing rows are preserved.
+ */
+export async function uploadLocalSyncData(payload: {
+  bookmarks: Record<string, string[]>;
+  reviewQueue: Record<string, SyncReviewCard>;
+}): Promise<void> {
+  const dev = isDevMode();
+  await fetch(`${API_BASE}/sync-upload`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      sessionId: getSessionId(),
+      dev,
+      ...payload,
+    }),
+  });
+}
+
 // ── Site Stats ──
 
 export interface SiteStats {
@@ -500,6 +637,7 @@ export interface RatingEventData {
   score: number; // 1.0 or 0.0
   playerRating: number;
   playerRd: number;
+  playerVol?: number;
 }
 
 export interface RatingEventResponse {
@@ -521,6 +659,7 @@ export async function submitRatingEvent(data: RatingEventData): Promise<RatingEv
         score: data.score,
         playerRating: data.playerRating,
         playerRd: data.playerRd,
+        playerVol: data.playerVol ?? 0.06,
       }),
     });
     if (!res.ok) return null;

@@ -15,6 +15,7 @@ import { GenreTutorial } from './components/GenreTutorial';
 import { ProblemList } from './components/ProblemList';
 import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
+import { RatingSyncModal } from './components/RatingSyncModal';
 import { SearchPage } from './components/SearchPage';
 import { BookmarksPage } from './components/BookmarksPage';
 import { ChangelogPage } from './components/ChangelogPage';
@@ -22,7 +23,7 @@ import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, type SyncReviewCard } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses } from './utils/stipulationColor';
@@ -180,6 +181,23 @@ export default function App() {
   const [showFilterPage, setShowFilterPage] = useState(false);
   const [filterOpenedFrom, setFilterOpenedFrom] = useState<'problemList' | 'hamburger'>('hamburger');
   const [showHamburgerMenu, setShowHamburgerMenu] = useState(false);
+  const [showRatingSync, setShowRatingSync] = useState(false);
+  // Red dot on the hamburger button — clears as soon as the menu is opened.
+  const [menuBadgeSeen, setMenuBadgeSeen] = useState<boolean>(() => {
+    try { return localStorage.getItem('cp-menu-badge-seen') === '1'; } catch { return true; }
+  });
+  const markMenuBadgeSeen = useCallback(() => {
+    try { localStorage.setItem('cp-menu-badge-seen', '1'); } catch { /* ignore */ }
+    setMenuBadgeSeen(true);
+  }, []);
+  // NEW badge next to Rating sync — only clears when the user actually clicks the item.
+  const [ratingSyncSeen, setRatingSyncSeen] = useState<boolean>(() => {
+    try { return localStorage.getItem('cp-sync-seen') === '1'; } catch { return true; }
+  });
+  const markRatingSyncSeen = useCallback(() => {
+    try { localStorage.setItem('cp-sync-seen', '1'); } catch { /* ignore */ }
+    setRatingSyncSeen(true);
+  }, []);
   const [showHistory, setShowHistory] = useState(false);
   const [showDailyHistory, setShowDailyHistory] = useState(false);
   const [showProblemInfo, setShowProblemInfo] = useState(false);
@@ -197,7 +215,7 @@ export default function App() {
   const [timestamps, setTimestamps] = useLocalStorage<Record<string, number>>('cp-timestamps', {});
 
   // Player rating (Glicko-2)
-  const { playerRating, isRated, updateAfterSolve, getProblemInitialRating } = usePlayerRating();
+  const { playerRating, isRated, updateAfterSolve, getProblemInitialRating, restoreRating } = usePlayerRating();
   const [lastRatingDelta, setLastRatingDelta] = useState<number | null>(null);
   const [lastProblemRating, setLastProblemRating] = useState<number | null>(null);
   const [problemRatingBefore, setProblemRatingBefore] = useState<number | null>(null);
@@ -285,6 +303,55 @@ export default function App() {
       .catch(() => {
         // Non-blocking — don't prevent app from working
       });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // One-time upload of existing localStorage bookmarks + review queue to the server,
+  // so they become available via Sync (Restore on another device).
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('cp-sync-migrated') === '1') return;
+    } catch { return; }
+
+    let bookmarksRaw: Record<string, string[]> = {};
+    let reviewRaw: Record<string, SyncReviewCard> = {};
+    try {
+      const b = localStorage.getItem('cp-bookmarks');
+      if (b) bookmarksRaw = JSON.parse(b);
+    } catch { /* ignore */ }
+    try {
+      const r = localStorage.getItem('cp-review-queue');
+      if (r) reviewRaw = JSON.parse(r);
+    } catch { /* ignore */ }
+
+    const totalBookmarks = Object.values(bookmarksRaw).reduce((s, a) => s + (Array.isArray(a) ? a.length : 0), 0);
+    const totalCards = Object.keys(reviewRaw).length;
+    if (totalBookmarks === 0 && totalCards === 0) {
+      // Nothing to migrate — still mark as done so we don't keep checking
+      try { localStorage.setItem('cp-sync-migrated', '1'); } catch { /* ignore */ }
+      return;
+    }
+
+    uploadLocalSyncData({ bookmarks: bookmarksRaw, reviewQueue: reviewRaw })
+      .then(() => {
+        try { localStorage.setItem('cp-sync-migrated', '1'); } catch { /* ignore */ }
+      })
+      .catch(() => {
+        // Will retry on next load if it failed
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Push current local rating once on first-ever load after this update is
+  // installed. We DON'T push on every load because that creates a last-write-wins
+  // race when multiple devices have different localStorage values — a stale
+  // device reloading would clobber a fresher device's pushed rating.
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('cp-rating-pushed') === '1') return;
+      pushPlayerRating(playerRating, ratedIds.length);
+      localStorage.setItem('cp-rating-pushed', '1');
+    } catch { /* ignore */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1501,6 +1568,7 @@ export default function App() {
           score: 0.0,
           playerRating: playerRating.rating,
           playerRd: playerRating.rd,
+          playerVol: playerRating.vol,
         }).then(res => {
           if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
         });
@@ -1625,6 +1693,8 @@ export default function App() {
     const pid = String(problem.problem.id);
     const wasBm = (bookmarks[currentGenre] || []).includes(pid);
     trackEvent(wasBm ? 'bookmark_removed' : 'bookmark_added', problem.problem.id, { genre: currentGenre });
+    // Sync to server so it persists across devices
+    pushBookmark(currentGenre, problem.problem.id, wasBm ? 'remove' : 'add');
     setBookmarks(prev => {
       const list = prev[currentGenre] || [];
       return { ...prev, [currentGenre]: list.includes(pid) ? list.filter(id => id !== pid) : [...list, pid] };
@@ -1688,6 +1758,7 @@ export default function App() {
           score,
           playerRating: playerRating.rating,
           playerRd: playerRating.rd,
+          playerVol: playerRating.vol,
         }).then(res => {
           if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
         });
@@ -1733,6 +1804,7 @@ export default function App() {
         score: 0.0,
         playerRating: playerRating.rating,
         playerRd: playerRating.rd,
+        playerVol: playerRating.vol,
       }).then(res => {
         if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
       });
@@ -1758,7 +1830,11 @@ export default function App() {
           currentGenre={currentGenre}
           onBack={goBack}
           onShowHelp={view === 'solving' && (currentGenre || isRatedMode || isReviewMode) ? () => setShowTutorial(true) : undefined}
-          onOpenMenu={() => setShowHamburgerMenu(true)}
+          onOpenMenu={() => {
+            markMenuBadgeSeen();
+            setShowHamburgerMenu(true);
+          }}
+          hasMenuBadge={!menuBadgeSeen}
           onShowSiteStats={view === 'mode-select' ? () => {
             setShowSiteStats(true);
             if (!siteStats) fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -2250,6 +2326,48 @@ export default function App() {
           setShowBookmarksPage(true);
         }}
         onOpenSearch={() => { setShowHamburgerMenu(false); setShowSearchPage(true); }}
+        onOpenRatingSync={() => {
+          markRatingSyncSeen();
+          // Treat opening the Sync modal as an explicit "back up my current state":
+          // push the local rating to the server so the code can be used to restore
+          // exactly what's on this device.
+          pushPlayerRating(playerRating, ratedIds.length);
+          setShowHamburgerMenu(false);
+          setShowRatingSync(true);
+        }}
+        ratingSyncSeen={ratingSyncSeen}
+      />
+
+      <RatingSyncModal
+        open={showRatingSync}
+        onClose={() => setShowRatingSync(false)}
+        currentRating={playerRating}
+        onRestore={(code, snapshot) => {
+          // Replace sessionId so future events go to the recovered account
+          try { localStorage.setItem('cp-session-id', code); } catch { /* ignore */ }
+          // Apply rating (or reset to defaults if account has no rated solves yet)
+          if (snapshot.rating) {
+            restoreRating(code, { rating: snapshot.rating.rating, rd: snapshot.rating.rd, vol: snapshot.rating.vol });
+          } else {
+            restoreRating(code, { rating: 800, rd: 350, vol: 0.06 });
+          }
+          // Mirror the rest into localStorage. We replace wholesale (no merging) — the user
+          // explicitly confirmed they want this device to become the synced account.
+          try {
+            localStorage.setItem('cp-progress', JSON.stringify(snapshot.progress));
+            localStorage.setItem('cp-timestamps', JSON.stringify(snapshot.timestamps));
+            localStorage.setItem('cp-bookmarks', JSON.stringify(snapshot.bookmarks));
+            localStorage.setItem('cp-review-queue', JSON.stringify(snapshot.reviewQueue));
+            // Drop transient session/cache state that belonged to the old identity
+            localStorage.removeItem('cp-review-session');
+            localStorage.removeItem('cp-cached-problem');
+            // Force the migration flag back on so we don't re-upload the just-restored data
+            localStorage.setItem('cp-sync-migrated', '1');
+          } catch { /* ignore */ }
+          setShowRatingSync(false);
+          // Reload so every component re-reads from localStorage
+          window.location.reload();
+        }}
       />
 
       {showDailyHistory && (

@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useLocalStorage } from './useLocalStorage';
+import { pushReviewCard } from '../services/api';
 
 // ── Storage keys ──────────────────────────────────────────────
 const QUEUE_KEY   = 'cp-review-queue';
@@ -193,29 +194,24 @@ export function useReviewQueue() {
    * - Otherwise build a fresh shuffled queue from all due problems.
    */
   const startOrResume = useCallback((ratedProgress: Record<string, string>): ReviewSessionState | null => {
-    // ── 1. Seed / clean queue (rated problems only) ──
+    // ── 1. Seed queue (non-destructive: keep all current entries, add missing ones) ──
     const current = readQueue();
-    const next: Record<string, ReviewCard> = {};
+    const next: Record<string, ReviewCard> = { ...current };
     let changed = false;
 
     for (const [idStr, status] of Object.entries(ratedProgress)) {
       if (status === 'skipped') continue;
-      if (current[idStr]) {
-        next[idStr] = current[idStr];
-      } else {
-        const initDays = status === 'failed' ? MIN_INTERVAL_WRONG : MIN_INTERVAL_CORRECT;
-        next[idStr] = {
-          problemId: parseInt(idStr),
-          stability:  status === 'failed' ? W[0] : W[2],
-          difficulty: status === 'failed' ? initDifficulty(1) : initDifficulty(3),
-          isNew:      true,
-          dueDate:    addDays(t, initDays, 1),
-        };
-        changed = true;
-      }
+      if (current[idStr]) continue;
+      const initDays = status === 'failed' ? MIN_INTERVAL_WRONG : MIN_INTERVAL_CORRECT;
+      next[idStr] = {
+        problemId: parseInt(idStr),
+        stability:  status === 'failed' ? W[0] : W[2],
+        difficulty: status === 'failed' ? initDifficulty(1) : initDifficulty(3),
+        isNew:      true,
+        dueDate:    addDays(t, initDays, 1),
+      };
+      changed = true;
     }
-
-    if (Object.keys(next).length !== Object.keys(current).length) changed = true;
 
     if (changed) {
       localStorage.setItem(QUEUE_KEY, JSON.stringify(next));
@@ -268,17 +264,16 @@ export function useReviewQueue() {
       elapsedDays,
     );
 
-    // Update queue
-    setQueue(prev => ({
-      ...prev,
-      [key]: {
-        problemId,
-        stability,
-        difficulty,
-        isNew: false,
-        dueDate: addDays(t, interval, 1),
-      },
-    }));
+    // Update queue (and sync to server)
+    const updatedCard: ReviewCard = {
+      problemId,
+      stability,
+      difficulty,
+      isNew: false,
+      dueDate: addDays(t, interval, 1),
+    };
+    setQueue(prev => ({ ...prev, [key]: updatedCard }));
+    pushReviewCard(updatedCard);
 
     // Advance session
     const nextIndex = session.index + 1;
@@ -292,37 +287,33 @@ export function useReviewQueue() {
   }, [t, setQueue]);
 
   /**
-   * Seed from a flat map of problemId → status (only Rated Mode problems).
+   * Seed new entries from a flat map of problemId → status (only Rated Mode problems).
    * Call this on app mount so dueCount is accurate on the home screen.
+   *
+   * Non-destructive: existing entries are always preserved (including those that may
+   * not appear in ratedProgress, e.g. cards restored from another device via Sync).
+   * Only adds missing entries.
    */
   const seedOnly = useCallback((ratedProgress: Record<string, string>) => {
     const current = readQueue();
-    const next: Record<string, ReviewCard> = {};
+    const next: Record<string, ReviewCard> = { ...current };
     let changed = false;
     const today = todayStr();
 
-    // Only keep / add problems that are in ratedProgress
     for (const [idStr, status] of Object.entries(ratedProgress)) {
       if (status === 'skipped') continue;
-      if (current[idStr]) {
-        // Already tracked — keep as-is
-        next[idStr] = current[idStr];
-      } else {
-        // New entry
-        const initDays = status === 'failed' ? MIN_INTERVAL_WRONG : MIN_INTERVAL_CORRECT;
-        next[idStr] = {
-          problemId: parseInt(idStr),
-          stability:  status === 'failed' ? W[0] : W[2],
-          difficulty: status === 'failed' ? initDifficulty(1) : initDifficulty(3),
-          isNew:      true,
-          dueDate:    addDays(today, initDays, 1),
-        };
-        changed = true;
-      }
+      if (current[idStr]) continue; // already tracked — keep as-is
+      // New entry
+      const initDays = status === 'failed' ? MIN_INTERVAL_WRONG : MIN_INTERVAL_CORRECT;
+      next[idStr] = {
+        problemId: parseInt(idStr),
+        stability:  status === 'failed' ? W[0] : W[2],
+        difficulty: status === 'failed' ? initDifficulty(1) : initDifficulty(3),
+        isNew:      true,
+        dueDate:    addDays(today, initDays, 1),
+      };
+      changed = true;
     }
-
-    // Detect if any old entries were removed (retro/help/etc.)
-    if (Object.keys(next).length !== Object.keys(current).length) changed = true;
 
     if (changed) {
       localStorage.setItem(QUEUE_KEY, JSON.stringify(next));

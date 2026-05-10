@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-05-10',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Sync — your rating, solved/failed history, bookmarks, and review queue can now be synced across devices, so you no longer have to worry about losing them if your browser data is cleared. Open the menu (☰) > Sync to back up your code or restore from one.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-04-25',
     sections: [
       {
