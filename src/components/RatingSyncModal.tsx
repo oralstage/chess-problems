@@ -42,10 +42,6 @@ export function RatingSyncModal({ open, onClose, currentRating, onRestore }: Rat
       setError('Please paste a code.');
       return;
     }
-    if (code === myCode) {
-      setError('That is already this device\'s code.');
-      return;
-    }
     setBusy(true);
     try {
       const snapshot = await fetchMySnapshot(code);
