@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-06-23',
+    sections: [
+      {
+        title: 'Fixes',
+        items: [
+          'Filters — the Pieces range slider could get stuck showing "Any" with both handles overlapping and impossible to drag when the filter was opened before a category finished loading. It now always shows the correct piece-count range and can be adjusted right away.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-05-10',
     sections: [
       {

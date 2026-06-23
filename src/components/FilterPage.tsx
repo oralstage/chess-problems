@@ -156,16 +156,26 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
     return result.sort();
   }, [allProblems]);
 
-  // Piece count range
+  // Piece count range — prefer stats from API. When only lightweight stubs are
+  // loaded (fen=''), pieceCount returns 0 for every problem and the computed
+  // range collapses to min===max, freezing the slider thumbs. genreStats avoids that.
   const pieceRange = useMemo(() => {
+    if (genreStats?.pieceRange && genreStats.pieceRange.max > 0) {
+      return {
+        min: Math.max(2, genreStats.pieceRange.min),
+        max: Math.min(32, genreStats.pieceRange.max),
+      };
+    }
     let min = 32, max = 2;
     for (const p of allProblems) {
+      if (!p.fen) continue; // skip stubs without a real FEN
       const c = pieceCount(p.fen);
       if (c < min) min = c;
       if (c > max) max = c;
     }
+    if (min > max) return { min: 2, max: 32 }; // no real data yet → full range
     return { min: Math.max(2, min), max: Math.min(32, max) };
-  }, [allProblems]);
+  }, [allProblems, genreStats]);
 
   // Year range — prefer stats from API, clamp to reasonable bounds
   const yearRange = useMemo(() => {
