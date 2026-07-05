@@ -4,6 +4,20 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-07-05',
+    sections: [
+      {
+        title: 'Fixes',
+        items: [
+          'Solution checking — refuted "try" moves (e.g. 1.Qh1? in a problem whose real key is 1.Qe4!) were sometimes accepted as correct when the try and its refutation appeared on the same line in the source data. Tries are now always rejected.',
+          'Solution checking — text annotations in the source data (e.g. "{too slow!}") could leak ? / ! markers into the solution, causing wrong moves to be accepted or, in some multi-solution helpmates, a correct solution to be rejected. Annotations are now fully isolated from move parsing.',
+          'Problem links — opening a shared or bookmarked problem URL could show the previously viewed problem instead of the one in the URL. The URL now always wins.',
+          'A brief "No problems available for this mode." flash no longer appears while a problem is loading.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-06-23',
     sections: [
       {
