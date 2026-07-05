@@ -107,6 +107,10 @@ export function useStockfish() {
   const [readyState, setReadyState] = useState<ReadyState>('idle');
   const workerRef = useRef<Worker | null>(null);
   const initPromiseRef = useRef<Promise<Worker> | null>(null);
+  // Serializes engine interactions: UCI is stateful, and overlapping `go`
+  // commands would let an old search's bestmove resolve a new caller's
+  // listener (wrong move/eval displayed for the current position).
+  const queueRef = useRef<Promise<unknown>>(Promise.resolve());
 
   /** Lazily spin up the Web Worker and wait for UCI readiness (with timeout). */
   const ensureReady = useCallback((): Promise<Worker> => {
@@ -167,16 +171,25 @@ export function useStockfish() {
         return null; // Stockfish failed to load (e.g. mobile WASM issue)
       }
 
-      // Reset state for a fresh search.
-      worker.postMessage('ucinewgame');
-      await uciCommand(worker, 'isready', (l) => l.startsWith('readyok'));
+      // Interrupt any in-flight search so this one starts promptly (and so an
+      // abandoned search doesn't burn CPU running to full depth).
+      worker.postMessage('stop');
 
-      worker.postMessage(`position fen ${fen}`);
-      const lines = await uciCommand(
-        worker,
-        `go depth ${depth}`,
-        (l) => l.startsWith('bestmove'),
-      );
+      // Queue behind any previous search — see queueRef comment.
+      const run = queueRef.current.then(async () => {
+        // Reset state for a fresh search.
+        worker.postMessage('ucinewgame');
+        await uciCommand(worker, 'isready', (l) => l.startsWith('readyok'));
+
+        worker.postMessage(`position fen ${fen}`);
+        return uciCommand(
+          worker,
+          `go depth ${depth}`,
+          (l) => l.startsWith('bestmove'),
+        );
+      });
+      queueRef.current = run.then(() => undefined, () => undefined);
+      const lines = await run;
 
       const bestMove = parseBestMove(lines);
       if (!bestMove || bestMove === '(none)') return null;
@@ -237,9 +250,15 @@ export function useStockfish() {
     [analyze],
   );
 
+  /** Abort the current search (if any). The engine finishes with a quick bestmove. */
+  const stop = useCallback(() => {
+    workerRef.current?.postMessage('stop');
+  }, []);
+
   return {
     readyState,
     analyze,
     findRefutation,
+    stop,
   };
 }

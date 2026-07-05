@@ -175,6 +175,12 @@ function expandSlashAlternatives(line: string): string[] {
   let content = line.trimStart();
   if (!content) return [line];
 
+  // Strip game-result markers first: the slashes in "1/2-1/2" (drawn studies)
+  // would otherwise be expanded as move alternatives, duplicating the whole
+  // line's variation. Result markers are not moves and carry no tree content.
+  content = content.replace(/\b(?:1\/2\s*-\s*1\/2|1\/2|1-0|0-1)\b/g, ' ').trimEnd();
+  if (!content) return [prefix];
+
   // Remove parenthesized content temporarily to avoid expanding "/" inside threats
   const parenParts: string[] = [];
   content = content.replace(/\([^)]*\)/g, (match) => {

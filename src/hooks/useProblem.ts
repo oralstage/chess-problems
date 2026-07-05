@@ -494,8 +494,11 @@ export function useProblem(stockfish?: StockfishApi) {
 
     const newFen = afterFen;
     const newHistory = [...state.moveHistory, move.san];
-    trackEvent('move_correct', problem.id, {
-      san: move.san,
+    // Emitted only on the accepted-move branches below. Emitting here (right
+    // after the legality check) fired 'move_correct' for wrong moves too,
+    // double-counting them in the solve statistics.
+    const emitMoveCorrect = () => trackEvent('move_correct', problem.id, {
+      san: move!.san,
       fen: state.fen,
       moveNumber: newHistory.length,
       genre: problem.genre,
@@ -510,6 +513,7 @@ export function useProblem(stockfish?: StockfishApi) {
 
     if (isCheckmate && problem.genre !== 'self') {
       // User delivered checkmate — solved! (direct/study/help)
+      emitMoveCorrect();
       const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
       setState(prev => ({
         ...prev,
@@ -530,6 +534,7 @@ export function useProblem(stockfish?: StockfishApi) {
 
     if (problem.stipulation === '=' && afterChess.isStalemate()) {
       // Study draw: stalemate — solved!
+      emitMoveCorrect();
       const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
       setState(prev => ({
         ...prev,
@@ -555,6 +560,7 @@ export function useProblem(stockfish?: StockfishApi) {
     const matchingNode = matchMoveToTree(state.fen, from, to, move.san, move.promotion, validNodes);
 
     if (matchingNode) {
+      emitMoveCorrect();
       const isActualCheckmate = afterChess.isCheckmate();
       const opponentColor = movedColor === 'w' ? 'b' : 'w';
       const realDefenses = matchingNode.children.filter(n => !n.isThreat && n.color === opponentColor);
@@ -840,6 +846,11 @@ export function useProblem(stockfish?: StockfishApi) {
   const showSolution = useCallback(() => {
     const { problem, initialFen } = state;
     if (!problem) return;
+
+    // Cancel any pending auto-play: if the user gives up during the 500ms
+    // window after a correct move, the timer would otherwise fire afterwards
+    // and overwrite the 'viewing' state with 'correct'
+    if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
 
     // Always use solution tree (works for all genres, no Stockfish dependency)
     let pb = startPlayback(initialFen, problem.solutionTree);
