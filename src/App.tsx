@@ -582,11 +582,33 @@ export default function App() {
   }, []);
 
   // ── Daily Problem (fetched from /api/daily, no need to load all direct problems) ──
-  const [dailyProblem, setDailyProblem] = useState<ChessProblem | null>(null);
+  // Daily problem: hydrate synchronously from a same-day localStorage cache so
+  // the home banner renders instantly on repeat visits; the fetch below still
+  // runs to populate/refresh the cache (first visit of the day pays one call).
+  const localToday = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+  const [dailyProblem, setDailyProblem] = useState<ChessProblem | null>(() => {
+    try {
+      const raw = localStorage.getItem('cp-daily-cache');
+      if (raw) {
+        const { date, data } = JSON.parse(raw);
+        if (date === localToday() && data?.fen) {
+          return metaToChessProblem(data, data.solutionText);
+        }
+      }
+    } catch { /* corrupt cache — ignore */ }
+    return null;
+  });
   useEffect(() => {
     fetchDaily().then(data => {
       setDailyProblem(metaToChessProblem(data, data.solutionText));
+      try {
+        localStorage.setItem('cp-daily-cache', JSON.stringify({ date: localToday(), data }));
+      } catch { /* quota — ignore */ }
     }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dailySolved = useMemo(() => {
