@@ -10,7 +10,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "fetch-data": "tsx scripts/fetch-problems.ts"
+    "fetch-data": "tsx scripts/fetch-problems.ts",
+    "test:parser": "tsx scripts/parser-regression.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",

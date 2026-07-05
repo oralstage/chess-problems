@@ -1,0 +1,93 @@
+[
+  {
+    "id": 47195,
+    "stipulation": "s#2",
+    "note": "s#2 set play + two same-line tries",
+    "solution": "1...Se1*g2 2. Qb4-e4 Sb7-c5# 2...Sb7-d6# 2...Sb7-d8# 2...Sb7*a5#\n 1...Se1*f3 2. Qb4*f4 Sb7-c5# 2...Sb7-d6# 2...Sb7-d8# 2...Sb7*a5#\n 1...Se1*d3 2. Qb4-c4 Sb7-c5# 2...Sb7-d6# 2...Sb7-d8# 2...Sb7*a5#\n 1. Qb4-c4? Se1*d3!\n 1. Qb4*f4? Se1*f3!\n 1.Qb4-a4 ! zugzwang.\n      1...Se1*g2 \n          2.Qa4-e4 \n              2...Sb7*a5 # \n              2...Sb7-c5 # \n              2...Sb7-d6 # \n              2...Sb7-d8 # \n      1...Se1*f3 \n          2.Qa4*f4 \n              2...Sb7*a5 # \n              2...Sb7-c5 # \n              2...Sb7-d6 # \n              2...Sb7-d8 # \n      1...Se1*d3 \n          2.Qa4-c4 \n              2...Sb7*a5 # \n              2...Sb7-c5 # \n              2...Sb7-d6 # \n              2...Sb7-d8 #",
+    "expected": [
+      "Qb4-a4"
+    ]
+  },
+  {
+    "id": 106609,
+    "stipulation": "s#2",
+    "note": "s#2 try demonstrated over 3 moves; only 1.Bh1! is the key",
+    "solution": "1.Be4-a8{Be~ ?} Rd1-h1 !  2.Qh7-c2 + Kc1*c2 +  3.Ba8*h1\n  \n  1.Be4-h1 !   threat:  2.Qh7-c2 + Kc1*c2 #",
+    "expected": [
+      "Be4-h1"
+    ]
+  },
+  {
+    "id": 287727,
+    "stipulation": "=",
+    "note": "1/2-1/2 in black-to-move study",
+    "solution": "1... Bg6 2. Bd4 Kg7 3. Bb2 Bf7 4. Ba1 Kg6 5. Kf8 1/2-1/2",
+    "expected": [
+      "Bg6"
+    ]
+  },
+  {
+    "id": 293764,
+    "stipulation": "=",
+    "note": "1/2-1/2 must not be expanded as slash alternatives",
+    "solution": "1. Bb3 Qxe4 2. Bc2 Qxc2 1/2-1/2",
+    "expected": [
+      "Bb3"
+    ]
+  },
+  {
+    "id": 325032,
+    "stipulation": "#2",
+    "note": "try+refutation same line in twin a)",
+    "solution": "a)  1. Be6? Sf3!\n\n1. Sb3! - zz\n1... Kd1 2. Bf3#\n1... Kd3 2. Qe3#\n1... Sd3 2. Sd4#\n1... Sf3/c2/g2 2. Sc1#\n\nb) wPc4-->d4\n\n1. Sb3? Sd3!\n\n1. Be6! - zz\n1... Kd1, Sd3/c2/g2 2. Bg4#\n1... Kf3 2. Qf1#\n1... Sf3 2. Bc4#",
+    "expected": [
+      "Sb3"
+    ]
+  },
+  {
+    "id": 373202,
+    "stipulation": "#2",
+    "note": "try+refutation on same line (1. Qh1? e4!); twins",
+    "solution": "a) \n1. Qh1? e4!\n\n1. Qe4! – zz\n1. ... Kd7 2. Q:d5#\n1. ... d:e4 2. Rd2#\n1. ... d4 2. Qc6#\n\nb) \n1. Ke8? ~ 2. Rf6#\n1. ... Ke6 2. Qc6#\n1. ... d4!\n\n1. Rc2! ~ 2. Qc6, Qc7#\n1. ... Kd7, e4 2. Qc7#\n1. ... d4 2. Qc6#\n\nc) \n1. Qh4! ~ 2. Qe7, Qd8#\n1. ... Kd7, e4 2. Qe7#\n1. ... d4 2. Qd8#",
+    "expected": [
+      "Qe4"
+    ]
+  },
+  {
+    "id": 389119,
+    "stipulation": "h#3",
+    "note": "h#3 two solutions, {(S~?)} annotations must not mark tries",
+    "solution": "1.Sc8-a7 {(S~?)} Ra8-h8   2.Bh6-g5 Rh8-h3 +   3.Kf3-g4 Bc6-d7 #\n1.Sc8-e7 {(S~?)} Ra8-f8 +   2.Kf3-e2 Rf8-f1   3.Bh6-d2 Bc6-b5 #",
+    "expected": [
+      "Sc8-a7",
+      "Sc8-e7"
+    ]
+  },
+  {
+    "id": 501960,
+    "stipulation": "#5",
+    "note": "'!' inside {too slow! e.g.} must not mark try as key",
+    "solution": "1.f2-f3? threat: 2.Rd4-f4+ Bh2*f4 3.e3-e4#\n    1...Qa5-c7!\n 1.d5-d6? {too slow! e.g.} 1...b4-b3\n 1.Qe8-b8 ! threat:\n       2.Rd4-f4 +\n           2...Bh2*f4\n               3.Qb8*f4 #\n       2.Qb8-f4 +\n           2...Bh2*f4\n               3.Rd4*f4 #\n   1...Bh2*b8\n       2.d5-d6! threat:\n               3.Rd4-f4 #\n           2...Bb8*d6\n               3.f2-f3 threat:\n                       4.Rd4-f4 +\n                           4...Bd6*f4\n                               5.e3-e4 #{\n  }1...Qa5-c7\n       2.Qb8*c7",
+    "expected": [
+      "Qe8-b8"
+    ]
+  },
+  {
+    "id": 523450,
+    "stipulation": "#3",
+    "note": "multi-line annotation {\\n1.Kf8? Bb2!} must not leak",
+    "solution": "1.Sd7-b8? {(-any)} threat: 2.Bc8-g4# 1...c4-c3!\n1.Ke8-d8 ! threat:\n       2.e7-e8=S threat:\n               3.Se8-g7 #\n   1...Ba1-d4\n       2.Sd7-c5 threat:\n               3.Bc8-g4 #\n   1...Ba1-c3\n       2.Sd7-b6 threat:\n               3.Bc8-g4 #\n   1...Ra4-a6\n       2.Sd7-b6 threat:\n               3.Bc8-g4 #\n   1...e5-e4\n       2.Sd7-e5 threat:\n               3.Bc8-g4 #\n{\n1.Kf8? Bb2!}",
+    "expected": [
+      "Ke8-d8"
+    ]
+  },
+  {
+    "id": 555669,
+    "stipulation": "s#2",
+    "note": "s#2 with two same-line tries before key",
+    "solution": "1. Rd6-b6? g7-g6!\n 1. Rd6-d2? g7-g6!\n 1.Bf6*g7 ! threat:\n       2.Sc2*a1\n           2...Rg3-d3 #\n           2...Rg3-e3 #\n           2...Rg3-f3 #\n           2...Rg3*g4 #\n       2.Ra8*a1\n           2...Rg3-d3 #\n           2...Rg3-e3 #\n           2...Rg3-f3 #\n           2...Rg3*g4 #\n   1...Sa1*c2\n       2.Rd6-d2\n           2...Rg3-d3 #\n           2...Rg3-e3 #\n           2...Rg3-f3 #\n           2...Rg3*g4 #\n   1...Sa1*b3\n       2.Rd6-b6\n           2...Rg3-d3 #\n           2...Rg3-e3 #\n           2...Rg3-f3 #\n           2...Rg3*g4 #",
+    "expected": [
+      "Bf6*g7"
+    ]
+  }
+]
