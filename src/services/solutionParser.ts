@@ -294,11 +294,54 @@ function expandCommaAlternatives(line: string): string[] {
   );
 }
 
+/**
+ * Blank out PGN-style variation parentheses: any top-level (...) group that
+ * spans multiple lines, contains nested parens, or is never closed. The
+ * line-level threat extraction only handles simple single-line pairs like
+ * "(2.Rd1#)" — anything more complex (common in PGN-annotated studies) used
+ * to leak its content into the segment stream, turning variation moves into
+ * bogus root nodes so wrong first moves were accepted as correct.
+ * The span is removed entirely (newlines included, replaced by one space) so
+ * the surrounding main line joins back together — leaving whitespace-only
+ * lines behind would act as blank-line section breaks and fragment the tree.
+ */
+function blankComplexParens(text: string): string {
+  const chars: string[] = [...text];
+  let depth = 0;
+  let groupStart = -1;
+  let maxDepth = 0;
+  let hasNewline = false;
+  const blank = (from: number, to: number) => {
+    for (let i = from; i <= to; i++) chars[i] = '';
+    chars[from] = ' ';
+  };
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i];
+    if (c === '(') {
+      depth++;
+      if (depth === 1) { groupStart = i; maxDepth = 1; hasNewline = false; }
+      else maxDepth = Math.max(maxDepth, depth);
+    } else if (c === ')') {
+      if (depth > 0) {
+        depth--;
+        if (depth === 0 && (maxDepth > 1 || hasNewline)) blank(groupStart, i);
+      }
+    } else if (c === '\n' && depth > 0) {
+      hasNewline = true;
+    }
+  }
+  // Unclosed group (truncated solution text): blank to end of text
+  if (depth > 0 && groupStart >= 0) blank(groupStart, chars.length - 1);
+  return chars.join('');
+}
+
 function parseSegments(solutionText: string): Segment[] {
   const segments: Segment[] = [];
   // Collapse newlines inside {...} annotations so multi-line annotations don't
   // leak their content as separate lines (e.g. "{\n1.Kf8? Bb2!}" in D523450).
-  const collapsed = solutionText.replace(/\{[^}]*\}/g, m => m.replace(/\s*\n\s*/g, ' '));
+  let collapsed = solutionText.replace(/\{[^}]*\}/g, m => m.replace(/\s*\n\s*/g, ' '));
+  // Then remove PGN-style multi-line/nested variation parens (see above).
+  collapsed = blankComplexParens(collapsed);
   const rawLines = collapsed.split('\n');
 
   // Join continuation lines:
