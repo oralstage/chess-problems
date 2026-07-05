@@ -13,7 +13,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const sessionId = url.searchParams.get('sessionId');
 
-  if (!sessionId || sessionId.length > 64) {
+  if (!sessionId || sessionId.length > 64 || sessionId.length < 8) {
     return Response.json({ error: 'sessionId is required' }, { status: 400 });
   }
 

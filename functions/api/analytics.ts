@@ -60,7 +60,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const stmts = events.map(e => {
     const eventName = String(e.event).slice(0, 50);
     const problemId = typeof e.problemId === 'number' ? e.problemId : null;
-    const data = e.data ? JSON.stringify(e.data) : '{}';
+    // Cap per-event payload size — legitimate events are well under 2KB;
+    // anything bigger is storage abuse. Oversized payloads are dropped, not
+    // truncated, so the column never holds broken JSON.
+    let data = e.data ? JSON.stringify(e.data) : '{}';
+    if (data.length > 2048) data = '{"truncated":true}';
     return context.env.STATS_DB.prepare(
       'INSERT INTO analytics_events (event_name, problem_id, session_id, dev, data, country) VALUES (?, ?, ?, ?, ?, ?)'
     ).bind(eventName, problemId, sessionId, dev, data, country);

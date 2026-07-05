@@ -36,17 +36,25 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const params = url.searchParams;
 
-  const rating = parseFloat(params.get('rating') || '800');
+  const rating = parseFloat(params.get('rating') || '800') || 800;
   const sessionId = params.get('sessionId') || '';
   const dev = params.get('dev') === '1' ? 1 : 0;
 
-  // Get IDs of problems already attempted by this session (from STATS_DB)
+  // Get IDs of problems already attempted by this session (from STATS_DB).
+  // Capped at the most recent 4000: the NOT IN list is interpolated into the
+  // SQL text, and an unbounded list would eventually exceed D1's statement
+  // size limit (~12k+ solves), permanently breaking matchmaking for that
+  // session. Re-serving a problem solved long ago is acceptable.
   let solvedIds: number[] = [];
   if (sessionId) {
     const rows = await context.env.STATS_DB.prepare(
-      'SELECT DISTINCT problem_id FROM solve_events WHERE session_id = ?'
+      `SELECT problem_id, MAX(created_at) AS last_at FROM solve_events
+       WHERE session_id = ?
+       GROUP BY problem_id
+       ORDER BY last_at DESC
+       LIMIT 4000`
     ).bind(sessionId).all<{ problem_id: number }>();
-    solvedIds = rows.results.map(r => r.problem_id);
+    solvedIds = rows.results.map(r => r.problem_id).filter(id => Number.isInteger(id));
   }
 
   const excludeClause = solvedIds.length > 0
