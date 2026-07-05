@@ -243,6 +243,16 @@ export default function App() {
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
   const prevMoveCountRef = useRef<number | null>(null);
 
+  // Any normal-navigation path (problem list, search, go-to-ID, history) must
+  // clear ALL special-mode flags. If e.g. isRatedMode leaks onto a searched
+  // problem, the rated-mode effects submit rating events for a problem that
+  // was never matchmade, permanently corrupting player and problem ratings.
+  const exitSpecialModes = useCallback(() => {
+    setIsRatedMode(false);
+    setIsReviewMode(false);
+    setIsDaily(false);
+  }, []);
+
   // Per-genre filters (each genre has its own independent filter settings)
   const defaultFilters: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' as StatusFilter };
   const [allFiltersRaw, setAllFilters] = useLocalStorage<Record<string, GlobalFilters>>('cp-filters-by-genre', {});
@@ -355,14 +365,12 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Build flat map of rated problem ID → status for review queue seeding
+  // Build flat map of rated problem ID → status for review queue seeding.
+  // Strictly limited to cp-rated-ids: falling back to all of progress.direct
+  // when ratedIds is empty flooded the review queue with every casually-solved
+  // direct problem (e.g. right after a Sync restore, which clears ratedIds).
   const ratedProgress = useMemo<Record<string, string>>(() => {
     const directProgress = progress.direct || {};
-    if (ratedIds.length === 0) {
-      // Migration fallback: if no rated IDs tracked yet, use progress.direct
-      // (all direct problems as approximation until user plays Rated Mode again)
-      return directProgress;
-    }
     const result: Record<string, string> = {};
     for (const id of ratedIds) {
       const status = directProgress[id];
@@ -580,6 +588,8 @@ export default function App() {
     if (!dailyProblem) return;
     trackEvent('daily_started', dailyProblem.id);
     setIsDaily(true);
+    setIsRatedMode(false);
+    setIsReviewMode(false);
     const now = new Date();
     setDailyDate(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`);
     setCurrentGenre('direct');
@@ -614,8 +624,11 @@ export default function App() {
       setLastProblemRating(data.problemRating);
       setRecentRatedIds(prev => [...prev.slice(-49), data.id]);
       updateHash(null, data.id, true, undefined, true);
-    } catch {
-      setFetchErrorToast(`No problems found near rating ${Math.round(playerRating.rating + offset)}. Try a different difficulty.`);
+    } catch (e) {
+      const noneInRange = e instanceof Error && e.message === 'no-problems-in-range';
+      setFetchErrorToast(noneInRange
+        ? `No problems found near rating ${Math.round(playerRating.rating + offset)}. Try a different difficulty.`
+        : 'Could not load a problem. Check your connection and try again.');
       setTimeout(() => setFetchErrorToast(null), 4000);
     }
   }, [playerRating.rating, loadAndStartProblem, cacheProblem, updateHash]);
@@ -638,6 +651,7 @@ export default function App() {
     Promise.resolve().then(() => { setTimeout(() => { ratedLoadingRef.current = false; }, 2000); });
 
     setIsRatedMode(true);
+    setIsReviewMode(false);
     setIsDaily(false);
     setCurrentGenre('direct');
     setCurrentCategory(null);
@@ -857,7 +871,12 @@ export default function App() {
       if (!cancelled && analysisActiveRef.current) setAnalyzing(false);
     })();
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // Abort the engine search too — otherwise it runs to full depth in the
+      // background and can delay/poison the next search
+      stockfishRef.current.stop();
+    };
   }, [problem.fen, analysisActive]);
 
   // Clear analysis when problem changes
@@ -874,6 +893,7 @@ export default function App() {
     if (analysisActive) {
       // Toggle off — set ref immediately to prevent in-flight async from setting arrow
       analysisActiveRef.current = false;
+      stockfishRef.current.stop();
       setAnalysisActive(false);
       setAnalysisResult(null);
       setAnalysisArrow(null);
@@ -1055,7 +1075,7 @@ export default function App() {
         setView('mode-select');
         setCurrentGenre(null);
         setCurrentCategory(null);
-        setIsRatedMode(false);
+        exitSpecialModes();
         setShowProblemList(false);
         setShowFilterPage(false);
         setShowHamburgerMenu(false);
@@ -1074,6 +1094,8 @@ export default function App() {
       // #/rated without ID - just set rated mode view without fetching new problem
       if (hash === '#/rated') {
         setIsRatedMode(true);
+        setIsReviewMode(false);
+        setIsDaily(false);
         setView('solving');
         return;
       }
@@ -1093,6 +1115,7 @@ export default function App() {
         if (!resolved) return;
         const { category, genre } = resolved;
         const problemId = parseInt(yacpdbMatch[2]);
+        exitSpecialModes();
         setCurrentGenre(genre);
         setCurrentCategory(category);
         setView('solving');
@@ -1113,6 +1136,7 @@ export default function App() {
         const resolved = resolveHashSlug(genreOnlyMatch[1]);
         if (!resolved) return;
         const { category, genre } = resolved;
+        exitSpecialModes();
         setCurrentGenre(genre);
         setCurrentCategory(category);
         setView('solving');
@@ -1125,7 +1149,7 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, setCurrentCategory, resolveHashSlug, allSlugs, handleStartRated]);
+  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, setCurrentCategory, resolveHashSlug, allSlugs, handleStartRated, exitSpecialModes]);
 
   // Helper: determine category from genre + problem moveCount (for legacy URLs)
   const categoryFromGenreProblem = useCallback((genre: Genre, moveCount?: number): Category => {
@@ -1244,24 +1268,17 @@ export default function App() {
       if (cached) {
         const cachedProblem = JSON.parse(cached) as ChessProblem;
         const cacheMatchesUrl = !isLegacy && cachedProblem.id === problemNum;
-        if (cachedProblem.genre === genre && cacheMatchesUrl) {
-          if (cachedProblem.solutionText && (!cachedProblem.solutionTree || cachedProblem.solutionTree.length === 0)) {
-            const firstColor = (cachedProblem.genre === 'help' || (cachedProblem.genre === 'retro' && cachedProblem.stipulation.startsWith('h#'))) ? 'b' : 'w';
-            const allNodes = parseSolution(cachedProblem.solutionText, firstColor);
-            cachedProblem.fullSolutionTree = allNodes;
-            cachedProblem.solutionTree = filterKeyMoves(allNodes, firstColor);
-            if (cachedProblem.genre === 'retro' && cachedProblem.solutionText.includes('{(illegal')) {
-              const flipColors = (nodes: typeof cachedProblem.solutionTree): void => {
-                for (const n of nodes) { n.color = n.color === 'w' ? 'b' : 'w'; flipColors(n.children); }
-              };
-              flipColors(cachedProblem.solutionTree);
-            }
-            fixEnPassantFen(cachedProblem);
-          }
-          if (cachedProblem.solutionTree?.length > 0) {
-            problem.loadProblem(cachedProblem);
-            cacheHit = true;
-          }
+        if (cachedProblem.genre === genre && cacheMatchesUrl && cachedProblem.solutionText) {
+          // Rebuild the tree through the exact same path as normal loads
+          // (loadAndStartProblem → ensureSolution). The inline rebuild that
+          // used to live here diverged for retro problems (black-to-move
+          // detection, color-flip ordering), rejecting correct moves after a
+          // reload. The board still shows instantly: loadAndStartProblem
+          // displays the position first and parses in a microtask.
+          cachedProblem.solutionTree = [];
+          cachedProblem.fullSolutionTree = [];
+          loadAndStartProblem(cachedProblem);
+          cacheHit = true;
           const cat = isLegacy ? categoryFromGenreProblem(genre, cachedProblem.moveCount) : resolved.category;
           setCurrentCategory(cat);
           setCurrentProblemId(prev => ({ ...prev, [cat]: cachedProblem.id }));
@@ -1349,7 +1366,7 @@ export default function App() {
   const selectMode = useCallback(async (category: Category, opts?: { skipSavedId?: boolean }) => {
     const def = CATEGORY_DEFS.find(d => d.category === category)!;
     const genre = def.genre;
-    setIsDaily(false);
+    exitSpecialModes();
     setCurrentGenre(genre);
     setCurrentCategory(category);
     setView('solving');
@@ -1459,6 +1476,8 @@ export default function App() {
       const p = metaToChessProblem(data, data.solutionText);
       setDailyDate(targetDate);
       setIsDaily(true);
+      setIsRatedMode(false);
+      setIsReviewMode(false);
       setCurrentGenre('direct');
       setView('solving');
       loadAndStartProblem(p);
@@ -1512,20 +1531,23 @@ export default function App() {
     setView('solving');
     if (rated) {
       setIsRatedMode(true);
+      setIsReviewMode(false);
       setIsDaily(false);
       setCurrentCategory(null);
       loadAndStartProblem(selected);
       cacheProblem(selected);
       updateHash(null, selected.id, false, undefined, true);
     } else {
-      setIsRatedMode(false);
+      exitSpecialModes();
+      const cat = categoryFromGenreProblem(genre, selected.moveCount);
+      setCurrentCategory(cat);
       loadGenre(genre);
       loadAndStartProblem(selected);
       cacheProblem(selected);
-      setCurrentProblemId(prev => ({ ...prev, [genre]: selected.id }));
-      updateHash(genre, selected.id);
+      setCurrentProblemId(prev => ({ ...prev, [cat]: selected.id }));
+      updateHash(cat, selected.id);
     }
-  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
+  }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, exitSpecialModes, categoryFromGenreProblem, setCurrentCategory]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
     // Determine promotion: react-chessboard passes the selected piece (e.g. 'wN', 'wQ')
@@ -1537,12 +1559,13 @@ export default function App() {
 
   const handleSelectProblem = useCallback((selected: ChessProblem) => {
     if (!currentGenre) return;
+    exitSpecialModes();
     loadAndStartProblem(selected);
     cacheProblem(selected);
     setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']:selected.id }));
     setShowProblemList(false);
     updateHash(currentCategory || currentGenre, selected.id);
-  }, [currentGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
+  }, [currentGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, exitSpecialModes]);
 
   const handleGiveUp = useCallback(() => {
     if (currentGenre && problem.problem) {
@@ -1576,7 +1599,13 @@ export default function App() {
       });
       // Track rated problem ID on give-up
       if (isRatedMode) {
-        setRatedIds(prev => prev.includes(pid) ? prev : [...prev, pid]);
+        setRatedIds(prev => {
+          // Merge with disk: usePlayerRating also writes this key, and our
+          // in-memory copy may be stale — a blind overwrite would drop its IDs
+          let stored: string[] = [];
+          try { stored = JSON.parse(localStorage.getItem('cp-rated-ids') || '[]'); } catch { /* ignore */ }
+          return Array.from(new Set([...stored, ...prev, pid]));
+        });
       }
       // Rating update on give-up (rated mode only — only if not already locked by wrong move)
       if (isRatedMode && !isRated(problem.problem.id)) {
@@ -1765,7 +1794,13 @@ export default function App() {
       });
       // Track rated problem ID
       if (isRatedMode) {
-        setRatedIds(prev => prev.includes(pid) ? prev : [...prev, pid]);
+        setRatedIds(prev => {
+          // Merge with disk: usePlayerRating also writes this key, and our
+          // in-memory copy may be stale — a blind overwrite would drop its IDs
+          let stored: string[] = [];
+          try { stored = JSON.parse(localStorage.getItem('cp-rated-ids') || '[]'); } catch { /* ignore */ }
+          return Array.from(new Set([...stored, ...prev, pid]));
+        });
       }
       // Rating update (rated mode only)
       if (isRatedMode && !isRated(problem.problem.id)) {
@@ -2152,7 +2187,7 @@ export default function App() {
                 feedback={problem.feedback}
                 moveHistory={problem.moveHistory}
                 hintActive={!!problem.hintSquares}
-                solutionLoading={!problem.problem?.solutionText && !problem.problem?.solutionTree}
+                solutionLoading={!problem.problem?.solutionText && (problem.problem?.solutionTree?.length ?? 0) === 0}
                 onReset={() => { problem.resetProblem(); setLastRatingDelta(null); analysisActiveRef.current = false; setAnalysisActive(false); setAnalysisResult(null); setAnalysisArrow(null); setAnalyzing(false); }}
                 onShowSolution={handleGiveUp}
                 onNextProblem={isDaily ? undefined : isReviewMode ? (problem.status !== 'solving' ? handleReviewNext : undefined) : isRatedMode ? (problem.status !== 'solving' ? (() => {
@@ -2162,9 +2197,12 @@ export default function App() {
                   return undefined;
                 })() : undefined) : handleNextProblem}
                 onBackToRated={isRatedMode && problem.status !== 'solving' && (() => {
-                  // Show "Back to Rated" if current problem is NOT the cached rated problem at current difficulty
+                  // Show "Back to Rated" if current problem is NOT the cached rated
+                  // problem at current difficulty — including when no slot is cached
+                  // at all (fresh device opening #/rated/yacpdb/{id}), otherwise the
+                  // user gets neither Next nor Back to Rated after solving
                   const cached = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
-                  return !!(cached && cached.id !== problem.problem?.id);
+                  return !cached || cached.id !== problem.problem?.id;
                 })() ? () => {
                   const data = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
                   if (data) {
@@ -2334,6 +2372,7 @@ export default function App() {
             const p = metaToChessProblem(full, full.solutionText);
             const genre = p.genre as Genre;
             const cat = categoryFromGenreProblem(genre, p.moveCount);
+            exitSpecialModes();
             setCurrentGenre(genre);
             setCurrentCategory(cat);
             setView('solving');
@@ -2383,6 +2422,10 @@ export default function App() {
             localStorage.setItem('cp-timestamps', JSON.stringify(snapshot.timestamps));
             localStorage.setItem('cp-bookmarks', JSON.stringify(snapshot.bookmarks));
             localStorage.setItem('cp-review-queue', JSON.stringify(snapshot.reviewQueue));
+            // Restore the exact rated-problem set (restoreRating cleared it) so
+            // isRated() works immediately and the review queue only seeds from
+            // problems actually played in Rated Mode
+            localStorage.setItem('cp-rated-ids', JSON.stringify(snapshot.ratedIds || []));
             // Drop transient session/cache state that belonged to the old identity
             localStorage.removeItem('cp-review-session');
             localStorage.removeItem('cp-cached-problem');
@@ -2435,6 +2478,7 @@ export default function App() {
           onSelectResult={async (result) => {
             setShowSearchPage(false);
             const genre = result.genre as Genre;
+            exitSpecialModes();
             setCurrentGenre(genre);
             setView('solving');
             const cat = categoryFromGenreProblem(genre, result.moveCount);

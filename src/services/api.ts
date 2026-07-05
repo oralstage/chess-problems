@@ -15,8 +15,13 @@ async function cachedFetch(url: string): Promise<Response> {
     const cached = await cache.match(url);
     if (cached) return cached;
     const res = await fetch(url);
-    if (res.ok) {
-      cache.put(url, res.clone());
+    // Only cache JSON API responses. A 200 that isn't JSON (e.g. an HTML
+    // fallback/error page) would otherwise be served from cache forever.
+    const isJson = (res.headers.get('content-type') || '').includes('application/json');
+    if (res.ok && isJson) {
+      // Await so quota errors surface in this try/catch instead of as an
+      // unhandled promise rejection
+      await cache.put(url, res.clone());
     }
     return res;
   } catch {
@@ -519,6 +524,7 @@ export interface MySnapshot {
   timestamps: Record<string, number>;
   bookmarks: Record<SyncGenre, string[]>;
   reviewQueue: Record<string, SyncReviewCard>;
+  ratedIds?: string[]; // problems played in Rated Mode (from rating_events)
 }
 
 /**
@@ -529,7 +535,9 @@ export interface MySnapshot {
 export async function fetchMySnapshot(sessionId: string): Promise<MySnapshot | null> {
   const dev = isDevMode() ? 1 : 0;
   const res = await fetch(`${API_BASE}/my-snapshot?sessionId=${encodeURIComponent(sessionId)}&dev=${dev}`);
-  if (res.status === 404) return null;
+  // 404 = no data for this code; 400 = malformed code (e.g. too short).
+  // Both mean "invalid code" to the user, not a connection problem.
+  if (res.status === 404 || res.status === 400) return null;
   if (!res.ok) throw new Error(`My snapshot API error: ${res.status}`);
   return res.json();
 }
@@ -684,6 +692,9 @@ export async function fetchRatedProblem(rating: number): Promise<RatedProblemRes
   });
   if (isDevMode()) params.set('dev', '1');
   const res = await fetch(`${API_BASE}/rated-problem?${params}`);
+  // 404 = genuinely no problems in the rating range; anything else is a
+  // server/network failure and must not be reported as "no problems found"
+  if (res.status === 404) throw new Error('no-problems-in-range');
   if (!res.ok) throw new Error(`Rated problem API error: ${res.status}`);
   return res.json();
 }
