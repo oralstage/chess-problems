@@ -9,6 +9,9 @@ export default defineConfig({
     port: 5183,
     host: true,
     strictPort: true,
+    proxy: {
+      '/api': { target: 'https://chess-problems-staging.pages.dev', changeOrigin: true },
+    },
     headers: {
       'Cross-Origin-Embedder-Policy': 'require-corp',
       'Cross-Origin-Opener-Policy': 'same-origin',
