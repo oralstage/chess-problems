@@ -9,17 +9,7 @@ const CHANGELOG = [
       {
         title: 'Fixes',
         items: [
-          'Solution checking — refuted "try" moves (e.g. 1.Qh1? in a problem whose real key is 1.Qe4!) were sometimes accepted as correct when the try and its refutation appeared on the same line in the source data. Tries are now always rejected.',
-          'Solution checking — text annotations in the source data (e.g. "{too slow!}") could leak ? / ! markers into the solution, causing wrong moves to be accepted or, in some multi-solution helpmates, a correct solution to be rejected. Annotations are now fully isolated from move parsing.',
-          'Problem links — opening a shared or bookmarked problem URL could show the previously viewed problem instead of the one in the URL. The URL now always wins.',
-          'Review Mode — intervals now grow properly with repeated correct reviews (14 → ~39 → ~141 days). A calculation bug kept every interval at the 14-day minimum forever, so the review queue only ever grew.',
-          'Rated Mode — opening a problem via search, the problem list, Go to ID, or history while in Rated or Review Mode no longer treats it as a rated/review problem (this could change your rating on problems that were never matched to you).',
-          'Sync — restoring on a new device no longer floods the review queue with every problem you ever solved casually; only Rated Mode problems are restored into the queue, and already-rated problems are remembered so they cannot change your rating twice.',
-          'Sync — a problem you once solved cleanly can no longer show as "failed" after a restore because of a later retry.',
-          'Drawn studies no longer show their solution three times (the "1/2-1/2" result marker was misparsed as alternative moves).',
-          'Giving up in the brief moment after a correct move no longer gets overwritten by a "solved" result.',
-          'Analysis — switching positions quickly could show the previous position\'s best move; engine searches are now properly cancelled and serialized.',
-          'Various server-side hardening: input validation, rating-value clamping, and safer caching.',
+          'Many bugs fixed by Claude Fable 5 — most importantly, answer checking is now much more accurate in every genre: refuted "try" moves are no longer accepted as correct, and some genuine solutions that were wrongly rejected are now accepted. Review Mode intervals, Sync restore, and problem links were also fixed.',
         ],
       },
     ],
