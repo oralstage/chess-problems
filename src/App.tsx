@@ -1234,13 +1234,17 @@ export default function App() {
     // Category will be determined after we know moveCount
     setView('solving');
 
-    // Instantly show cached problem while genre data loads
+    // Instantly show cached problem while genre data loads.
+    // Only usable when the URL doesn't request a specific different problem:
+    // for #/slug/yacpdb/{id} the cached problem must be that exact id, and
+    // legacy index URLs (#/genre/44) can't be matched against the cache at all.
     let cacheHit = false;
     try {
       const cached = localStorage.getItem('cp-cached-problem');
       if (cached) {
         const cachedProblem = JSON.parse(cached) as ChessProblem;
-        if (cachedProblem.genre === genre) {
+        const cacheMatchesUrl = !isLegacy && cachedProblem.id === problemNum;
+        if (cachedProblem.genre === genre && cacheMatchesUrl) {
           if (cachedProblem.solutionText && (!cachedProblem.solutionTree || cachedProblem.solutionTree.length === 0)) {
             const firstColor = (cachedProblem.genre === 'help' || (cachedProblem.genre === 'retro' && cachedProblem.stipulation.startsWith('h#'))) ? 'b' : 'w';
             const allNodes = parseSolution(cachedProblem.solutionText, firstColor);
@@ -1273,7 +1277,28 @@ export default function App() {
         loadAndStartProblem(quickProblem);
         cacheProblem(quickProblem);
         setCurrentProblemId(prev => ({ ...prev, [resolved.category]: quickProblem.id }));
-      }).catch(() => {});
+      }).catch(async () => {
+        // URL problem unavailable (bad ID / fetch failed) — fall back to first unsolved
+        try {
+          const stubs = await loadGenre(genre);
+          if (stubs.length === 0 || loadedProblemIdRef.current) return;
+          const genreProgress = progress[genre] || {};
+          let nextId: number | null = null;
+          for (const s of stubs) {
+            if (genreProgress[String(s.id)] !== 'solved' && genreProgress[String(s.id)] !== 'skipped') {
+              nextId = s.id;
+              break;
+            }
+          }
+          if (!nextId) nextId = stubs[0].id;
+          const full = await fetchProblem(nextId);
+          const p = metaToChessProblem(full, full.solutionText);
+          loadAndStartProblem(p);
+          cacheProblem(p);
+          setCurrentProblemId(prev => ({ ...prev, [resolved.category]: p.id }));
+          history.replaceState(null, '', `#/${resolved.category}/yacpdb/${p.id}`);
+        } catch { /* network down — leave loading state */ }
+      });
     }
 
     // Load genre index in background (for navigation/problem list)
@@ -1877,7 +1902,7 @@ export default function App() {
             </div>
           )}
 
-          {view === 'solving' && !problem.problem && (genreLoading || (currentGenre && !genreLoaded[currentGenre])) && (
+          {view === 'solving' && !problem.problem && (genreLoading || (currentGenre && (!genreLoaded[currentGenre] || (problemsByGenre[currentGenre]?.length ?? 0) > 0))) && (
             <div className="text-center py-16">
               <div className="flex justify-center gap-1 mb-4">
                 {['♚', '♛', '♜', '♝', '♞'].map((piece, i) => (
@@ -2225,7 +2250,7 @@ export default function App() {
             </div>
           )}
 
-          {view === 'solving' && !problem.problem && !genreLoading && currentGenre && genreLoaded[currentGenre] && (
+          {view === 'solving' && !problem.problem && !genreLoading && currentGenre && genreLoaded[currentGenre] && (problemsByGenre[currentGenre]?.length ?? 0) === 0 && (
             <div className="text-center py-12 text-gray-400">
               No problems available for this mode.
             </div>
