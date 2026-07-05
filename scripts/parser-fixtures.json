@@ -98,5 +98,24 @@
     "expected": [
       "h7"
     ]
+  },
+  {
+    "id": 338058,
+    "stipulation": "h#2.5",
+    "note": "h#2.5 with two solutions; the \"1... ... 2.X\" half-move convention numbers the first real move 2 \u2014 both solutions must stay accepted",
+    "expected": [
+      "Ka7-b8",
+      "Kc6-d5"
+    ],
+    "solution": "1...  ...  2.Kc6-d5 Ka7-a6   3.Kd5-c6 Sf5-e7 # 1...Ka7-b8   2.d7-d6 Kb8-c8   3.d6-d5 Sf5-d4 #"
+  },
+  {
+    "id": 504782,
+    "stipulation": "s#5",
+    "note": "mid-line key-marked fragment (5.e2-e4!) must not be accepted as a first move",
+    "expected": [
+      "Se6*f4+"
+    ],
+    "solution": "1.e2-e4+? f5*e4#?\n    1...f4*d3 ep.\n 1.Se6*f4+! Kd5*d4\n 2.Qa4-a1+  Rd2-b2\n 3.Rb7-d7   Kd4-e5\n 4.Sf8-g6+ {display-departure-rank} Ke5-d4\n 5.e2-e4! {Zugzwang} f5*e4#\n    1...Bd6*f4\n 2.Rb7-d7+  Bf4-d6\n 3.Qa4-a8+  Kd5*d4\n 4.e2-e3+   Kd4-d3\n 5.Qa8-e4+  f5*e4#"
   }
 ]

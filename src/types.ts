@@ -40,6 +40,11 @@ export interface SolutionNode {
   annotation: string;
   children: SolutionNode[];
   color: 'w' | 'b';
+  /** Move number of the segment this node started (1 for genuine first moves,
+   *  undefined/null when the source text carried no numbering). Used to keep
+   *  broken-mainline fragments (e.g. a leaked "10. Ke5") out of the accepted
+   *  solving roots. */
+  moveNum?: number | null;
 }
 
 export interface ChessProblem {

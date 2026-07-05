@@ -1047,6 +1047,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
         isNodeThreat,
         i === 0 ? seg.annotation : '',
       );
+      if (i === 0) node.moveNum = seg.moveNum;
 
       if (stack.length === 0) {
         nodes.push(node);
@@ -1075,22 +1076,44 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
  * Filter solution tree to only key moves (for solving).
  * Removes tries (??) from root nodes.
  */
+/**
+ * Drop broken-mainline fragments from a set of accepted root nodes.
+ * When indent/stack reconstruction fails mid-text (long flat selfmates,
+ * PGN-annotated studies), a mid-line move like "10. Ke5" can end up as a
+ * root node — and would be accepted as a correct first move. Genuine first
+ * moves are always numbered 1 (or carry no numbering at all), so roots
+ * explicitly numbered > 1 are excluded — but only when at least one
+ * move-1/unnumbered root remains, so we never end up with nothing.
+ *
+ * Exception: h#N.5 solutions omit White's opening half-move ("1... ...")
+ * and number Black's real first move 2 (e.g. "1... ... 2.Kc6-d5 ..."), so
+ * for black-first problems a move-2 black root is a genuine solution start.
+ */
+function dropFragmentRoots(nodes: SolutionNode[], firstMoveColor: 'w' | 'b'): SolutionNode[] {
+  const genuine = nodes.filter(n =>
+    n.moveNum == null
+    || n.moveNum === 1
+    || (n.moveNum === 2 && firstMoveColor === 'b' && n.color === 'b')
+  );
+  return genuine.length > 0 ? genuine : nodes;
+}
+
 export function filterKeyMoves(nodes: SolutionNode[], firstMoveColor: 'w' | 'b'): SolutionNode[] {
   // If any root node is a key move (!) with the correct color, filter out tries.
   // A node can carry both markers (e.g. flag pollution from odd notation) —
   // isTry always wins: a refuted try must never be accepted as a key.
   const keyNodes = nodes.filter(n => n.isKey && !n.isTry && n.color === firstMoveColor);
   if (keyNodes.length > 0) {
-    return keyNodes;
+    return dropFragmentRoots(keyNodes, firstMoveColor);
   }
 
   // Even without explicit key moves, filter out tries (moves marked with ?)
   const nonTryNodes = nodes.filter(n => !n.isTry);
   if (nonTryNodes.length > 0) {
-    return nonTryNodes;
+    return dropFragmentRoots(nonTryNodes, firstMoveColor);
   }
 
-  return nodes;
+  return dropFragmentRoots(nodes, firstMoveColor);
 }
 
 // ── Helpers ─────────────────────────────────────────────
