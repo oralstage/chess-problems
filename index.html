@@ -21,6 +21,20 @@
     <meta name="twitter:title" content="Chess Problems" />
     <meta name="twitter:description" content="Solve chess problems interactively — direct mates, helpmates, selfmates, studies, and retros from YACPDB." />
     <meta name="twitter:image" content="https://chess-problems.pages.dev/og-image.png" />
+    <script>
+      // Kick off the daily-problem fetch in parallel with the JS bundle
+      // download. fetchDaily() in src/services/api.ts consumes this promise,
+      // so by the time React has booted the response is usually already here.
+      (function () {
+        var d = new Date();
+        var date =
+          d.getFullYear() + '-' +
+          String(d.getMonth() + 1).padStart(2, '0') + '-' +
+          String(d.getDate()).padStart(2, '0');
+        window.__dailyPreloadDate = date;
+        window.__dailyPreload = fetch('/api/daily?date=' + date).catch(function () { return null; });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

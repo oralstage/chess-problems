@@ -190,6 +190,17 @@ export async function fetchDaily(): Promise<ProblemMeta & { solutionText: string
   // Send client's local date so the daily problem matches the displayed date
   const now = new Date();
   const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  // index.html kicks off this fetch in parallel with the JS bundle download —
+  // consume it (once: the Response body is single-use) if the date matches
+  const w = window as unknown as { __dailyPreload?: Promise<Response | null>; __dailyPreloadDate?: string };
+  if (w.__dailyPreload && w.__dailyPreloadDate === dateStr) {
+    const preload = w.__dailyPreload;
+    w.__dailyPreload = undefined;
+    try {
+      const res = await preload;
+      if (res && res.ok) return res.json();
+    } catch { /* fall through to a fresh fetch */ }
+  }
   const res = await fetch(`${API_BASE}/daily?date=${dateStr}`);
   if (!res.ok) throw new Error(`Daily API error: ${res.status}`);
   return res.json();
