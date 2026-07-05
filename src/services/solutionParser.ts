@@ -290,7 +290,10 @@ function expandCommaAlternatives(line: string): string[] {
 
 function parseSegments(solutionText: string): Segment[] {
   const segments: Segment[] = [];
-  const rawLines = solutionText.split('\n');
+  // Collapse newlines inside {...} annotations so multi-line annotations don't
+  // leak their content as separate lines (e.g. "{\n1.Kf8? Bb2!}" in D523450).
+  const collapsed = solutionText.replace(/\{[^}]*\}/g, m => m.replace(/\s*\n\s*/g, ' '));
+  const rawLines = collapsed.split('\n');
 
   // Join continuation lines:
   // 1. Line ends with "-" (move split: "Be5-\nf4+" → "Be5-f4+")
@@ -334,10 +337,20 @@ function parseSegments(solutionText: string): Segment[] {
     const trimmed = line.trimStart();
     if (!trimmed) { lineIndex++; lastLineWasBlank = true; continue; }
 
+    // Extract {...} annotations FIRST, replacing them with sentinels so that
+    // (a) prose inside braces can't pollute key/try markers or threat parens, and
+    // (b) move numbers inside braces don't tear the line apart when splitting.
+    // Sentinels are resolved back into each segment's `annotation` below.
+    const lineAnnotations: string[] = [];
+    let trimmedClean = trimmed.replace(/\{[^}]*\}/g, (match) => {
+      lineAnnotations.push(match.slice(1, -1).trim());
+      return '\uE000' + (lineAnnotations.length - 1) + '\uE000';
+    });
+
     // Extract parenthesized/bracketed threat content before splitting on move numbers
     // (splitting on \d+\. would break content like "(2.Rd1#)" or "[2.Qf7#]")
     const lineThreatTexts: string[] = [];
-    let trimmedClean = trimmed.replace(/[(\[][^)\]]+[)\]]/g, (match) => {
+    trimmedClean = trimmedClean.replace(/[([][^)\]]+[)\]]/g, (match) => {
       const inner = match.slice(1, -1);
       lineThreatTexts.push(inner);
       return '';
@@ -351,22 +364,23 @@ function parseSegments(solutionText: string): Segment[] {
       let text = part.trim();
       if (!text) continue;
 
+      // Resolve annotation sentinels: collect this segment's annotation text
+      // and remove the markers before any flag/move parsing.
+      let annotation = '';
+      text = text.replace(/\uE000(\d+)\uE000/g, (_, idx) => {
+        const a = lineAnnotations[parseInt(idx)] || '';
+        if (a) annotation = annotation ? annotation + ' ' + a : a;
+        return ' ';
+      }).trim();
+      if (!text) continue;
+
       const hasThreatLabel = /\bthreat:?\s*$/i.test(text);
       text = text.replace(/\bthreat:?\s*$/i, '').trim();
 
-      const isKey = text.includes('!');
-      const isTry = text.includes('?');
       // isThreat means this segment IS a threat move (from parens).
       // hasThreatLabel means this segment's CHILDREN are threats (e.g., "1.f4 ! threat:")
       // — the segment itself is a regular key/try move, not a threat.
       const isThreat = false;
-
-      let annotation = '';
-      const annoMatch = text.match(/\{([^}]*)\}/);
-      if (annoMatch) {
-        annotation = annoMatch[1];
-        text = text.replace(/\{[^}]*\}/g, '').trim();
-      }
 
       const moveNumMatch = text.match(/^(\d+)\.\s*(\.\.\.?)?/);
       let moveNum: number | null = null;
@@ -383,6 +397,20 @@ function parseSegments(solutionText: string): Segment[] {
 
       const moves = extractMoveStrings(text);
       if (moves.length === 0) continue;
+
+      // Key/try markers belong to the segment's OWN move (the first one) — only
+      // markers adjacent to it count. A '!' later in the segment is typically a
+      // refutation of a try on the same line ("1. Qh1? e4!") and must NOT mark
+      // the try as a key move. Only the first move of a segment receives these
+      // flags when nodes are built, so scan up to where the second move starts.
+      let markerZone = text;
+      if (moves.length > 1) {
+        const firstEnd = text.indexOf(moves[0]) + moves[0].length;
+        const secondStart = text.indexOf(moves[1], firstEnd);
+        if (secondStart > 0) markerZone = text.slice(0, secondStart);
+      }
+      const isKey = markerZone.includes('!');
+      const isTry = markerZone.includes('?');
 
       segments.push({
         indent: lineIndent,
@@ -403,7 +431,7 @@ function parseSegments(solutionText: string): Segment[] {
 
     // Add threat segments from parenthesized content extracted earlier
     for (const threatText of lineThreatTexts) {
-      const cleanThreat = threatText.replace(/^\d+\./, '').trim();
+      const cleanThreat = threatText.replace(/\uE000\d+\uE000/g, ' ').replace(/^\d+\./, '').trim();
       const threatMoves = extractMoveStrings(cleanThreat);
       if (threatMoves.length > 0) {
         segments.push({
@@ -427,6 +455,14 @@ function parseSegments(solutionText: string): Segment[] {
     lastLineWasBlank = false;
     lineIndex++;
   }
+
+  // PGN-style solutions may be wrapped entirely in {...} — annotation extraction
+  // would then leave nothing to parse. Fall back to treating braces as transparent
+  // (strip only the brace characters, keep the content).
+  if (segments.length === 0 && solutionText.includes('{')) {
+    return parseSegments(solutionText.replace(/[{}]/g, ' '));
+  }
+
   return segments;
 }
 
@@ -991,8 +1027,10 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
  * Removes tries (??) from root nodes.
  */
 export function filterKeyMoves(nodes: SolutionNode[], firstMoveColor: 'w' | 'b'): SolutionNode[] {
-  // If any root node is a key move (!) with the correct color, filter out tries
-  const keyNodes = nodes.filter(n => n.isKey && n.color === firstMoveColor);
+  // If any root node is a key move (!) with the correct color, filter out tries.
+  // A node can carry both markers (e.g. flag pollution from odd notation) —
+  // isTry always wins: a refuted try must never be accepted as a key.
+  const keyNodes = nodes.filter(n => n.isKey && !n.isTry && n.color === firstMoveColor);
   if (keyNodes.length > 0) {
     return keyNodes;
   }
