@@ -77,9 +77,17 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   if (body.score !== 0 && body.score !== 1) {
     return Response.json({ error: 'score must be 0 or 1' }, { status: 400 });
   }
-  if (typeof body.playerRating !== 'number' || typeof body.playerRd !== 'number') {
+  if (
+    typeof body.playerRating !== 'number' || !Number.isFinite(body.playerRating) ||
+    typeof body.playerRd !== 'number' || !Number.isFinite(body.playerRd)
+  ) {
     return Response.json({ error: 'playerRating and playerRd required' }, { status: 400 });
   }
+
+  // Sanity bounds — these values feed the shared problem_ratings table via
+  // updateRating, so clamp them the same way save-rating.ts clamps its inputs
+  const playerRating = Math.max(0, Math.min(4000, body.playerRating));
+  const playerRd = Math.max(20, Math.min(400, body.playerRd));
 
   const dev = body.dev ? 1 : 0;
 
@@ -96,8 +104,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       body.sessionId,
       dev,
       body.score,
-      body.playerRating,
-      body.playerRd,
+      playerRating,
+      playerRd,
       problemRating.rating,
       problemRating.rd,
     ).run();
@@ -119,7 +127,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const problemScore = 1 - body.score;
   const newProblemRating = updateRating(
     problemRating,
-    { rating: body.playerRating, rd: body.playerRd },
+    { rating: playerRating, rd: playerRd },
     problemScore,
   );
 

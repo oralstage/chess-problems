@@ -19,13 +19,18 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const dateParam = url.searchParams.get('date');
 
-  // Normalize date key
-  let dateKey: string;
+  // Normalize date key. Reject non-calendar dates ("9999-99-99") and dates
+  // far outside the feature's lifetime so bogus values can't bloat the edge
+  // cache and daily_cache table with junk entries.
+  const now = new Date();
+  const todayUTC = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+  let dateKey = todayUTC;
   if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-    dateKey = dateParam;
-  } else {
-    const now = new Date();
-    dateKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, '0')}-${String(now.getUTCDate()).padStart(2, '0')}`;
+    const parsed = new Date(dateParam + 'T00:00:00Z');
+    const isRealDate = !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === dateParam;
+    // Daily problems started 2026-03-15; allow up to 2 days ahead for timezones
+    const withinWindow = dateParam >= '2026-03-01' && parsed.getTime() <= now.getTime() + 2 * 86_400_000;
+    if (isRealDate && withinWindow) dateKey = dateParam;
   }
 
   // ── 1. Worker Cache API (edge memory) ──

@@ -14,9 +14,7 @@ import { updateRating } from '../utils/glicko2';
 
 interface SolveProgressRow {
   problem_id: number;
-  correct: number;
-  wrong_move_count: number;
-  hint_used: number;
+  clean_solve: number;
   genre: string;
   created_at: string;
 }
@@ -52,7 +50,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   // Run all queries in parallel
-  const [storedRating, lastEventRow, ratingEventCountRow, progressRows, bookmarkRows, reviewRows] = await Promise.all([
+  const [storedRating, lastEventRow, ratingEventCountRow, progressRows, bookmarkRows, reviewRows, ratedIdRows] = await Promise.all([
     context.env.STATS_DB.prepare(
       `SELECT rating, rd, volatility, solve_count
        FROM player_ratings
@@ -71,15 +69,18 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       `SELECT COUNT(*) AS n FROM rating_events WHERE session_id = ? AND dev = ?`
     ).bind(sessionId, dev).first<{ n: number }>(),
 
+    // Aggregate per problem: local semantics are "once cleanly solved, never
+    // downgraded", so a problem counts as solved if ANY attempt was a clean
+    // solve — not just the latest one. MAX(genre) prefers a non-empty genre
+    // over legacy rows recorded before the genre column existed.
     context.env.STATS_DB.prepare(
-      `SELECT problem_id, correct, wrong_move_count, hint_used, genre, created_at
-       FROM (
-         SELECT problem_id, correct, wrong_move_count, hint_used, genre, created_at,
-                ROW_NUMBER() OVER (PARTITION BY problem_id ORDER BY created_at DESC) AS rn
-         FROM solve_events
-         WHERE session_id = ? AND dev = ?
-       )
-       WHERE rn = 1`
+      `SELECT problem_id,
+              MAX(CASE WHEN correct = 1 AND wrong_move_count = 0 AND hint_used = 0 THEN 1 ELSE 0 END) AS clean_solve,
+              MAX(genre) AS genre,
+              MAX(created_at) AS created_at
+       FROM solve_events
+       WHERE session_id = ? AND dev = ?
+       GROUP BY problem_id`
     ).bind(sessionId, dev).all<SolveProgressRow>(),
 
     context.env.STATS_DB.prepare(
@@ -91,6 +92,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
        FROM review_state
        WHERE session_id = ? AND dev = ?`
     ).bind(sessionId, dev).all<ReviewStateRow>(),
+
+    // Exact set of problems this account played in Rated Mode — restored into
+    // cp-rated-ids so the review queue only ever seeds from rated problems
+    context.env.STATS_DB.prepare(
+      `SELECT DISTINCT problem_id FROM rating_events WHERE session_id = ? AND dev = ?`
+    ).bind(sessionId, dev).all<{ problem_id: number }>(),
   ]);
 
   const totalRatingEvents = ratingEventCountRow?.n ?? 0;
@@ -153,8 +160,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   for (const row of progressRows.results) {
     const genre = row.genre as GenreKey;
     if (!VALID_GENRES.includes(genre)) continue;
-    const isCleanSolve = row.correct === 1 && row.wrong_move_count === 0 && row.hint_used === 0;
-    progress[genre][String(row.problem_id)] = isCleanSolve ? 'solved' : 'failed';
+    progress[genre][String(row.problem_id)] = row.clean_solve === 1 ? 'solved' : 'failed';
     // SQLite returns "YYYY-MM-DD HH:MM:SS"; Date.parse needs a 'T' for some browsers
     const tsStr = row.created_at.replace(' ', 'T') + 'Z';
     const ms = Date.parse(tsStr);
@@ -198,6 +204,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     timestamps,
     bookmarks,
     reviewQueue,
+    ratedIds: ratedIdRows.results.map(r => String(r.problem_id)),
   }, {
     headers: { 'Cache-Control': 'private, max-age=30' },
   });

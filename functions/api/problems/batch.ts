@@ -6,13 +6,21 @@
  * Returns: { problems: ProblemMeta[] }
  */
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const body = await context.request.json() as { ids: number[] };
+  let body: { ids: number[] };
+  try {
+    body = await context.request.json() as { ids: number[] };
+  } catch {
+    return Response.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
   if (!body.ids || !Array.isArray(body.ids) || body.ids.length === 0) {
     return Response.json({ error: 'ids array is required' }, { status: 400 });
   }
 
-  // Limit to 100 IDs per request
-  const ids = body.ids.slice(0, 100);
+  // Limit to 100 IDs per request; drop non-numeric entries
+  const ids = body.ids.filter((v): v is number => typeof v === 'number' && Number.isFinite(v)).slice(0, 100);
+  if (ids.length === 0) {
+    return Response.json({ error: 'ids array is required' }, { status: 400 });
+  }
   const placeholders = ids.map(() => '?').join(',');
 
   const rows = await context.env.DB.prepare(

@@ -13,7 +13,7 @@ import { addFairyExclusion } from './fairy-filter';
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const author = url.searchParams.get('author')?.trim();
-  const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') || '50')));
+  const limit = Math.min(200, Math.max(1, (parseInt(url.searchParams.get('limit') || '50') || 50)));
 
   if (!author || author.length < 2) {
     return Response.json({ error: 'author param required (min 2 chars)' }, { status: 400 });
@@ -22,11 +22,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const conditions: string[] = [];
   const bindings: (string | number)[] = [];
 
-  // Split search terms by space and require all to match (AND)
+  // Split search terms by space and require all to match (AND).
+  // Escape LIKE metacharacters so user input can't act as wildcards.
   const terms = author.split(/\s+/).filter(t => t.length > 0);
   for (const term of terms) {
-    conditions.push('authors LIKE ?');
-    bindings.push(`%${term}%`);
+    conditions.push(`authors LIKE ? ESCAPE '\\'`);
+    bindings.push(`%${term.replace(/[\\%_]/g, c => '\\' + c)}%`);
   }
   addFairyExclusion(conditions, bindings);
 

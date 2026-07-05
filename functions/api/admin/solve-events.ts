@@ -11,7 +11,14 @@ function checkAuth(request: Request, env: Env): boolean {
   const token = env.ADMIN_TOKEN;
   if (!token) return false;
   const auth = request.headers.get('Authorization');
-  return auth === `Bearer ${token}`;
+  if (!auth) return false;
+  // Constant-time comparison to avoid a timing side-channel
+  const expected = new TextEncoder().encode(`Bearer ${token}`);
+  const actual = new TextEncoder().encode(auth);
+  if (expected.length !== actual.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) diff |= expected[i] ^ actual[i];
+  return diff === 0;
 }
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
@@ -50,7 +57,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await context.request.json() as { action: string; sessionId: string };
+  let body: { action: string; sessionId: string };
+  try {
+    body = await context.request.json() as { action: string; sessionId: string };
+  } catch {
+    return Response.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
   if (!body.sessionId || !body.action) {
     return Response.json({ error: 'sessionId and action required' }, { status: 400 });
   }

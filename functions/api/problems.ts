@@ -29,8 +29,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'genre is required (direct|help|self|study|retro)' }, { status: 400 });
   }
 
-  const page = Math.max(0, parseInt(params.get('page') || '0'));
-  const pageSize = Math.min(5000, Math.max(1, parseInt(params.get('pageSize') || '20')));
+  const page = Math.max(0, parseInt(params.get('page') || '0') || 0);
+  const pageSize = Math.min(5000, Math.max(1, parseInt(params.get('pageSize') || '20') || 20));
   const sortBy = params.get('sortBy') === 'year' ? 'source_year' : 'difficulty_score';
   const sortOrder = params.get('sortOrder') === 'desc' ? 'DESC' : 'ASC';
 
@@ -62,21 +62,21 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   // Piece count range
   const minPieces = params.get('minPieces');
-  if (minPieces) { conditions.push('piece_count >= ?'); bindings.push(parseInt(minPieces)); }
+  if (minPieces && Number.isFinite(parseInt(minPieces))) { conditions.push('piece_count >= ?'); bindings.push(parseInt(minPieces)); }
   const maxPieces = params.get('maxPieces');
-  if (maxPieces) { conditions.push('piece_count <= ?'); bindings.push(parseInt(maxPieces)); }
+  if (maxPieces && Number.isFinite(parseInt(maxPieces))) { conditions.push('piece_count <= ?'); bindings.push(parseInt(maxPieces)); }
 
   // Year range
   const minYear = params.get('minYear');
-  if (minYear) { conditions.push('source_year >= ?'); bindings.push(parseInt(minYear)); }
+  if (minYear && Number.isFinite(parseInt(minYear))) { conditions.push('source_year >= ?'); bindings.push(parseInt(minYear)); }
   const maxYear = params.get('maxYear');
-  if (maxYear) { conditions.push('source_year <= ?'); bindings.push(parseInt(maxYear)); }
+  if (maxYear && Number.isFinite(parseInt(maxYear))) { conditions.push('source_year <= ?'); bindings.push(parseInt(maxYear)); }
 
   // Move count range
   const minMoves = params.get('minMoves');
-  if (minMoves) { conditions.push('move_count >= ?'); bindings.push(parseInt(minMoves)); }
+  if (minMoves && Number.isFinite(parseInt(minMoves))) { conditions.push('move_count >= ?'); bindings.push(parseInt(minMoves)); }
   const maxMoves = params.get('maxMoves');
-  if (maxMoves) { conditions.push('move_count <= ?'); bindings.push(parseInt(maxMoves)); }
+  if (maxMoves && Number.isFinite(parseInt(maxMoves))) { conditions.push('move_count <= ?'); bindings.push(parseInt(maxMoves)); }
 
   // Exclude fairy problems (detected by keywords)
   addFairyExclusion(conditions, bindings);

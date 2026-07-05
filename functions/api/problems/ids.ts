@@ -45,13 +45,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   const minPieces = params.get('minPieces');
-  if (minPieces) { conditions.push('piece_count >= ?'); bindings.push(parseInt(minPieces)); }
+  if (minPieces && Number.isFinite(parseInt(minPieces))) { conditions.push('piece_count >= ?'); bindings.push(parseInt(minPieces)); }
   const maxPieces = params.get('maxPieces');
-  if (maxPieces) { conditions.push('piece_count <= ?'); bindings.push(parseInt(maxPieces)); }
+  if (maxPieces && Number.isFinite(parseInt(maxPieces))) { conditions.push('piece_count <= ?'); bindings.push(parseInt(maxPieces)); }
   const minYear = params.get('minYear');
-  if (minYear) { conditions.push('source_year >= ?'); bindings.push(parseInt(minYear)); }
+  if (minYear && Number.isFinite(parseInt(minYear))) { conditions.push('source_year >= ?'); bindings.push(parseInt(minYear)); }
   const maxYear = params.get('maxYear');
-  if (maxYear) { conditions.push('source_year <= ?'); bindings.push(parseInt(maxYear)); }
+  if (maxYear && Number.isFinite(parseInt(maxYear))) { conditions.push('source_year <= ?'); bindings.push(parseInt(maxYear)); }
 
   addFairyExclusion(conditions, bindings);
 
