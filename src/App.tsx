@@ -456,6 +456,14 @@ export default function App() {
 
   // Ensure a problem has solutionTree (fetch solutionText from API if needed)
   const ensureSolution = useCallback(async (p: ChessProblem): Promise<ChessProblem> => {
+    // Stub from the genre index (navigation before the full genre data has
+    // loaded): everything except id/stipulation is missing — fetch the whole
+    // problem, not just solutionText, or the board renders empty (0+0 pieces).
+    // Must happen before the originalFen capture below.
+    if (!p.fen) {
+      const full = await fetchProblem(p.id);
+      Object.assign(p, metaToChessProblem(full, full.solutionText));
+    }
     // Save original FEN before twin modifications (needed for parseTwins)
     const originalFen = p._twinApplied ? (p._originalFen || p.fen) : p.fen;
     if (!p._originalFen) p._originalFen = originalFen;
@@ -534,9 +542,11 @@ export default function App() {
     setProblemRatingBefore(null);
     setActiveTwinId(null);
     trackEvent('problem_started', p.id, { genre: p.genre, stipulation: p.stipulation });
-    // Show board immediately if solution needs to be fetched
+    // Show board immediately if solution needs to be fetched.
+    // Skip for index stubs (no FEN yet) — an empty board is worse than the
+    // loading state; ensureSolution fetches the full problem right after.
     const needsFetch = p.solutionTree.length === 0;
-    if (needsFetch) {
+    if (needsFetch && p.fen) {
       problem.loadProblem(p); // show board with empty solutionTree (hint/give-up won't work yet)
     }
     const ready = await ensureSolution(p);
@@ -960,8 +970,13 @@ export default function App() {
     const counts: Record<Category, number> = {} as Record<Category, number>;
     for (const def of CATEGORY_DEFS) {
       if (def.minMoves != null) {
-        // Direct subcategories: count by moveCount
-        if (genreLoaded[def.genre]) {
+        // Direct subcategories: count by moveCount.
+        // genreLoaded flips true when the lightweight INDEX loads, but the
+        // full genreData loads separately in the background (and with ~400k
+        // direct problems it often hasn't finished) — counting an empty
+        // genreData yields 0, which made ModeSelector hide the whole
+        // Direct Mates group. Only count locally when data is really there.
+        if (genreLoaded[def.genre] && genreData[def.genre].length > 0) {
           counts[def.category] = genreData[def.genre].filter(p => {
             if (def.maxMoves === 0) return p.moveCount >= def.minMoves!;
             return p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!;
