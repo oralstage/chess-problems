@@ -43,6 +43,7 @@ export interface ReviewCard {
   difficulty: number;    // D — 1 (easy) to 10 (hard)
   isNew:      boolean;   // true = never reviewed in Review Mode yet
   dueDate:    string;    // YYYY-MM-DD
+  lastReview?: string;   // YYYY-MM-DD of the last review (absent on legacy/synced cards)
 }
 
 export interface ReviewSessionState {
@@ -51,15 +52,21 @@ export interface ReviewSessionState {
 }
 
 // ── Helpers ────────────────────────────────────────────────────
+// All dates use the user's LOCAL calendar day. Mixing toISOString (UTC) with
+// local parsing shifted due dates by a day for UTC+ timezones.
+function formatLocal(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return formatLocal(new Date());
 }
 
 function addDays(base: string, days: number, jitter = 0): string {
   const d = new Date(base + 'T00:00:00');
   const offset = jitter > 0 ? Math.floor(Math.random() * (jitter * 2 + 1)) - jitter : 0;
   d.setDate(d.getDate() + Math.max(1, Math.round(days) + offset));
-  return d.toISOString().slice(0, 10);
+  return formatLocal(d);
 }
 
 function clamp(x: number, lo: number, hi: number) {
@@ -113,6 +120,23 @@ function nextForgetStability(d: number, s: number, r: number): number {
 
 const MIN_INTERVAL_WRONG   = 7;   // never show a failed card before 7 days
 const MIN_INTERVAL_CORRECT = 14;  // correct is always longer than wrong
+
+/**
+ * Days elapsed since the card was last reviewed — the input FSRS needs.
+ * Previously this was measured from dueDate, so an on-time review always got
+ * elapsed=0 → retrievability=1 → stability never grew and intervals stayed at
+ * the 14-day minimum forever. lastReview is stored from now on; for legacy or
+ * synced cards without it, approximate elapsed as the scheduled interval plus
+ * any lateness.
+ */
+function elapsedSinceLastReview(card: ReviewCard, today: string): number {
+  const dayMs = 86_400_000;
+  if (card.lastReview) {
+    return Math.max(0, (new Date(today).getTime() - new Date(card.lastReview).getTime()) / dayMs);
+  }
+  const lateDays = Math.max(0, (new Date(today).getTime() - new Date(card.dueDate).getTime()) / dayMs);
+  return Math.max(1, targetInterval(card.stability)) + lateDays;
+}
 
 function fsrsNext(
   card: ReviewCard,
@@ -251,12 +275,9 @@ export function useReviewQueue() {
     correct: boolean,
     session: ReviewSessionState,
   ): ReviewSessionState | null => {
-    // Calculate elapsed days since last due date
     const key = String(problemId);
     const card = readQueue()[key];
-    const elapsedDays = card
-      ? Math.max(0, (new Date(t).getTime() - new Date(card.dueDate).getTime()) / 86400000)
-      : 0;
+    const elapsedDays = card && !card.isNew ? elapsedSinceLastReview(card, t) : 0;
 
     const { stability, difficulty, interval } = fsrsNext(
       card ?? { problemId, stability: W[2], difficulty: initDifficulty(3), isNew: true, dueDate: t },
@@ -271,6 +292,7 @@ export function useReviewQueue() {
       difficulty,
       isNew: false,
       dueDate: addDays(t, interval, 1),
+      lastReview: t,
     };
     setQueue(prev => ({ ...prev, [key]: updatedCard }));
     pushReviewCard(updatedCard);
@@ -327,7 +349,7 @@ export function useReviewQueue() {
     const current = readQueue();
     const card = current[key];
     if (!card) return correct ? Math.round(W[2]) : 1;
-    const elapsed = Math.max(0, (new Date(todayStr()).getTime() - new Date(card.dueDate).getTime()) / 86400000);
+    const elapsed = card.isNew ? 0 : elapsedSinceLastReview(card, todayStr());
     return fsrsNext(card, correct, elapsed).interval;
   }, []);
 

@@ -34,7 +34,14 @@ function saveRating(rating: Glicko2Rating): void {
 
 function saveRatedIds(ids: Set<string>): void {
   try {
-    let arr = Array.from(ids);
+    // Merge with what's currently stored: App.tsx also appends to this key via
+    // its own in-memory copy, and a blind overwrite from either writer would
+    // silently drop the other's additions (a lost ID means the problem can be
+    // rated a second time). Clearing is done explicitly by reset/restore, not
+    // through this function.
+    let stored: string[] = [];
+    try { stored = JSON.parse(localStorage.getItem(RATED_IDS_KEY) || '[]'); } catch { /* ignore */ }
+    let arr = Array.from(new Set([...stored, ...ids]));
     // Trim oldest half if exceeding max
     if (arr.length > MAX_RATED_IDS) {
       arr = arr.slice(arr.length - MAX_RATED_IDS / 2);
@@ -100,7 +107,7 @@ export function usePlayerRating() {
   const resetRating = useCallback(() => {
     const fresh = defaultRating();
     saveRating(fresh);
-    saveRatedIds(new Set());
+    try { localStorage.setItem(RATED_IDS_KEY, '[]'); } catch { /* ignore */ }
     try {
       // Clear all per-difficulty rated problem slots (and legacy single slot)
       const difficulties = ['very-easy', 'easy', 'normal', 'hard', 'very-hard'];
@@ -127,9 +134,9 @@ export function usePlayerRating() {
       localStorage.removeItem('cp-rated-problem');
     } catch {}
     saveRating(restored);
-    // Reset ratedIds — will be repopulated as the user re-encounters problems.
-    // (Server-side dedup via rating_events PK still prevents double-counting.)
-    saveRatedIds(new Set());
+    // Explicitly clear ratedIds (the restore handler in App.tsx immediately
+    // rewrites the key with the server's exact rated-ID set from the snapshot)
+    try { localStorage.setItem(RATED_IDS_KEY, '[]'); } catch { /* ignore */ }
     setState({ rating: restored, ratedIds: new Set() });
   }, []);
 
