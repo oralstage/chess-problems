@@ -558,7 +558,12 @@ export function useProblem(stockfish?: StockfishApi) {
     const afterChess = new Chess(newFen);
     const isCheckmate = afterChess.isCheckmate();
 
-    if (isCheckmate && problem.genre !== 'self') {
+    // Immediate-checkmate shortcut. For retro problems it must only fire when
+    // the mate is played by the side whose turn it actually is: deducing the
+    // turn IS the puzzle, and the "apparent" mate by the wrong side (e.g.
+    // R138281's 1.Qb1#? — it's really Black to move) must stay incorrect.
+    const retroWrongSide = problem.genre === 'retro' && movedColor !== currentTurn;
+    if (isCheckmate && problem.genre !== 'self' && !retroWrongSide) {
       // User delivered checkmate — solved! (direct/study/help)
       emitMoveCorrect();
       const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
