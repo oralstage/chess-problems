@@ -15,7 +15,7 @@ const CHANGELOG = [
       {
         title: 'Fixes',
         items: [
-          'Answer checking improved further: long solutions parse correctly (move numbers 10+ were garbled), and helpmates with multiple solutions now accept all of them. Daily Problems list and the home daily problem load much faster.',
+          'Bug fixes and performance improvements.',
         ],
       },
     ],
