@@ -292,7 +292,7 @@ export function FeedbackPanel({
           )}
           {refutationText && (
             <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
-              Refutation: {refutationText}
+              {refutationText}
             </span>
           )}
           {!classicBoard && !onGoHome && (

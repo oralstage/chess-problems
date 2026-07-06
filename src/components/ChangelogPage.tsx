@@ -4,6 +4,23 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-07-06',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Thematic tries — when your wrong first move is actually a "try" from the composition, the board now plays the composer\'s refutation and explains why it fails (e.g. "Thematic try! 1.Qh1? is refuted by 1...e4!"). Works on ~120,000 problems with try data.',
+        ],
+      },
+      {
+        title: 'Fixes',
+        items: [
+          'Answer checking improved further: long solutions parse correctly (move numbers 10+ were garbled), and helpmates with multiple solutions now accept all of them. Daily Problems list and the home daily problem load much faster.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-07-05',
     sections: [
       {

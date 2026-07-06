@@ -54,6 +54,10 @@ interface ProblemState {
 const AUTO_PLAY_DELAY = 500;
 const CORRECT_FLASH = 400;
 const WRONG_MOVE_PAUSE = 500;
+// Thematic-try demo: how long the user's try stays before the refutation is
+// played, and how long the refutation position is held before reverting
+const TRY_REFUTATION_DELAY = 700;
+const TRY_REFUTATION_HOLD = 1800;
 
 function getFirstMoveColor(genre: Genre, stipulation?: string): 'w' | 'b' {
   if (genre === 'help') return 'b';
@@ -405,6 +409,44 @@ export function useProblem(stockfish?: StockfishApi) {
   }, []);
 
   // ── Flash wrong move and undo ──
+  /**
+   * Wrong move that matches a thematic try from the source data: show the
+   * user's move, then auto-play the composer's refutation with an explanation,
+   * hold it, and revert to the initial position. Counts as a wrong move
+   * exactly like flashWrongMove (rating lock, hint unlock unchanged).
+   */
+  const flashTryRefutation = useCallback((
+    userMove: { from: string; to: string }, fenAfterUser: string,
+    refMove: { from: string; to: string }, fenAfterRef: string,
+    text: string, preFen: string, uci: string,
+  ) => {
+    setState(prev => ({
+      ...prev,
+      feedbackSquare: userMove.to,
+      feedbackType: 'incorrect',
+      hintSquares: null,
+      wrongMoveCount: prev.wrongMoveCount + 1,
+      wrongMoveFen: fenAfterUser,
+      wrongMoveLastMove: userMove,
+      lastWrongMove: { preFen, uci },
+      refutationText: null,
+      refutationArrow: null,
+    }));
+    // After a beat, play the refutation on the board with the explanation
+    setTimeout(() => {
+      setState(prev => prev.wrongMoveFen === fenAfterUser
+        ? { ...prev, wrongMoveFen: fenAfterRef, wrongMoveLastMove: refMove, feedbackSquare: refMove.to, refutationText: text }
+        : prev);
+      // Hold the refutation position, then revert to the initial position.
+      // The text stays visible until the next move attempt.
+      setTimeout(() => {
+        setState(prev => prev.wrongMoveFen === fenAfterRef
+          ? { ...prev, wrongMoveFen: null, wrongMoveLastMove: null, feedbackSquare: null, feedbackType: null }
+          : prev);
+      }, TRY_REFUTATION_HOLD);
+    }, TRY_REFUTATION_DELAY);
+  }, []);
+
   const flashWrongMove = useCallback((to: string, wrongFen: string, from: string, preFen: string, uci: string) => {
     setState(prev => ({
       ...prev,
@@ -491,6 +533,11 @@ export function useProblem(stockfish?: StockfishApi) {
       tryWithFen(flippedFen);
     }
     if (!move) return false;
+
+    // A new move attempt supersedes any lingering try-refutation explanation
+    if (state.refutationText) {
+      setState(prev => ({ ...prev, refutationText: null }));
+    }
 
     const newFen = afterFen;
     const newHistory = [...state.moveHistory, move.san];
@@ -744,6 +791,45 @@ export function useProblem(stockfish?: StockfishApi) {
 
     // Wrong move
     const wrongUci = from + to + (move.promotion || '');
+
+    // Thematic try? Only at the initial position (tries are first-move
+    // alternatives in the source data). If the move matches a try root and
+    // the composer's refutation is playable, demonstrate it instead of just
+    // flashing red.
+    if (state.moveHistory.length === 0 && (problem.fullSolutionTree?.length ?? 0) > 0) {
+      const tryRoots = problem.fullSolutionTree.filter(n => n.isTry && n.color === movedColor);
+      const tryNode = tryRoots.length > 0
+        ? matchMoveToTree(state.fen, from, to, move.san, move.promotion, tryRoots)
+        : null;
+      const refNode = tryNode
+        ? (tryNode.children.find(c => c.color !== movedColor && !c.isThreat && c.isKey)
+          || tryNode.children.find(c => c.color !== movedColor && !c.isThreat))
+        : null;
+      if (refNode) {
+        const refChess = new Chess(newFen);
+        const refMove = tryExecuteNode(refChess, refNode);
+        if (refMove) {
+          const trySanText = movedColor === 'w' ? `1.${move.san}?` : `1...${move.san}?`;
+          const refSanText = movedColor === 'w' ? `1...${refMove.san}!` : `2.${refMove.san}!`;
+          flashTryRefutation(
+            { from, to }, newFen,
+            { from: refMove.from, to: refMove.to }, refChess.fen(),
+            `Thematic try! ${trySanText} is refuted by ${refSanText}`,
+            state.fen, wrongUci,
+          );
+          trackEvent('move_wrong', problem.id, {
+            san: move.san,
+            fen: state.fen,
+            moveNumber: state.moveHistory.length + 1,
+            wrongMoveCount: state.wrongMoveCount + 1,
+            genre: problem.genre,
+            thematicTry: true,
+          });
+          return false;
+        }
+      }
+    }
+
     flashWrongMove(to, newFen, from, state.fen, wrongUci);
     trackEvent('move_wrong', problem.id, {
       san: move.san,
@@ -753,7 +839,7 @@ export function useProblem(stockfish?: StockfishApi) {
       genre: problem.genre,
     });
     return false;
-  }, [state, startPlayback, flashWrongMove]);
+  }, [state, startPlayback, flashWrongMove, flashTryRefutation]);
 
   // ── Show hint ──
   const showHint = useCallback(() => {
