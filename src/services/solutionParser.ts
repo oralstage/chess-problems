@@ -198,7 +198,7 @@ function expandSlashAlternatives(line: string): string[] {
 
   // Find the portion containing "/" alternatives
   // Split content on move number boundaries to find which part has "/"
-  const moveNumSplit = content.split(/(?=\d+\.)/);
+  const moveNumSplit = content.split(/(?<!\d)(?=\d+\.)/);
   let altPartIdx = -1;
   for (let i = 0; i < moveNumSplit.length; i++) {
     if (/\/(?!\d+\.)/.test(moveNumSplit[i])) {
@@ -406,7 +406,7 @@ function parseSegments(solutionText: string): Segment[] {
     });
 
     // Split on move number patterns
-    const parts = trimmedClean.split(/(?=\d+\.)/);
+    const parts = trimmedClean.split(/(?<!\d)(?=\d+\.)/); // lookbehind: never split inside a number ("12." must not become "1"+"2.")
     let segIndex = 0;
 
     for (const part of parts) {
@@ -523,11 +523,19 @@ function assignVirtualIndentsForSection(segments: Segment[], firstMoveColor: 'w'
   if (segments.length <= 1) return;
   const nonThreatSegs = segments.filter(s => !s.isThreat);
   if (nonThreatSegs.length <= 1) return;
-  const allSameIndent = nonThreatSegs.every(s => s.indent === nonThreatSegs[0].indent);
-  if (!allSameIndent) return;
+  // "Flat" text = indentation does not encode the tree. Historically this
+  // required every segment to share one indent, but real flat texts often mix
+  // 0-2 spaces (wrapped lines, tries indented by two — e.g. D259137), which
+  // used to disable virtual indents entirely and shatter the mainline into
+  // root fragments. Genuine tree indentation uses bigger steps (4+ per level),
+  // so a small spread is still treated as flat.
+  const indents = nonThreatSegs.map(s => s.indent);
+  const spread = Math.max(...indents) - Math.min(...indents);
+  if (spread > 3) return;
 
   let prevWasThreat = false;
   let threatBaseIndent = 0;
+  let prevIndent = -1;
 
   for (const seg of segments) {
     if (seg.moveNum !== null) {
@@ -537,6 +545,11 @@ function assignVirtualIndentsForSection(segments: Segment[], firstMoveColor: 'w'
       } else {
         seg.indent = seg.isBlackNum ? (n - 1) * 2 : (n - 1) * 2 + 1;
       }
+    } else if (!seg.isThreat && prevIndent >= 0) {
+      // Un-numbered segment (a line starting with a bare reply move):
+      // continuation of the previous segment, one level deeper — its raw
+      // indent would otherwise pop the stack all the way to the root.
+      seg.indent = prevIndent + 1;
     }
 
     // Threat continuations should be at parent indent + 1, not their move-number indent
@@ -555,6 +568,10 @@ function assignVirtualIndentsForSection(segments: Segment[], firstMoveColor: 'w'
     prevWasThreat = seg.isThreat;
     if (seg.isThreat) {
       threatBaseIndent = seg.indent;
+    }
+    if (!seg.isThreat) {
+      // Deepest point of this segment's own chain (each move pushes one level)
+      prevIndent = seg.indent + Math.max(0, seg.moves.length - 1);
     }
   }
 }
@@ -939,6 +956,13 @@ export function parseTwins(solutionText: string, originalFen: string, firstMoveC
  * @param solutionText - Raw solution text from YACPDB
  * @param firstMoveColor - Color of the side that moves first ('w' for direct/self, 'b' for helpmate)
  */
+/** Debug/tooling helper: segments after virtual-indent assignment (scripts only). */
+export function debugSegments(solutionText: string, firstMoveColor: 'w' | 'b' = 'w'): Segment[] {
+  const segments = parseSegments(solutionText);
+  assignVirtualIndents(segments, firstMoveColor);
+  return segments;
+}
+
 export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 'w'): SolutionNode[] {
   if (!solutionText || !solutionText.trim()) return [];
 

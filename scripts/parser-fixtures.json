@@ -131,5 +131,33 @@
       "g8=Q"
     ],
     "solution": "1.Bf7-a2 ! threat:\n          2.g7-g8=R zugzwang.\n              2...Ka1*a2 \n                  3.Rg8-a8 # \n      1...Ka1*a2 \n          2.g7-g8=Q + \n              2...Ka2-a3 \n                  3.Qg8-b3 # \n              2...Ka2-a1 \n                  3.Qg8-a8 #"
+  },
+  {
+    "id": 100456,
+    "stipulation": "h#2",
+    "note": "h#2 with a second solution indented by two spaces \u2014 both must be accepted (used to reject 1.Bd5)",
+    "expected": [
+      "Bf3-h5",
+      "Bf3-d5"
+    ],
+    "solution": "1.Bf3-h5 Sg2-f4 +   2.Kg6-h6 Rh2*h5 # \n  1.Bf3-d5 Rh2-h5   2.Bd5-f7 Sg2-f4 #"
+  },
+  {
+    "id": 534704,
+    "stipulation": "s#7",
+    "note": "try-first selfmate: only the try was accepted before the flat-indent fix; the real key is 1.Qf3+",
+    "expected": [
+      "Qb3-f3+"
+    ],
+    "solution": "1. Ra4-a5+? b7-b5!\n 1. Qb3-f3+ Rc4-e4 2. Qf3-f7+ Re4-e6 3. Qf7*b7+ Re6-c6 4. Qb7-f7+ Rc6-e6 5. Qf7-f3+ Re6-e4 6. Qf3- \n b3+ Re4-c4 7. Ra4-a5+ Bg1-c5#\n 4. Ra4-a5+? Bg1-c5+ 5. Sc2-e1!"
+  },
+  {
+    "id": 259137,
+    "stipulation": "s#6",
+    "note": "mixed 0/2 indents with wrapped mainline \u2014 must not fragment into root pieces",
+    "expected": [
+      "Rg7-d7"
+    ],
+    "solution": "1. Qa4-b3? Qe8*e6!\n  1. Bc3-b2? Bc1*b2!\n  1. Qa4*c6? Qe8*c6!\n  1. Qa4-c4? g6*h5 2. Rg7-g4 f5*g4!\n1.Rg7-d7 threat: 2.Rd7-d3 +  Se1*d3 # 1...Sb8*d7  2.Qa4*c6 ! threat: 3.Qc6-f3 + Se1*f3 # 2...Qe8- \na8 3.b6-b7 threat: 4.Qc6-f3 + Se1*f3 # 3...Qa8*b7 4.Qc6*b7 threat: 5.Qb7-f3 + Se1*f3 # 4...c7-c6 \n5.Qb7*c6 threat: 6.Qc6-f3 + Se1*f3 # 3...Qa8-a6 + 4.Qc6-c4 threat: 5.Qc4-e2 + Qa6*e2 # 4...Qa6-d6 \n5.e5*d6 + Sd7-e5 6.Qc4-d3 + Se1*d3 # 4...g6*h5 5.Bc3-d4 + Ke3-f4 6.Bd4-f2 + Qa6*c4 #"
   }
 ]
