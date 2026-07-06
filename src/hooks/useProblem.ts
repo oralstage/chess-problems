@@ -801,10 +801,19 @@ export function useProblem(stockfish?: StockfishApi) {
       const tryNode = tryRoots.length > 0
         ? matchMoveToTree(state.fen, from, to, move.san, move.promotion, tryRoots)
         : null;
-      const refNode = tryNode
+      let refNode = tryNode
         ? (tryNode.children.find(c => c.color !== movedColor && !c.isThreat && c.isKey)
           || tryNode.children.find(c => c.color !== movedColor && !c.isThreat))
         : null;
+      if (tryNode && !refNode) {
+        // Refutations written on their own line become root nodes (opposite
+        // color, marked with "!") right after their try — same pattern
+        // SolutionTree uses to attach root-level refutations for display
+        const next = problem.fullSolutionTree[problem.fullSolutionTree.indexOf(tryNode) + 1];
+        if (next && next.color !== movedColor && next.isKey && !next.isThreat) {
+          refNode = next;
+        }
+      }
       if (refNode) {
         const refChess = new Chess(newFen);
         const refMove = tryExecuteNode(refChess, refNode);
