@@ -37,16 +37,58 @@ interface Fixture {
   note: string;
   solution: string;
   expected: string[];
+  /** Optional SAN path that must be walkable through the solving tree
+   *  (root → child → grandchild …), like a user playing the solution.
+   *  Guards mid-line regressions (e.g. D142094's 2.g8=Q) that the
+   *  accepted-first-move check can't see. Non-threat children preferred,
+   *  mirroring matchMoveToTree. */
+  line?: string[];
 }
 
 function firstMoveColor(stipulation: string): 'w' | 'b' {
   return stipulation.startsWith('h#') ? 'b' : 'w';
 }
 
-function acceptedMoves(solution: string, stipulation: string): string[] {
+type ParsedNode = ReturnType<typeof parseSolution>[number];
+
+function solvingRoots(solution: string, stipulation: string): ParsedNode[] {
   const color = firstMoveColor(stipulation);
-  const nodes = filterKeyMoves(parseSolution(solution, color), color);
-  return nodes.map(n => n.move).sort();
+  return filterKeyMoves(parseSolution(solution, color), color);
+}
+
+function acceptedMoves(solution: string, stipulation: string): string[] {
+  return solvingRoots(solution, stipulation).map(n => n.move).sort();
+}
+
+/** Walk a SAN path through the tree; returns the first move that can't be found (or null if all matched). */
+function walkLine(roots: ParsedNode[], line: string[]): string | null {
+  let candidates = roots;
+  for (const san of line) {
+    const found = candidates.find(n => !n.isThreat && n.moveSan === san)
+      || candidates.find(n => n.moveSan === san);
+    if (!found) return san;
+    candidates = found.children;
+  }
+  return null;
+}
+
+/** FNV-1a hash of the full tree shape (moves, colors, flags, nesting). */
+function treeHash(nodes: ParsedNode[]): string {
+  let h = 0x811c9dc5;
+  const mix = (s: string) => {
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193) >>> 0;
+    }
+  };
+  const walk = (ns: ParsedNode[], depth: number) => {
+    for (const n of ns) {
+      mix(`${depth}:${n.color}:${n.move}:${n.isKey ? 1 : 0}${n.isTry ? 1 : 0}${n.isThreat ? 1 : 0};`);
+      walk(n.children, depth + 1);
+    }
+  };
+  walk(nodes, 0);
+  return h.toString(36);
 }
 
 // ── Tier 1: fixtures ────────────────────────────────────────────
@@ -67,6 +109,15 @@ for (const f of fixtures) {
     console.error(`  expected: [${want.join(', ')}]`);
     console.error(`  got:      [${got.join(', ')}]`);
     failures++;
+    continue;
+  }
+  if (f.line) {
+    const missing = walkLine(solvingRoots(f.solution, f.stipulation), f.line);
+    if (missing) {
+      console.error(`FAIL D${f.id} (${f.stipulation}) — ${f.note}`);
+      console.error(`  line [${f.line.join(' ')}] broken at "${missing}"`);
+      failures++;
+    }
   }
 }
 console.log(`Fixtures: ${fixtures.length - failures}/${fixtures.length} passed`);
@@ -89,7 +140,13 @@ if (!existsSync(CACHE_DIR)) {
     if (!sol || !stip || stip.startsWith('#0')) continue;
     const id = file.replace('.json', '');
     try {
-      current[id] = acceptedMoves(sol, stip).join('|');
+      // Signature = accepted first moves + a hash of the FULL tree shape, so
+      // regressions deeper in the tree (defenses, continuations, threat
+      // attachment — e.g. the old D142094 move-2 bug) also show up as diffs.
+      const color = firstMoveColor(stip);
+      const all = parseSolution(sol, color);
+      const accepted = filterKeyMoves(all, color).map(n => n.move).sort().join('|');
+      current[id] = `${accepted}::${treeHash(all)}`;
     } catch {
       current[id] = '<parse error>';
       parseErrors++;
@@ -108,7 +165,7 @@ if (!existsSync(CACHE_DIR)) {
       }
     }
     if (diffs.length > 0) {
-      console.error(`Golden: ${diffs.length}/${Object.keys(current).length} problems changed accepted first moves:`);
+      console.error(`Golden: ${diffs.length}/${Object.keys(current).length} problems changed accepted first moves or tree shape:`);
       for (const line of diffs.slice(0, 30)) console.error('  ' + line);
       if (diffs.length > 30) console.error(`  ... and ${diffs.length - 30} more`);
       console.error('If these changes are intentional, regenerate with: npx tsx scripts/parser-regression.ts --update');

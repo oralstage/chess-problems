@@ -117,5 +117,19 @@
       "Se6*f4+"
     ],
     "solution": "1.e2-e4+? f5*e4#?\n    1...f4*d3 ep.\n 1.Se6*f4+! Kd5*d4\n 2.Qa4-a1+  Rd2-b2\n 3.Rb7-d7   Kd4-e5\n 4.Sf8-g6+ {display-departure-rank} Ke5-d4\n 5.e2-e4! {Zugzwang} f5*e4#\n    1...Bd6*f4\n 2.Rb7-d7+  Bf4-d6\n 3.Qa4-a8+  Kd5*d4\n 4.e2-e3+   Kd4-d3\n 5.Qa8-e4+  f5*e4#"
+  },
+  {
+    "id": 142094,
+    "stipulation": "#3",
+    "note": "threat: label subtree \u2014 2.g8=Q after 1...Kxa2 must be walkable (old bug: threat children attached to the key, rejecting the promotion)",
+    "expected": [
+      "Bf7-a2"
+    ],
+    "line": [
+      "Ba2",
+      "Kxa2",
+      "g8=Q"
+    ],
+    "solution": "1.Bf7-a2 ! threat:\n          2.g7-g8=R zugzwang.\n              2...Ka1*a2 \n                  3.Rg8-a8 # \n      1...Ka1*a2 \n          2.g7-g8=Q + \n              2...Ka2-a3 \n                  3.Qg8-b3 # \n              2...Ka2-a1 \n                  3.Qg8-a8 #"
   }
 ]
