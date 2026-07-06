@@ -93,11 +93,19 @@ export async function fetchAllProblems(
   // Report first page immediately
   onProgress?.(allProblems, data.total, false);
 
-  // Fetch remaining pages (cached)
+  // Fetch remaining pages (cached). Transient 5xx happen under D1 load for
+  // these heavy 5000-row queries — retry with backoff, because a single
+  // failed page used to silently truncate the whole genre (empty theme
+  // cloud, wrong filter counts).
   let page = 1;
   while (allProblems.length < data.total) {
-    const pageRes = await cachedFetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=${page}&sortBy=difficulty&sortOrder=asc`);
-    if (!pageRes.ok) break;
+    let pageRes: Response | null = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      pageRes = await cachedFetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=${page}&sortBy=difficulty&sortOrder=asc`);
+      if (pageRes.ok) break;
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
+    if (!pageRes || !pageRes.ok) break;
     const pageData: { problems: ProblemMeta[]; total: number } = await pageRes.json();
     allProblems.push(...pageData.problems);
     const done = allProblems.length >= data.total || pageData.problems.length < PAGE_SIZE;

@@ -1796,18 +1796,35 @@ export default function App() {
     ? (bookmarks[currentGenre] || []).includes(String(problem.problem.id))
     : false;
 
-  // Auto-save progress when problem is completed (correct or with mistakes)
+  // One recording per solve (see the auto-save effect below). Reset when the
+  // user starts solving again (new problem or Try Again).
+  const recordedSolveRef = useRef<number | null>(null);
   useEffect(() => {
-    if (problem.status === 'correct' && problem.problem && currentGenre) {
+    if (problem.status === 'solving') recordedSolveRef.current = null;
+  }, [problem.status]);
+
+  // Auto-save progress when problem is completed (correct or with mistakes).
+  // Keyed by the problem's OWN genre, not currentGenre: when the user switches
+  // genre right after solving, currentGenre (a dependency) changes while the
+  // solved problem is still mounted (the new one loads asynchronously), so the
+  // effect re-fired and wrote a ghost entry under the NEW genre — inflating
+  // solved counts and polluting the history page. recordedSolveRef additionally
+  // makes the recording once-per-solve (it resets when status returns to
+  // 'solving'), which also stops duplicate problem_solved analytics.
+  useEffect(() => {
+    if (problem.status === 'correct' && problem.problem) {
+      if (recordedSolveRef.current === problem.problem.id) return;
+      recordedSolveRef.current = problem.problem.id;
+      const genre = problem.problem.genre as Genre;
       const pid = String(problem.problem.id);
       const perfect = problem.wrongMoveCount === 0 && !hintUsedRef.current;
       const newStatus = perfect ? 'solved' as const : 'failed' as const;
       setProgress(prev => {
-        const genreProgress = prev[currentGenre] || {};
+        const genreProgress = prev[genre] || {};
         if (genreProgress[pid] === 'solved') return prev; // don't downgrade
-        return { ...prev, [currentGenre]: { ...genreProgress, [pid]: newStatus } };
+        return { ...prev, [genre]: { ...genreProgress, [pid]: newStatus } };
       });
-      const tsKey = `${currentGenre}:${pid}`;
+      const tsKey = `${genre}:${pid}`;
       setTimestamps(prev => prev[tsKey] ? prev : { ...prev, [tsKey]: Date.now() });
       // Submit solve event
       const timeSpent = solveStartTimeRef.current ? Date.now() - solveStartTimeRef.current : undefined;
@@ -1819,13 +1836,13 @@ export default function App() {
         timeSpent,
         hintUsed: hintUsedRef.current,
         wrongMoveCount: problem.wrongMoveCount,
-        genre: currentGenre || undefined,
+        genre,
         stipulation: problem.problem?.stipulation,
         source: isRatedMode ? 'rated' : isDaily ? 'daily' : undefined,
       });
       trackEvent('problem_solved', problem.problem.id, {
-        genre: currentGenre,
-        category: currentCategory,
+        genre,
+        category: categoryFromGenreProblem(genre, problem.problem.moveCount),
         moveCount: problem.moveHistory.length,
         timeSpent,
       });
@@ -1862,7 +1879,7 @@ export default function App() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [problem.status, problem.problem, currentGenre, setProgress, setTimestamps, problem.moveHistory]);
+  }, [problem.status, problem.problem, setProgress, setTimestamps, problem.moveHistory]);
 
   // Fetch current problem rating in rated/review mode
   useEffect(() => {
@@ -2148,6 +2165,9 @@ export default function App() {
                   hideMoveFilter={categoryDef?.maxMoves != null && categoryDef.maxMoves > 0}
                   moveFilterMin={categoryDef?.maxMoves === 0 ? categoryDef.minMoves : undefined}
                   showStipulationFilter={currentGenre === 'retro' || currentGenre === 'study'}
+                  categoryMoves={categoryDef?.minMoves != null
+                    ? { min: categoryDef.minMoves, max: categoryDef.maxMoves ?? 0 }
+                    : null}
                 />
               )}
 

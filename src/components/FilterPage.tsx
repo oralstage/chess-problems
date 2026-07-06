@@ -24,6 +24,11 @@ interface FilterPageProps {
   hideMoveFilter?: boolean;
   moveFilterMin?: number;
   showStipulationFilter?: boolean;
+  /** Move-count constraint of the current category (e.g. twomover = {min:2, max:2};
+   *  max 0 = open-ended). Must match what the problem list applies, otherwise the
+   *  Done-button count disagrees with the actual list (e.g. "Done · 1 problems"
+   *  for a theme whose only problem is a #3 while browsing Twomovers). */
+  categoryMoves?: { min: number; max: number } | null;
 }
 
 function pieceCount(fen: string): number {
@@ -115,7 +120,7 @@ function DualRangeSlider({
   );
 }
 
-export function FilterPage({ allProblems, filters, onFiltersChange, onClose, genreStats, hideMoveFilter, moveFilterMin, showStipulationFilter }: FilterPageProps) {
+export function FilterPage({ allProblems, filters, onFiltersChange, onClose, genreStats, hideMoveFilter, moveFilterMin, showStipulationFilter, categoryMoves }: FilterPageProps) {
   const [themeSearch, setThemeSearch] = useState('');
 
   // All unique stipulations
@@ -249,6 +254,12 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
   // Compute matching count in real-time
   const matchCount = useMemo(() => {
     let result = allProblems;
+    // Category constraint first (same as the problem list's filteredProblems)
+    if (categoryMoves) {
+      result = result.filter(p => categoryMoves.max === 0
+        ? p.moveCount >= categoryMoves.min
+        : p.moveCount >= categoryMoves.min && p.moveCount <= categoryMoves.max);
+    }
     if (filters.minPieces > 0) result = result.filter(p => pieceCount(p.fen) >= filters.minPieces);
     if (filters.maxPieces > 0) result = result.filter(p => pieceCount(p.fen) <= filters.maxPieces);
     if (filters.minYear > 0) result = result.filter(p => (p.sourceYear || 0) >= filters.minYear);
@@ -261,7 +272,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
     }
     if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
     return result.length;
-  }, [allProblems, filters]);
+  }, [allProblems, filters, categoryMoves]);
 
   const filteredKeywords = themeSearch
     ? allKeywords.filter(kw => kw.toLowerCase().includes(themeSearch.toLowerCase()))
@@ -479,7 +490,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
             onClick={onClose}
             className="w-full py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
           >
-            {hasActiveFilters ? `Done · ${matchCount.toLocaleString()} problems` : 'Done'}
+            {hasActiveFilters ? `Done · ${matchCount.toLocaleString()} ${matchCount === 1 ? 'problem' : 'problems'}` : 'Done'}
           </button>
         </div>
       </div>
