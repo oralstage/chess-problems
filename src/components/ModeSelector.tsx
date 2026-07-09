@@ -395,6 +395,31 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             });
           }
         })}
+
+        {/* Sister site: fairy chess problems — rendered like another mode (bottom of the
+            list), but opens the fairy site externally. */}
+        <a
+          href="https://fairy-chess-problems.pages.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group block w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+        >
+          <div className="flex items-center justify-between">
+            <div className="min-w-0">
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
+                Fairy Chess
+              </h2>
+              <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
+                Grasshoppers, Circe, and other fairy variants
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0 ml-4">
+              <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+              </svg>
+            </div>
+          </div>
+        </a>
       </nav>
 
       {/* ── Footer ── */}
