@@ -195,7 +195,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
   }, [disabled, allowAnyColor, fen]);
 
   return (
-    <div className={`relative ${classicMode ? 'board-classic' : ''}`}>
+    <div className={`relative ${classicMode ? 'board-classic' : ''}`} style={{ touchAction: 'manipulation' }}>
       <Chessboard
         position={fen}
         onPieceDrop={handlePieceDrop}

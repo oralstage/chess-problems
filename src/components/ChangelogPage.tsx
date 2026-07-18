@@ -4,6 +4,23 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-07-18',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          'Snappier board — piece animations are faster and the opponent replies sooner after your move, so the board settles in about half the time it used to.',
+        ],
+      },
+      {
+        title: 'Fixes',
+        items: [
+          'On phones and tablets, tapping a piece and then its destination in quick succession sometimes did nothing — the browser mistook the fast second tap for a double-tap zoom. Quick tap-tap moves now register reliably.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-07-06',
     sections: [
       {
