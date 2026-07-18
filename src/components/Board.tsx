@@ -212,7 +212,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
         customArrows={arrows as never}
         arePiecesDraggable={!disabled}
         isDraggablePiece={isDraggablePiece}
-        animationDuration={400}
+        animationDuration={200}
       />
       {disabled && (
         <div className="absolute inset-0 cursor-not-allowed" />

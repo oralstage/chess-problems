@@ -51,12 +51,12 @@ interface ProblemState {
 }
 
 // Timing constants
-const AUTO_PLAY_DELAY = 500;
-const CORRECT_FLASH = 400;
+const AUTO_PLAY_DELAY = 250;
+const CORRECT_FLASH = 300;
 const WRONG_MOVE_PAUSE = 500;
 // Thematic-try demo: how long the user's try stays before the refutation is
 // played, and how long the refutation position is held before reverting
-const TRY_REFUTATION_DELAY = 700;
+const TRY_REFUTATION_DELAY = 400;
 const TRY_REFUTATION_HOLD = 1800;
 
 function getFirstMoveColor(genre: Genre, stipulation?: string): 'w' | 'b' {
