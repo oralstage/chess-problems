@@ -157,7 +157,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     } catch {
       setSelectedSquare(null);
     }
-  }, [disabled, selectedSquare, legalMoves, fen, onPieceDrop, allowAnyColor]);
+  }, [disabled, selectedSquare, legalMoves, fen, onPieceDrop, allowAnyColor, isPromotionMove]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string) => {
     setSelectedSquare(null);
@@ -204,6 +204,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
         onPromotionPieceSelect={handlePromotionPieceSelect}
         promotionToSquare={promotionMove?.to as never}
         showPromotionDialog={!!promotionMove}
+        promotionDialogVariant="modal"
         boardWidth={boardWidth}
         boardOrientation={orientation}
         customSquareStyles={customSquareStyles}

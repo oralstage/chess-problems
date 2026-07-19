@@ -2174,6 +2174,7 @@ export default function App() {
               <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 pb-1">
               <div className="flex justify-center -mx-4 sm:mx-0">
                 <Board
+                  key={`${problem.problem?.id ?? 'loading'}:${problem.initialFen}`}
                   fen={problem.fen}
                   onPieceDrop={handlePieceDrop}
                   lastMove={problem.lastMove}

@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-07-19',
+    sections: [
+      {
+        title: 'Fixes',
+        items: [
+          'Promotion choices now stay fully inside the board, making them easy to select even when a pawn promotes on the a- or h-file.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-07-18',
     sections: [
       {
