@@ -79,7 +79,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     // Fetch problem data from main DB
     for (const rated of ratedRow.results) {
-      const conditions: string[] = ['id = ?', 'genre = ?', 'move_count >= 2'];
+      const conditions: string[] = ['id = ?', 'genre = ?', 'move_count >= 2', "keywords NOT LIKE '%Shortmate%'"];
       const bindings: (string | number)[] = [rated.problem_id, 'direct'];
       addFairyExclusion(conditions, bindings);
 

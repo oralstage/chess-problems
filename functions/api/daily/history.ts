@@ -53,7 +53,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // ── 2. Compute only the missing dates (golden-ratio hash + OFFSET) ──
   const missing = dates.filter(d => !dateToId.has(d));
   if (missing.length > 0) {
-    const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'"];
+    const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'", "keywords NOT LIKE '%Shortmate%'"];
     const bindings: (string | number)[] = [];
     addFairyExclusion(conditions, bindings);
     const where = conditions.join(' AND ');

@@ -50,7 +50,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     problemId = cachedRow.problem_id;
   } else {
     // ── 3. Full calculation ──
-    const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'"];
+    const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'", "keywords NOT LIKE '%Shortmate%'"];
     const bindings: (string | number)[] = [];
     addFairyExclusion(conditions, bindings);
     const where = conditions.join(' AND ');

@@ -2316,6 +2316,11 @@ export default function App() {
                 );
               })()}
 
+              {(problem.status === 'correct' || problem.status === 'viewing') && problem.problem.keywords?.includes('Shortmate') && (
+                <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                  This is a known flawed problem ("shortmate"): mate is possible in fewer moves than the stipulation.
+                </p>
+              )}
 
               {(problem.status === 'correct' || problem.status === 'viewing') && (
                 <SolutionTree

@@ -7,6 +7,12 @@ const CHANGELOG = [
     date: '2026-07-19',
     sections: [
       {
+        title: 'Improved',
+        items: [
+          'Known flawed problems that can be mated sooner than stipulated ("shortmates") are now excluded from the Daily Problem and Rated Mode. When you meet one while browsing, a note explains the flaw after you solve it.',
+        ],
+      },
+      {
         title: 'Fixes',
         items: [
           'Moves to the first and eighth ranks now respond reliably: regular pieces no longer enter promotion handling, and pawn promotion is processed only once.',
