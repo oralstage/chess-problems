@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { PromotionPieceOption } from 'react-chessboard/dist/chessboard/types';
 import { Chess } from 'chess.js';
@@ -21,6 +21,14 @@ interface BoardProps {
 export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, classicMode }: BoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
+  // A drag promotion is first applied by handlePromotionPieceSelect. The
+  // chessboard library then calls onPieceDrop to finish its own dialog flow;
+  // remember that result so the move is not submitted a second time.
+  const completedDragPromotionRef = useRef<{
+    from: string;
+    to: string;
+    accepted: boolean;
+  } | null>(null);
   const boardWidth = width || 400;
 
   // Feedback icon position (absolute inside the board container)
@@ -161,6 +169,17 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string) => {
     setSelectedSquare(null);
+
+    const completedPromotion = completedDragPromotionRef.current;
+    if (
+      completedPromotion
+      && completedPromotion.from === source
+      && completedPromotion.to === target
+    ) {
+      completedDragPromotionRef.current = null;
+      return completedPromotion.accepted;
+    }
+
     if (isPromotionMove(source, target)) {
       setPromotionMove({ from: source, to: target });
       return true; // Accept visually, wait for promotion selection
@@ -173,8 +192,22 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     const tgt = to || promotionMove?.to;
     setPromotionMove(null);
     if (!piece || !src || !tgt) return false;
-    // piece is like 'wQ', 'wR', 'wB', 'wN'
-    return onPieceDrop(src, tgt, piece);
+
+    // piece is like 'wQ', 'wR', 'wB', 'wN'. Submit the move exactly once.
+    const accepted = onPieceDrop(src, tgt, piece);
+
+    if (promotionMove) {
+      // Click-to-move opened the dialog through our controlled props. Returning
+      // false prevents react-chessboard from trying a second move without a
+      // promoteFromSquare; the external FEN update displays accepted moves.
+      return false;
+    }
+
+    // Drag-to-move opened react-chessboard's internal dialog. Let it complete
+    // its cleanup, while handlePieceDrop consumes this result instead of
+    // reopening the promotion dialog or submitting the move again.
+    completedDragPromotionRef.current = { from: src, to: tgt, accepted };
+    return true;
   }, [onPieceDrop, promotionMove]);
 
   const handlePieceDragBegin = useCallback(() => {

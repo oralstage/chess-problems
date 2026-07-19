@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "fetch-data": "tsx scripts/fetch-problems.ts",
-    "test:parser": "tsx scripts/parser-regression.ts"
+    "test:parser": "tsx scripts/parser-regression.ts",
+    "test:move-input": "tsx scripts/move-input-regression.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",

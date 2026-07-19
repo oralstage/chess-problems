@@ -7,6 +7,7 @@ import { useStockfish } from './hooks/useStockfish';
 import { Header } from './components/Header';
 import { ModeSelector } from './components/ModeSelector';
 import { Board } from './components/Board';
+import { getPromotionForMove } from './services/moveInput';
 import { ProblemCard } from './components/ProblemCard';
 import { FeedbackPanel } from './components/FeedbackPanel';
 import { SolutionTree } from './components/SolutionTree';
@@ -1587,10 +1588,10 @@ export default function App() {
   }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, exitSpecialModes, categoryFromGenreProblem, setCurrentCategory]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
-    // Determine promotion: react-chessboard passes the selected piece (e.g. 'wN', 'wQ')
-    const isPromotion = target[1] === '8' || target[1] === '1';
-    const promoMap: Record<string, string> = { Q: 'q', R: 'r', B: 'b', N: 'n' };
-    const promoPiece = isPromotion ? (promoMap[piece[1]] || 'q') : undefined;
+    // react-chessboard passes the chosen piece (e.g. 'wN') after its
+    // promotion dialog. Only attach promotion data when the source is a pawn;
+    // ordinary pieces moving to the first/eighth rank are normal moves.
+    const promoPiece = getPromotionForMove(problem.fen, source, target, piece);
     return problem.tryMove(source, target, promoPiece);
   }, [problem]);
 
