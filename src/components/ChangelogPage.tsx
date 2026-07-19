@@ -9,7 +9,6 @@ const CHANGELOG = [
       {
         title: 'Fixes',
         items: [
-          'Promotion choices now stay fully inside the board, making them easy to select even when a pawn promotes on the a- or h-file.',
           'Moves to the first and eighth ranks now respond reliably: regular pieces no longer enter promotion handling, and pawn promotion is processed only once.',
         ],
       },

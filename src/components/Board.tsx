@@ -237,7 +237,6 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
         onPromotionPieceSelect={handlePromotionPieceSelect}
         promotionToSquare={promotionMove?.to as never}
         showPromotionDialog={!!promotionMove}
-        promotionDialogVariant="modal"
         boardWidth={boardWidth}
         boardOrientation={orientation}
         customSquareStyles={customSquareStyles}
