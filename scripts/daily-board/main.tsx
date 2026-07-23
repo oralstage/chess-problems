@@ -29,7 +29,7 @@ createRoot(document.getElementById('root')!).render(
           )}
         </div>
         {attribution && (
-          <div style={{ color: '#cbd5e1', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 19, fontWeight: 500, lineHeight: 1.25, marginTop: 6 }}>
+          <div style={{ color: '#e2e8f0', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 27, fontWeight: 650, lineHeight: 1.2, marginTop: 5 }}>
             {attribution}
           </div>
         )}
