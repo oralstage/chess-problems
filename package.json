@@ -10,6 +10,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "daily-post": "node scripts/generate-daily-post.mjs",
+    "daily-post:week": "node scripts/generate-weekly-daily-posts.mjs",
+    "daily-post:install": "node scripts/install-daily-post-launch-agent.mjs",
     "fetch-data": "tsx scripts/fetch-problems.ts",
     "test:parser": "tsx scripts/parser-regression.ts",
     "test:move-input": "tsx scripts/move-input-regression.ts"

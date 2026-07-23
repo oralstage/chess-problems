@@ -5,6 +5,7 @@ scripts/.cache/
 scripts/import-data*.sql
 *.local
 public/stockfish/
+daily-posts/
 src/data/*.json
 .claude/settings.local.json
 CLAUDE.md

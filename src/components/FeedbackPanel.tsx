@@ -138,11 +138,11 @@ export function FeedbackPanel({
         </div>
       )}
 
-      {/* Problem rating (review mode — no player rating shown) */}
+      {/* Problem rating after completion in non-rated modes */}
       {!classicBoard && playerRating == null && problemRating != null && (status === 'correct' || status === 'viewing') && (
         <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-gray-100 dark:bg-gray-800/60">
           <span className="text-xs text-gray-500 dark:text-gray-400">Problem rating:</span>
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{Math.round(problemRating)}</span>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">~{Math.round(problemRating / 50) * 50}</span>
         </div>
       )}
 

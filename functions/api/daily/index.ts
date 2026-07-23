@@ -28,8 +28,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
     const parsed = new Date(dateParam + 'T00:00:00Z');
     const isRealDate = !isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === dateParam;
-    // Daily problems started 2026-03-15; allow up to 2 days ahead for timezones
-    const withinWindow = dateParam >= '2026-03-01' && parsed.getTime() <= now.getTime() + 2 * 86_400_000;
+    // Allow a complete Monday–Sunday batch to be generated in advance.
+    const withinWindow = dateParam >= '2026-03-01' && parsed.getTime() <= now.getTime() + 7 * 86_400_000;
     if (isRealDate && withinWindow) dateKey = dateParam;
   }
 

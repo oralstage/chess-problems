@@ -602,6 +602,7 @@ export default function App() {
     } catch { /* corrupt cache — ignore */ }
     return null;
   });
+  const [dailyProblemRating, setDailyProblemRating] = useState<number | null>(null);
   useEffect(() => {
     fetchDaily().then(data => {
       setDailyProblem(metaToChessProblem(data, data.solutionText));
@@ -611,6 +612,16 @@ export default function App() {
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!dailyProblem) return;
+    let cancelled = false;
+    setDailyProblemRating(null);
+    fetchProblemRating(dailyProblem.id).then(({ rating }) => {
+      if (!cancelled && Number.isFinite(rating)) setDailyProblemRating(rating);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [dailyProblem?.id]);
 
   const dailySolved = useMemo(() => {
     if (!dailyProblem) return false;
@@ -1882,15 +1893,20 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.status, problem.problem, setProgress, setTimestamps, problem.moveHistory]);
 
-  // Fetch current problem rating in rated/review mode
+  // Fetch a live problem rating only when it is needed. Rated/review modes need
+  // it immediately; ordinary browsing waits until Info is opened or the solve
+  // ends, avoiding an extra request for every problem a user flips past.
   useEffect(() => {
-    if ((isRatedMode || isReviewMode) && problem.problem && lastProblemRating == null) {
+    const shouldFetch = isRatedMode || isReviewMode || showProblemInfo || problem.status !== 'solving';
+    if (shouldFetch && problem.problem && lastProblemRating == null) {
+      let cancelled = false;
       fetchProblemRating(problem.problem.id).then(res => {
-        setLastProblemRating(res.rating);
+        if (!cancelled) setLastProblemRating(res.rating);
       }).catch(() => {});
+      return () => { cancelled = true; };
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRatedMode, isReviewMode, problem.problem?.id]);
+  }, [isRatedMode, isReviewMode, showProblemInfo, problem.status, problem.problem?.id, lastProblemRating]);
 
   // Compute next review interval when problem completes in review mode
   useEffect(() => {
@@ -1971,6 +1987,7 @@ export default function App() {
                 progress={progress}
                 problemCounts={problemCounts}
                 dailyProblem={dailyProblem}
+                dailyProblemRating={dailyProblemRating}
                 onSolveDaily={handleSolveDaily}
                 dailySolved={dailySolved}
                 onShowChangelog={() => setShowChangelog(true)}
@@ -2292,7 +2309,7 @@ export default function App() {
                 ratingDelta={isRatedMode ? lastRatingDelta : undefined}
                 playerRating={isRatedMode ? playerRating.rating : undefined}
                 playerRd={isRatedMode ? playerRating.rd : undefined}
-                problemRating={(isRatedMode || isReviewMode) ? (lastProblemRating ?? (problem.problem ? getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount).rating : undefined)) : undefined}
+                problemRating={lastProblemRating ?? (problem.problem ? getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount).rating : undefined)}
                 problemRatingDelta={isRatedMode && problemRatingBefore != null && lastProblemRating != null ? Math.round(lastProblemRating - problemRatingBefore) : undefined}
                 hideHintUntilWrong={isRatedMode || isReviewMode}
                 wrongMoveCount={problem.wrongMoveCount}
@@ -2586,6 +2603,11 @@ export default function App() {
       {showProblemInfo && problem.problem && (() => {
         const p = problem.problem!;
         const pc = pieceCount(p.fen);
+        const infoRating = Math.round((lastProblemRating ?? getProblemInitialRating(
+          p.difficultyScore,
+          p.moveCount,
+          p.pieceCount,
+        ).rating) / 50) * 50;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/40" onClick={() => setShowProblemInfo(false)} />
@@ -2621,6 +2643,10 @@ export default function App() {
                 <div>
                   <span className="text-gray-400 dark:text-gray-500">Pieces: </span>
                   <span className="text-gray-900 dark:text-gray-100">{pc}</span>
+                </div>
+                <div>
+                  <span className="text-gray-400 dark:text-gray-500">Problem rating: </span>
+                  <span className="text-gray-900 dark:text-gray-100 font-semibold">~{infoRating}</span>
                 </div>
                 {p.award && (
                   <div>

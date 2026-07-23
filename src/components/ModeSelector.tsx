@@ -3,6 +3,7 @@ import { Chessboard } from 'react-chessboard';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CATEGORY_DEFS } from '../types';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
+import { difficultyToRating } from '../utils/glicko2';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
 const EXPANDED_GROUPS_KEY = 'cp-expanded-groups';
@@ -12,6 +13,7 @@ interface ModeSelectorProps {
   progress: Record<string, ProblemProgress>;
   problemCounts: Record<Category, number>;
   dailyProblem: ChessProblem | null;
+  dailyProblemRating?: number | null;
   onSolveDaily: () => void;
   dailySolved: boolean;
   onShowChangelog?: () => void;
@@ -52,7 +54,7 @@ const GROUP_BRIEFS: Record<string, string> = {
   'Helpmates': 'Both sides cooperate to achieve mate',
 };
 
-export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, playerRating, playerRd }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, dailyProblemRating, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, playerRating, playerRd }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -78,6 +80,14 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
   // Sum counts for a group
   const groupTotal = (categories: typeof CATEGORY_DEFS) =>
     categories.reduce((sum, c) => sum + (problemCounts[c.category] || 0), 0);
+
+  const displayedDailyRating = dailyProblem
+    ? Math.round((dailyProblemRating ?? difficultyToRating(
+        dailyProblem.difficultyScore,
+        dailyProblem.moveCount,
+        dailyProblem.pieceCount,
+      )) / 50) * 50
+    : null;
 
   // Sum solved for a group
   const groupSolved = (categories: typeof CATEGORY_DEFS) =>
@@ -195,10 +205,17 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                 />
               </div>
               <div className="flex items-center justify-between w-[320px] bg-gray-800 dark:bg-gray-800 px-3 py-2 rounded-b-lg">
-                <div className="flex items-center gap-1.5 text-sm text-white min-w-0">
-                  <span className="font-bold shrink-0">Mate in {dailyProblem.moveCount}</span>
-                  <span className="text-gray-400 shrink-0">·</span>
-                  <span className="text-gray-300 text-xs truncate">
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <div className="flex items-center gap-1.5 text-sm text-white min-w-0">
+                    <span className="font-bold shrink-0">Mate in {dailyProblem.moveCount}</span>
+                    {displayedDailyRating != null && (
+                      <>
+                        <span className="text-gray-500 shrink-0">·</span>
+                        <span className="text-gray-200 font-semibold shrink-0">Rating ~{displayedDailyRating}</span>
+                      </>
+                    )}
+                  </div>
+                  <span className="text-gray-400 text-xs truncate">
                     {dailyProblem.authors[0] || 'Unknown'}
                     {dailyProblem.sourceYear ? `, ${dailyProblem.sourceYear}` : ''}
                   </span>
@@ -410,7 +427,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                 Fairy Chess
               </h2>
               <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
-                Grasshoppers, Circe, and other fairy variants
+                Unusual pieces and rules to discover
               </p>
             </div>
             <div className="flex items-center gap-3 shrink-0 ml-4">
