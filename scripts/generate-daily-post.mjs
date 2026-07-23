@@ -43,6 +43,17 @@ function validateDate(value) {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
+function weeklyOutputDir(date) {
+  const day = new Date(`${date}T00:00:00`);
+  const monday = new Date(day);
+  monday.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  const monthDay = (value) => `${String(value.getMonth() + 1).padStart(2, '0')}-${String(value.getDate()).padStart(2, '0')}`;
+
+  return resolve(OUTPUT_ROOT, String(monday.getFullYear()), `${monthDay(monday)}_${monthDay(sunday)}`, date);
+}
+
 function difficultyToRating(difficultyScore, moveCount, pieceCount) {
   if (moveCount != null && pieceCount != null) {
     const solutionComponent = Math.min((difficultyScore - moveCount * 100 - pieceCount * 2) * 5, 50);
@@ -107,6 +118,7 @@ async function renderBoard(problem, problemRating, pngPath) {
       fen: problem.fen,
       mateIn: `MATE IN ${problem.moveCount}`,
       rating: String(Math.round(problemRating.rating / 50) * 50),
+      attribution: [problem.authors?.join(', '), problem.sourceYear].filter(Boolean).join(', '),
     });
     const renderUrl = `http://127.0.0.1:${address.port}/?${query}`;
 
@@ -137,7 +149,7 @@ async function main() {
   const problem = await response.json();
   const problemRating = await getProblemRating(problem);
   const link = `${SITE_URL}/#/daily/${date}`;
-  const outputDir = resolve(OUTPUT_ROOT, date);
+  const outputDir = weeklyOutputDir(date);
   const pngPath = resolve(outputDir, 'board.png');
   const oldSvgPath = resolve(outputDir, 'board.svg');
 

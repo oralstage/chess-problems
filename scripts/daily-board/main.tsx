@@ -5,6 +5,7 @@ import { Chessboard } from 'react-chessboard';
 const fen = new URLSearchParams(window.location.search).get('fen') || '8/8/8/8/8/8/8/8 w - - 0 1';
 const mateIn = new URLSearchParams(window.location.search).get('mateIn') || '';
 const rating = new URLSearchParams(window.location.search).get('rating') || '';
+const attribution = new URLSearchParams(window.location.search).get('attribution') || '';
 
 document.documentElement.style.cssText = 'margin:0;width:1080px;height:1080px;overflow:hidden;background:#111827';
 document.body.style.cssText = 'margin:0;width:1080px;height:1080px;overflow:hidden;background:#111827';
@@ -13,17 +14,24 @@ createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <div style={{ width: 1080, height: 1080, background: '#111827' }}>
       <header style={{
-        boxSizing: 'border-box', display: 'flex', alignItems: 'baseline', gap: 16,
+        boxSizing: 'border-box', display: 'flex', flexDirection: 'column', justifyContent: 'center',
         width: 1080, height: 120, padding: '0 42px',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
       }}>
-        <span style={{ color: '#ffffff', fontSize: 38, fontWeight: 850, letterSpacing: '0.03em' }}>
-          {mateIn}
-        </span>
-        {rating && (
-          <span style={{ color: '#86efac', fontSize: 23, fontWeight: 750, letterSpacing: '0.06em' }}>
-            RATING ~{rating}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 16 }}>
+          <span style={{ color: '#ffffff', fontSize: 38, fontWeight: 850, letterSpacing: '0.03em' }}>
+            {mateIn}
           </span>
+          {rating && (
+            <span style={{ color: '#86efac', fontSize: 23, fontWeight: 750, letterSpacing: '0.06em' }}>
+              RATING ~{rating}
+            </span>
+          )}
+        </div>
+        {attribution && (
+          <div style={{ color: '#cbd5e1', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 19, fontWeight: 500, lineHeight: 1.25, marginTop: 6 }}>
+            {attribution}
+          </div>
         )}
       </header>
       <div style={{ marginLeft: 60 }}>

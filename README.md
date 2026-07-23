@@ -36,8 +36,8 @@ for today's Daily Problem:
 npm run daily-post
 ```
 
-The files are written to `daily-posts/YYYY-MM-DD/`. The PNG uses the same pieces,
-colors, and coordinates as the web app, with `Mate in N` and approximate rating in its header. To generate assets for a
+The files are written to `daily-posts/YYYY/MM-DD_MM-DD/YYYY-MM-DD/`; the middle directory is the Monday–Sunday week. The PNG uses the same pieces,
+colors, and coordinates as the web app, with `Mate in N`, approximate rating, and composer/year in its header. To generate assets for a
 specific date, append the date after `--`:
 
 ```bash
