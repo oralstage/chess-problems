@@ -25,6 +25,8 @@ const PRINT_OPTIONS: { value: PrintMode; label: string; hint: string }[] = [
   { value: 'off', label: 'Normal', hint: 'Green board' },
   { value: 'bw', label: 'Black & white', hint: 'Hatched squares' },
   { value: 'color', label: 'Colour', hint: 'For the BWRY e-paper sign' },
+  { value: 'red', label: 'Red', hint: 'Solid #FF0000 dark squares' },
+  { value: 'yellow', label: 'Yellow', hint: 'Solid #FFFF00 dark squares' },
 ];
 
 function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetPrintMode: (mode: PrintMode) => void }) {

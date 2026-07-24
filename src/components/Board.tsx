@@ -16,8 +16,16 @@ interface BoardProps {
   hintSquares?: string[] | null; // [fromSquare, ...toSquares]
   arrows?: [string, string, string?][] | null;
   allowAnyColor?: boolean; // Allow moving pieces of either color (retro problems)
-  printMode?: PrintMode; // Print / e-paper diagram style ('bw' = hatched mono, 'color' = flat wood tones)
+  printMode?: PrintMode; // Print / e-paper diagram style — see PRINT_MODE_CLASS
 }
+
+const PRINT_MODE_CLASS: Record<PrintMode, string> = {
+  off: '',
+  bw: 'board-print-bw',          // hatched mono
+  color: 'board-print-color',    // flat wood tones
+  red: 'board-print-red',        // solid red dark squares
+  yellow: 'board-print-yellow',  // solid yellow dark squares
+};
 
 export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, printMode = 'off' }: BoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
@@ -229,7 +237,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
   }, [disabled, allowAnyColor, fen]);
 
   return (
-    <div className={`relative ${printMode === 'bw' ? 'board-print-bw' : printMode === 'color' ? 'board-print-color' : ''}`} style={{ touchAction: 'manipulation' }}>
+    <div className={`relative ${PRINT_MODE_CLASS[printMode]}`} style={{ touchAction: 'manipulation' }}>
       <Chessboard
         position={fen}
         onPieceDrop={handlePieceDrop}

@@ -109,14 +109,34 @@ body::before {
   background-image: none !important;
 }
 
-/* Coordinate labels: black in both modes, outlined only over the hatch */
+/* Single-ink test boards: pure primaries so the sign's colour conversion has
+   nothing to interpret. White light squares, coloured dark squares. */
+.board-print-red [data-square-color="black"] {
+  background-color: #ff0000 !important;
+  background-image: none !important;
+}
+.board-print-yellow [data-square-color="black"] {
+  background-color: #ffff00 !important;
+  background-image: none !important;
+}
+.board-print-red [data-square-color="white"],
+.board-print-yellow [data-square-color="white"] {
+  background-color: white !important;
+  background-image: none !important;
+}
+
+/* Coordinate labels: black everywhere, outlined only over the hatch */
 .board-print-bw div[style*="z-index: 3"],
 .board-print-bw div[style*="zIndex"] {
   color: black !important;
   text-shadow: 1px 0 0 white, -1px 0 0 white, 0 1px 0 white, 0 -1px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white !important;
 }
 .board-print-color div[style*="z-index: 3"],
-.board-print-color div[style*="zIndex"] {
+.board-print-color div[style*="zIndex"],
+.board-print-red div[style*="z-index: 3"],
+.board-print-red div[style*="zIndex"],
+.board-print-yellow div[style*="z-index: 3"],
+.board-print-yellow div[style*="zIndex"] {
   color: black !important;
   text-shadow: none !important;
 }
