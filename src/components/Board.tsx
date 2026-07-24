@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { PromotionPieceOption } from 'react-chessboard/dist/chessboard/types';
 import { Chess } from 'chess.js';
+import type { PrintMode } from '../types';
 
 interface BoardProps {
   fen: string;
@@ -15,10 +16,10 @@ interface BoardProps {
   hintSquares?: string[] | null; // [fromSquare, ...toSquares]
   arrows?: [string, string, string?][] | null;
   allowAnyColor?: boolean; // Allow moving pieces of either color (retro problems)
-  classicMode?: boolean; // Classic B&W diagram style (hatched dark squares)
+  printMode?: PrintMode; // Print / e-paper diagram style ('bw' = hatched mono, 'color' = flat wood tones)
 }
 
-export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, classicMode }: BoardProps) {
+export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, printMode = 'off' }: BoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
   // A drag promotion is first applied by handlePromotionPieceSelect. The
@@ -228,7 +229,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
   }, [disabled, allowAnyColor, fen]);
 
   return (
-    <div className={`relative ${classicMode ? 'board-classic' : ''}`} style={{ touchAction: 'manipulation' }}>
+    <div className={`relative ${printMode === 'bw' ? 'board-print-bw' : printMode === 'color' ? 'board-print-color' : ''}`} style={{ touchAction: 'manipulation' }}>
       <Chessboard
         position={fen}
         onPieceDrop={handlePieceDrop}

@@ -37,7 +37,7 @@ import {
   saveRatedProblem as saveRatedProblemSlot,
   clearAllRatedProblems,
 } from './utils/ratedDifficulty';
-import type { AppView, Genre, Category, ProblemProgress, ChessProblem } from './types';
+import type { AppView, Genre, Category, ProblemProgress, ChessProblem, PrintMode } from './types';
 import { CATEGORY_DEFS } from './types';
 
 /**
@@ -397,7 +397,7 @@ export default function App() {
   const windowWidth = useWindowWidth();
   const boardWidth = Math.min(windowWidth < 480 ? windowWidth : windowWidth - 32, 480);
 
-  const [classicBoard, setClassicBoard] = useState(false);
+  const [printMode, setPrintMode] = useState<PrintMode>('off');
   const stockfish = useStockfish();
   const stockfishRef = useRef(stockfish);
   stockfishRef.current = stockfish;
@@ -1510,7 +1510,7 @@ export default function App() {
     setIsDaily(false);
     setIsRatedMode(false);
     setIsReviewMode(false);
-    setClassicBoard(false);
+    setPrintMode('off');
     setCurrentGenre(null);
     setCurrentCategory(null);
     updateHash(null, null, false);
@@ -1975,8 +1975,8 @@ export default function App() {
           activeFilterCount={(isRatedMode || isReviewMode) ? 0 : activeFilterCount}
           ratedMode={isRatedMode}
           reviewMode={isReviewMode}
-          classicBoard={classicBoard}
-          onToggleClassicBoard={view === 'solving' ? () => setClassicBoard(v => !v) : undefined}
+          printMode={printMode}
+          onSetPrintMode={view === 'solving' ? setPrintMode : undefined}
         />
 
         <main className="px-4 pb-8">
@@ -2204,7 +2204,7 @@ export default function App() {
                   hintSquares={problem.hintSquares}
                   arrows={boardArrows}
                   allowAnyColor={currentGenre === 'retro'}
-                  classicMode={classicBoard}
+                  printMode={printMode}
                 />
               </div>
 
@@ -2314,7 +2314,7 @@ export default function App() {
                 hideHintUntilWrong={isRatedMode || isReviewMode}
                 wrongMoveCount={problem.wrongMoveCount}
                 reviewNextDays={isReviewMode && reviewNextInterval != null ? reviewNextInterval : undefined}
-                classicBoard={classicBoard}
+                classicBoard={printMode !== 'off'}
                 ratedDifficulty={isRatedMode ? ratedDifficulty : undefined}
                 onChangeDifficulty={isRatedMode ? handleChangeDifficulty : undefined}
               />

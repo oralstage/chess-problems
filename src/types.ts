@@ -71,6 +71,9 @@ export interface ChessProblem {
 
 export type ProblemStatus = 'solved' | 'skipped' | 'in-progress' | 'failed';
 
+/** Board rendering for print / e-paper screenshots. 'color' targets the BWRY sign. */
+export type PrintMode = 'off' | 'bw' | 'color';
+
 export interface ProblemProgress {
   [problemId: string]: ProblemStatus;
 }
