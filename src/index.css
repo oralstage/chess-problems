@@ -93,13 +93,17 @@ body::before {
   background-color: white !important;
   background-image: none !important;
 }
-/* Pieces need a white halo to stay readable on top of the hatch */
+/* Pieces need a white halo to stay readable on top of the hatch, and on solid
+   black squares black pieces carry no contrast at all without it */
 .board-print-bw [data-piece] > svg,
-.board-print-bw [data-piece] > img {
+.board-print-bw [data-piece] > img,
+.board-print-black [data-piece] > svg,
+.board-print-black [data-piece] > img {
   filter: drop-shadow(1px 0 0 white) drop-shadow(-1px 0 0 white) drop-shadow(0 1px 0 white) drop-shadow(0 -1px 0 white) drop-shadow(1px 1px 0 white) drop-shadow(-1px -1px 0 white) drop-shadow(1px -1px 0 white) drop-shadow(-1px 1px 0 white) !important;
 }
 
-/* Colour (BWRY panel): flat wood tones, no halo needed */
+/* Wood palettes: flat fills, no halo needed. Sheesham/rosewood are sampled from
+   photos of real boards — darker and more saturated than the original tan. */
 .board-print-color [data-square-color="black"] {
   background-color: rgb(174, 138, 104) !important;
   background-image: none !important;
@@ -108,9 +112,29 @@ body::before {
   background-color: rgb(237, 218, 185) !important;
   background-image: none !important;
 }
+.board-print-sheesham [data-square-color="black"] {
+  background-color: #96643e !important;
+  background-image: none !important;
+}
+.board-print-sheesham [data-square-color="white"] {
+  background-color: #ebdca8 !important;
+  background-image: none !important;
+}
+.board-print-rosewood [data-square-color="black"] {
+  background-color: #a05f46 !important;
+  background-image: none !important;
+}
+.board-print-rosewood [data-square-color="white"] {
+  background-color: #ebdeb2 !important;
+  background-image: none !important;
+}
 
 /* Single-ink test boards: pure primaries so the sign's colour conversion has
    nothing to interpret. White light squares, coloured dark squares. */
+.board-print-black [data-square-color="black"] {
+  background-color: #000000 !important;
+  background-image: none !important;
+}
 .board-print-red [data-square-color="black"] {
   background-color: #ff0000 !important;
   background-image: none !important;
@@ -119,20 +143,28 @@ body::before {
   background-color: #ffff00 !important;
   background-image: none !important;
 }
+.board-print-black [data-square-color="white"],
 .board-print-red [data-square-color="white"],
 .board-print-yellow [data-square-color="white"] {
   background-color: white !important;
   background-image: none !important;
 }
 
-/* Coordinate labels: black everywhere, outlined only over the hatch */
+/* Coordinate labels: black everywhere, outlined where the square underneath can
+   be dark (hatch, solid black) */
 .board-print-bw div[style*="z-index: 3"],
-.board-print-bw div[style*="zIndex"] {
+.board-print-bw div[style*="zIndex"],
+.board-print-black div[style*="z-index: 3"],
+.board-print-black div[style*="zIndex"] {
   color: black !important;
   text-shadow: 1px 0 0 white, -1px 0 0 white, 0 1px 0 white, 0 -1px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white !important;
 }
 .board-print-color div[style*="z-index: 3"],
 .board-print-color div[style*="zIndex"],
+.board-print-sheesham div[style*="z-index: 3"],
+.board-print-sheesham div[style*="zIndex"],
+.board-print-rosewood div[style*="z-index: 3"],
+.board-print-rosewood div[style*="zIndex"],
 .board-print-red div[style*="z-index: 3"],
 .board-print-red div[style*="zIndex"],
 .board-print-yellow div[style*="z-index: 3"],

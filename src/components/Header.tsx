@@ -21,10 +21,15 @@ interface HeaderProps {
   hasMenuBadge?: boolean;
 }
 
-const PRINT_OPTIONS: { value: PrintMode; label: string; hint: string }[] = [
+// `startsGroup` draws a separator above the entry — woods and single-ink test
+// boards are different kinds of thing and the list is long enough to say so.
+const PRINT_OPTIONS: { value: PrintMode; label: string; hint: string; startsGroup?: boolean }[] = [
   { value: 'off', label: 'Normal', hint: 'Green board' },
   { value: 'bw', label: 'Black & white', hint: 'Hatched squares' },
-  { value: 'color', label: 'Colour', hint: 'For the BWRY e-paper sign' },
+  { value: 'color', label: 'Wood', hint: 'Light tan', startsGroup: true },
+  { value: 'sheesham', label: 'Sheesham', hint: 'Darker, warmer' },
+  { value: 'rosewood', label: 'Rosewood', hint: 'Darker, redder' },
+  { value: 'black', label: 'Black', hint: 'Solid #000000 dark squares', startsGroup: true },
   { value: 'red', label: 'Red', hint: 'Solid #FF0000 dark squares' },
   { value: 'yellow', label: 'Yellow', hint: 'Solid #FFFF00 dark squares' },
 ];
@@ -64,6 +69,8 @@ function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetP
               key={opt.value}
               onClick={() => { onSetPrintMode(opt.value); setOpen(false); }}
               className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                opt.startsGroup ? 'mt-1 border-t border-gray-200 dark:border-gray-700 pt-2' : ''
+              } ${
                 printMode === opt.value
                   ? 'text-gray-900 dark:text-white font-medium'
                   : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
