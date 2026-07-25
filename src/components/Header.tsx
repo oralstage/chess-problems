@@ -21,17 +21,16 @@ interface HeaderProps {
   hasMenuBadge?: boolean;
 }
 
-// `startsGroup` draws a separator above the entry — woods and single-ink test
-// boards are different kinds of thing and the list is long enough to say so.
+// Grouped by target device — the hatched mode is for the thermal printer, not
+// the sign, and mixing the two is how it got used on the wrong one.
+// `startsGroup` draws a separator above the entry.
 const PRINT_OPTIONS: { value: PrintMode; label: string; hint: string; startsGroup?: boolean }[] = [
   { value: 'off', label: 'Normal', hint: 'Green board' },
-  { value: 'bw', label: 'Black & white', hint: 'Hatched squares' },
-  { value: 'color', label: 'Wood', hint: 'Light tan', startsGroup: true },
-  { value: 'sheesham', label: 'Sheesham', hint: 'Darker, warmer' },
-  { value: 'rosewood', label: 'Rosewood', hint: 'Darker, redder' },
-  { value: 'black', label: 'Black', hint: 'Solid #000000 dark squares', startsGroup: true },
-  { value: 'red', label: 'Red', hint: 'Solid #FF0000 dark squares' },
-  { value: 'yellow', label: 'Yellow', hint: 'Solid #FFFF00 dark squares' },
+  { value: 'wood', label: 'Wood', hint: 'Sign dithers it', startsGroup: true },
+  { value: 'black', label: 'Black', hint: 'Solid #000000' },
+  { value: 'red', label: 'Red', hint: 'Solid #FF0000' },
+  { value: 'yellow', label: 'Yellow', hint: 'Solid #FFFF00' },
+  { value: 'bw', label: 'Thermal printer', hint: 'Hatched black & white', startsGroup: true },
 ];
 
 function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetPrintMode: (mode: PrintMode) => void }) {

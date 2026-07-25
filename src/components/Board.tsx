@@ -21,13 +21,11 @@ interface BoardProps {
 
 const PRINT_MODE_CLASS: Record<PrintMode, string> = {
   off: '',
-  bw: 'board-print-bw',          // hatched mono
-  color: 'board-print-color',        // flat wood tones
-  sheesham: 'board-print-sheesham',  // darker, warmer wood
-  rosewood: 'board-print-rosewood',  // darker, redder wood
-  black: 'board-print-black',        // solid black dark squares
+  wood: 'board-print-wood',      // flat wood tone
+  black: 'board-print-black',    // solid black dark squares
   red: 'board-print-red',        // solid red dark squares
   yellow: 'board-print-yellow',  // solid yellow dark squares
+  bw: 'board-print-bw',          // hatched mono, for the thermal printer
 };
 
 export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, printMode = 'off' }: BoardProps) {

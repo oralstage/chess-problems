@@ -79,11 +79,16 @@ body::before {
   animation: stipulation-toast 2.5s ease-in-out forwards;
 }
 
-/* Print / e-paper diagram modes (printer icon in Header).
-   Screenshots go to the ez sign, which does its own palette conversion on the
-   device, so nothing here needs dithering — flat fills are enough. */
+/* Print diagram modes (printer icon in Header), grouped by target device.
 
-/* Black & white: hatched dark squares, for mono output */
+   ez sign (e-paper): the device does its own white/black/red/yellow conversion
+   from a screenshot, so nothing here is dithered by hand. Observed on the panel:
+   pure inks come out as clean flat fills, anything in between gets a coarse
+   directional line dither (the wood tone turns into a maze pattern).
+
+   Thermal printer: mono only, hence the hatched mode below. */
+
+/* Thermal printer: hatched dark squares */
 .board-print-bw [data-square-color="black"] {
   background-color: white !important;
   background-image: url("data:image/svg+xml,%3Csvg width='10' height='10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M-2,2 l4,-4 M0,10 l10,-10 M8,12 l4,-4' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E") !important;
@@ -102,35 +107,20 @@ body::before {
   filter: drop-shadow(1px 0 0 white) drop-shadow(-1px 0 0 white) drop-shadow(0 1px 0 white) drop-shadow(0 -1px 0 white) drop-shadow(1px 1px 0 white) drop-shadow(-1px -1px 0 white) drop-shadow(1px -1px 0 white) drop-shadow(-1px 1px 0 white) !important;
 }
 
-/* Wood palettes: flat fills, no halo needed. Sheesham/rosewood are sampled from
-   photos of real boards — darker and more saturated than the original tan. */
-.board-print-color [data-square-color="black"] {
+/* Wood: the sign can't hold this tone with its four inks and dithers it into a
+   line texture — kept because that texture is the only wood-looking option, not
+   because it renders cleanly. Darker, photo-sampled browns (sheesham, rosewood)
+   were tried on the panel and came out worse, so this lighter tan is the one. */
+.board-print-wood [data-square-color="black"] {
   background-color: rgb(174, 138, 104) !important;
   background-image: none !important;
 }
-.board-print-color [data-square-color="white"] {
+.board-print-wood [data-square-color="white"] {
   background-color: rgb(237, 218, 185) !important;
   background-image: none !important;
 }
-.board-print-sheesham [data-square-color="black"] {
-  background-color: #96643e !important;
-  background-image: none !important;
-}
-.board-print-sheesham [data-square-color="white"] {
-  background-color: #ebdca8 !important;
-  background-image: none !important;
-}
-.board-print-rosewood [data-square-color="black"] {
-  background-color: #a05f46 !important;
-  background-image: none !important;
-}
-.board-print-rosewood [data-square-color="white"] {
-  background-color: #ebdeb2 !important;
-  background-image: none !important;
-}
-
-/* Single-ink test boards: pure primaries so the sign's colour conversion has
-   nothing to interpret. White light squares, coloured dark squares. */
+/* Ink boards: white light squares, coloured dark squares. Each one lands on an
+   ink exactly, so the sign reproduces them flat with no dither at all. */
 .board-print-black [data-square-color="black"] {
   background-color: #000000 !important;
   background-image: none !important;
@@ -159,12 +149,8 @@ body::before {
   color: black !important;
   text-shadow: 1px 0 0 white, -1px 0 0 white, 0 1px 0 white, 0 -1px 0 white, 1px 1px 0 white, -1px -1px 0 white, 1px -1px 0 white, -1px 1px 0 white !important;
 }
-.board-print-color div[style*="z-index: 3"],
-.board-print-color div[style*="zIndex"],
-.board-print-sheesham div[style*="z-index: 3"],
-.board-print-sheesham div[style*="zIndex"],
-.board-print-rosewood div[style*="z-index: 3"],
-.board-print-rosewood div[style*="zIndex"],
+.board-print-wood div[style*="z-index: 3"],
+.board-print-wood div[style*="zIndex"],
 .board-print-red div[style*="z-index: 3"],
 .board-print-red div[style*="zIndex"],
 .board-print-yellow div[style*="z-index: 3"],

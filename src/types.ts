@@ -73,9 +73,9 @@ export type ProblemStatus = 'solved' | 'skipped' | 'in-progress' | 'failed';
 
 /** Board rendering for print / e-paper screenshots. Everything but 'off'/'bw' targets the BWRY sign. */
 export type PrintMode =
-  | 'off' | 'bw'                              // screen / mono
-  | 'color' | 'sheesham' | 'rosewood'         // wood palettes
-  | 'black' | 'red' | 'yellow';               // single-ink test boards
+  | 'off'                                   // screen
+  | 'wood' | 'black' | 'red' | 'yellow'     // e-paper sign
+  | 'bw';                                   // thermal printer
 
 export interface ProblemProgress {
   [problemId: string]: ProblemStatus;
