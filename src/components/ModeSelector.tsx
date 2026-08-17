@@ -454,9 +454,10 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             href="https://ushiyutvj.pages.dev"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 underline transition-colors"
+            className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
           >
-            Made by Ushiyutvj
+            <img src="/ushiyutvj.jpg" width={22} height={22} alt="" loading="lazy" className="w-[22px] h-[22px] rounded-full" />
+            <span className="underline underline-offset-[3px]">Made by Ushiyutvj</span>
           </a>
         </div>
         <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-3">
