@@ -451,33 +451,12 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             </button>
           )}
           <a
-            href="https://forms.gle/Bu6jtxpuQoc9eExq6"
+            href="https://ushiyutvj.pages.dev"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 underline transition-colors"
           >
-            Feedback
-          </a>
-          <a
-            href="https://github.com/oralstage/chess-problems/issues"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 underline transition-colors"
-          >
-            Feedback (GitHub)
-          </a>
-        </div>
-        <div className="flex justify-center items-center gap-3 mt-2">
-          <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-[#779952] hover:bg-[#6b8a49] text-white text-xs font-medium rounded-full transition-colors"
-          >
-            ☕ Support on Ko-fi
-          </a>
-          <a href="https://x.com/k_capa50367" target="_blank" rel="noopener noreferrer"
-            className="inline-flex items-center justify-center w-8 h-8 bg-gray-700 hover:bg-gray-600 text-white rounded-full transition-colors"
-            title="Follow on X"
-          >
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+            Made by Ushiyutvj
           </a>
         </div>
         <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-3">
