@@ -30,7 +30,42 @@ const SAGE = 'var(--surface-2)';
 const GREEN = 'var(--board-d)';
 const RED = 'var(--bad)';
 
-export function CategoryMark({ name }: { name: string }) {
+/* The stipulation is drawn into the mark itself, bottom-right, on a plate in
+   its move-count colour so it matches the badge the problem page shows. */
+function Stip({ text }: { text: string }) {
+  const w = 6.2 * text.length + 8;
+  return (
+    <g>
+      <rect x={44 - w} y={30} width={w} height={13} rx={4} fill="var(--stip-bg, var(--surface))" strokeWidth={2} />
+      <text
+        x={44 - w / 2}
+        y={39.6}
+        textAnchor="middle"
+        fill="var(--ink)"
+        stroke="none"
+        fontSize="10"
+        fontWeight="800"
+        fontFamily="'IBM Plex Mono', ui-monospace, monospace"
+      >
+        {text}
+      </text>
+    </g>
+  );
+}
+
+export function CategoryMark({ name, stip }: { name: string; stip?: string }) {
+  const body = markBody(name);
+  if (!body) return null;
+  if (!stip) return body;
+  return (
+    <svg {...box}>
+      {body.props.children}
+      <Stip text={stip} />
+    </svg>
+  );
+}
+
+function markBody(name: string) {
   switch (name) {
     /* Straight at it, first time. The arrow is a real arrow — head, shaft and
        a solid fletch — not a UI chevron. Drawn horizontal so head, shaft and

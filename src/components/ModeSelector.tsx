@@ -1,13 +1,10 @@
-import { useState, useCallback } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
-import { CATEGORY_DEFS } from '../types';
-import { MarkSlot } from './CategoryMark';
+import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
 import { difficultyToRating } from '../utils/glicko2';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
-const EXPANDED_GROUPS_KEY = 'cp-expanded-groups';
 
 interface ModeSelectorProps {
   onSelectMode: (category: Category) => void;
@@ -27,60 +24,35 @@ interface ModeSelectorProps {
 }
 
 // Group categories by their group label
-function groupCategories() {
-  const groups: { label: string | null; categories: typeof CATEGORY_DEFS }[] = [];
-  let currentGroup: string | null = null;
-  let currentItems: typeof CATEGORY_DEFS = [];
 
-  for (const def of CATEGORY_DEFS) {
-    if (def.group !== currentGroup) {
-      if (currentItems.length > 0) {
-        groups.push({ label: currentGroup, categories: currentItems });
-      }
-      currentGroup = def.group || null;
-      currentItems = [];
-    }
-    currentItems.push(def);
-  }
-  if (currentItems.length > 0) {
-    groups.push({ label: currentGroup, categories: currentItems });
-  }
-  return groups;
-}
 
-const GROUPS = groupCategories();
+/* One card, used by every tile on this page. */
+const CARD =
+  'nb-tile nb-shadow-room-sm shadow-[4px_4px_0_var(--ink)] hover:shadow-[4px_4px_0_var(--ink)] ' +
+  'flex flex-col items-center gap-1.5 px-2 pt-3 pb-2.5 text-center';
+const CARD_TITLE = 'block text-sm sm:text-base font-extrabold leading-tight text-[var(--ink)]';
 
-const GROUP_BRIEFS: Record<string, string> = {
-  'Direct Mates': 'White to move and force checkmate',
-  'Helpmates': 'Both sides cooperate to achieve mate',
-};
+/* Flat list, in reading order. The name carries the genre — "Twomovers" on
+   its own does not say whether it is a direct mate or a helpmate — and the
+   stipulation rides on the drawing, in the same move-count colour the badge
+   uses on the problem page. */
+const FREE_PLAY: { category: Category; title: string; mark: string; stip?: string; stipVar?: string; tint: string }[] = [
+  { category: 'twomover', title: 'Direct mate twomovers', mark: 'Direct Mates', stip: '#2', stipVar: '--mc-2', tint: '--card-direct' },
+  { category: 'threemover', title: 'Direct mate threemovers', mark: 'Direct Mates', stip: '#3', stipVar: '--mc-3', tint: '--card-direct' },
+  { category: 'moremover', title: 'Direct mate moremovers', mark: 'Direct Mates', stip: '#4+', stipVar: '--mc-4', tint: '--card-direct' },
+  { category: 'help2', title: 'Helpmate in 2', mark: 'Helpmates', stip: 'h#2', stipVar: '--mc-2', tint: '--card-help' },
+  { category: 'help3', title: 'Helpmate in 3', mark: 'Helpmates', stip: 'h#3', stipVar: '--mc-3', tint: '--card-help' },
+  { category: 'helpmore', title: 'Helpmate in 4+', mark: 'Helpmates', stip: 'h#4+', stipVar: '--mc-4', tint: '--card-help' },
+  { category: 'self', title: 'Selfmates', mark: 'Selfmates', tint: '--card-self' },
+  { category: 'study', title: 'Studies', mark: 'Studies', tint: '--card-study' },
+  { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
+];
 
-export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProblem, dailyProblemRating, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, playerRating, playerRd }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0 }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
   // }, []);
-
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => {
-    try {
-      const stored = localStorage.getItem(EXPANDED_GROUPS_KEY);
-      return stored ? new Set(JSON.parse(stored)) : new Set();
-    } catch { return new Set(); }
-  });
-
-  const toggleGroup = useCallback((label: string) => {
-    setExpandedGroups(prev => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      try { localStorage.setItem(EXPANDED_GROUPS_KEY, JSON.stringify([...next])); } catch {}
-      return next;
-    });
-  }, []);
-
-  // Sum counts for a group
-  const groupTotal = (categories: typeof CATEGORY_DEFS) =>
-    categories.reduce((sum, c) => sum + (problemCounts[c.category] || 0), 0);
 
   const displayedDailyRating = dailyProblem
     ? Math.round((dailyProblemRating ?? difficultyToRating(
@@ -90,12 +62,6 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
       )) / 50) * 50
     : null;
 
-  // Sum solved for a group
-  const groupSolved = (categories: typeof CATEGORY_DEFS) =>
-    categories.reduce((sum, c) => {
-      const p = progress[c.category] || {};
-      return sum + Object.values(p).filter(s => s === 'solved').length;
-    }, 0);
 
   return (
     <div className="min-h-[80vh] flex flex-col justify-center py-12">
@@ -234,8 +200,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           </svg>
         </a>
       </div>
-
-      {/* ── Rated Play section ── */}
+      {/* ── Rated Play ── */}
       {onStartRated && (
         <div className="px-4 mb-6">
           <div className="nb-section-head">
@@ -248,8 +213,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
               </svg>
             </span>
           </div>
-          <div className="space-y-2">
-            {/* Rated Mode */}
+          <div className="grid grid-cols-2 gap-2.5">
             <button
               onClick={() => {
                 try {
@@ -265,59 +229,26 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                 } catch {}
                 onStartRated();
               }}
-              className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2"
+              className={CARD}
             >
-              <div className="flex items-center justify-between">
-                <MarkSlot name="Rated Mode" />
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Rated Mode</h3>
-                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">Solve problems matched to your level</p>
-                </div>
-                {playerRating != null && (
-                  <div className="text-right shrink-0 ml-4">
-                    <div className="text-xl font-bold text-gray-700 dark:text-gray-200">
-                      {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(playerRating)}
-                    </div>
-                    <div className="text-xs text-gray-400 dark:text-gray-500">
-                      {(playerRd ?? 350) > 200 ? 'Provisional' : 'Rating'}
-                    </div>
-                  </div>
-                )}
-              </div>
+              <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Rated Mode" /></span>
+              <span className={CARD_TITLE}>Rated Mode</span>
             </button>
 
-            {/* Review Mode */}
             <button
               onClick={onStartReview}
               disabled={reviewDueCount === 0}
-              className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2 disabled:opacity-40 disabled:cursor-not-allowed"
+              className={`${CARD} disabled:opacity-40 disabled:cursor-not-allowed`}
             >
-              <div className="flex items-center justify-between">
-                <MarkSlot name="Review Mode" />
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Review Mode</h3>
-                  <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
-                    {reviewTotalCount === 0
-                      ? 'Play Rated Mode to build your review queue'
-                      : reviewDueCount === 0
-                        ? 'Reinforce Rated Mode problems · none due today'
-                        : 'Reinforce Rated Mode problems · spaced repetition'}
-                  </p>
-                </div>
-                {reviewTotalCount > 0 && (
-                  <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums shrink-0 ml-4">
-                    {reviewDueCount > 0 && <span className="font-semibold text-gray-600 dark:text-gray-300">{reviewDueCount} due</span>}
-                    {reviewDueCount === 0 && '0 due'}
-                  </span>
-                )}
-              </div>
+              <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Review Mode" /></span>
+              <span className={CARD_TITLE}>Review Mode</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Free Play section ── */}
-      <div className="px-5 mb-2">
+      {/* ── Free Play ── */}
+      <div className="px-4 mb-2">
         <div className="nb-section-head">
           <h2>Free Play</h2>
           <span className="nb-heading-object" style={{ width: '3.8rem', height: '3.4rem', transform: 'translateY(-50%) rotate(6deg)' }} aria-hidden="true">
@@ -333,139 +264,38 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
         </div>
       </div>
 
-      {/* ── Categories ── */}
-      <nav className="space-y-1 px-4">
-        {GROUPS.map(group => {
-          if (group.label) {
-            // Accordion group (Direct Mates, Helpmates)
-            const isExpanded = expandedGroups.has(group.label);
-            const total = groupTotal(group.categories);
-            const solved = groupSolved(group.categories);
-            if (total === 0) return null;
+      {/* Flat, three across. The accordion is gone: opening "Direct Mates"
+          only ever led to picking a move count, so that level was a step for
+          nothing. Counts are gone too — the number of problems in a category
+          does not help anyone choose one. */}
+      <nav className="grid grid-cols-3 gap-2.5 px-4">
+        {FREE_PLAY.map(item => (
+          <button
+            key={item.category}
+            onClick={() => onSelectMode(item.category)}
+            className={CARD}
+            style={{
+              backgroundColor: `var(${item.tint})`,
+              ...(item.stipVar ? { ['--stip-bg' as string]: `var(${item.stipVar})` } : {}),
+            } as React.CSSProperties}
+          >
+            <span className="block w-14 h-14 mx-auto" aria-hidden="true">
+              <CategoryMark name={item.mark} stip={item.stip} />
+            </span>
+            <span className={CARD_TITLE}>{item.title}</span>
+          </button>
+        ))}
 
-            return (
-              <div key={group.label}>
-                {/* Group header — click to expand/collapse */}
-                <button
-                  onClick={() => toggleGroup(group.label!)}
-                  className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <MarkSlot name={group.label!} />
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-                        {group.label}
-                      </h2>
-                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
-                        {GROUP_BRIEFS[group.label!] || ''}
-                      </p>
-                    </div>
-                    <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums shrink-0 ml-4">
-                      {solved > 0 && <span className="font-semibold text-gray-600 dark:text-gray-300">{solved}/</span>}
-                      {total.toLocaleString()}
-                    </span>
-                  </div>
-                </button>
-
-                {/* Expanded children */}
-                {isExpanded && (
-                  <div className="ml-6 space-y-0.5">
-                    {group.categories.map(mode => {
-                      const catTotal = problemCounts[mode.category] || 0;
-                      if (catTotal === 0) return null;
-                      const catProgress = progress[mode.category] || {};
-                      const catSolved = Object.values(catProgress).filter(s => s === 'solved').length;
-
-                      return (
-                        <button
-                          key={mode.category}
-                          onClick={() => onSelectMode(mode.category)}
-                          className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-3 mb-2"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0">
-                              <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-200">
-                                {mode.title}
-                              </h3>
-                              <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                                {mode.brief}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3 shrink-0 ml-4">
-                              <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums">
-                                {catSolved > 0 && <span className="font-semibold text-gray-600 dark:text-gray-300">{catSolved}/</span>}
-                                {catTotal.toLocaleString()}
-                              </span>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          } else {
-            // Standalone categories (Selfmates, Studies, Retros)
-            return group.categories.map(mode => {
-              const total = problemCounts[mode.category] || 0;
-              if (total === 0) return null;
-              const catProgress = progress[mode.category] || {};
-              const solved = Object.values(catProgress).filter(s => s === 'solved').length;
-
-              return (
-                <button
-                  key={mode.category}
-                  onClick={() => onSelectMode(mode.category)}
-                  className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <MarkSlot name={mode.title} />
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-                        {mode.title}
-                      </h2>
-                      <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
-                        {mode.brief}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0 ml-4">
-                      <span className="text-sm text-gray-400 dark:text-gray-500 tabular-nums">
-                        {solved > 0 && <span className="font-semibold text-gray-600 dark:text-gray-300">{solved}/</span>}
-                        {total.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                </button>
-              );
-            });
-          }
-        })}
-
-        {/* Sister site: fairy chess problems — rendered like another mode (bottom of the
-            list), but opens the fairy site externally. */}
+        {/* Sister site — same card, but it leaves. */}
         <a
           href="https://fairy-chess-problems.pages.dev"
           target="_blank"
           rel="noopener noreferrer"
-          className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group block w-full text-left px-5 py-4 mb-2"
+          className={CARD}
+          style={{ backgroundColor: 'var(--card-fairy)' }}
         >
-          <div className="flex items-center justify-between">
-            <MarkSlot name="Fairy Chess" />
-            <div className="min-w-0 flex-1">
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
-                Fairy Chess
-              </h2>
-              <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
-                Unusual pieces and rules to discover
-              </p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0 ml-4">
-              <svg className="w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-              </svg>
-            </div>
-          </div>
+          <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Fairy Chess" /></span>
+          <span className={CARD_TITLE}>Fairy Chess &#8599;</span>
         </a>
       </nav>
 

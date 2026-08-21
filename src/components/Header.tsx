@@ -126,7 +126,7 @@ export function Header({ view, currentGenre, onBack, onShowHelp, onOpenMenu, onO
         {onShowHelp && (
           <button
             onClick={onShowHelp}
-            className="nb-pill w-6 h-6 text-xs flex items-center justify-center shrink-0"
+            className="nb-pill nb-pill-key w-7 h-7 text-sm flex items-center justify-center shrink-0"
             title={`What is ${currentGenre ? GENRE_NAMES[currentGenre] : ''}?`}
           >
             ?

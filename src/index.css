@@ -111,6 +111,17 @@
   --mc-6: #d9cbe8;
   --mc-7: #bfdfdd;
   --mc-x: #ded9c8;
+
+  /* Card tints on the home page, one per genre. Separate tokens from --mc-*
+     even where a value repeats: those carry move count on the stipulation
+     badge, these carry genre on the card behind it, and the two appear on
+     top of each other. All are pale enough to take ink type. */
+  --card-direct: #dfe8cd;
+  --card-help:   #cfe0ee;
+  --card-self:   #f2ddb4;
+  --card-study:  #eecdd6;
+  --card-retro:  #dccfea;
+  --card-fairy:  #c4e2df;
 }
 
 html {
@@ -411,6 +422,8 @@ body {
   color: var(--ink);
   font-weight: 700;
 }
+
+.nb-pill-key { background: var(--acid); }
 
 .nb-input {
   background: var(--surface-2);

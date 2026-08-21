@@ -35,7 +35,6 @@ export function ProblemList({
   loading, genrePrefix = '',
 }: ProblemListProps) {
   const solved = Object.values(progress).filter(s => s === 'solved').length;
-  const failed = Object.values(progress).filter(s => s === 'failed').length;
 
   // YACPDB ID is used directly as the problem number
   void allProblems; // allProblems kept for prop compatibility
@@ -86,22 +85,18 @@ export function ProblemList({
     <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col p-4 max-w-3xl mx-auto w-full min-h-0">
         {/* Header */}
-        <div className="flex items-center justify-between mb-2 shrink-0">
-          <div className="flex items-center gap-3">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+        <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="text-xl font-extrabold text-[var(--ink)] truncate min-w-0">
               Problems
-              <span className="text-base font-normal text-gray-400 ml-1.5">
-                ({solved}/{allProblems.length} solved{failed > 0 ? `, ${failed} failed` : ''})
+              <span className="text-sm font-semibold text-[var(--faint)] ml-1.5 whitespace-nowrap">
+                {solved}/{allProblems.length}
               </span>
             </h3>
             {/* Filter button */}
             <button
               onClick={onOpenFilters}
-              className={`relative p-1.5 rounded-lg transition-colors ${
-                activeFilterCount > 0
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                  : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400'
-              }`}
+              className={`nb-icon relative p-1.5 shrink-0 ${activeFilterCount > 0 ? 'bg-[var(--surface-2)]' : ''}`}
               title="Filters"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -159,9 +154,10 @@ export function ProblemList({
           </div>
           <button
             onClick={onClose}
-            className="nb-icon p-1.5"
+            aria-label="Close"
+            className="nb-pill w-9 h-9 shrink-0 flex items-center justify-center"
           >
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
