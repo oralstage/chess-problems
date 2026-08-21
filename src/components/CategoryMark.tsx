@@ -124,14 +124,19 @@ function markBody(name: string) {
         </svg>
       );
 
-    /* Work out what already happened. */
+    /* Work out what already happened. An hourglass rather than the
+       magnifying glass that was here first — a bare magnifier is the search
+       glyph and reads as "find a problem", not as "the position has a past".
+       A clock face was the other candidate and was dropped: in a chess
+       context that is a chess clock, and this site has no timing at all. */
     case 'Retros':
       return (
         <svg {...box}>
-          <circle cx="19" cy="18" r="12.5" fill={CREAM} />
-          <path d="M28.4 26.6L38 36.2" strokeWidth={5.5} />
-          <circle cx="19" cy="18" r="12.5" />
-          <path d="M12.5 12.5a9 9 0 0 1 5-3.4" strokeWidth={2.2} stroke={SAGE} />
+          <path d="M9 4h26M9 40h26" strokeWidth={4} />
+          <path d="M12 4c0 10 10 14 10 18s-10 8-10 18" />
+          <path d="M32 4c0 10-10 14-10 18s10 8 10 18" />
+          <path d="M14.5 8h15c-0.6 6-7.5 9-7.5 12s-6.9-6-7.5-12z" fill={GREEN} stroke="none" />
+          <path d="M15 36h14c-0.8-5-7-7-7-8s-6.2 3-7 8z" fill={GREEN} stroke="none" />
         </svg>
       );
 
@@ -178,6 +183,17 @@ function markBody(name: string) {
           <path d="M5 19h34" />
           <path d="M14 5v8M30 5v8" />
           <path d="M15.5 29.5l4.6 4.6 9-9.6" stroke={GREEN} strokeWidth={4} />
+        </svg>
+      );
+
+    /* The beginner's guide on the home page. */
+    case 'Book':
+      return (
+        <svg {...box}>
+          <path d="M6 8c5-2.5 10-2.5 15 1v27c-5-3.5-10-3.5-15-1z" fill={CREAM} />
+          <path d="M38 8c-5-2.5-10-2.5-15 1v27c5-3.5 10-3.5 15-1z" fill={GREEN} />
+          <path d="M22 9v27" strokeWidth={2.2} />
+          <path d="M27.5 4v12l3.5-2.6L34.5 16V4z" fill={RED} />
         </svg>
       );
 

@@ -187,6 +187,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
           rel="noopener noreferrer"
           className="nb-plate nb-plate-key nb-shadow-room flex items-center gap-3 px-4 py-3 group"
         >
+          <span className="block w-11 h-11 shrink-0" aria-hidden="true"><CategoryMark name="Book" /></span>
           <div className="min-w-0 flex-1">
             <span className="text-sm font-extrabold text-[var(--ink)]">
               New to chess problems?
