@@ -72,10 +72,10 @@ export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProbl
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--ink)] shrink-0">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">
             Bookmarks
-            <span className="text-base font-normal text-gray-400 ml-1.5">({entries.length})</span>
+            <span className="text-sm font-semibold text-[var(--faint)] ml-1.5">({entries.length})</span>
           </h2>
           <button onClick={onClose} className="nb-icon p-1.5">
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -83,7 +83,7 @@ export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProbl
 
         <div className="flex-1 overflow-y-auto">
           {entries.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">No bookmarked problems yet</div>
+            <div className="text-center py-12 text-[var(--faint)] text-sm">No bookmarked problems yet</div>
           ) : (
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {entries.map(({ id, problem: p, genre }) => (

@@ -51,11 +51,11 @@ export function DailyHistoryPage({ progress, onSelectProblem, onClose }: DailyHi
     <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col p-4 max-w-3xl mx-auto w-full min-h-0">
         <div className="flex items-center justify-between mb-3 shrink-0">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+          <h3 className="text-xl font-extrabold text-[var(--ink)]">
             Daily Problems
           </h3>
           <button onClick={onClose} className="nb-icon p-1.5">
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -63,9 +63,9 @@ export function DailyHistoryPage({ progress, onSelectProblem, onClose }: DailyHi
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
           {loading ? (
-            <div className="text-center py-12 text-gray-400 dark:text-gray-500">Loading...</div>
+            <div className="text-center py-12 text-[var(--faint)]">Loading...</div>
           ) : entries.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 dark:text-gray-500">No daily problems available.</div>
+            <div className="text-center py-12 text-[var(--faint)]">No daily problems available.</div>
           ) : (
             <div className="space-y-0.5">
               {entries.map((entry) => {

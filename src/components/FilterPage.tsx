@@ -288,7 +288,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
             {hasActiveFilters && (
               <button
                 onClick={resetAll}
-                className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                className="px-3 py-1 text-xs font-bold text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
               >
                 Reset all
               </button>
@@ -297,7 +297,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
               onClick={onClose}
               className="nb-icon p-1.5"
             >
-              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -436,14 +436,14 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
               <div className="flex gap-2">
                 <button
                   onClick={() => update({ keywords: [...allKeywords] })}
-                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                  className="text-xs font-bold text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
                 >
                   Select all
                 </button>
                 {filters.keywords.length > 0 && (
                   <button
                     onClick={() => update({ keywords: [] })}
-                    className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                    className="text-xs font-bold text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
                   >
                     Deselect all
                   </button>

@@ -146,14 +146,14 @@ export function HistoryPage({
     <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col p-4 max-w-3xl mx-auto w-full min-h-0">
         <div className="flex items-center justify-between mb-2 shrink-0">
-          <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+          <h3 className="text-xl font-extrabold text-[var(--ink)]">
             History
-            <span className="text-base font-normal text-gray-400 ml-1.5">
+            <span className="text-sm font-semibold text-[var(--faint)] ml-1.5">
               ({solvedCount} solved{failedCount > 0 ? `, ${failedCount} failed` : ''})
             </span>
           </h3>
           <button onClick={onClose} className="nb-icon p-1.5">
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -177,14 +177,14 @@ export function HistoryPage({
 
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
           {filtered.length === 0 ? (
-            <div className="text-center py-12 text-gray-400 dark:text-gray-500">
+            <div className="text-center py-12 text-[var(--faint)]">
               {entries.length === 0 ? 'No problems attempted yet. Start solving!' : 'No matching problems.'}
             </div>
           ) : (
             <div className="space-y-4">
               {grouped.map((group) => (
                 <div key={group.key}>
-                  <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-3 mb-1">{group.label}</div>
+                  <div className="text-xs font-extrabold text-[var(--faint)] uppercase tracking-wider px-3 mb-1">{group.label}</div>
                   <div className="space-y-0.5">
                     {group.entries.map((entry) => {
                       const p = entry.problem;

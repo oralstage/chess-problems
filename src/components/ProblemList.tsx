@@ -184,7 +184,7 @@ export function ProblemList({
 
         {/* Filtered count */}
         {filtered.length !== allProblems.length && (
-          <div className="text-xs text-gray-400 dark:text-gray-500 mb-2 shrink-0">
+          <div className="text-xs font-semibold text-[var(--faint)] mb-2 shrink-0">
             Showing {filtered.length} of {allProblems.length} problems
           </div>
         )}
@@ -302,7 +302,7 @@ export function ProblemList({
                 }, [])
                 .map((item, idx) =>
                   item === 'ellipsis' ? (
-                    <span key={`e${idx}`} className="w-8 text-center text-sm text-gray-400 dark:text-gray-500">&hellip;</span>
+                    <span key={`e${idx}`} className="w-8 text-center text-sm text-[var(--faint)]">&hellip;</span>
                   ) : (
                     <button
                       key={item}
