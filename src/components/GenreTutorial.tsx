@@ -6,66 +6,68 @@ interface GenreTutorialProps {
   onClose: () => void;
 }
 
-/* Three tiers, and the split is deliberate.
+/* Two tiers.
 
-   `description` is the only prominent block: it is the answer to "what is
-   this". It used to sit above the rules as small grey type and got skipped,
-   and the reason was not its size — it was that the first rules repeated it
-   word for word. Helpmate said "Black and White cooperate to checkmate
-   Black's own king" in the description and "Both sides cooperate to
-   checkmate the Black king" in rule two. Reading the top twice buys nothing,
-   so the eye learned to skip it. Those duplicates are gone from the lists.
+   `steps` is how you operate this genre, in the order you meet it: which
+   side you hold, what the opponent does, and what you are trying to reach.
+   That is the whole thing, and it is what someone arriving cold needs.
 
-   `specific` is what this genre needs that the description does not already
-   say — mostly which side you hold and what the app plays for you.
+   It replaced a prose description that had been sitting at the top being
+   skipped. The description was abstract — helpmate's said "a completely
+   reversed concept from normal chess, former enemies work toward the same
+   goal", which is true and tells you nothing you can act on. Knowing the
+   concept is inverted does not tell you that Black moves first, that you
+   enter both moves, or which king ends up mated. Those three things do.
 
-   `general` is true of chess problems at large. It cannot be dropped (you
-   cannot solve without knowing what #2 means) but it is not what this genre
-   IS, so it sits quietest, under a rule. Repeated per genre on purpose:
-   collecting it in one place would mean the reader has to go and find it. */
+   `general` is what is true of chess problems at large. It cannot be
+   dropped — you cannot solve without knowing what #2 means — but it is not
+   what the genre IS, so it sits quietest, under a rule. */
 const TUTORIALS: Record<Genre, {
   title: string;
-  description: string;
   mark: string;
-  specific: string[];
+  steps: string[];
   general: string[];
 }> = {
   direct: {
     title: 'Direct Mate',
     mark: 'Direct Mates',
-    description: 'The most classical form of chess problem. White plays first and forces checkmate in a specified number of moves, regardless of Black\'s defense.',
-    specific: [
-      'You play White',
-      'Black\'s best defenses are played automatically',
+    steps: [
+      // "not necessarily a check" belongs in step one, where the move is
+      // actually being chosen. It used to sit at the bottom as a general
+      // note, which is where a beginner has already guessed wrong.
+      'You play White — your move does not have to be a check',
+      'Black answers by itself',
+      'Mate the black king on exactly the last move of the count',
     ],
     general: [
       '#2 = mate in 2, #3 = mate in 3, etc.',
-      'The solution doesn\'t have to be a series of checks',
     ],
   },
   help: {
     title: 'Helpmate',
     mark: 'Helpmates',
-    description: 'Black and White cooperate to checkmate Black\'s own king. A completely reversed concept from normal chess — former enemies work toward the same goal.',
-    specific: [
-      // "Black moves first" and "play Black's move first" were two lines
-      // saying one thing; what is actually unique is that you hold both
-      // sides and that the black move is the one you enter first.
-      'Black moves first, and you play both sides',
+    steps: [
+      'You play both sides — Black moves first',
+      // "you play both sides" leaves the real question open: by what standard
+      // is a black move right? Saying "the cooperating move" restates the
+      // word without defining it. The actual test is arithmetic — the mate
+      // has to land on the last move of the count, so any move by either
+      // side that puts it out of reach is wrong.
+      'A move is right only if mate still lands exactly on the last move — Black\'s included',
+      'Mate the black king',
     ],
     general: [
-      'h#2 = helpmate in 2',
+      'h#2 = helpmate in 2 (Black and White each move twice)',
       'Some problems have multiple solutions',
     ],
   },
   self: {
     title: 'Selfmate',
     mark: 'Selfmates',
-    description: 'White\'s goal is to force Black to deliver checkmate. Black resists — they don\'t want to give mate — but White forces their hand.',
-    specific: [
+    steps: [
       'You play White',
-      'Goal: force Black to checkmate your king',
-      'Black resists and is played automatically',
+      'Black answers by itself, and resists',
+      'Force Black to mate your own king on exactly the last move',
     ],
     general: [
       's#2 = selfmate in 2',
@@ -74,27 +76,29 @@ const TUTORIALS: Record<Genre, {
   study: {
     title: 'Study',
     mark: 'Studies',
-    description: 'Endgame compositions. Win studies: convert an advantage into a decisive win. Draw studies: save a losing position with stalemate, perpetual check, or fortress.',
-    specific: [
-      'You play White — Black responds automatically',
-      'Win studies end when a decisive advantage is reached (e.g. queening a pawn)',
-      'Draw studies end when a theoretical draw is achieved',
+    steps: [
+      'You play White',
+      'Black answers by itself',
+      'Win, or save the draw — there is no move count',
     ],
     general: [
+      'Win studies end when a decisive advantage is reached (e.g. queening a pawn)',
+      'Draw studies end when a theoretical draw is achieved',
       'Solutions end when the outcome is decided — to continue playing, use the Lichess links. "Analysis ↗" opens the analysis board. "Play ↗" opens the board editor — click "CONTINUE FROM HERE", then choose "Play against the computer"',
     ],
   },
   retro: {
     title: 'Retro',
     mark: 'Retros',
-    description: 'Retrograde analysis problems. Figure out the history of the position to determine whose turn it is, whether castling is legal, or if en passant is possible — then solve.',
-    specific: [
-      'Usually White to move, but if White\'s move would be impossible, it\'s Black\'s turn',
-      'Castling and en passant rights depend on what moves could have led to this position',
-      'You can move both White and Black pieces to explore',
+    steps: [
+      'You play both sides — and working out whose turn it is IS the puzzle',
+      'Deduce the history first: whose move, castling rights, en passant',
+      'Then solve whatever the stipulation badge asks for',
     ],
     general: [
-      'Check the stipulation badge — it varies: #1, #2, h#2, etc.',
+      'Usually White to move, but if White\'s move would be impossible, it\'s Black\'s turn',
+      'Castling and en passant rights depend on what moves could have led to this position',
+      'The badge varies: #1, #2, h#2, etc.',
     ],
   },
 };
@@ -115,15 +119,11 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
           </h2>
         </div>
 
-        <p className="text-base font-semibold text-[var(--ink)] leading-snug mb-4">
-          {tutorial.description}
-        </p>
-
-        <ul className="space-y-2 mb-4">
-          {tutorial.specific.map((rule, i) => (
-            <li key={i} className="flex gap-2.5 text-sm font-bold text-[var(--ink)] leading-snug">
-              <span className="shrink-0 w-2 h-2 rounded-full bg-[var(--ink)] mt-[0.4rem]" />
-              {rule}
+        <ul className="space-y-2.5 mb-4">
+          {tutorial.steps.map((step, i) => (
+            <li key={i} className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug">
+              <span className="shrink-0 w-2 h-2 rounded-full bg-[var(--ink)] mt-[0.45rem]" />
+              {step}
             </li>
           ))}
         </ul>
