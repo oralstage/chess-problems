@@ -83,11 +83,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
           </h1>
         </div>
         <p className="nb-plate nb-shadow-room text-base text-[var(--muted)] leading-relaxed px-4 py-3 font-medium">
-          Chess problems are checkmate puzzles with unique solutions — composed works of art, not tactics from games.
-          Solve over 500,000 problems interactively from{' '}
-          <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline decoration-2 underline-offset-2 font-bold text-[var(--ink)]">
-            YACPDB
-          </a> database.
+          Chess problems are checkmate puzzles with exactly one solution — made by a composer, not taken from a game. Over 500,000 of them, free to solve.
         </p>
         {/* {siteStats && siteStats.timesSolved > 0 && (
           <div className="flex justify-center items-end gap-6 sm:gap-8 mt-6 flex-wrap">
@@ -336,7 +332,16 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
           </a>
         </div>
         <p className="text-[11px] font-semibold text-[var(--muted)] mt-5 px-4">
-          Anonymous usage data is collected to improve the site. No personal information is stored.
+          Problems from the{' '}
+          <a
+            href="https://www.yacpdb.org"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-2 underline-offset-2 text-[var(--ink)] font-bold"
+          >
+            YACPDB
+          </a>{' '}
+          archive. Anonymous usage data is collected to improve the site. No personal information is stored.
         </p>
       </footer>
     </div>

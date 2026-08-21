@@ -106,7 +106,7 @@ export function FeedbackPanel({
       {!classicBoard && playerRating != null && (
         <div className="nb-panel flex items-center gap-3 py-1.5 px-3">
           <span className="text-base font-semibold text-gray-700 dark:text-gray-200">
-            Rating: {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(ratingDelta != null ? playerRating - ratingDelta : playerRating)}
+            Your rating: {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(ratingDelta != null ? playerRating - ratingDelta : playerRating)}
           </span>
           {ratingDelta != null && (
             <span className={`text-base font-bold ${ratingDelta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-[var(--bad)] dark:text-[var(--bad)]'}`}>
