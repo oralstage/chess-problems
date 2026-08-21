@@ -2435,11 +2435,20 @@ export default function App() {
                 than about direct mates, and it was the faintest thing on it.
                 An ink chip, not acid (acid means "the thing to press") and
                 not a second panel, which would compete with the aim below. */}
-            <p className="text-center mb-4">
-              <span className="nb-chip nb-chip-on inline-block px-3 py-1 text-xs">
-                Direct mates, matched to your rating
-              </span>
-            </p>
+            {/* The two facts that are about Rated Mode rather than about
+                direct mates: what you get served, and what your result does.
+                One block, not two chips — as separate pills the second one
+                was long enough to run off both edges of the card, and they
+                are one idea anyway. Neither is a step in solving, so neither
+                belongs in the numbered list below. */}
+            <div className="rounded-[14px] bg-[var(--ink)] text-[var(--surface)] px-4 py-3 mb-4 space-y-1">
+              <p className="text-sm font-extrabold leading-snug">
+                Direct mates, matched to your rating.
+              </p>
+              <p className="text-xs font-semibold leading-snug text-[var(--surface)]/80">
+                Your rating moves with the result — a clean solve wins, a mistake or a hint loses.
+              </p>
+            </div>
             <p className="nb-panel px-4 py-3 mb-4 text-base font-extrabold text-[var(--ink)] leading-snug">
               White is trying to mate the black king. Black is trying to survive.
             </p>
@@ -2449,10 +2458,6 @@ export default function App() {
               <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">1</span>You play White first. The key is the one move that still forces the mate whatever Black defends — it does not have to be a check.</li>
               <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">2</span>Black answers by itself, defending as well as it possibly can.</li>
               <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">3</span>The mate lands on the last move exactly. #2 = mate in 2, #3 = mate in 3.</li>
-              {/* The consequence that only exists in this mode, and it was
-                  not written down anywhere. It belongs in the sequence: it is
-                  what happens after the mate lands. */}
-              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">4</span>Your rating then moves with the result. Only a clean solve counts as a win — one wrong move, or a hint, and it counts as a loss.</li>
             </ol>
             <button
               onClick={() => setShowTutorial(false)}
