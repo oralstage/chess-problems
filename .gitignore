@@ -2,6 +2,13 @@ node_modules/
 dist/
 .DS_Store
 scripts/.cache/
+artifacts/ai-shadow/
+artifacts/popeye-shadow/
+artifacts/chest-shadow/
+artifacts/four-ai-shadow/
+artifacts/chest-full-shadow/
+tools/popeye/
+tools/chest/
 scripts/import-data*.sql
 *.local
 public/stockfish/

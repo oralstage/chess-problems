@@ -98,6 +98,19 @@
   --radius-pill: 999px;
 
   --check: 128px;
+
+  /* Move-count coding for the stipulation badge. This is a real distinction
+     the site already made (#2 green, #3 blue, ... ) and worth keeping, but it
+     was written in raw Tailwind ramps, which are far too saturated to sit on
+     cream next to this palette. Same seven hues, pulled down to tints that
+     take ink type; the badge's ink border carries the contrast. */
+  --mc-2: #cfe3b0;
+  --mc-3: #bfd3e8;
+  --mc-4: #f0dcae;
+  --mc-5: #eec9d4;
+  --mc-6: #d9cbe8;
+  --mc-7: #bfdfdd;
+  --mc-x: #ded9c8;
 }
 
 html {
@@ -217,6 +230,51 @@ body {
   box-shadow: var(--hard);
   overflow: hidden;
   line-height: 0;
+}
+
+/* Section headings, built the way personal-site builds them: a sticker with
+   a heavy ink outline and a hard shadow, one step up in size from the body,
+   and all of them the same fill so the run of headings reads as one thread
+   down the page rather than as five competing colours.
+
+   The fill is ink, not acid. On that site the accent is free to carry a
+   heading; here --acid means "the thing to press", and a heading is not
+   pressable. Ink also keeps it clear of the cream buttons. */
+.nb-section-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin-bottom: 1.1rem;
+}
+.nb-section-head h2 {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  margin: 0;
+  padding: 0.2rem 1.1rem 0.3rem;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  font-size: clamp(1.15rem, 3.4vw, 1.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+/* One drawing per section, in the band that is empty at every width: the
+   right-hand side of the heading row. Absolutely positioned so an object
+   taller than the sticker overflows into the section's padding instead of
+   pushing the cards down. Nothing goes behind a card or under body copy —
+   that costs reading and buys decoration. */
+.nb-heading-object {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  display: block;
+  pointer-events: none;
 }
 
 /* ---------- repeating content ---------- */

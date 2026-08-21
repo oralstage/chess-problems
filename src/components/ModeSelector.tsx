@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CATEGORY_DEFS } from '../types';
+import { MarkSlot } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
 import { difficultyToRating } from '../utils/glicko2';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
@@ -98,7 +99,6 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
 
   return (
     <div className="min-h-[80vh] flex flex-col justify-center py-12">
-      {/* ── Book Promo Banner ── */}
       {/* ── Hero ── */}
       <div className="px-5 mb-10">
         <div className="flex items-center gap-4 mb-3">
@@ -160,34 +160,13 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
         )} */}
       </div>
 
-      {/* ── Book Promo ── */}
-      <div className="px-5 mb-6">
-        <a
-          href="https://www.amazon.com/dp/B0GV27N3RM"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="nb-plate nb-plate-key nb-shadow-room flex items-center gap-3 px-4 py-3 group"
-        >
-          <div className="min-w-0 flex-1">
-            <span className="text-sm font-extrabold text-[var(--ink)]">
-              New to chess problems?
-            </span>
-            <span className="text-sm font-semibold text-[var(--ink)]/75 ml-1">
-              Get the beginner's guide on Kindle
-            </span>
-          </div>
-          <svg className="w-4 h-4 shrink-0 text-[var(--ink)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </a>
-      </div>
-
       {/* ── Daily Problem ── */}
       {dailyProblem && (
         <div className="px-5 mb-8">
+          <div className="flex flex-col items-center">
           <button
             onClick={onSolveDaily}
-            className="group w-full text-left transition-colors"
+            className="group w-auto max-w-full text-left transition-colors"
           >
             <div className="flex flex-col items-center">
               <div className="nb-shadow-type text-sm font-extrabold uppercase tracking-[0.16em] text-[var(--ink)] mb-3">
@@ -230,13 +209,45 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
               </div>
             </div>
           </button>
+          </div>
         </div>
       )}
+
+      {/* ── Book Promo ── */}
+      <div className="px-5 mb-6 mt-2">
+        <a
+          href="https://www.amazon.com/dp/B0GV27N3RM"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="nb-plate nb-plate-key nb-shadow-room flex items-center gap-3 px-4 py-3 group"
+        >
+          <div className="min-w-0 flex-1">
+            <span className="text-sm font-extrabold text-[var(--ink)]">
+              New to chess problems?
+            </span>
+            <span className="text-sm font-semibold text-[var(--ink)]/75 ml-1">
+              Get the beginner's guide on Kindle
+            </span>
+          </div>
+          <svg className="w-4 h-4 shrink-0 text-[var(--ink)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+          </svg>
+        </a>
+      </div>
 
       {/* ── Rated Play section ── */}
       {onStartRated && (
         <div className="px-4 mb-6">
-          <div className="text-sm font-extrabold uppercase tracking-widest text-[var(--ink)] mb-2 px-1 border-b-2 border-[var(--ink)] pb-1.5">Rated Play</div>
+          <div className="nb-section-head">
+            <h2>Rated Play</h2>
+            <span className="nb-heading-object" style={{ width: '3.2rem', height: '3rem', transform: 'translateY(-50%) rotate(-5deg)' }} aria-hidden="true">
+              <svg viewBox="0 0 46 42" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
+                <rect x="4" y="25" width="10" height="14" rx="2" fill="var(--surface)" />
+                <rect x="18" y="16" width="10" height="23" rx="2" fill="var(--board-d)" />
+                <rect x="32" y="5" width="10" height="34" rx="2" fill="var(--acid)" />
+              </svg>
+            </span>
+          </div>
           <div className="space-y-2">
             {/* Rated Mode */}
             <button
@@ -257,7 +268,8 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
               className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2"
             >
               <div className="flex items-center justify-between">
-                <div className="min-w-0">
+                <MarkSlot name="Rated Mode" />
+                <div className="min-w-0 flex-1">
                   <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Rated Mode</h3>
                   <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">Solve problems matched to your level</p>
                 </div>
@@ -281,7 +293,8 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
               className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <div className="flex items-center justify-between">
-                <div className="min-w-0">
+                <MarkSlot name="Review Mode" />
+                <div className="min-w-0 flex-1">
                   <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Review Mode</h3>
                   <p className="text-sm text-gray-400 dark:text-gray-500 mt-0.5">
                     {reviewTotalCount === 0
@@ -305,7 +318,19 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
 
       {/* ── Free Play section ── */}
       <div className="px-5 mb-2">
-        <div className="text-sm font-extrabold uppercase tracking-widest text-[var(--ink)] px-0 border-b-2 border-[var(--ink)] pb-1.5">Free Play</div>
+        <div className="nb-section-head">
+          <h2>Free Play</h2>
+          <span className="nb-heading-object" style={{ width: '3.8rem', height: '3.4rem', transform: 'translateY(-50%) rotate(6deg)' }} aria-hidden="true">
+            <svg viewBox="0 0 54 48" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
+              <rect x="3" y="14" width="32" height="32" rx="4" fill="var(--surface-2)" transform="rotate(-9 19 30)" />
+              <rect x="12" y="7" width="34" height="34" rx="4" fill="var(--surface)" />
+              <path d="M12 24h34M29 7v34" />
+              <rect x="12" y="7" width="17" height="17" fill="var(--board-d)" stroke="none" />
+              <rect x="29" y="24" width="17" height="17" fill="var(--board-d)" stroke="none" />
+              <rect x="12" y="7" width="34" height="34" rx="4" />
+            </svg>
+          </span>
+        </div>
       </div>
 
       {/* ── Categories ── */}
@@ -326,7 +351,8 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                   className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="min-w-0">
+                    <MarkSlot name={group.label!} />
+                    <div className="min-w-0 flex-1">
                       <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                         {group.label}
                       </h2>
@@ -394,7 +420,8 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                   className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2"
                 >
                   <div className="flex items-center justify-between">
-                    <div className="min-w-0">
+                    <MarkSlot name={mode.title} />
+                    <div className="min-w-0 flex-1">
                       <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                         {mode.title}
                       </h2>
@@ -424,7 +451,8 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group block w-full text-left px-5 py-4 mb-2"
         >
           <div className="flex items-center justify-between">
-            <div className="min-w-0">
+            <MarkSlot name="Fairy Chess" />
+            <div className="min-w-0 flex-1">
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">
                 Fairy Chess
               </h2>
