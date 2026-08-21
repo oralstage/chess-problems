@@ -47,9 +47,9 @@ const TUTORIALS: Record<Genre, {
     mark: 'Helpmates',
     aim: 'Both sides are trying to mate the black king. Black wants its own king mated.',
     steps: [
-      'You play Black first — the move that lets White in, never one that defends.',
-      'Then you play White — the move that takes what Black just gave it.',
-      'Alternate until White’s last move mates. h#2 = two moves each, and usually only one line works.',
+      'You play Black first — the move that opens the way to its own king being mated, never one that defends.',
+      'Then you play White — the move that builds toward mating the black king.',
+      'Alternate until White’s last move mates the black king. h#2 = two moves each, and usually only one line works.',
     ],
     general: [
       'Some problems have multiple solutions.',
@@ -61,7 +61,7 @@ const TUTORIALS: Record<Genre, {
     aim: 'White wants the white king mated. Black does not want to deliver it — and is left with no other legal move.',
     steps: [
       'You play White first. The key is the one move that leaves Black no legal way out but to deliver the mate.',
-      'Black answers by itself, avoiding the mate for as long as it can.',
+      'Black answers by itself, putting off mating the white king for as long as it can.',
       'Black is forced to mate the white king on the last move. s#2 = two moves.',
     ],
     general: [],

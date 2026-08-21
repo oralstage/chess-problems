@@ -2441,11 +2441,11 @@ export default function App() {
                 was long enough to run off both edges of the card, and they
                 are one idea anyway. Neither is a step in solving, so neither
                 belongs in the numbered list below. */}
-            <div className="rounded-[14px] bg-[var(--ink)] text-[var(--surface)] px-4 py-3 mb-4 space-y-1">
+            <div className="rounded-[14px] border-2 border-[var(--ink)] bg-emerald-700 text-[var(--surface)] px-4 py-3 mb-4 space-y-1">
               <p className="text-sm font-extrabold leading-snug">
                 Direct mates, matched to your rating.
               </p>
-              <p className="text-xs font-semibold leading-snug text-[var(--surface)]/80">
+              <p className="text-xs font-semibold leading-snug">
                 Your rating moves with the result — a clean solve wins, a mistake or a hint loses.
               </p>
             </div>
