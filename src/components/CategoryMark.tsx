@@ -162,7 +162,7 @@ function markBody(name: string) {
       return (
         <svg {...box}>
           <path d="M4 38h36" strokeWidth={2.6} />
-          <path d="M6 32l9-9 7 5.5 7-13 9-7" strokeWidth={4} />
+          <path d="M6 32l9-9 7 5.5 7-13 9-7" strokeWidth={4.5} stroke={GREEN} />
         </svg>
       );
 
