@@ -2431,8 +2431,14 @@ export default function App() {
               <span className="mx-auto mb-1 block w-14 h-14"><CategoryMark name="Rated Mode" /></span>
               <h2 className="text-2xl font-extrabold tracking-tight text-[var(--ink)] mt-1">Rated Mode</h2>
             </div>
-            <p className="text-sm font-medium text-[var(--muted)] mb-4">
-              Direct Mate problems matched to your rating level.
+            {/* The only line in this dialog that is about Rated Mode rather
+                than about direct mates, and it was the faintest thing on it.
+                An ink chip, not acid (acid means "the thing to press") and
+                not a second panel, which would compete with the aim below. */}
+            <p className="text-center mb-4">
+              <span className="nb-chip nb-chip-on inline-block px-3 py-1 text-xs">
+                Direct mates, matched to your rating
+              </span>
             </p>
             <p className="nb-panel px-4 py-3 mb-4 text-base font-extrabold text-[var(--ink)] leading-snug">
               White is trying to mate the black king. Black is trying to survive.
