@@ -155,23 +155,17 @@ function markBody(name: string) {
         </svg>
       );
 
-    /* Matched against something your own size. One sword, not two crossed:
-       two round pommels plus a crossing is the scissors glyph, and it read as
-       scissors at every angle and every pommel size that was tried. A dial was
-       tried before that and read as a speedometer, which is about speed rather
-       than about a contest. Tilted 30 degrees, tip to the upper right: upright
-       it sat as a specimen rather than as something anyone is holding. At that
-       angle the whole thing — tip, guard corners and pommel — still lands
-       inside the 44 box. */
+    /* The rating itself: a line, because a rating is a path over time. This
+       replaced a sword — the section is "For you" now, not "Rated Play", and
+       a duel is the wrong idea for problems chosen to fit you. */
     case 'Rated Mode':
       return (
         <svg {...box}>
-          <g transform="translate(22 21) rotate(30)">
-            <path d="M0 -23 L3.4 -15 L3.4 6 L-3.4 6 L-3.4 -15 Z" fill={CREAM} />
-            <rect x="-10" y="6" width="20" height="4" rx="2" fill="var(--ink)" />
-            <rect x="-2.6" y="10" width="5.2" height="7" rx="1.8" fill={CREAM} />
-            <path d="M0 15.5L3.6 19 0 22.5 -3.6 19z" fill={GREEN} />
-          </g>
+          <path d="M4 38h36" strokeWidth={2.6} />
+          <path d="M6 31l9-9 7 5.5 7-13 9-7" strokeWidth={3.4} />
+          <circle cx="15" cy="22" r="3.4" fill={CREAM} />
+          <circle cx="22" cy="27.5" r="3.4" fill={SAGE} />
+          <circle cx="29" cy="14.5" r="3.4" fill={GREEN} />
         </svg>
       );
 
@@ -183,6 +177,17 @@ function markBody(name: string) {
           <path d="M5 19h34" />
           <path d="M14 5v8M30 5v8" />
           <path d="M15.5 29.5l4.6 4.6 9-9.6" stroke={GREEN} strokeWidth={4} />
+        </svg>
+      );
+
+    /* "For you" — a tag with your name on it. No figure, and nothing else on
+       the page is this shape. */
+    case 'Tag':
+      return (
+        <svg {...box}>
+          <path d="M20 5l18 18a4 4 0 0 1 0 5.6l-9.4 9.4a4 4 0 0 1-5.6 0L5 20V8a3 3 0 0 1 3-3z" fill={GREEN} />
+          <circle cx="14" cy="14" r="3.6" fill={CREAM} />
+          <path d="M20 5l-8-3" strokeWidth={2.4} />
         </svg>
       );
 

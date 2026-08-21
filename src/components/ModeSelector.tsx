@@ -48,7 +48,7 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
 ];
 
-export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0 }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0 }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -68,14 +68,15 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
       {/* ── Hero ── */}
       <div className="px-5 mb-10">
         <div className="flex items-center gap-4 mb-3">
-          <svg className="w-14 h-14 sm:w-16 sm:h-16 text-[var(--ink)]" viewBox="0 0 45 45" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M 22.5,11.63 L 22.5,6" />
-            <path d="M 20,8 L 25,8" />
-            <path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" />
-            <path d="M 12.5,37 C 18,40.5 27,40.5 32.5,37 L 32.5,30 C 32.5,30 41.5,25.5 38.5,19.5 C 34.5,13 25,16 22.5,23.5 L 22.5,27 L 22.5,23.5 C 19,16 9.5,13 6.5,19.5 C 3.5,25.5 12.5,30 12.5,30 L 12.5,37" />
-            <path d="M 12.5,30 C 18,27 27,27 32.5,30" opacity="0.5" />
-            <path d="M 12.5,33.5 C 18,30.5 27,30.5 32.5,33.5" opacity="0.5" />
-            <path d="M 12.5,37 C 18,34 27,34 32.5,37" opacity="0.5" />
+          {/* Redrawn in the same hand as the row marks. What was here was the
+              Cburnett king as pure line art at a 1.5 stroke — a precise piece
+              of draughting next to fifteen flat-filled drawings, so it read as
+              having come from somewhere else. */}
+          <svg className="w-14 h-14 sm:w-16 sm:h-16" viewBox="0 0 44 44" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
+            <path d="M22 3v9M17.5 7.5h9" strokeWidth="3.4" />
+            <path d="M22 27c0 0 5-7.5 3.4-11C25.4 16 24.2 13.5 22 13.5s-3.4 2.5-3.4 2.5C17 19.5 22 27 22 27z" fill="var(--surface)" />
+            <path d="M11 38c6.5 3 15.5 3 22 0v-7s9-4.5 6-10.5c-4-6.5-13.5-3.5-16 4v3.5-3.5c-2.5-7.5-12-10.5-16-4-3 6 6 10.5 6 10.5z" fill="var(--surface)" />
+            <path d="M11 31c6-3 15-3 22 0M11 34.5c6-3 15-3 22 0" strokeWidth="2.4" />
           </svg>
           <h1 className="nb-shadow-type text-4xl sm:text-6xl font-extrabold tracking-tight text-[var(--ink)]">
             Chess Problems
@@ -179,42 +180,21 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
         </div>
       )}
 
-      {/* ── Book Promo ── */}
-      <div className="px-5 mb-6 mt-2">
-        <a
-          href="https://www.amazon.com/dp/B0GV27N3RM"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="nb-plate nb-plate-key nb-shadow-room flex items-center gap-3 px-4 py-3 group"
-        >
-          <span className="block w-11 h-11 shrink-0" aria-hidden="true"><CategoryMark name="Book" /></span>
-          <div className="min-w-0 flex-1">
-            <span className="text-sm font-extrabold text-[var(--ink)]">
-              New to chess problems?
-            </span>
-            <span className="text-sm font-semibold text-[var(--ink)]/75 ml-1">
-              Get the beginner's guide on Kindle
-            </span>
-          </div>
-          <svg className="w-4 h-4 shrink-0 text-[var(--ink)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
-          </svg>
-        </a>
-      </div>
+
       {/* ── Rated Play ── */}
       {onStartRated && (
         <div className="px-4 mb-6">
           <div className="nb-section-head">
-            <h2>Rated Play</h2>
+            <h2>For you</h2>
             <span className="nb-heading-object" style={{ width: '3.2rem', height: '3rem', transform: 'translateY(-50%) rotate(-5deg)' }} aria-hidden="true">
-              <svg viewBox="0 0 46 42" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-                <rect x="4" y="25" width="10" height="14" rx="2" fill="var(--surface)" />
-                <rect x="18" y="16" width="10" height="23" rx="2" fill="var(--board-d)" />
-                <rect x="32" y="5" width="10" height="34" rx="2" fill="var(--acid)" />
+              <svg viewBox="0 0 44 44" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
+                <path d="M20 5l18 18a4 4 0 0 1 0 5.6l-9.4 9.4a4 4 0 0 1-5.6 0L5 20V8a3 3 0 0 1 3-3z" fill="var(--board-d)" />
+                <circle cx="14" cy="14" r="3.6" fill="var(--surface)" />
+                <path d="M20 5l-8-3" strokeWidth="2.4" />
               </svg>
             </span>
           </div>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-3 gap-2.5">
             <button
               onClick={() => {
                 try {
@@ -230,20 +210,24 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
                 } catch {}
                 onStartRated();
               }}
-              className={CARD}
+              className={`${CARD} ${reviewTotalCount > 0 ? 'col-span-2' : 'col-span-3'}`}
             >
               <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Rated Mode" /></span>
               <span className={CARD_TITLE}>Rated Mode</span>
             </button>
 
-            <button
-              onClick={onStartReview}
-              disabled={reviewDueCount === 0}
-              className={`${CARD} disabled:opacity-40 disabled:cursor-not-allowed`}
-            >
-              <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Review Mode" /></span>
-              <span className={CARD_TITLE}>Review Mode</span>
-            </button>
+            {/* Hidden until there is a queue: on a first visit it was half the
+                section and could not be pressed. */}
+            {reviewTotalCount > 0 && (
+              <button
+                onClick={onStartReview}
+                disabled={reviewDueCount === 0}
+                className={`${CARD} disabled:opacity-40 disabled:cursor-not-allowed`}
+              >
+                <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Review Mode" /></span>
+                <span className={CARD_TITLE}>Review Mode</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -251,7 +235,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
       {/* ── Free Play ── */}
       <div className="px-4 mb-2">
         <div className="nb-section-head">
-          <h2>Free Play</h2>
+          <h2>All problems</h2>
           <span className="nb-heading-object" style={{ width: '3.8rem', height: '3.4rem', transform: 'translateY(-50%) rotate(6deg)' }} aria-hidden="true">
             <svg viewBox="0 0 54 48" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
               <rect x="3" y="14" width="32" height="32" rx="4" fill="var(--surface-2)" transform="rotate(-9 19 30)" />
@@ -299,6 +283,35 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
           <span className={CARD_TITLE}>Fairy Chess &#8599;</span>
         </a>
       </nav>
+
+      {/* ── Guide ── */}
+      <div className="px-4 mt-6 mb-2">
+        <div className="nb-section-head">
+          <h2>Guide</h2>
+          <span className="nb-heading-object" style={{ width: '3.4rem', height: '3rem', transform: 'translateY(-50%) rotate(-6deg)' }} aria-hidden="true">
+            <svg viewBox="0 0 46 42" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
+              <rect x="5" y="28" width="36" height="8" rx="2" fill="var(--surface)" />
+              <rect x="8" y="19" width="30" height="8" rx="2" fill="var(--board-d)" />
+              <rect x="11" y="10" width="24" height="8" rx="2" fill="var(--surface)" />
+            </svg>
+          </span>
+        </div>
+      </div>
+
+      {/* One card like the others. The banner it replaces carried a sentence of
+          sell, which nothing else on this page does. */}
+      <div className="grid grid-cols-3 gap-2.5 px-4">
+        <a
+          href="https://www.amazon.com/dp/B0GV27N3RM"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={CARD}
+          style={{ backgroundColor: 'var(--card-self)' }}
+        >
+          <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Book" /></span>
+          <span className={CARD_TITLE}>For beginners &#8599;</span>
+        </a>
+      </div>
 
       {/* ── Footer ── */}
       <footer className="text-center mt-16 px-4 space-y-1">
