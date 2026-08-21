@@ -2434,13 +2434,16 @@ export default function App() {
             <p className="text-sm font-medium text-[var(--muted)] mb-4">
               Direct Mate problems matched to your rating level. White plays first and forces checkmate in a specified number of moves, regardless of Black's defense.
             </p>
-            {/* Same three beats the Direct Mate tutorial uses — this is Direct
-                Mate, just matched to your rating. */}
-            <ul className="space-y-2.5 mb-4">
-              <li className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-0.5">1</span>You play White. The key — the answer — is the one move that forces mate in the given number of moves (#2 = mate in 2, #3 = mate in 3), whatever Black defends. It does not have to be a check</li>
-              <li className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-0.5">2</span>Black answers by itself, defending as well as it possibly can</li>
-              <li className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-0.5">3</span>The mate lands on that last move — not sooner, not later</li>
-            </ul>
+            <p className="nb-panel px-4 py-3 mb-4 text-base font-extrabold text-[var(--ink)] leading-snug">
+              White is trying to mate the black king. Black is trying to survive.
+            </p>
+            {/* Same aim and the same three steps as the Direct Mate tutorial —
+                this IS direct mate, just matched to your rating. */}
+            <ol className="space-y-2.5 mb-6">
+              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">1</span>You play White first. The key is the one move that still forces the mate whatever Black defends — it does not have to be a check.</li>
+              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">2</span>Black answers by itself, defending as well as it possibly can.</li>
+              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">3</span>The mate lands on the last move exactly. #2 = mate in 2, #3 = mate in 3.</li>
+            </ol>
             <button
               onClick={() => setShowTutorial(false)}
               className="nb-btn nb-btn-key nb-shadow-room mt-5 w-full py-3 text-base"

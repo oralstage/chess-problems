@@ -6,96 +6,94 @@ interface GenreTutorialProps {
   onClose: () => void;
 }
 
-/* Two tiers.
+/* Three parts: the aim, the procedure, and the small print.
 
-   `steps` is how you operate this genre, in the order you meet it: which
-   side you hold, what the opponent does, and what you are trying to reach.
-   That is the whole thing, and it is what someone arriving cold needs.
+   `aim` says what each side is trying to do. It sits above the numbered list
+   and outside it, because a motive is not a step — putting it in as item one
+   is what stopped the numbers meaning anything. It is also the part that
+   makes the rest legible: "the key is the move that forces mate whatever
+   Black defends" only explains itself once you know Black is trying not to
+   be mated. And the aim is the only line that separates the genres from each
+   other, since it names the relationship between the two sides:
 
-   It replaced a prose description that had been sitting at the top being
-   skipped. The description was abstract — helpmate's said "a completely
-   reversed concept from normal chess, former enemies work toward the same
-   goal", which is true and tells you nothing you can act on. Knowing the
-   concept is inverted does not tell you that Black moves first, that you
-   enter both moves, or which king ends up mated. Those three things do.
+     Direct     the aims conflict — mate the black king / survive
+     Helpmate   the aims agree — both sides want the black king mated
+     Selfmate   the aims conflict AND one side is compelled — Black does not
+                want to give mate and is left with no other legal move
 
-   `general` is what is true of chess problems at large. It cannot be
-   dropped — you cannot solve without knowing what #2 means — but it is not
-   what the genre IS, so it sits quietest, under a rule. */
+   `steps` is then a pure procedure, in the order the moves are made.
+
+   `general` is the small print, under a rule at the quietest weight. */
 const TUTORIALS: Record<Genre, {
   title: string;
   mark: string;
+  aim: string;
   steps: string[];
   general: string[];
 }> = {
   direct: {
     title: 'Direct Mate',
     mark: 'Direct Mates',
+    aim: 'White is trying to mate the black king. Black is trying to survive.',
     steps: [
-      // "not necessarily a check" belongs in step one, where the move is
-      // actually being chosen. It used to sit at the bottom as a general
-      // note, which is where a beginner has already guessed wrong.
-      'You play White. The key — the answer — is the one move that forces mate in the given number of moves (#2 = mate in 2, #3 = mate in 3), whatever Black defends. It does not have to be a check',
-      'Black answers by itself, defending as well as it possibly can',
-      'The mate lands on that last move — not sooner, not later',
+      'You play White first. The key is the one move that still forces the mate whatever Black defends — it does not have to be a check.',
+      'Black answers by itself, defending as well as it possibly can.',
+      'The mate lands on the last move exactly. #2 = mate in 2, #3 = mate in 3.',
     ],
     general: [],
   },
   help: {
     title: 'Helpmate',
     mark: 'Helpmates',
+    aim: 'Both sides are trying to mate the black king. Black wants its own king mated.',
     steps: [
-      // "You play both sides" states the mechanic but not the thing you
-      // actually need: what makes each move right. Black's and White's are
-      // chosen on different grounds, so they get a beat each.
-      'Black moves first, and you play it — the right black move is one that walks into the mate, not one that defends',
-      'Then you play White\'s move — the one that closes in on the mate Black just allowed',
-      'Alternate until White mates on the last move exactly. h#2 means each side moves twice, and usually only one line works',
+      'You play Black first — the move that lets White in, never one that defends.',
+      'Then you play White — the move that takes what Black just gave it.',
+      'Alternate until White’s last move mates. h#2 = two moves each, and usually only one line works.',
     ],
     general: [
-      'Some problems have multiple solutions',
+      'Some problems have multiple solutions.',
     ],
   },
   self: {
     title: 'Selfmate',
     mark: 'Selfmates',
+    aim: 'White wants the white king mated. Black does not want to deliver it — and is left with no other legal move.',
     steps: [
-      'You play White. The key is the one move that leaves Black no way out but to mate you in the given number of moves (s#2 = two moves)',
-      'Black answers by itself, and does everything it can NOT to mate you',
-      'Black is forced to mate you on that last move — not sooner, not later',
+      'You play White first. The key is the one move that leaves Black no legal way out but to deliver the mate.',
+      'Black answers by itself, avoiding the mate for as long as it can.',
+      'Black is forced to mate the white king on the last move. s#2 = two moves.',
     ],
     general: [],
   },
   study: {
     title: 'Study',
     mark: 'Studies',
+    aim: 'White is trying to win, or to save a position that looks lost. Black is trying to stop it.',
     steps: [
-      'You play White. The answer is the one line that gets the win, or holds the draw',
-      'Black answers by itself, defending as well as it possibly can',
-      'It ends when the outcome is decided — there is no move count',
+      'You play White first. The answer is the one line that gets there.',
+      'Black answers by itself, defending as well as it possibly can.',
+      'There is no move count — it ends when the outcome is decided.',
     ],
     general: [
-      'Win studies end when a decisive advantage is reached (e.g. queening a pawn)',
-      'Draw studies end when a theoretical draw is achieved',
-      'Solutions end when the outcome is decided — to continue playing, use the Lichess links. "Analysis ↗" opens the analysis board. "Play ↗" opens the board editor — click "CONTINUE FROM HERE", then choose "Play against the computer"',
+      'Win studies end when a decisive advantage is reached (e.g. queening a pawn).',
+      'Draw studies end when a theoretical draw is achieved.',
+      'To keep playing past that, use the Lichess links. "Analysis ↗" opens the analysis board. "Play ↗" opens the board editor — click "CONTINUE FROM HERE", then choose "Play against the computer".',
     ],
   },
   retro: {
     title: 'Retro',
     mark: 'Retros',
+    // Two steps, not three. "Work out which side is to move" and "deduce what
+    // moves could have led here" were the same act written twice — the second
+    // one IS how you do the first.
+    aim: 'The aim is whatever the badge says — but first you have to work out the position’s past.',
     steps: [
-      'You play both sides — and working out whose turn it is is itself part of the puzzle',
-      'Deduce what moves could have led here: that settles the turn, castling rights and en passant',
-      // Retro was the one genre that never said what counts as the answer,
-      // nor how to pick moves for the side you are not "playing" — and it is
-      // the genre where you hold both. Only the solution's moves are taken,
-      // same as helpmate.
-      'Then play the answer the badge asks for — #1, #2, h#2, whichever it says — and only the solution\'s moves are accepted',
+      'Deduce what moves could have led here. That settles whose turn it is, castling rights, and en passant.',
+      'Then play the answer the badge asks for — #1, #2, h#2, whichever it says. You hold both sides, and only the solution’s moves are accepted.',
     ],
     general: [
-      'Usually White to move, but if White\'s move would be impossible, it\'s Black\'s turn',
-      'Castling and en passant rights depend on what moves could have led to this position',
-      'The badge varies: #1, #2, h#2, etc.',
+      'Usually White is to move — but if White’s move would have been impossible, it is Black’s turn.',
     ],
   },
 };
@@ -116,26 +114,30 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
           </h2>
         </div>
 
-        <ul className="space-y-2.5 mb-4">
+        <p className="nb-panel px-4 py-3 mb-4 text-base font-extrabold text-[var(--ink)] leading-snug">
+          {tutorial.aim}
+        </p>
+
+        <ol className="space-y-2.5 mb-4">
           {tutorial.steps.map((step, i) => (
-            <li key={i} className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-0.5">{i + 1}</span>
+            <li key={i} className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">{i + 1}</span>
               {step}
             </li>
           ))}
-        </ul>
+        </ol>
 
         {tutorial.general.length > 0 && (
-        <div className="border-t-2 border-[var(--hairline)] pt-3 mb-6">
-          <ul className="space-y-1.5">
-            {tutorial.general.map((rule, i) => (
-              <li key={i} className="flex gap-2 text-xs font-medium text-[var(--faint)] leading-snug">
-                <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--faint)] mt-[0.35rem]" />
-                {rule}
-              </li>
-            ))}
-          </ul>
-        </div>
+          <div className="border-t-2 border-[var(--hairline)] pt-3 mb-6">
+            <ul className="space-y-1.5">
+              {tutorial.general.map((rule, i) => (
+                <li key={i} className="flex gap-2 text-xs font-medium text-[var(--faint)] leading-snug">
+                  <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--faint)] mt-[0.35rem]" />
+                  {rule}
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         <button
