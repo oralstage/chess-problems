@@ -348,11 +348,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
                       <button
                         key={t.label}
                         onClick={() => toggleType(t)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                          isSelected
-                            ? 'bg-green-600 text-white dark:bg-green-500'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-                        }`}
+                        className={`nb-chip px-3 py-1 text-xs ${isSelected ? 'nb-chip-on' : ''}`}
                       >
                         {t.label}
                       </button>
@@ -470,11 +466,12 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
                   <button
                     key={kw}
                     onClick={() => toggleKeyword(kw)}
-                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                      isSelected
-                        ? 'bg-green-600 text-white dark:bg-green-500'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-                    }`}
+                    /* Outlined, every one of them. A row of chips like this IS
+                       the content — its job is to be countable at a glance —
+                       so it gets the uniform 2px edge, unlike a row of
+                       secondary controls where only the primary one is ringed.
+                       They were bare pills floating on the check. */
+                    className={`nb-chip px-2.5 py-1 text-xs ${isSelected ? 'nb-chip-on' : ''}`}
                   >
                     {kw}
                   </button>

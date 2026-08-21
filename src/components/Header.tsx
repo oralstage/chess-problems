@@ -21,26 +21,26 @@ interface HeaderProps {
 // Grouped by target device — the hatched mode is for the thermal printer, not
 // the sign, and mixing the two is how it got used on the wrong one.
 // `startsGroup` draws a separator above the entry.
-/* Each row carries two squares of the board it actually produces. The hints
-   used to read "Solid #000000" — a hex tells the reader nothing they can act
-   on, and what these modes are FOR is how the diagram comes out on the sign,
-   which is a thing you look at rather than read. The swatch colours are the
-   same literals as .board-print-* in index.css; they are duplicated here on
-   purpose, because a CSS variable would let the two drift apart silently. */
+/* Each row is a name and two squares of the board it actually produces. It
+   used to carry a line of explanation as well, ending in "Solid #000000" — a
+   hex is not something a reader can act on, and once the swatch is there the
+   sentence is describing a thing already visible an inch to its left. The
+   swatch colours are the same literals as .board-print-* in index.css,
+   duplicated on purpose: a shared variable would let the menu and the board
+   drift apart without anything failing. */
 const PRINT_OPTIONS: {
   value: PrintMode;
   label: string;
-  hint: string;
   light: string;
   dark: string;
   startsGroup?: boolean;
 }[] = [
-  { value: 'off', label: 'Normal', hint: 'The board as it is on screen', light: 'var(--board-l)', dark: 'var(--board-d)' },
-  { value: 'wood', label: 'Wood', hint: 'The sign dithers it into a grain', light: 'rgb(237, 218, 185)', dark: 'rgb(174, 138, 104)', startsGroup: true },
-  { value: 'black', label: 'Black', hint: 'Pure ink — comes out flat, no dither', light: '#ffffff', dark: '#000000' },
-  { value: 'red', label: 'Red', hint: 'Pure ink — comes out flat, no dither', light: '#ffffff', dark: '#ff0000' },
-  { value: 'yellow', label: 'Yellow', hint: 'Pure ink — comes out flat, no dither', light: '#ffffff', dark: '#ffff00' },
-  { value: 'bw', label: 'Thermal printer', hint: 'Hatched instead of filled', light: '#ffffff', dark: 'HATCH', startsGroup: true },
+  { value: 'off', label: 'Normal', light: 'var(--board-l)', dark: 'var(--board-d)' },
+  { value: 'wood', label: 'Wood', light: 'rgb(237, 218, 185)', dark: 'rgb(174, 138, 104)', startsGroup: true },
+  { value: 'black', label: 'Black', light: '#ffffff', dark: '#000000' },
+  { value: 'red', label: 'Red', light: '#ffffff', dark: '#ff0000' },
+  { value: 'yellow', label: 'Yellow', light: '#ffffff', dark: '#ffff00' },
+  { value: 'bw', label: 'Thermal printer', light: '#ffffff', dark: 'HATCH', startsGroup: true },
 ];
 
 /* The hatch is the same 10px SVG the board uses, so the swatch is a crop of
@@ -88,21 +88,18 @@ function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetP
         </svg>
       </button>
       {open && (
-        <div className="nb-plate absolute right-0 top-full mt-2 z-50 py-1.5 min-w-[248px] overflow-hidden">
+        <div className="nb-plate absolute right-0 top-full mt-2 z-50 py-1.5 min-w-[232px] overflow-hidden">
           {PRINT_OPTIONS.map(opt => (
             <button
               key={opt.value}
               onClick={() => { onSetPrintMode(opt.value); setOpen(false); }}
-              className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 hover:bg-[var(--surface-2)] ${
+              className={`w-full text-left px-3.5 py-2.5 text-base font-bold transition-colors flex items-center gap-2.5 hover:bg-[var(--surface-2)] ${
                 opt.startsGroup ? 'mt-1 border-t-2 border-[var(--hairline)] pt-2' : ''
               } ${printMode === opt.value ? 'text-[var(--ink)] font-extrabold' : 'text-[var(--muted)]'}`}
             >
-              <span className="w-3 shrink-0 text-[var(--ink)] text-xs font-extrabold">{printMode === opt.value ? '✓' : ''}</span>
+              <span className="w-3.5 shrink-0 text-[var(--ink)] text-sm font-extrabold">{printMode === opt.value ? '✓' : ''}</span>
               <Swatch light={opt.light} dark={opt.dark} />
-              <span className="min-w-0">
-                {opt.label}
-                <span className="block text-[11px] text-[var(--faint)] font-normal leading-snug">{opt.hint}</span>
-              </span>
+              <span className="min-w-0">{opt.label}</span>
             </button>
           ))}
         </div>

@@ -2672,55 +2672,57 @@ export default function App() {
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/40" onClick={() => setShowProblemInfo(false)} />
-            <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-sm w-full mx-4 p-5 space-y-3">
+            {/* Was the last panel on the site still made of bg-white and a
+                blurred shadow — a soft rectangle among hard-edged ones. */}
+            <div className="nb-sheet relative max-w-sm w-full mx-4 p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Problem Info</h3>
-                <button onClick={() => setShowProblemInfo(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <h3 className="text-lg font-extrabold text-[var(--ink)]">Problem Info</h3>
+                <button onClick={() => setShowProblemInfo(false)} className="nb-close" aria-label="Close">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
               <div className="space-y-2 text-sm">
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">Author: </span>
-                  <span className="text-gray-900 dark:text-gray-100 font-medium">{p.authors.join(', ')}</span>
+                  <span className="text-[var(--faint)] font-semibold">Author: </span>
+                  <span className="text-[var(--ink)] font-medium">{p.authors.join(', ')}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">Source: </span>
-                  <span className="text-gray-900 dark:text-gray-100">{p.sourceName}{p.sourceYear ? `, ${p.sourceYear}` : ''}</span>
+                  <span className="text-[var(--faint)] font-semibold">Source: </span>
+                  <span className="text-[var(--ink)]">{p.sourceName}{p.sourceYear ? `, ${p.sourceYear}` : ''}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">YACPDB: </span>
+                  <span className="text-[var(--faint)] font-semibold">YACPDB: </span>
                   <a href={`https://www.yacpdb.org/#${p.id}`} target="_blank" rel="noopener noreferrer"
-                    className="text-green-600 dark:text-green-400 underline hover:text-green-700">
+                    className="text-[var(--ink)] font-bold underline decoration-2 underline-offset-2">
                     #{p.id}
                   </a>
                 </div>
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">Stipulation: </span>
-                  <span className="text-gray-900 dark:text-gray-100 font-mono">{p.stipulation}</span>
+                  <span className="text-[var(--faint)] font-semibold">Stipulation: </span>
+                  <span className="text-[var(--ink)] font-mono">{p.stipulation}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">Pieces: </span>
-                  <span className="text-gray-900 dark:text-gray-100">{pc}</span>
+                  <span className="text-[var(--faint)] font-semibold">Pieces: </span>
+                  <span className="text-[var(--ink)]">{pc}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">Problem rating: </span>
-                  <span className="text-gray-900 dark:text-gray-100 font-semibold">~{infoRating}</span>
+                  <span className="text-[var(--faint)] font-semibold">Problem rating: </span>
+                  <span className="text-[var(--ink)] font-semibold">~{infoRating}</span>
                 </div>
                 {p.award && (
                   <div>
-                    <span className="text-gray-400 dark:text-gray-500">Award: </span>
+                    <span className="text-[var(--faint)] font-semibold">Award: </span>
                     <span className="text-[var(--acid)] dark:text-[var(--acid)]">{p.award}</span>
                   </div>
                 )}
                 {p.keywords.length > 0 && (
                   <div>
-                    <span className="text-gray-400 dark:text-gray-500 block mb-1">Themes:</span>
+                    <span className="text-[var(--faint)] font-semibold block mb-1">Themes:</span>
                     <div className="flex flex-wrap gap-1">
                       {p.keywords.map(kw => (
-                        <span key={kw} className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                        <span key={kw} className="nb-chip px-2 py-0.5 text-xs">
                           {kw}
                         </span>
                       ))}
