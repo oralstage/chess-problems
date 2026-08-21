@@ -476,6 +476,45 @@ body {
 .nb-btn-quiet:hover:not(:disabled) { background: color-mix(in srgb, var(--surface) 70%, transparent); }
 .nb-btn-quiet:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* The close ✕ on the full-screen overlays. A bare glyph on the check was the
+   original bug — it was set in a grey that the retint had landed on the
+   ground's own value — and ink-on-check fixed the contrast without making the
+   thing look like a target. It is a disc: the one shape on these pages that
+   says "press here to leave", and it holds its own ground whatever is behind
+   it. Cream ✕ knocked out of ink, no outline; the disc IS the outline. */
+.nb-close {
+  background: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  color: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+.nb-close:hover { transform: translate(-1px, -1px); }
+.nb-close:active { transform: none; }
+.nb-close > svg { width: 1.05rem; height: 1.05rem; }
+
+/* A two-square swatch of the board a print mode actually produces. Naming the
+   hex ("Solid #FF0000") told the reader nothing they could act on — the point
+   of these modes is what the diagram LOOKS like on the sign, so the menu shows
+   two squares of it instead. */
+.nb-swatch {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.nb-swatch > i { display: block; }
+
 .nb-icon {
   background: transparent;
   border: 0;

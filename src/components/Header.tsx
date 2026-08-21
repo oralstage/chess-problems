@@ -21,14 +21,47 @@ interface HeaderProps {
 // Grouped by target device — the hatched mode is for the thermal printer, not
 // the sign, and mixing the two is how it got used on the wrong one.
 // `startsGroup` draws a separator above the entry.
-const PRINT_OPTIONS: { value: PrintMode; label: string; hint: string; startsGroup?: boolean }[] = [
-  { value: 'off', label: 'Normal', hint: 'Green board' },
-  { value: 'wood', label: 'Wood', hint: 'Sign dithers it', startsGroup: true },
-  { value: 'black', label: 'Black', hint: 'Solid #000000' },
-  { value: 'red', label: 'Red', hint: 'Solid #FF0000' },
-  { value: 'yellow', label: 'Yellow', hint: 'Solid #FFFF00' },
-  { value: 'bw', label: 'Thermal printer', hint: 'Hatched black & white', startsGroup: true },
+/* Each row carries two squares of the board it actually produces. The hints
+   used to read "Solid #000000" — a hex tells the reader nothing they can act
+   on, and what these modes are FOR is how the diagram comes out on the sign,
+   which is a thing you look at rather than read. The swatch colours are the
+   same literals as .board-print-* in index.css; they are duplicated here on
+   purpose, because a CSS variable would let the two drift apart silently. */
+const PRINT_OPTIONS: {
+  value: PrintMode;
+  label: string;
+  hint: string;
+  light: string;
+  dark: string;
+  startsGroup?: boolean;
+}[] = [
+  { value: 'off', label: 'Normal', hint: 'The board as it is on screen', light: 'var(--board-l)', dark: 'var(--board-d)' },
+  { value: 'wood', label: 'Wood', hint: 'The sign dithers it into a grain', light: 'rgb(237, 218, 185)', dark: 'rgb(174, 138, 104)', startsGroup: true },
+  { value: 'black', label: 'Black', hint: 'Pure ink — comes out flat, no dither', light: '#ffffff', dark: '#000000' },
+  { value: 'red', label: 'Red', hint: 'Pure ink — comes out flat, no dither', light: '#ffffff', dark: '#ff0000' },
+  { value: 'yellow', label: 'Yellow', hint: 'Pure ink — comes out flat, no dither', light: '#ffffff', dark: '#ffff00' },
+  { value: 'bw', label: 'Thermal printer', hint: 'Hatched instead of filled', light: '#ffffff', dark: 'HATCH', startsGroup: true },
 ];
+
+/* The hatch is the same 10px SVG the board uses, so the swatch is a crop of
+   the real thing rather than an impression of it. */
+const HATCH =
+  "url(\"data:image/svg+xml,%3Csvg width='10' height='10' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M-2,2 l4,-4 M0,10 l10,-10 M8,12 l4,-4' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E\")";
+
+function Swatch({ light, dark }: { light: string; dark: string }) {
+  const darkCell =
+    dark === 'HATCH'
+      ? { backgroundColor: '#ffffff', backgroundImage: HATCH, backgroundSize: '10px 10px' }
+      : { backgroundColor: dark };
+  return (
+    <span className="nb-swatch" aria-hidden="true">
+      <i style={darkCell} />
+      <i style={{ backgroundColor: light }} />
+      <i style={{ backgroundColor: light }} />
+      <i style={darkCell} />
+    </span>
+  );
+}
 
 function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetPrintMode: (mode: PrintMode) => void }) {
   const [open, setOpen] = useState(false);
@@ -55,7 +88,7 @@ function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetP
         </svg>
       </button>
       {open && (
-        <div className="nb-plate absolute right-0 top-full mt-2 z-50 py-1.5 min-w-[210px] overflow-hidden">
+        <div className="nb-plate absolute right-0 top-full mt-2 z-50 py-1.5 min-w-[248px] overflow-hidden">
           {PRINT_OPTIONS.map(opt => (
             <button
               key={opt.value}
@@ -64,10 +97,11 @@ function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetP
                 opt.startsGroup ? 'mt-1 border-t-2 border-[var(--hairline)] pt-2' : ''
               } ${printMode === opt.value ? 'text-[var(--ink)] font-extrabold' : 'text-[var(--muted)]'}`}
             >
-              <span className="w-4 shrink-0 text-[var(--ink)] text-xs font-extrabold">{printMode === opt.value ? '✓' : ''}</span>
-              <span>
+              <span className="w-3 shrink-0 text-[var(--ink)] text-xs font-extrabold">{printMode === opt.value ? '✓' : ''}</span>
+              <Swatch light={opt.light} dark={opt.dark} />
+              <span className="min-w-0">
                 {opt.label}
-                <span className="block text-[11px] text-[var(--faint)] font-normal">{opt.hint}</span>
+                <span className="block text-[11px] text-[var(--faint)] font-normal leading-snug">{opt.hint}</span>
               </span>
             </button>
           ))}
