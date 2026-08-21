@@ -1,14 +1,15 @@
 import type { Genre } from '../types';
+import { CategoryMark } from './CategoryMark';
 
 interface GenreTutorialProps {
   genre: Genre;
   onClose: () => void;
 }
 
-const TUTORIALS: Record<Genre, { title: string; description: string; rules: string[]; icon: string }> = {
+const TUTORIALS: Record<Genre, { title: string; description: string; rules: string[]; mark: string }> = {
   direct: {
     title: 'Direct Mate',
-    icon: '♚',
+    mark: 'Direct Mates',
     description: 'The most classical form of chess problem. White plays first and forces checkmate in a specified number of moves, regardless of Black\'s defense.',
     rules: [
       'You play White',
@@ -20,7 +21,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   help: {
     title: 'Helpmate',
-    icon: '♔',
+    mark: 'Helpmates',
     description: 'Black and White cooperate to checkmate Black\'s own king. A completely reversed concept from normal chess — former enemies work toward the same goal.',
     rules: [
       'Black moves first. You control both sides',
@@ -32,7 +33,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   self: {
     title: 'Selfmate',
-    icon: '♛',
+    mark: 'Selfmates',
     description: 'White\'s goal is to force Black to deliver checkmate. Black resists — they don\'t want to give mate — but White forces their hand.',
     rules: [
       'You play White',
@@ -44,7 +45,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   study: {
     title: 'Study',
-    icon: '♜',
+    mark: 'Studies',
     description: 'Endgame compositions. Win studies: convert an advantage into a decisive win. Draw studies: save a losing position with stalemate, perpetual check, or fortress.',
     rules: [
       'You play White — Black responds automatically',
@@ -55,7 +56,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   retro: {
     title: 'Retro',
-    icon: '♚',
+    mark: 'Retros',
     description: 'Retrograde analysis problems. Figure out the history of the position to determine whose turn it is, whether castling is legal, or if en passant is possible — then solve.',
     rules: [
       'Usually White to move, but if White\'s move would be impossible, it\'s Black\'s turn',
@@ -76,7 +77,7 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
         onClick={e => e.stopPropagation()}
       >
         <div className="text-center mb-4">
-          <div className="text-4xl mb-2">{tutorial.icon}</div>
+          <span className="mx-auto mb-2 block w-16 h-16"><CategoryMark name={tutorial.mark} /></span>
           <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
             {tutorial.title}
           </h2>

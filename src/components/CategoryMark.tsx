@@ -115,18 +115,20 @@ export function CategoryMark({ name }: { name: string }) {
         </svg>
       );
 
-    /* Matched against something your own size. A dial was tried first and
-       read as a speedometer — that is about speed, not about a contest. */
+    /* Matched against something your own size. One sword, not two crossed:
+       two round pommels plus a crossing is the scissors glyph, and it read as
+       scissors at every angle and every pommel size that was tried. A dial was
+       tried before that and read as a speedometer, which is about speed rather
+       than about a contest. */
     case 'Rated Mode':
       return (
         <svg {...box}>
-          <path d="M7 6l22 24" strokeWidth={5.5} />
-          <path d="M37 6L15 30" strokeWidth={5.5} />
-          <path d="M7 6l22 24" strokeWidth={2.4} stroke={CREAM} />
-          <path d="M37 6L15 30" strokeWidth={2.4} stroke={CREAM} />
-          <path d="M25 32.5l6.5-6.5M37.5 38.5L28 29" strokeWidth={4.5} />
-          <path d="M19 32.5l-6.5-6.5M6.5 38.5L16 29" strokeWidth={4.5} />
-          <circle cx="22" cy="26" r="3.2" fill={GREEN} />
+          <g transform="translate(22 21)">
+            <path d="M0 -23 L3.4 -15 L3.4 6 L-3.4 6 L-3.4 -15 Z" fill={CREAM} />
+            <rect x="-10" y="6" width="20" height="4" rx="2" fill="var(--ink)" />
+            <rect x="-2.6" y="10" width="5.2" height="7" rx="1.8" fill={CREAM} />
+            <path d="M0 15.5L3.6 19 0 22.5 -3.6 19z" fill={GREEN} />
+          </g>
         </svg>
       );
 
