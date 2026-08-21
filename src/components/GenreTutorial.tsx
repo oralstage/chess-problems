@@ -45,10 +45,8 @@ const TUTORIALS: Record<Genre, {
     title: 'Helpmate',
     mark: 'Helpmates',
     steps: [
-      'You play both sides — Black moves first',
-      // The axis that separates this from selfmate, and the answer to "what
-      // do I play for Black?". Black is not defending here; it is helping.
-      'Both sides want Black mated — Black walks into it on purpose',
+      'You play both sides — Black moves first, then White, alternating',
+      'The answer is the one line where both sides play to get the black king mated — Black walks into it on purpose, it never defends',
       'The mate lands on the last move — h#2 means each side moves twice',
     ],
     general: [
@@ -69,9 +67,9 @@ const TUTORIALS: Record<Genre, {
     title: 'Study',
     mark: 'Studies',
     steps: [
-      'You play White',
+      'You play White. The answer is the one line that gets the win, or holds the draw',
       'Black answers by itself, defending as well as it possibly can',
-      'Win, or save the draw — there is no move count',
+      'It ends when the outcome is decided — there is no move count',
     ],
     general: [
       'Win studies end when a decisive advantage is reached (e.g. queening a pawn)',
@@ -83,9 +81,13 @@ const TUTORIALS: Record<Genre, {
     title: 'Retro',
     mark: 'Retros',
     steps: [
-      'You play both sides — and working out whose turn it is IS the puzzle',
-      'Deduce the history first: whose move, castling rights, en passant',
-      'Then solve whatever the stipulation badge asks for',
+      'You play both sides — and working out whose turn it is is itself part of the puzzle',
+      'Deduce what moves could have led here: that settles the turn, castling rights and en passant',
+      // Retro was the one genre that never said what counts as the answer,
+      // nor how to pick moves for the side you are not "playing" — and it is
+      // the genre where you hold both. Only the solution's moves are taken,
+      // same as helpmate.
+      'Then play the answer the badge asks for — #1, #2, h#2, whichever it says — and only the solution\'s moves are accepted',
     ],
     general: [
       'Usually White to move, but if White\'s move would be impossible, it\'s Black\'s turn',
