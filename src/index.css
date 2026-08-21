@@ -476,13 +476,19 @@ body {
 .nb-btn-quiet:hover:not(:disabled) { background: color-mix(in srgb, var(--surface) 70%, transparent); }
 .nb-btn-quiet:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* The close ✕ on the full-screen overlays. A bare glyph on the check was the
-   original bug — it was set in a grey that the retint had landed on the
-   ground's own value. A disc fixes it for good: it carries its own ground, so
-   it never depends on what is behind it. Cream with an ink edge, like every
-   other object on this site, rather than a solid ink dot — filled ink reads as
-   a warning at this size, and closing a list is not one. */
-.nb-close {
+/* The lone icon button that sits on the check with nothing around it: the
+   close ✕ on the overlays, and the menu on the home page. A bare glyph there
+   was the original bug — it was set in a grey the retint had landed on the
+   ground's own value — and even in ink it reads as a stray mark rather than a
+   control. A disc carries its own ground, so it never depends on what is
+   behind it. Cream with an ink edge, like every other object here, rather than
+   a solid ink dot: filled ink reads as a warning at this size, and neither
+   closing a list nor opening a menu is one.
+
+   NOT for icons that sit in a row on a surface — the solving header's four
+   controls are bare on purpose, so that ringing one of them would mean
+   something. */
+.nb-disc {
   background: var(--surface);
   border: 2px solid var(--ink);
   border-radius: 999px;
@@ -496,9 +502,9 @@ body {
   flex-shrink: 0;
   transition: transform 0.12s ease, background-color 0.12s ease;
 }
-.nb-close:hover { transform: translate(-1px, -1px); }
-.nb-close:active { transform: none; }
-.nb-close > svg { width: 1.05rem; height: 1.05rem; }
+.nb-disc:hover { transform: translate(-1px, -1px); }
+.nb-disc:active { transform: none; }
+.nb-disc > svg { width: 1.05rem; height: 1.05rem; }
 
 /* A two-square swatch of the board a print mode actually produces. Naming the
    hex ("Solid #FF0000") told the reader nothing they could act on — the point

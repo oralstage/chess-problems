@@ -155,7 +155,7 @@ export function ProblemList({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="nb-close"
+            className="nb-disc"
           >
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />

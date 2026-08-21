@@ -2677,7 +2677,7 @@ export default function App() {
             <div className="nb-sheet relative max-w-sm w-full mx-4 p-5 space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-extrabold text-[var(--ink)]">Problem Info</h3>
-                <button onClick={() => setShowProblemInfo(false)} className="nb-close" aria-label="Close">
+                <button onClick={() => setShowProblemInfo(false)} className="nb-disc" aria-label="Close">
                   <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>

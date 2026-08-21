@@ -123,14 +123,14 @@ export function Header({ view, currentGenre, onBack, onShowHelp, onOpenMenu, onO
         {onOpenMenu && (
           <button
             onClick={onOpenMenu}
-            className="nb-icon p-1.5 relative"
+            className="nb-disc relative"
             title="Menu"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
             {hasMenuBadge && (
-              <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-[var(--bad)] border border-[var(--ink)]" />
+              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[var(--bad)] border-2 border-[var(--ink)]" />
             )}
           </button>
         )}
