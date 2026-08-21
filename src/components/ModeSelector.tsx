@@ -199,18 +199,37 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
       </div>
 
       {/* ── Daily Problem ── */}
+      {/* Brought onto the sister site's shape. It used to be a caption floating
+          on the check, a board plate, and an ink bar welded under it — three
+          objects that happened to be stacked. It is one card now: the label is
+          a pill, the stipulation is a heading rather than a line of small
+          print in the footer, and Solve is a button instead of coloured text.
+
+          Split into three regions rather than wrapped in one giant button, so
+          the heading is a heading and the two pressable parts say what they
+          do. */}
       {dailyProblem && (
-        <div className="px-5 mb-8">
-          <div className="flex flex-col items-center">
-          <button
-            onClick={onSolveDaily}
-            className="group w-auto max-w-full text-left transition-colors"
-          >
-            <div className="flex flex-col items-center">
-              <div className="nb-shadow-type text-sm font-extrabold uppercase tracking-[0.16em] text-[var(--ink)] mb-3">
-                Daily Problem — {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </div>
-              <div className="nb-daily">
+        <section className="px-5 mb-8" aria-labelledby="daily-problem-heading">
+          <div className="nb-card nb-shadow-nudge mx-auto overflow-hidden" style={{ maxWidth: 320 }}>
+            <div className="px-4 py-3">
+              <p className="nb-label-key inline-block text-[11px] uppercase tracking-[0.16em] px-3 py-0.5">
+                Today&rsquo;s Problem
+              </p>
+              <h2 id="daily-problem-heading" className="mt-2.5 text-2xl font-extrabold tracking-tight text-[var(--ink)]">
+                Mate in {dailyProblem.moveCount}
+              </h2>
+              <p className="mt-0.5 text-xs font-semibold text-[var(--muted)]">
+                {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                {displayedDailyRating != null && ` · Rating ~${displayedDailyRating}`}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onSolveDaily}
+              aria-label={`Solve today's mate in ${dailyProblem.moveCount}`}
+              className="block border-y-4"
+              style={{ borderColor: 'var(--ink)' }}
+            >
               <div className="relative shrink-0 overflow-hidden" style={{ width: 320, height: 320 }}>
                 <Chessboard
                   position={dailyProblem.fen}
@@ -222,35 +241,27 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
                   customLightSquareStyle={{ backgroundColor: 'var(--board-l)' }}
                 />
               </div>
-              <div className="flex items-center justify-between w-[320px] bg-[var(--ink)] px-3 py-2">
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <div className="flex items-center gap-1.5 text-sm text-white min-w-0">
-                    <span className="font-bold shrink-0">Mate in {dailyProblem.moveCount}</span>
-                    {displayedDailyRating != null && (
-                      <>
-                        <span className="text-gray-500 shrink-0">·</span>
-                        <span className="text-gray-200 font-semibold shrink-0">Rating ~{displayedDailyRating}</span>
-                      </>
-                    )}
-                  </div>
-                  <span className="text-gray-400 text-xs truncate">
-                    {dailyProblem.authors[0] || 'Unknown'}
-                    {dailyProblem.sourceYear ? `, ${dailyProblem.sourceYear}` : ''}
-                  </span>
-                </div>
-                {dailySolved ? (
-                  <span className="text-xs font-extrabold shrink-0 text-[var(--acid)]">Solved ✓</span>
-                ) : (
-                  <span className="text-xs font-extrabold shrink-0 text-[var(--acid)]">Solve ›</span>
-                )}
-              </div>
-              </div>
-            </div>
-          </button>
+            </button>
+            <button
+              type="button"
+              onClick={onSolveDaily}
+              className="flex w-full items-center gap-3 px-4 py-3 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-extrabold text-[var(--ink)]">
+                  {dailyProblem.authors[0] || 'Unknown'}
+                </span>
+                <span className="block truncate text-xs font-medium text-[var(--faint)]">
+                  {[dailyProblem.sourceName, dailyProblem.sourceYear].filter(Boolean).join(', ')}
+                </span>
+              </span>
+              <span className="nb-btn nb-btn-key shrink-0 text-sm px-4 py-1">
+                {dailySolved ? 'Solved ✓' : 'Solve ›'}
+              </span>
+            </button>
           </div>
-        </div>
+        </section>
       )}
-
 
       {/* ── Rated Play ── */}
       {onStartRated && (
