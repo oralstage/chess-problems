@@ -71,26 +71,26 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
   const tutorial = TUTORIALS[genre];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/45 p-4" onClick={onClose}>
       <div
-        className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl max-w-md w-full p-6 animate-fade-in"
+        className="nb-card nb-shadow-nudge max-w-md w-full p-6 animate-fade-in"
         onClick={e => e.stopPropagation()}
       >
         <div className="text-center mb-4">
           <span className="mx-auto mb-2 block w-16 h-16"><CategoryMark name={tutorial.mark} /></span>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">
+          <h2 className="text-2xl font-extrabold tracking-tight text-[var(--ink)]">
             {tutorial.title}
           </h2>
         </div>
 
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+        <p className="text-sm font-medium text-[var(--muted)] mb-4">
           {tutorial.description}
         </p>
 
         <ul className="space-y-2 mb-6">
           {tutorial.rules.map((rule, i) => (
-            <li key={i} className="flex gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <span className="text-cp-primary font-bold shrink-0">{i + 1}.</span>
+            <li key={i} className="nb-entry flex gap-2 text-sm font-medium text-[var(--ink)]">
+              <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-0.5">{i + 1}</span>
               {rule}
             </li>
           ))}
@@ -98,7 +98,7 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
 
         <button
           onClick={onClose}
-          className="w-full py-2.5 bg-cp-primary text-white rounded-lg hover:bg-cp-dark transition-colors font-medium"
+          className="nb-btn nb-btn-key nb-shadow-room w-full py-2.5"
         >
           Start Solving
         </button>

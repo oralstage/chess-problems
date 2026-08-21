@@ -2397,17 +2397,17 @@ export default function App() {
 
       {/* Review Mode tutorial */}
       {showTutorial && isReviewMode && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-[var(--ink)]/45 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
+          <div className="nb-card nb-shadow-nudge p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
             <div className="text-center mb-4">
               <span className="mx-auto mb-1 block w-14 h-14"><CategoryMark name="Review Mode" /></span>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Review Mode</h2>
+              <h2 className="text-2xl font-extrabold tracking-tight text-[var(--ink)] mt-1">Review Mode</h2>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-sm font-medium text-[var(--muted)] mb-4">
               Reinforce problems you've attempted in Rated Mode using spaced repetition (FSRS algorithm).
               Problems appear based on the forgetting curve — the better you know a problem, the less frequently it appears.
             </p>
-            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+            <ul className="space-y-2 text-sm font-medium text-[var(--ink)]">
               <li>✓ Solve the problem as usual</li>
               <li>✓ Perfect solve → next review scheduled further out</li>
               <li>✓ Any mistake → review scheduled sooner</li>
@@ -2425,16 +2425,16 @@ export default function App() {
 
       {/* Rated Mode tutorial */}
       {showTutorial && isRatedMode && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-[var(--ink)]/45 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
+          <div className="nb-card nb-shadow-nudge p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
             <div className="text-center mb-4">
               <span className="mx-auto mb-1 block w-14 h-14"><CategoryMark name="Rated Mode" /></span>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Rated Mode</h2>
+              <h2 className="text-2xl font-extrabold tracking-tight text-[var(--ink)] mt-1">Rated Mode</h2>
             </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <p className="text-sm font-medium text-[var(--muted)] mb-4">
               Direct Mate problems matched to your rating level. White plays first and forces checkmate in a specified number of moves, regardless of Black's defense.
             </p>
-            <ol className="space-y-3 text-sm text-gray-700 dark:text-gray-300 list-decimal list-inside">
+            <ol className="space-y-3 text-sm font-medium text-[var(--ink)] list-decimal list-inside marker:font-extrabold">
               <li>You play White</li>
               <li>Checkmate Black within the specified number of moves</li>
               <li>#2 = mate in 2, #3 = mate in 3, etc.</li>
