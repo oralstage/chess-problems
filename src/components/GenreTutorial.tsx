@@ -36,7 +36,7 @@ const TUTORIALS: Record<Genre, {
     mark: 'Direct Mates',
     aim: 'White is trying to mate the black king. Black is trying to survive.',
     steps: [
-      'You play White first. The key is the one move that still forces the mate whatever Black defends — it does not have to be a check.',
+      'You play White first. The key \u2014 the answer \u2014 is the one move that forces mate within the given number of moves whatever Black defends \u2014 it does not have to be a check.',
       'Black answers by itself, defending as well as it possibly can.',
       'The mate lands on the last move exactly. #2 = mate in 2, #3 = mate in 3.',
     ],
@@ -45,23 +45,23 @@ const TUTORIALS: Record<Genre, {
   help: {
     title: 'Helpmate',
     mark: 'Helpmates',
-    aim: 'Both sides are trying to mate the black king. Black wants its own king mated.',
+    aim: 'Both sides are trying to mate the black king.',
     steps: [
-      'You play Black first — the move that opens the way to its own king being mated, never one that defends.',
-      'Then you play White — the move that builds toward mating the black king.',
-      'Alternate until White’s last move mates the black king. h#2 = two moves each, and usually only one line works.',
+      'You play Black first. Black wants its own king mated, so its move is the one that makes White\u2019s mate possible \u2014 it never defends.',
+      'Then you play White. White wants to mate the black king too, so its move takes what Black just gave it.',
+      'Alternate until White\u2019s last move mates the black king. h#2 = two moves each.',
     ],
     general: [
-      'Some problems have multiple solutions.',
+      'Usually only one line works \u2014 but some helpmates are composed with several on purpose, unlike a direct mate where a second solution would be a flaw.',
     ],
   },
   self: {
     title: 'Selfmate',
     mark: 'Selfmates',
-    aim: 'White wants the white king mated. Black does not want to deliver it — and is left with no other legal move.',
+    aim: 'White wants the white king mated. Black does not want to deliver it \u2014 but is left with no other legal move.',
     steps: [
-      'You play White first. The key is the one move that leaves Black no legal way out but to deliver the mate.',
-      'Black answers by itself, putting off mating the white king for as long as it can.',
+      'You play White first. The key \u2014 the answer \u2014 is the one move that leaves Black no legal way out but to deliver the mate.',
+      'Black answers by itself, avoiding the mate as long as it can \u2014 it only delivers when nothing else is legal.',
       'Black is forced to mate the white king on the last move. s#2 = two moves.',
     ],
     general: [],
@@ -73,28 +73,23 @@ const TUTORIALS: Record<Genre, {
     steps: [
       'You play White first. The answer is the one line that gets there.',
       'Black answers by itself, defending as well as it possibly can.',
-      'There is no move count — it ends when the outcome is decided.',
+      'There is no move count \u2014 it ends when the outcome is decided.',
     ],
     general: [
       'Win studies end when a decisive advantage is reached (e.g. queening a pawn).',
       'Draw studies end when a theoretical draw is achieved.',
-      'To keep playing past that, use the Lichess links. "Analysis ↗" opens the analysis board. "Play ↗" opens the board editor — click "CONTINUE FROM HERE", then choose "Play against the computer".',
+      'To keep playing past that, use the Lichess links. "Analysis \u2197" opens the analysis board. "Play \u2197" opens the board editor \u2014 click "CONTINUE FROM HERE", then choose "Play against the computer".',
     ],
   },
   retro: {
     title: 'Retro',
     mark: 'Retros',
-    // Two steps, not three. "Work out which side is to move" and "deduce what
-    // moves could have led here" were the same act written twice — the second
-    // one IS how you do the first.
-    aim: 'The aim is whatever the badge says — but first you have to work out the position’s past.',
+    aim: 'Play whatever the stipulation badge asks for \u2014 #1, #2, h#2, whichever it says next to the problem number.',
     steps: [
-      'Deduce what moves could have led here. That settles whose turn it is, castling rights, and en passant.',
-      'Then play the answer the badge asks for — #1, #2, h#2, whichever it says. You hold both sides, and only the solution’s moves are accepted.',
+      'Work out whose turn it even is. Deduce what moves could have led here \u2014 that settles the turn, castling rights, and en passant.',
+      'You can move either colour, but only a move by the side whose turn it really is can be the answer. Usually that is White \u2014 but if White\u2019s move would have been impossible, it is Black.',
     ],
-    general: [
-      'Usually White is to move — but if White’s move would have been impossible, it is Black’s turn.',
-    ],
+    general: [],
   },
 };
 

@@ -2403,16 +2403,16 @@ export default function App() {
               <span className="mx-auto mb-1 block w-14 h-14"><CategoryMark name="Review Mode" /></span>
               <h2 className="text-2xl font-extrabold tracking-tight text-[var(--ink)] mt-1">Review Mode</h2>
             </div>
-            <p className="text-sm font-medium text-[var(--muted)] mb-4">
-              Reinforce problems you've attempted in Rated Mode using spaced repetition (FSRS algorithm).
-              Problems appear based on the forgetting curve — the better you know a problem, the less frequently it appears.
+            <p className="nb-panel px-4 py-3 mb-4 text-base font-extrabold text-[var(--ink)] leading-snug">
+              Problems you have already played in Rated Mode, coming back on a schedule so they stick. Your rating is not affected.
             </p>
-            <ul className="space-y-2 text-sm font-medium text-[var(--ink)]">
-              <li>✓ Solve the problem as usual</li>
-              <li>✓ Perfect solve → next review scheduled further out</li>
-              <li>✓ Any mistake → review scheduled sooner</li>
-              <li>✓ Your rating is <strong>not</strong> affected</li>
-            </ul>
+            <ol className="space-y-2.5 mb-4">
+              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">1</span>Solve it as usual.</li>
+              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">2</span>A clean solve pushes the next review further out. A mistake, or a hint, brings it back sooner.</li>
+            </ol>
+            <div className="border-t-2 border-[var(--hairline)] pt-3">
+              <p className="flex gap-2 text-xs font-medium text-[var(--faint)] leading-snug"><span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--faint)] mt-[0.35rem]" />The schedule uses FSRS, a spaced-repetition model based on the forgetting curve — the better you know a problem, the longer until it returns.</p>
+            </div>
             <button
               onClick={() => setShowTutorial(false)}
               className="nb-btn nb-shadow-room mt-5 w-full py-3 text-base"
@@ -2455,7 +2455,7 @@ export default function App() {
             {/* Same aim and the same three steps as the Direct Mate tutorial —
                 this IS direct mate, just matched to your rating. */}
             <ol className="space-y-2.5 mb-6">
-              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">1</span>You play White first. The key is the one move that still forces the mate whatever Black defends — it does not have to be a check.</li>
+              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">1</span>You play White first. The key — the answer — is the one move that forces mate within the given number of moves whatever Black defends — it does not have to be a check.</li>
               <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">2</span>Black answers by itself, defending as well as it possibly can.</li>
               <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">3</span>The mate lands on the last move exactly. #2 = mate in 2, #3 = mate in 3.</li>
             </ol>
