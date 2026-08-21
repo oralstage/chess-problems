@@ -2434,12 +2434,14 @@ export default function App() {
             <p className="text-sm font-medium text-[var(--muted)] mb-4">
               Direct Mate problems matched to your rating level. White plays first and forces checkmate in a specified number of moves, regardless of Black's defense.
             </p>
-            <ol className="space-y-3 text-sm font-medium text-[var(--ink)] list-decimal list-inside marker:font-extrabold">
-              <li>You play White</li>
-              <li>Checkmate Black within the specified number of moves</li>
-              <li>#2 = mate in 2, #3 = mate in 3, etc.</li>
-              <li>The solution doesn't have to be a series of checks</li>
-            </ol>
+            <p className="nb-panel px-4 py-3 mb-3 text-base font-extrabold text-[var(--ink)] leading-snug">
+              You play White
+            </p>
+            <ul className="space-y-2 text-sm font-medium text-[var(--muted)]">
+              <li className="nb-entry flex gap-2"><span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--ink)] mt-[0.45rem]" />Checkmate Black within the specified number of moves</li>
+              <li className="nb-entry flex gap-2"><span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--ink)] mt-[0.45rem]" />#2 = mate in 2, #3 = mate in 3, etc.</li>
+              <li className="nb-entry flex gap-2"><span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--ink)] mt-[0.45rem]" />The solution doesn't have to be a series of checks</li>
+            </ul>
             <button
               onClick={() => setShowTutorial(false)}
               className="nb-btn nb-btn-key nb-shadow-room mt-5 w-full py-3 text-base"

@@ -6,9 +6,15 @@ interface GenreTutorialProps {
   onClose: () => void;
 }
 
-const TUTORIALS: Record<Genre, { title: string; description: string; rules: string[]; mark: string }> = {
+/* `lead` is how many of the opening rules are the ones that have to be
+   settled before the board can be touched: which side you play, and which
+   side gets mated. For direct, help and self that is a pair — selfmate is
+   the case that proves it, since there the king being mated is your own.
+   Studies and retros have no mate to name, so only the first line qualifies. */
+const TUTORIALS: Record<Genre, { title: string; description: string; rules: string[]; mark: string; lead: number }> = {
   direct: {
     title: 'Direct Mate',
+    lead: 2,
     mark: 'Direct Mates',
     description: 'The most classical form of chess problem. White plays first and forces checkmate in a specified number of moves, regardless of Black\'s defense.',
     rules: [
@@ -21,6 +27,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   help: {
     title: 'Helpmate',
+    lead: 2,
     mark: 'Helpmates',
     description: 'Black and White cooperate to checkmate Black\'s own king. A completely reversed concept from normal chess — former enemies work toward the same goal.',
     rules: [
@@ -33,6 +40,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   self: {
     title: 'Selfmate',
+    lead: 2,
     mark: 'Selfmates',
     description: 'White\'s goal is to force Black to deliver checkmate. Black resists — they don\'t want to give mate — but White forces their hand.',
     rules: [
@@ -45,6 +53,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   study: {
     title: 'Study',
+    lead: 1,
     mark: 'Studies',
     description: 'Endgame compositions. Win studies: convert an advantage into a decisive win. Draw studies: save a losing position with stalemate, perpetual check, or fortress.',
     rules: [
@@ -56,6 +65,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   retro: {
     title: 'Retro',
+    lead: 1,
     mark: 'Retros',
     description: 'Retrograde analysis problems. Figure out the history of the position to determine whose turn it is, whether castling is legal, or if en passant is possible — then solve.',
     rules: [
@@ -87,10 +97,27 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
           {tutorial.description}
         </p>
 
+        {/* The first rule is not one item among five — in every genre it is the
+            answer to "which side am I, and who moves first", and that has to be
+            settled before the board can be touched at all. So it is lifted out
+            and set as a statement.
+
+            The rest were numbered 1..5, which read as a procedure. They are not
+            one: for Direct Mate they run role, goal, what the app does, a
+            caveat, then notation, and nothing after the first is ordered. The
+            numbers were doing active harm and the ink discs made it worse. */}
+        <div className="nb-panel px-4 py-3 mb-3 space-y-1">
+          {tutorial.rules.slice(0, tutorial.lead).map((rule, i) => (
+            <p key={i} className="text-base font-extrabold text-[var(--ink)] leading-snug">
+              {rule}
+            </p>
+          ))}
+        </div>
+
         <ul className="space-y-2 mb-6">
-          {tutorial.rules.map((rule, i) => (
-            <li key={i} className="nb-entry flex gap-2 text-sm font-medium text-[var(--ink)]">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-0.5">{i + 1}</span>
+          {tutorial.rules.slice(tutorial.lead).map((rule, i) => (
+            <li key={i} className="nb-entry flex gap-2 text-sm font-medium text-[var(--muted)]">
+              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--ink)] mt-[0.45rem]" />
               {rule}
             </li>
           ))}
