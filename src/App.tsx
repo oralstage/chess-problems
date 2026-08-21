@@ -41,6 +41,11 @@ import {
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem, PrintMode } from './types';
 import { CATEGORY_DEFS } from './types';
 
+/** Rows read when opening a category cold, to find the first unsolved problem
+ *  without waiting for the genre index. Wide enough that a visitor who has
+ *  solved the easiest problems in a category still gets a hit in one request. */
+const QUICK_START_PAGE_SIZE = 50;
+
 /**
  * Fix FEN for problems where the solution requires en passant but the FEN
  * doesn't have the en passant square set (common in retro problems).
@@ -1456,8 +1461,31 @@ export default function App() {
           updateHash(category, quickProblem.id);
           quickStarted = true;
         } else {
-          // No saved unsolved problem — load genre index to find first unsolved
-          // Don't quick-start with API first page, as it may return a solved problem
+          // No saved unsolved problem. The genre index is the wrong tool for
+          // this: it is one row per problem for the WHOLE genre (direct is
+          // ~398k rows / 13MB, and it carries no move count, so opening
+          // Twomovers pulled #1..#100 as well) and the first visit blocked on
+          // it for ~5s just to answer "which is the first unsolved one".
+          // Ask the API that question instead — one page, in this category's
+          // own move range, on the same difficulty sort the index uses, so the
+          // problem chosen here is the same one the index would have chosen.
+          // The page is read past the first row because a returning visitor
+          // may have solved the leaders; a first-time visitor takes row 0.
+          const filters: Record<string, string> = {};
+          if (def.minMoves) filters.minMoves = String(def.minMoves);
+          if (def.maxMoves) filters.maxMoves = String(def.maxMoves);
+          const { problems: firstPage } = await fetchProblemsPage(genre, 0, QUICK_START_PAGE_SIZE, filters);
+          const fresh = firstPage.find(m => !genreProgress[String(m.id)]);
+          if (fresh) {
+            // Metadata only — no solutionText. loadAndStartProblem paints the
+            // board from the FEN straight away and ensureSolution fills the
+            // solution in behind it, so the board is up after this one request.
+            const quickProblem = metaToChessProblem(fresh);
+            updateHash(category, quickProblem.id);
+            loadAndStartProblem(quickProblem).then(() => cacheProblem(quickProblem));
+            quickStarted = true;
+          }
+          // Nobody unsolved in the first page — fall through to the full index.
         }
       } catch { /* quick-start failed — will fall through to full load below */ }
 

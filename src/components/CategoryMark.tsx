@@ -30,15 +30,20 @@ const SAGE = 'var(--surface-2)';
 const GREEN = 'var(--board-d)';
 const RED = 'var(--bad)';
 
-/* The stipulation is drawn into the mark itself, bottom-right, on a plate in
-   its move-count colour so it matches the badge the problem page shows. */
+/* The stipulation is drawn into the mark itself, bottom-left, on a plate in
+   its move-count colour so it matches the badge the problem page shows.
+
+   Bottom-left, not bottom-right: every mark that takes one puts its weight on
+   the right — the target's disc on Direct Mates, the small gear on Helpmates —
+   so a plate in that corner lands on top of the drawing. The lower-left of
+   this box is empty in both. */
 function Stip({ text }: { text: string }) {
   const w = 6.2 * text.length + 8;
   return (
     <g>
-      <rect x={44 - w} y={30} width={w} height={13} rx={4} fill="var(--stip-bg, var(--surface))" strokeWidth={2} />
+      <rect x={0} y={30} width={w} height={13} rx={4} fill="var(--stip-bg, var(--surface))" strokeWidth={2} />
       <text
-        x={44 - w / 2}
+        x={w / 2}
         y={39.6}
         textAnchor="middle"
         fill="var(--ink)"
@@ -68,20 +73,27 @@ export function CategoryMark({ name, stip }: { name: string; stip?: string }) {
 function markBody(name: string) {
   switch (name) {
     /* Straight at it, first time. The arrow is a real arrow — head, shaft and
-       a solid fletch — not a UI chevron. Drawn horizontal so head, shaft and
-       fletch line up: at 44px that is the only version that still reads as an
-       arrow rather than as an arrow-shaped symbol. */
+       a solid fletch — not a UI chevron. It is still DRAWN horizontal, so head,
+       shaft and fletch line up exactly, and then rotated as a whole: at 44px an
+       arrow whose parts are each angled separately stops reading as an arrow
+       and starts reading as an arrow-shaped symbol. A rigid rotation cannot do
+       that to it.
+
+       It comes from the upper left rather than from due left because the
+       stipulation plate moved to the bottom-left corner, and a horizontal
+       shaft ran straight into it. The tail is 5 units shorter than it was, or
+       the fletch leaves the top of the box once it is turned. */
     case 'Direct Mates':
       return (
         <svg {...box}>
           <circle cx="29" cy="22" r="13" fill={CREAM} />
           <circle cx="29" cy="22" r="7.6" fill={SAGE} />
           <circle cx="29" cy="22" r="2.6" fill={RED} stroke="none" />
-          <g transform="translate(29 22)">
-            <path d="M-6 0 L-26 0" strokeWidth={2.6} />
+          <g transform="translate(29 22) rotate(45)">
+            <path d="M-6 0 L-21 0" strokeWidth={2.6} />
             <path d="M0 0 L-7 -4.2 L-7 4.2 Z" fill="var(--ink)" strokeWidth={2} />
-            <path d="M-27 -1 L-19.5 -1 L-21.5 -6.4 L-29 -5 Z" fill="var(--ink)" strokeWidth={1.8} />
-            <path d="M-27 1 L-19.5 1 L-21.5 6.4 L-29 5 Z" fill="var(--ink)" strokeWidth={1.8} />
+            <path d="M-22 -1 L-14.5 -1 L-16.5 -6.4 L-24 -5 Z" fill="var(--ink)" strokeWidth={1.8} />
+            <path d="M-22 1 L-14.5 1 L-16.5 6.4 L-24 5 Z" fill="var(--ink)" strokeWidth={1.8} />
           </g>
         </svg>
       );
@@ -161,7 +173,10 @@ function markBody(name: string) {
     case 'Rated Mode':
       return (
         <svg {...box}>
-          <path d="M4 38h36" strokeWidth={2.6} />
+          {/* currentColor, not --ink: this mark is the only one that sits on
+              an ink card as well as on cream ones, and a hardcoded ink axis
+              disappears there. Everywhere else the ambient colour IS --ink. */}
+          <path d="M4 38h36" strokeWidth={2.6} stroke="currentColor" />
           <path d="M6 32l9-9 7 5.5 7-13 9-7" strokeWidth={4.5} stroke="var(--acid)" />
         </svg>
       );
@@ -197,6 +212,25 @@ function markBody(name: string) {
           <path d="M38 8c-5-2.5-10-2.5-15 1v27c5-3.5 10-3.5 15-1z" fill={GREEN} />
           <path d="M22 9v27" strokeWidth={2.2} />
           <path d="M27.5 4v12l3.5-2.6L34.5 16V4z" fill={RED} />
+        </svg>
+      );
+
+    /* The same book with a flag planted in it, for the Japanese edition. The
+       ribbon comes off rather than sitting alongside — two things stuck in the
+       top of one small book fight each other, and the flag is the one carrying
+       the information. */
+    case 'Book JP':
+      return (
+        <svg {...box}>
+          <path d="M6 8c5-2.5 10-2.5 15 1v27c-5-3.5-10-3.5-15-1z" fill={CREAM} />
+          <path d="M38 8c-5-2.5-10-2.5-15 1v27c5-3.5 10-3.5 15-1z" fill={GREEN} />
+          <path d="M22 9v27" strokeWidth={2.2} />
+          <path d="M22 2.6v17" strokeWidth={2.4} />
+          {/* 3:2, with the disc three fifths of the height and centred — the
+              flag's own proportions, since at this size a wrong ratio is the
+              only thing that would stop it reading as that flag. */}
+          <rect x="22" y="2" width="20.5" height="13.7" rx="1.4" fill={CREAM} strokeWidth={2.2} />
+          <circle cx="32.25" cy="8.85" r="4.1" fill={RED} stroke="none" />
         </svg>
       );
 

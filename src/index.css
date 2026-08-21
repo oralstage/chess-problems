@@ -193,6 +193,81 @@ body {
    board sits inside a surface, not on one. */
 .nb-plate-key { background: var(--acid); }
 
+/* The lede, said rather than posted.
+
+   It was a paragraph on .nb-plate — the same object as the print dropdown,
+   the sort dropdown and the raw-solution <pre> — so it wore the site's own
+   furniture and read as chrome before it read as a sentence.
+
+   personal-site's rule for this shape is that a balloon points at who is
+   talking, it does not come out of a mouth. The speaker here is the drawn
+   king beside the title, so the balloon is positioned against the KING, not
+   against the column: whatever the king's size, the tail tip lands on it.
+
+   Not acid. --acid means "the thing to press", and this cannot be pressed —
+   the same reason it was pulled off the fairy condition panel twice. */
+.nb-speech {
+  --speech-w: 20rem;
+  position: absolute;
+  bottom: calc(100% + 0.375rem);
+  /* 0.09375 is 30/320 — where the tail tip sits across the balloon. Taking it
+     off the king's half-width parks the tip over the crown at any width.
+
+     The balloon is long and low, and the tail hangs near its left END rather
+     than a fifth of the way in. That is what lets it be this wide: the tip has
+     to land on the king, who stands at the left of the page, so every unit of
+     width in front of the tip pushes the balloon off the left edge, while every
+     unit behind it runs harmlessly across the empty band over the title. */
+  left: calc(50% - (var(--speech-w) * 0.09375));
+  width: var(--speech-w);
+  aspect-ratio: 320 / 108;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  /* The shadow is on the whole balloon, tail included, so it reads as one
+     object sitting on the ground rather than a plate with a spur. */
+  filter: drop-shadow(3px 3px 0 var(--ink));
+}
+
+.nb-speech > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.nb-speech > svg path {
+  fill: var(--surface);
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+/* Nudged up off the centre of the box, because the box includes the tail and
+   the tail is not part of the balloon the words sit in. */
+.nb-speech > span {
+  position: relative;
+  z-index: 1;
+  margin-top: -0.85rem;
+  /* width, not auto: the grid item is content-sized by default, so a long line
+     grows straight out through both sides of the balloon instead of wrapping
+     inside it. The padding is generous because the shape is an ellipse — text
+     set to the full box width would cross the curve at the top and bottom
+     lines even while it fits the middle one. */
+  width: 100%;
+  padding: 0 1.4rem;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 640px) {
+  .nb-speech { --speech-w: 22rem; }
+  .nb-speech > span { font-size: 1.125rem; }
+}
+
 .nb-board {
   display: inline-flex;
   background: var(--surface);
