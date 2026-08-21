@@ -2432,7 +2432,7 @@ export default function App() {
               <h2 className="text-2xl font-extrabold tracking-tight text-[var(--ink)] mt-1">Rated Mode</h2>
             </div>
             <p className="text-sm font-medium text-[var(--muted)] mb-4">
-              Direct Mate problems matched to your rating level. White plays first and forces checkmate in a specified number of moves, regardless of Black's defense.
+              Direct Mate problems matched to your rating level.
             </p>
             <p className="nb-panel px-4 py-3 mb-4 text-base font-extrabold text-[var(--ink)] leading-snug">
               White is trying to mate the black king. Black is trying to survive.
