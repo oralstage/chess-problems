@@ -35,8 +35,8 @@ const TUTORIALS: Record<Genre, {
       // "not necessarily a check" belongs in step one, where the move is
       // actually being chosen. It used to sit at the bottom as a general
       // note, which is where a beginner has already guessed wrong.
-      'You play White — your move does not have to be a check',
-      'Black answers by itself',
+      'You play White. Find the key: the one move that still mates against every answer Black has — it does not have to be a check',
+      'Black answers by itself, defending as well as it possibly can',
       'Mate the black king on exactly the last move of the count',
     ],
     general: [
@@ -48,13 +48,10 @@ const TUTORIALS: Record<Genre, {
     mark: 'Helpmates',
     steps: [
       'You play both sides — Black moves first',
-      // "you play both sides" leaves the real question open: by what standard
-      // is a black move right? Saying "the cooperating move" restates the
-      // word without defining it. The actual test is arithmetic — the mate
-      // has to land on the last move of the count, so any move by either
-      // side that puts it out of reach is wrong.
-      'A move is right only if mate still lands exactly on the last move — Black\'s included',
-      'Mate the black king',
+      // The axis that separates this from selfmate, and the answer to "what
+      // do I play for Black?". Black is not defending here; it is helping.
+      'Both sides want Black mated — Black walks into it on purpose',
+      'Mate the black king on exactly the last move of the count',
     ],
     general: [
       'h#2 = helpmate in 2 (Black and White each move twice)',
@@ -65,8 +62,8 @@ const TUTORIALS: Record<Genre, {
     title: 'Selfmate',
     mark: 'Selfmates',
     steps: [
-      'You play White',
-      'Black answers by itself, and resists',
+      'You play White. Find the key: the one move that leaves Black no way out but to mate you',
+      'Black answers by itself, and does everything it can NOT to mate you',
       'Force Black to mate your own king on exactly the last move',
     ],
     general: [
@@ -78,7 +75,7 @@ const TUTORIALS: Record<Genre, {
     mark: 'Studies',
     steps: [
       'You play White',
-      'Black answers by itself',
+      'Black answers by itself, defending as well as it possibly can',
       'Win, or save the draw — there is no move count',
     ],
     general: [

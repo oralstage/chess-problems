@@ -2437,8 +2437,8 @@ export default function App() {
             {/* Same three beats the Direct Mate tutorial uses — this is Direct
                 Mate, just matched to your rating. */}
             <ul className="space-y-2.5 mb-4">
-              <li className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug"><span className="shrink-0 w-2 h-2 rounded-full bg-[var(--ink)] mt-[0.45rem]" />You play White — your move does not have to be a check</li>
-              <li className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug"><span className="shrink-0 w-2 h-2 rounded-full bg-[var(--ink)] mt-[0.45rem]" />Black answers by itself</li>
+              <li className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug"><span className="shrink-0 w-2 h-2 rounded-full bg-[var(--ink)] mt-[0.45rem]" />You play White. Find the key: the one move that still mates against every answer Black has — it does not have to be a check</li>
+              <li className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug"><span className="shrink-0 w-2 h-2 rounded-full bg-[var(--ink)] mt-[0.45rem]" />Black answers by itself, defending as well as it possibly can</li>
               <li className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug"><span className="shrink-0 w-2 h-2 rounded-full bg-[var(--ink)] mt-[0.45rem]" />Mate the black king on exactly the last move of the count</li>
             </ul>
             <div className="border-t-2 border-[var(--hairline)] pt-3">
