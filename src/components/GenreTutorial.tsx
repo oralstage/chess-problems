@@ -35,13 +35,11 @@ const TUTORIALS: Record<Genre, {
       // "not necessarily a check" belongs in step one, where the move is
       // actually being chosen. It used to sit at the bottom as a general
       // note, which is where a beginner has already guessed wrong.
-      'You play White. Find the key: the one move that still mates against every answer Black has — it does not have to be a check',
+      'You play White. The key — the answer — is the one move that forces mate in the given number of moves (#2 = mate in 2, #3 = mate in 3), whatever Black defends. It does not have to be a check',
       'Black answers by itself, defending as well as it possibly can',
-      'Mate the black king on exactly the last move of the count',
+      'The mate lands on that last move — not sooner, not later',
     ],
-    general: [
-      '#2 = mate in 2, #3 = mate in 3, etc.',
-    ],
+    general: [],
   },
   help: {
     title: 'Helpmate',
@@ -51,10 +49,9 @@ const TUTORIALS: Record<Genre, {
       // The axis that separates this from selfmate, and the answer to "what
       // do I play for Black?". Black is not defending here; it is helping.
       'Both sides want Black mated — Black walks into it on purpose',
-      'Mate the black king on exactly the last move of the count',
+      'The mate lands on the last move — h#2 means each side moves twice',
     ],
     general: [
-      'h#2 = helpmate in 2 (Black and White each move twice)',
       'Some problems have multiple solutions',
     ],
   },
@@ -62,13 +59,11 @@ const TUTORIALS: Record<Genre, {
     title: 'Selfmate',
     mark: 'Selfmates',
     steps: [
-      'You play White. Find the key: the one move that leaves Black no way out but to mate you',
+      'You play White. The key is the one move that leaves Black no way out but to mate you in the given number of moves (s#2 = two moves)',
       'Black answers by itself, and does everything it can NOT to mate you',
-      'Force Black to mate your own king on exactly the last move',
+      'Black is forced to mate you on that last move — not sooner, not later',
     ],
-    general: [
-      's#2 = selfmate in 2',
-    ],
+    general: [],
   },
   study: {
     title: 'Study',
@@ -119,12 +114,13 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
         <ul className="space-y-2.5 mb-4">
           {tutorial.steps.map((step, i) => (
             <li key={i} className="flex gap-2.5 text-base font-bold text-[var(--ink)] leading-snug">
-              <span className="shrink-0 w-2 h-2 rounded-full bg-[var(--ink)] mt-[0.45rem]" />
+              <span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-0.5">{i + 1}</span>
               {step}
             </li>
           ))}
         </ul>
 
+        {tutorial.general.length > 0 && (
         <div className="border-t-2 border-[var(--hairline)] pt-3 mb-6">
           <ul className="space-y-1.5">
             {tutorial.general.map((rule, i) => (
@@ -135,6 +131,7 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
             ))}
           </ul>
         </div>
+        )}
 
         <button
           onClick={onClose}
