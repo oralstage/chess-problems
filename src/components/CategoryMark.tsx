@@ -162,10 +162,7 @@ function markBody(name: string) {
       return (
         <svg {...box}>
           <path d="M4 38h36" strokeWidth={2.6} />
-          <path d="M6 31l9-9 7 5.5 7-13 9-7" strokeWidth={3.4} />
-          <circle cx="15" cy="22" r="3.4" fill={CREAM} />
-          <circle cx="22" cy="27.5" r="3.4" fill={SAGE} />
-          <circle cx="29" cy="14.5" r="3.4" fill={GREEN} />
+          <path d="M6 32l9-9 7 5.5 7-13 9-7" strokeWidth={4} />
         </svg>
       );
 
@@ -180,14 +177,15 @@ function markBody(name: string) {
         </svg>
       );
 
-    /* "For you" — a tag with your name on it. No figure, and nothing else on
-       the page is this shape. */
+    /* "For you" — a wrapped parcel. A tag was tried first and read as a price
+       tag, which is about the thing rather than about who it is for. */
     case 'Tag':
       return (
         <svg {...box}>
-          <path d="M20 5l18 18a4 4 0 0 1 0 5.6l-9.4 9.4a4 4 0 0 1-5.6 0L5 20V8a3 3 0 0 1 3-3z" fill={GREEN} />
-          <circle cx="14" cy="14" r="3.6" fill={CREAM} />
-          <path d="M20 5l-8-3" strokeWidth={2.4} />
+          <rect x="4" y="17" width="36" height="22" rx="3" fill={CREAM} />
+          <rect x="2" y="12" width="40" height="8" rx="2.5" fill={GREEN} />
+          <path d="M22 12v27" strokeWidth={3.4} />
+          <path d="M22 12c-5 0-9-2-9-5s5-4 9 5c4-7 9-8 9-5s-4 5-9 5z" fill={GREEN} />
         </svg>
       );
 

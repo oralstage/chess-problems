@@ -188,9 +188,10 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
             <h2>For you</h2>
             <span className="nb-heading-object" style={{ width: '3.2rem', height: '3rem', transform: 'translateY(-50%) rotate(-5deg)' }} aria-hidden="true">
               <svg viewBox="0 0 44 44" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-                <path d="M20 5l18 18a4 4 0 0 1 0 5.6l-9.4 9.4a4 4 0 0 1-5.6 0L5 20V8a3 3 0 0 1 3-3z" fill="var(--board-d)" />
-                <circle cx="14" cy="14" r="3.6" fill="var(--surface)" />
-                <path d="M20 5l-8-3" strokeWidth="2.4" />
+                <rect x="4" y="17" width="36" height="22" rx="3" fill="var(--surface)" />
+                <rect x="2" y="12" width="40" height="8" rx="2.5" fill="var(--board-d)" />
+                <path d="M22 12v27" strokeWidth="3.4" />
+                <path d="M22 12c-5 0-9-2-9-5s5-4 9 5c4-7 9-8 9-5s-4 5-9 5z" fill="var(--board-d)" />
               </svg>
             </span>
           </div>
@@ -280,7 +281,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
           style={{ backgroundColor: 'var(--card-fairy)' }}
         >
           <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Fairy Chess" /></span>
-          <span className={CARD_TITLE}>Fairy Chess &#8599;</span>
+          <span className={CARD_TITLE}>Fairy Chess</span>
         </a>
       </nav>
 
@@ -289,10 +290,10 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
         <div className="nb-section-head">
           <h2>Guide</h2>
           <span className="nb-heading-object" style={{ width: '3.4rem', height: '3rem', transform: 'translateY(-50%) rotate(-6deg)' }} aria-hidden="true">
-            <svg viewBox="0 0 46 42" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
-              <rect x="5" y="28" width="36" height="8" rx="2" fill="var(--surface)" />
-              <rect x="8" y="19" width="30" height="8" rx="2" fill="var(--board-d)" />
-              <rect x="11" y="10" width="24" height="8" rx="2" fill="var(--surface)" />
+            <svg viewBox="0 0 44 44" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
+              <circle cx="22" cy="22" r="17" fill="var(--surface)" />
+              <path d="M29 15l-4.5 11.5L13 31l4.5-11.5z" fill="var(--board-d)" />
+              <circle cx="22" cy="22" r="2.6" fill="var(--ink)" stroke="none" />
             </svg>
           </span>
         </div>
@@ -309,7 +310,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
           style={{ backgroundColor: 'var(--card-self)' }}
         >
           <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Book" /></span>
-          <span className={CARD_TITLE}>For beginners &#8599;</span>
+          <span className={CARD_TITLE}>For beginners</span>
         </a>
       </div>
 
