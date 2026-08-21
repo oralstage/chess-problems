@@ -1,30 +1,15 @@
-import { useEffect, useCallback } from 'react';
-import { useLocalStorage } from './useLocalStorage';
+import { useEffect } from 'react';
 
-export type ThemeMode = 'light' | 'dark';
-
-function getSystemTheme(): ThemeMode {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
+/* The site has one look. The restyle removed the dark palette and its toggle
+   (see fairy-chess-problems' DESIGN-NOTES.md — same decision, same reason:
+   `dark:` utilities left in the views that are not individually restyled are
+   compiled against a selector that never matches, so they are inert). This
+   hook stays so the stale `.dark` class and the old theme-color value are
+   cleaned off browsers that stored them before the restyle. */
 export function useTheme() {
-  const [theme, setTheme] = useLocalStorage<ThemeMode>('cp-theme', getSystemTheme());
-
-  const applyTheme = useCallback((mode: ThemeMode) => {
-    document.documentElement.classList.toggle('dark', mode === 'dark');
-    const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) {
-      meta.setAttribute('content', mode === 'dark' ? '#0a0a0a' : '#ffffff');
-    }
-  }, []);
-
   useEffect(() => {
-    applyTheme(theme);
-  }, [theme, applyTheme]);
-
-  const toggleTheme = useCallback(() => {
-    setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
-  }, [setTheme]);
-
-  return { theme, toggleTheme };
+    document.documentElement.classList.remove('dark');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', '#93ab6a');
+  }, []);
 }

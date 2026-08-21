@@ -1,36 +1,396 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* The site has one look. `dark:` utilities left in the views that are not
+   individually restyled compile against a selector that never matches, so
+   they are inert rather than needing to be stripped from every file. */
+@custom-variant dark (&:where(.__never-dark));
 
 @theme {
-  --color-cp-primary: #10b981;
-  --color-cp-dark: #059669;
-  --color-cp-accent: #f59e0b;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --color-cp-primary: #3f6b23;
+  --color-cp-dark: #2f5119;
+  --color-cp-accent: #ffb020;
+  --font-sans: 'Baloo 2', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* The neutral ramp is not neutral: it runs cream -> sage -> forest, so the
+     screens still written in Tailwind's gray utilities land inside this
+     palette instead of sitting as a grey island on the green check. */
+  --color-gray-50:  #fffdf2;
+  --color-gray-100: #f1eedd;
+  --color-gray-200: #e0e3cb;
+  --color-gray-300: #c3cba9;
+  --color-gray-400: #8b9770;
+  --color-gray-500: #667254;
+  --color-gray-600: #4b5540;
+  --color-gray-700: #3b4433;
+  --color-gray-800: #2a3125;
+  --color-gray-900: #21281d;
+  --color-gray-950: #1a2017;
+
+  --color-slate-400: #8b9770;
+  --color-slate-500: #667254;
+
+  /* Same treatment for the emerald ramp the app uses for chips and solid
+     buttons. The light end stays a pale sage chip; the 600+ end is deep
+     forest so white type on solid buttons still passes. --acid is reserved
+     for the primary action and is never a ramp. */
+  --color-emerald-50:  #eef6e2;
+  --color-emerald-100: #dcecc6;
+  --color-emerald-200: #c6dfa5;
+  --color-emerald-300: #a8cc7e;
+  --color-emerald-400: #85ae55;
+  --color-emerald-500: #63893a;
+  --color-emerald-600: #3f6b23;
+  --color-emerald-700: #33561c;
+  --color-emerald-800: #2a4718;
+  --color-emerald-900: #223a14;
+  --color-emerald-950: #16270d;
+
+  --color-green-500: #63893a;
+  --color-green-600: #3f6b23;
+  --color-green-700: #33561c;
+}
+
+/* ============================================================
+   Design layer — flat fills, ink outlines, unblurred offset
+   shadows, chunky rounded type. Ported from fairy-chess-problems
+   (see its DESIGN-NOTES.md); same grammar, this site's own colour.
+
+   The ground is the board: a large green check in the same hue
+   the diagram uses, so the page and the diagram belong to one
+   world rather than the board being an island on a flat fill.
+
+   One structural colour, --acid. Amber, deliberately discordant
+   against the green, and light enough to take ink type on top,
+   so it never needs a second.
+   ============================================================ */
+
+:root {
+  --sq-a: #93ab6a;
+  --sq-b: #90a867;
+  --surface: #fffdf2;
+  --surface-2: #f1eedd;
+  --ink: #171d10;
+  --muted: #3b4433;
+  --faint: #667254;
+  --acid: #ffb020;
+  /* a rule between list entries, where full-strength ink would be a wall */
+  --hairline: color-mix(in srgb, var(--ink) 20%, transparent);
+
+  /* Status is not decoration and not the accent: solved and failed have to
+     read at a glance across a grid of eighteen tiles. */
+  --ok: #2f6d1f;
+  --ok-bg: #e2f0cf;
+  --bad: #b23c1e;
+  --bad-bg: #f8e2da;
+
+  /* The diagram's own squares, unchanged from the green board this site has
+     always used — now as tokens so the ground can be mixed from them. */
+  --board-l: #edeed1;
+  --board-d: #779952;
+
+  --hard: 5px 5px 0 var(--ink);
+  --hard-lg: 8px 8px 0 var(--ink);
+  --soft: 3px 3px 0 var(--ink);
+  --soft-xs: 2px 2px 0 var(--ink);
+
+  --radius-nb: 26px;
+  --radius-pill: 999px;
+
+  --check: 128px;
 }
 
 html {
-  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: 'Baloo 2', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
-html {
-  background-color: #f9fafb;
-}
-html.dark {
-  background-color: #030712;
+/* Match the app background so iOS Safari's chrome and over-scroll areas
+   don't flash white */
+html { background-color: var(--sq-a); }
+
+body {
+  color: var(--ink);
+  background-color: var(--sq-a);
+  background-image:
+    linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%),
+    linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%);
+  background-size: var(--check) var(--check);
+  background-position: 0 0, calc(var(--check) / 2) calc(var(--check) / 2);
+  background-attachment: fixed;
 }
 
-/* Subtle noise texture for depth */
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  opacity: 0.02;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+/* The solving screen keeps the same ground at a finer pitch — its elements
+   are small, and the home page's pitch reads as too loud behind them. Set on
+   a wrapper, not on body, so only that view changes. */
+.nb-fine { --check: 96px; }
+
+/* Full-screen overlays (problem list, history, bookmarks, search, filters)
+   cover the body, so they paint the check themselves. */
+.nb-ground {
+  background-color: var(--sq-a);
+  background-image:
+    linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%),
+    linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%);
+  background-size: var(--check) var(--check);
+  background-position: 0 0, calc(var(--check) / 2) calc(var(--check) / 2);
+}
+
+/* ---------- surfaces ---------- */
+
+/* Text must never sit straight on the check: small text on a patterned
+   mid-value ground is hard to read whatever the contrast ratio says. The fix
+   is a surface, not an outline. */
+.nb-sheet {
+  background: var(--surface);
+  border-radius: var(--radius-nb);
+  border: 4px solid var(--ink);
+  box-shadow: var(--hard-lg);
+}
+
+.nb-card {
+  background: var(--surface);
+  border: 4px solid var(--ink);
+  border-radius: var(--radius-nb);
+  box-shadow: var(--hard-lg);
+}
+
+.nb-plate {
+  background: var(--surface);
+  border: 4px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: var(--hard);
+}
+
+/* The board must never dissolve into the ground — its dark square comes from
+   the same green family as the check — so it keeps the heaviest edge on the
+   page. No shadow: a hard shadow means "this sits on the ground", and the
+   board sits inside a surface, not on one. */
+.nb-plate-key { background: var(--acid); }
+
+.nb-board {
+  display: inline-flex;
+  background: var(--surface);
+  border: 4px solid var(--ink);
+  border-radius: 10px;
+}
+
+/* Blocks that sit INSIDE a sheet get an outline but no shadow — a hard shadow
+   means "this sits on the ground", and these sit on a surface. Adding one made
+   a card float on a card. This is the frame for the problem header, the
+   playback bar, the solution panel and the feedback strip. */
+.nb-panel {
+  background: var(--surface-2);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+}
+.nb-panel-plain {
+  background: transparent;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+}
+
+/* On a phone the diagram is worth more than the frame around it, so the
+   solving sheet gives up its side borders and its outer margin and runs the
+   full width — the board then measures exactly the viewport, with nothing
+   left to clip the a-file label. Top and bottom keep the frame, so it still
+   reads as a sheet laid on the check rather than as a bare page. */
+@media (max-width: 639px) {
+  .nb-sheet-bleed {
+    margin-left: 0;
+    margin-right: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-radius: 0;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+}
+
+/* The home page's daily diagram is a picture, not something to solve on, so
+   unlike the board on the problem page it takes the frame and the shadow.
+   (The problem page's board stays bare: print / e-paper mode screenshots it,
+   and an ink frame would end up in the exported diagram.) */
+.nb-daily {
+  border: 4px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: var(--hard);
+  overflow: hidden;
+  line-height: 0;
+}
+
+/* ---------- repeating content ---------- */
+
+/* A chip row or a grid of tiles IS the content, and its job is to be
+   countable at a glance — so every one is outlined, with one thin uniform
+   2px edge and no shadow. The heavy 4px-plus-hard-shadow treatment stays
+   reserved for the few big containers. */
+.nb-chip {
+  background: var(--surface-2);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.nb-chip:hover { background: var(--surface); color: var(--ink); }
+.nb-chip-on { background: var(--ink); color: var(--surface); font-weight: 800; }
+.nb-chip-on:hover { background: var(--ink); color: var(--surface); }
+
+.nb-tile {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  color: var(--ink);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+.nb-tile:hover { transform: translate(-1px, -1px); box-shadow: var(--soft); }
+.nb-tile-ok { background: var(--ok-bg); color: var(--ok); }
+.nb-tile-bad { background: var(--bad-bg); color: var(--bad); }
+.nb-tile-current {
+  background: var(--acid);
+  box-shadow: var(--hard);
+  color: var(--ink);
+  font-weight: 800;
+}
+.nb-tile-current:hover { box-shadow: var(--hard); }
+
+.nb-mark-ok { background: var(--ok); }
+.nb-mark-bad { background: var(--bad); }
+
+/* One entry reads fine as a name and a sentence. Several run together into a
+   wall, so entries after the first are separated by a rule. */
+.nb-entry + .nb-entry {
+  border-top: 2px solid var(--hairline);
+  padding-top: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+/* Pagination is navigation, not a filter: the numbers are read as a run, and
+   ringing each one turns a page range into a row of pills. */
+.nb-page {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-weight: 700;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.nb-page:hover { background: var(--surface-2); color: var(--ink); }
+.nb-page-on { background: var(--ink); color: var(--surface); font-weight: 800; }
+.nb-page-on:hover { background: var(--ink); color: var(--surface); }
+
+/* ---------- controls ---------- */
+
+/* Outlines are the loudest thing here, so only a few objects get one: the
+   cards, the board plate, and the single primary action. Everything else —
+   icons, nav arrows, secondary buttons — is bare ink that only picks up a
+   fill on hover. */
+.nb-btn {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--soft-xs);
+  color: var(--ink);
+  font-weight: 700;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.nb-btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: var(--soft); }
+.nb-btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+.nb-btn:disabled { opacity: 0.42; cursor: not-allowed; }
+
+/* --acid means "the thing to press". Next, Solve, Start, the current problem,
+   the active filter. Nothing else — an acid block that cannot be clicked
+   sitting near an acid button that can costs more than the emphasis is worth. */
+.nb-btn-key { background: var(--acid); }
+.nb-key { background: var(--acid); color: var(--ink); font-weight: 800; }
+
+/* A label that needs to read as a label rather than as a heading: the pill
+   shape carries the distinction, so the type does not have to get louder.
+   Same treatment fairy gives "today's fairy problem" on its daily card.
+   Its own class because .nb-pill's surface fill would otherwise win over
+   .nb-key's acid — .nb-pill is declared later in this file. */
+.nb-label-key {
+  background: var(--acid);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--soft-xs);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.nb-btn-quiet {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: none;
+  color: var(--ink);
+  font-weight: 700;
+  transition: background-color 0.12s ease;
+}
+.nb-btn-quiet:hover:not(:disabled) { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.nb-btn-quiet:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.nb-icon {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.12s ease;
+}
+.nb-icon:hover:not(:disabled) { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.nb-icon:disabled { opacity: 0.3; }
+
+.nb-pill {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--soft-xs);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.nb-input {
+  background: var(--surface-2);
+  border: 3px solid var(--ink);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 2px 2px 0 rgb(23 29 16 / 0.12);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.nb-rule { background: var(--ink); border-radius: 2px; }
+
+.nb-panel-label {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* A hard shadow is painted outside the box and the layout knows nothing about
+   it, so a centred box reads as pushed right. How to reserve it depends on the
+   placement and one rule cannot do both: a fixed margin-right beats mx-auto's
+   margin-right: auto and turns centred into right-aligned. Blocks that fill
+   their column give the width up; auto-centred boxes are nudged half a shadow
+   left instead, which leaves their centring intact. */
+.nb-shadow-room { width: calc(100% - 8px); }
+.nb-shadow-room-sm { width: calc(100% - 5px); }
+.nb-shadow-nudge { transform: translateX(-4px); }
+
+/* Display type sitting straight on the ground needs the acid behind it to
+   separate; in em so the offset scales with the type. */
+.nb-shadow-type { text-shadow: 0.04em 0.04em 0 var(--acid); }
+
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 3px solid var(--acid);
+  outline-offset: 2px;
 }
 
 .scrollbar-hide {

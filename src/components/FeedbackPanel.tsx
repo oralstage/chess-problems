@@ -96,7 +96,7 @@ export function FeedbackPanel({
 
       {/* Next review interval (review mode only, shown after solving) */}
       {!classicBoard && reviewNextDays != null && (
-        <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 text-sm">
+        <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-[var(--surface-2)] dark:bg-[var(--surface-2)] text-[var(--ink)] dark:text-[var(--muted)] text-sm">
           <span>🔁</span>
           <span>Next review: <strong>~{reviewNextDays} day{reviewNextDays !== 1 ? 's' : ''}</strong></span>
         </div>
@@ -104,12 +104,12 @@ export function FeedbackPanel({
 
       {/* Rating bar (rated mode) */}
       {!classicBoard && playerRating != null && (
-        <div className="flex items-center gap-3 py-1.5 px-3 rounded-lg bg-gray-100 dark:bg-gray-800/60">
+        <div className="nb-panel flex items-center gap-3 py-1.5 px-3">
           <span className="text-base font-semibold text-gray-700 dark:text-gray-200">
             Rating: {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(ratingDelta != null ? playerRating - ratingDelta : playerRating)}
           </span>
           {ratingDelta != null && (
-            <span className={`text-base font-bold ${ratingDelta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+            <span className={`text-base font-bold ${ratingDelta >= 0 ? 'text-green-600 dark:text-green-400' : 'text-[var(--bad)] dark:text-[var(--bad)]'}`}>
               {ratingDelta >= 0 ? '+' : ''}{ratingDelta}
             </span>
           )}
@@ -117,7 +117,7 @@ export function FeedbackPanel({
             <select
               value={ratedDifficulty}
               onChange={(e) => onChangeDifficulty(e.target.value as RatedDifficulty)}
-              className="ml-auto text-xs px-2 py-1 rounded bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-green-500"
+              className="nb-input ml-auto text-xs px-2.5 py-1 focus:outline-none"
               aria-label="Difficulty"
             >
               {RATED_DIFFICULTIES.map(d => {
@@ -140,7 +140,7 @@ export function FeedbackPanel({
 
       {/* Problem rating after completion in non-rated modes */}
       {!classicBoard && playerRating == null && problemRating != null && (status === 'correct' || status === 'viewing') && (
-        <div className="flex items-center gap-2 py-1.5 px-3 rounded-lg bg-gray-100 dark:bg-gray-800/60">
+        <div className="nb-panel flex items-center gap-2 py-1.5 px-3">
           <span className="text-xs text-gray-500 dark:text-gray-400">Problem rating:</span>
           <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">~{Math.round(problemRating / 50) * 50}</span>
         </div>
@@ -153,10 +153,8 @@ export function FeedbackPanel({
             {onAnalyze && (
               <button
                 onClick={onAnalyze}
-                className={`px-2.5 py-1.5 text-xs rounded transition-colors ${
-                  analysisActive
-                    ? 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600'
-                    : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60'
+                className={`nb-btn px-2.5 py-1.5 text-xs ${
+                  analysisActive ? 'bg-[var(--ink)] text-[var(--surface)]' : ''
                 }`}
               >
                 {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
@@ -164,13 +162,13 @@ export function FeedbackPanel({
             )}
             {lichessAnalysisUrl && (
               <a href={lichessAnalysisUrl} target="_blank" rel="noopener noreferrer"
-                className="px-2.5 py-1.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors">
+                className="nb-btn px-2.5 py-1.5 text-xs">
                 Analysis ↗
               </a>
             )}
             {lichessPlayUrl && (
               <a href={lichessPlayUrl} target="_blank" rel="noopener noreferrer"
-                className="px-2.5 py-1.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors">
+                className="nb-btn px-2.5 py-1.5 text-xs">
                 Play ↗
               </a>
             )}
@@ -178,13 +176,13 @@ export function FeedbackPanel({
               <span className="text-xs text-gray-400">Loading Stockfish...</span>
             )}
             {analysisResult && !analyzing && (
-              <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
+              <span className="text-xs text-[var(--ink)] dark:text-[var(--ink)]">{analysisResult}</span>
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={onReset}
-              className="px-4 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
+              className="nb-btn px-4 py-2 text-sm"
             >
               Try Again
             </button>
@@ -192,14 +190,14 @@ export function FeedbackPanel({
               <>
                 <button
                   onClick={onGoHome}
-                  className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  className="nb-btn px-4 py-2 text-sm"
                 >
                   Home
                 </button>
                 {onMoreProblems && (
                   <button
                     onClick={onMoreProblems}
-                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="nb-btn nb-btn-key px-5 py-2 text-sm"
                   >
                     {moreCategoryLabel || 'More Problems'} →
                   </button>
@@ -210,7 +208,7 @@ export function FeedbackPanel({
                 {onBackToRated && (
                   <button
                     onClick={onBackToRated}
-                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="nb-btn nb-btn-key px-5 py-2 text-sm"
                   >
                     Back to Rated
                   </button>
@@ -218,7 +216,7 @@ export function FeedbackPanel({
                 {onNextProblem && (
                   <button
                     onClick={onNextProblem}
-                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="nb-btn nb-btn-key px-5 py-2 text-sm"
                   >
                     Next
                   </button>
@@ -226,7 +224,7 @@ export function FeedbackPanel({
                 {onRandomProblem && (
                   <button
                     onClick={onRandomProblem}
-                    className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
+                    className="nb-btn px-3 py-2 text-sm"
                     title="Random problem"
                   >
                     Random
@@ -238,12 +236,12 @@ export function FeedbackPanel({
           {(onPrevDaily || onNextDaily) && (
             <div className="flex items-center justify-center gap-3 mt-1">
               {onPrevDaily && (
-                <button onClick={onPrevDaily} className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                <button onClick={onPrevDaily} className="nb-btn px-3 py-1.5 text-xs">
                   Previous
                 </button>
               )}
               {onNextDaily && (
-                <button onClick={onNextDaily} className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                <button onClick={onNextDaily} className="nb-btn px-3 py-1.5 text-xs">
                   Next
                 </button>
               )}
@@ -261,7 +259,7 @@ export function FeedbackPanel({
           {!classicBoard && !solutionLoading && !hintActive && !(hideHintUntilWrong && wrongMoveCount === 0) && (
             <button
               onClick={onShowHint}
-              className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
+              className="nb-btn px-3 py-1.5 text-xs"
             >
               Show Hint
             </button>
@@ -269,7 +267,7 @@ export function FeedbackPanel({
           {!classicBoard && !solutionLoading && hintActive && (
             <button
               onClick={onHideHint}
-              className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
+              className="nb-btn px-3 py-1.5 text-xs"
             >
               Hide Hint
             </button>
@@ -277,7 +275,7 @@ export function FeedbackPanel({
           {moveHistory.length > 0 && (
             <button
               onClick={onReset}
-              className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
+              className="nb-btn px-3 py-1.5 text-xs"
             >
               Reset
             </button>
@@ -285,13 +283,13 @@ export function FeedbackPanel({
           {!classicBoard && !solutionLoading && (
             <button
               onClick={onShowSolution}
-              className="px-3 py-1.5 text-xs bg-gray-200 text-gray-600 rounded hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-400 dark:hover:bg-gray-600 transition-colors"
+              className="nb-btn px-3 py-1.5 text-xs"
             >
               Give Up
             </button>
           )}
           {refutationText && (
-            <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+            <span className="text-xs text-[var(--bad)] dark:text-[var(--bad)] font-medium">
               {refutationText}
             </span>
           )}
@@ -300,7 +298,7 @@ export function FeedbackPanel({
               {onNextProblem && (
                 <button
                   onClick={onNextProblem}
-                  className="px-3 py-1.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
+                  className="nb-btn nb-btn-key px-3 py-1.5 text-xs"
                 >
                   Next
                 </button>
@@ -308,7 +306,7 @@ export function FeedbackPanel({
               {onRandomProblem && (
                 <button
                   onClick={onRandomProblem}
-                  className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors font-medium"
+                  className="nb-btn px-3 py-1.5 text-xs"
                   title="Random problem"
                 >
                   Random
@@ -326,10 +324,8 @@ export function FeedbackPanel({
             {onAnalyze && (
               <button
                 onClick={onAnalyze}
-                className={`px-2.5 py-1.5 text-xs rounded transition-colors ${
-                  analysisActive
-                    ? 'bg-green-600 text-white hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600'
-                    : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60'
+                className={`nb-btn px-2.5 py-1.5 text-xs ${
+                  analysisActive ? 'bg-[var(--ink)] text-[var(--surface)]' : ''
                 }`}
               >
                 {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
@@ -337,13 +333,13 @@ export function FeedbackPanel({
             )}
             {lichessAnalysisUrl && (
               <a href={lichessAnalysisUrl} target="_blank" rel="noopener noreferrer"
-                className="px-2.5 py-1.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors">
+                className="nb-btn px-2.5 py-1.5 text-xs">
                 Analysis ↗
               </a>
             )}
             {lichessPlayUrl && (
               <a href={lichessPlayUrl} target="_blank" rel="noopener noreferrer"
-                className="px-2.5 py-1.5 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors">
+                className="nb-btn px-2.5 py-1.5 text-xs">
                 Play ↗
               </a>
             )}
@@ -351,13 +347,13 @@ export function FeedbackPanel({
               <span className="text-xs text-gray-400">Loading Stockfish...</span>
             )}
             {analysisResult && !analyzing && (
-              <span className="text-xs text-amber-600 dark:text-amber-400">{analysisResult}</span>
+              <span className="text-xs text-[var(--ink)] dark:text-[var(--ink)]">{analysisResult}</span>
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={onReset}
-              className="px-3 py-1.5 text-xs bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
+              className="nb-btn px-3 py-1.5 text-xs"
             >
               Try Again
             </button>
@@ -365,14 +361,14 @@ export function FeedbackPanel({
               <>
                 <button
                   onClick={onGoHome}
-                  className="px-4 py-2 text-sm bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+                  className="nb-btn px-4 py-2 text-sm"
                 >
                   Home
                 </button>
                 {onMoreProblems && (
                   <button
                     onClick={onMoreProblems}
-                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="nb-btn nb-btn-key px-5 py-2 text-sm"
                   >
                     {moreCategoryLabel || 'More Problems'} →
                   </button>
@@ -383,7 +379,7 @@ export function FeedbackPanel({
                 {onBackToRated && (
                   <button
                     onClick={onBackToRated}
-                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="nb-btn nb-btn-key px-5 py-2 text-sm"
                   >
                     Back to Rated
                   </button>
@@ -391,7 +387,7 @@ export function FeedbackPanel({
                 {onNextProblem && (
                   <button
                     onClick={onNextProblem}
-                    className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                    className="nb-btn nb-btn-key px-5 py-2 text-sm"
                   >
                     Next
                   </button>
@@ -399,7 +395,7 @@ export function FeedbackPanel({
                 {onRandomProblem && (
                   <button
                     onClick={onRandomProblem}
-                    className="px-3 py-2 text-sm bg-green-100 text-green-700 rounded-lg hover:bg-green-200 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60 transition-colors"
+                    className="nb-btn px-3 py-2 text-sm"
                     title="Random problem"
                   >
                     Random
@@ -411,12 +407,12 @@ export function FeedbackPanel({
           {(onPrevDaily || onNextDaily) && (
             <div className="flex items-center justify-center gap-3 mt-1">
               {onPrevDaily && (
-                <button onClick={onPrevDaily} className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                <button onClick={onPrevDaily} className="nb-btn px-3 py-1.5 text-xs">
                   Previous
                 </button>
               )}
               {onNextDaily && (
-                <button onClick={onNextDaily} className="px-3 py-1.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors">
+                <button onClick={onNextDaily} className="nb-btn px-3 py-1.5 text-xs">
                   Next
                 </button>
               )}

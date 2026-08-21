@@ -102,7 +102,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
       {/* ── Hero ── */}
       <div className="px-5 mb-10">
         <div className="flex items-center gap-4 mb-3">
-          <svg className="w-14 h-14 sm:w-16 sm:h-16 text-gray-900 dark:text-white" viewBox="0 0 45 45" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-14 h-14 sm:w-16 sm:h-16 text-[var(--ink)]" viewBox="0 0 45 45" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M 22.5,11.63 L 22.5,6" />
             <path d="M 20,8 L 25,8" />
             <path d="M 22.5,25 C 22.5,25 27,17.5 25.5,14.5 C 25.5,14.5 24.5,12 22.5,12 C 20.5,12 19.5,14.5 19.5,14.5 C 18,17.5 22.5,25 22.5,25" />
@@ -111,14 +111,14 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             <path d="M 12.5,33.5 C 18,30.5 27,30.5 32.5,33.5" opacity="0.5" />
             <path d="M 12.5,37 C 18,34 27,34 32.5,37" opacity="0.5" />
           </svg>
-          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight text-gray-900 dark:text-white">
+          <h1 className="nb-shadow-type text-4xl sm:text-6xl font-extrabold tracking-tight text-[var(--ink)]">
             Chess Problems
           </h1>
         </div>
-        <p className="text-base text-gray-500 dark:text-gray-400 max-w-lg leading-relaxed">
+        <p className="nb-plate nb-shadow-room text-base text-[var(--muted)] leading-relaxed px-4 py-3 font-medium">
           Chess problems are checkmate puzzles with unique solutions — composed works of art, not tactics from games.
           Solve over 500,000 problems interactively from{' '}
-          <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <a href="https://www.yacpdb.org" target="_blank" rel="noopener noreferrer" className="underline decoration-2 underline-offset-2 font-bold text-[var(--ink)]">
             YACPDB
           </a> database.
         </p>
@@ -166,17 +166,17 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           href="https://www.amazon.com/dp/B0GV27N3RM"
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-3 w-full px-4 py-3 rounded-lg bg-amber-50 dark:bg-gray-800/60 border border-amber-200 dark:border-gray-600/50 hover:border-amber-400 dark:hover:border-gray-500 transition-all group"
+          className="nb-plate nb-plate-key nb-shadow-room flex items-center gap-3 px-4 py-3 group"
         >
           <div className="min-w-0 flex-1">
-            <span className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+            <span className="text-sm font-extrabold text-[var(--ink)]">
               New to chess problems?
             </span>
-            <span className="text-sm text-gray-500 dark:text-gray-400 ml-1">
+            <span className="text-sm font-semibold text-[var(--ink)]/75 ml-1">
               Get the beginner's guide on Kindle
             </span>
           </div>
-          <svg className="w-4 h-4 shrink-0 text-gray-400 group-hover:text-[#FF9900] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg className="w-4 h-4 shrink-0 text-[var(--ink)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
         </a>
@@ -190,21 +190,22 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             className="group w-full text-left transition-colors"
           >
             <div className="flex flex-col items-center">
-              <div className="text-sm font-bold uppercase tracking-wider text-green-600 dark:text-green-400 mb-3">
+              <div className="nb-shadow-type text-sm font-extrabold uppercase tracking-[0.16em] text-[var(--ink)] mb-3">
                 Daily Problem — {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
               </div>
-              <div className="relative shrink-0 rounded-t-lg overflow-hidden shadow-sm" style={{ width: 320, height: 320 }}>
+              <div className="nb-daily">
+              <div className="relative shrink-0 overflow-hidden" style={{ width: 320, height: 320 }}>
                 <Chessboard
                   position={dailyProblem.fen}
                   boardWidth={320}
                   arePiecesDraggable={false}
                   animationDuration={0}
                   customBoardStyle={{ borderRadius: '0' }}
-                  customDarkSquareStyle={{ backgroundColor: '#779952' }}
-                  customLightSquareStyle={{ backgroundColor: '#edeed1' }}
+                  customDarkSquareStyle={{ backgroundColor: 'var(--board-d)' }}
+                  customLightSquareStyle={{ backgroundColor: 'var(--board-l)' }}
                 />
               </div>
-              <div className="flex items-center justify-between w-[320px] bg-gray-800 dark:bg-gray-800 px-3 py-2 rounded-b-lg">
+              <div className="flex items-center justify-between w-[320px] bg-[var(--ink)] px-3 py-2">
                 <div className="flex flex-col gap-0.5 min-w-0">
                   <div className="flex items-center gap-1.5 text-sm text-white min-w-0">
                     <span className="font-bold shrink-0">Mate in {dailyProblem.moveCount}</span>
@@ -221,10 +222,11 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                   </span>
                 </div>
                 {dailySolved ? (
-                  <span className="text-xs text-green-400 font-bold shrink-0">Solved ✓</span>
+                  <span className="text-xs font-extrabold shrink-0 text-[var(--acid)]">Solved ✓</span>
                 ) : (
-                  <span className="text-xs text-green-400 font-bold shrink-0">Solve ›</span>
+                  <span className="text-xs font-extrabold shrink-0 text-[var(--acid)]">Solve ›</span>
                 )}
+              </div>
               </div>
             </div>
           </button>
@@ -234,7 +236,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
       {/* ── Rated Play section ── */}
       {onStartRated && (
         <div className="px-4 mb-6">
-          <div className="text-sm font-bold uppercase tracking-widest text-gray-700 dark:text-gray-300 mb-2 px-1 border-b border-gray-200 dark:border-gray-700 pb-1.5">Rated Play</div>
+          <div className="text-sm font-extrabold uppercase tracking-widest text-[var(--ink)] mb-2 px-1 border-b-2 border-[var(--ink)] pb-1.5">Rated Play</div>
           <div className="space-y-2">
             {/* Rated Mode */}
             <button
@@ -252,7 +254,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                 } catch {}
                 onStartRated();
               }}
-              className="group w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+              className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2"
             >
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
@@ -276,7 +278,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             <button
               onClick={onStartReview}
               disabled={reviewDueCount === 0}
-              className="group w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
@@ -303,7 +305,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
 
       {/* ── Free Play section ── */}
       <div className="px-5 mb-2">
-        <div className="text-sm font-bold uppercase tracking-widest text-gray-700 dark:text-gray-300 px-0 border-b border-gray-200 dark:border-gray-700 pb-1.5">Free Play</div>
+        <div className="text-sm font-extrabold uppercase tracking-widest text-[var(--ink)] px-0 border-b-2 border-[var(--ink)] pb-1.5">Free Play</div>
       </div>
 
       {/* ── Categories ── */}
@@ -321,7 +323,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                 {/* Group header — click to expand/collapse */}
                 <button
                   onClick={() => toggleGroup(group.label!)}
-                  className="group w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+                  className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2"
                 >
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
@@ -352,7 +354,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                         <button
                           key={mode.category}
                           onClick={() => onSelectMode(mode.category)}
-                          className="group w-full text-left px-5 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+                          className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-3 mb-2"
                         >
                           <div className="flex items-center justify-between">
                             <div className="min-w-0">
@@ -389,7 +391,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
                 <button
                   key={mode.category}
                   onClick={() => onSelectMode(mode.category)}
-                  className="group w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+                  className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group w-full text-left px-5 py-4 mb-2"
                 >
                   <div className="flex items-center justify-between">
                     <div className="min-w-0">
@@ -419,7 +421,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           href="https://fairy-chess-problems.pages.dev"
           target="_blank"
           rel="noopener noreferrer"
-          className="group block w-full text-left px-5 py-4 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/60 transition-colors duration-150"
+          className="nb-tile nb-shadow-room shadow-[5px_5px_0_var(--ink)] hover:shadow-[5px_5px_0_var(--ink)] group block w-full text-left px-5 py-4 mb-2"
         >
           <div className="flex items-center justify-between">
             <div className="min-w-0">
@@ -445,7 +447,7 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
           {onShowChangelog && (
             <button
               onClick={onShowChangelog}
-              className="text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 underline transition-colors"
+              className="nb-btn px-4 py-1.5 text-sm"
             >
               What's new
             </button>
@@ -454,13 +456,13 @@ export function ModeSelector({ onSelectMode, progress, problemCounts, dailyProbl
             href="https://ushiyutvj.pages.dev"
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-sm text-green-600 dark:text-green-400 hover:text-green-700 dark:hover:text-green-300 transition-colors"
+            className="nb-btn inline-flex items-center gap-2 pl-1.5 pr-4 py-1.5 text-sm"
           >
-            <img src="/ushiyutvj.jpg" width={22} height={22} alt="" loading="lazy" className="w-[22px] h-[22px] rounded-full" />
-            <span className="underline underline-offset-[3px]">Made by Ushiyutvj</span>
+            <img src="/ushiyutvj.jpg" width={22} height={22} alt="" loading="lazy" className="w-[22px] h-[22px] rounded-full border-2 border-[var(--ink)]" />
+            <span>Made by Ushiyutvj</span>
           </a>
         </div>
-        <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-3">
+        <p className="text-[11px] font-semibold text-[var(--muted)] mt-5 px-4">
           Anonymous usage data is collected to improve the site. No personal information is stored.
         </p>
       </footer>

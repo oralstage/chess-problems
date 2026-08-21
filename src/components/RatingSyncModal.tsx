@@ -132,7 +132,7 @@ export function RatingSyncModal({ open, onClose, currentRating, onRestore }: Rat
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 leading-tight">
               Paste a code from another device to load that account onto this device.{' '}
-              <span className="text-red-600 dark:text-red-400 font-medium">
+              <span className="text-[var(--bad)] dark:text-[var(--bad)] font-medium">
                 Warning: this device's current rating, history, bookmarks and review queue will be lost and cannot be recovered.
               </span>
             </p>
@@ -155,23 +155,23 @@ export function RatingSyncModal({ open, onClose, currentRating, onRestore }: Rat
             </div>
 
             {error && (
-              <p className="mt-3 text-xs text-red-600 dark:text-red-400">{error}</p>
+              <p className="mt-3 text-xs text-[var(--bad)] dark:text-[var(--bad)]">{error}</p>
             )}
 
             {/* Confirmation step */}
             {confirmReplace && preview && previewCounts && (
-              <div className="mt-4 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/30 p-3">
-                <div className="text-sm font-semibold text-amber-900 dark:text-amber-200 mb-2">
+              <div className="mt-4 rounded-lg border border-[var(--ink)] dark:border-[var(--ink)] bg-[var(--surface-2)] dark:bg-[var(--surface-2)] p-3">
+                <div className="text-sm font-semibold text-[var(--ink)] dark:text-[var(--ink)] mb-2">
                   Replace this device with the synced account?
                 </div>
-                <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1 mb-3">
+                <div className="text-xs text-[var(--ink)] dark:text-[var(--ink)] space-y-1 mb-3">
                   <div>
                     <span className="font-medium">Current rating:</span>{' '}
                     {Math.round(currentRating.rating)}
                     {' '}
                     <span className="opacity-70">(RD {Math.round(currentRating.rd)})</span>
                   </div>
-                  <div className="pt-1 border-t border-amber-200 dark:border-amber-800/60">
+                  <div className="pt-1 border-t border-[var(--ink)] dark:border-[var(--ink)]">
                     <span className="font-medium">Restore to:</span>
                   </div>
                   <ul className="list-disc list-inside opacity-90 space-y-0.5">
@@ -195,13 +195,13 @@ export function RatingSyncModal({ open, onClose, currentRating, onRestore }: Rat
                 <div className="flex gap-2">
                   <button
                     onClick={() => { setConfirmReplace(false); setPreview(null); }}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-amber-300 dark:border-amber-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-100 border border-[var(--ink)] dark:border-[var(--ink)] hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleConfirmRestore}
-                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+                    className="px-3 py-1.5 text-xs font-medium rounded-lg bg-[var(--acid)] text-white hover:bg-[var(--acid)] transition-colors"
                   >
                     Replace
                   </button>

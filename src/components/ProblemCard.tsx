@@ -34,14 +34,14 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
   const stipColor = getStipulationColorClasses(problem.stipulation, problem.genre);
 
   return (
-    <div className="space-y-1.5 min-w-0">
+    <div className="space-y-1 min-w-0 w-full">
       <div className="flex items-center gap-2 flex-wrap">
         {problemNumber !== undefined && (
-          <span className="text-base font-bold text-gray-900 dark:text-gray-100 tabular-nums">
+          <span className="text-base font-extrabold text-[var(--ink)] tabular-nums">
             {genrePrefix || ''}{problemNumber}
           </span>
         )}
-        <span className={`rounded-md font-bold font-mono px-2 py-0.5 text-sm ${stipColor}`}>
+        <span className={`rounded-full font-extrabold font-mono px-2.5 py-0.5 text-sm border-2 border-[var(--ink)] ${stipColor}`}>
           {stipulationDisplay(problem.stipulation)}
         </span>
         <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
@@ -50,10 +50,10 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
       </div>
 
       <div className="text-gray-600 dark:text-gray-400">
-        <div className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">
+        <div className="text-lg font-extrabold text-[var(--ink)] leading-tight truncate">
           {problem.authors.join(', ')}
         </div>
-        <div className="text-sm truncate">
+        <div className="text-sm font-semibold text-[var(--faint)] truncate">
           {problem.sourceName}
           {problem.sourceYear && `, ${problem.sourceYear}`}
         </div>
@@ -70,11 +70,7 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
                 <button
                   key={kw}
                   onClick={() => setExpandedTag(isExpanded ? null : kw)}
-                  className={`px-2 py-0.5 rounded-md text-xs font-medium transition-colors ${
-                    isExpanded
-                      ? 'bg-gray-900 text-white dark:bg-gray-100 dark:text-gray-900'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-                  }`}
+                  className={`nb-chip px-2.5 py-0.5 text-xs ${isExpanded ? 'nb-chip-on' : ''}`}
                 >
                   {kw}
                 </button>

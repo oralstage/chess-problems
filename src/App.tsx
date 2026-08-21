@@ -162,7 +162,7 @@ function useWindowWidth() {
 }
 
 export default function App() {
-  const { theme, toggleTheme } = useTheme();
+  useTheme();
   const [view, setView] = useState<AppView>('mode-select');
   const [isDaily, setIsDaily] = useState(false);
   const [dailyDate, setDailyDate] = useState<string | null>(null); // YYYY-MM-DD
@@ -395,7 +395,14 @@ export default function App() {
   const filters = useMemo(() => migrateFilters(filtersRaw), [filtersRaw]);
 
   const windowWidth = useWindowWidth();
-  const boardWidth = Math.min(windowWidth < 480 ? windowWidth : windowWidth - 32, 480);
+  // Below sm the sheet drops its side borders and margin (.nb-sheet-bleed), so
+  // the board is exactly the viewport wide. From sm up the sheet keeps its
+  // frame and the board fills the inside of it: 8px of outer margin plus two
+  // 4px ink borders come off. Either way the board row cancels the sheet's own
+  // px-1 with -mx-1, so nothing is left over to clip the a-file label.
+  const boardWidth = windowWidth < 640
+    ? windowWidth
+    : Math.min(windowWidth, 672) - (16 + 8);
 
   const [printMode, setPrintMode] = useState<PrintMode>('off');
   const stockfish = useStockfish();
@@ -1952,11 +1959,11 @@ export default function App() {
       : [];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
-      <div className="max-w-2xl mx-auto">
+    <div className={`min-h-screen ${view === 'solving' ? 'nb-fine' : ''}`}>
+      <div className={view === 'solving'
+        ? 'nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-3 overflow-hidden'
+        : 'max-w-2xl mx-auto'}>
         <Header
-          theme={theme}
-          onToggleTheme={toggleTheme}
           view={view}
           currentGenre={currentGenre}
           onBack={goBack}
@@ -1979,7 +1986,7 @@ export default function App() {
           onSetPrintMode={view === 'solving' ? setPrintMode : undefined}
         />
 
-        <main className="px-4 pb-8">
+        <main className={view === 'solving' ? 'px-4 pb-1' : 'px-4 pb-8'}>
 
           {view === 'mode-select' && (
               <ModeSelector
@@ -2003,7 +2010,7 @@ export default function App() {
           {/* Top-level fetch error toast (shown even during loading state) */}
           {fetchErrorToast && (
             <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-              <div className="bg-red-600/95 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-lg max-w-sm text-center">
+              <div className="bg-[var(--bad)] text-white text-sm font-medium px-4 py-2 rounded-lg shadow-lg max-w-sm text-center">
                 {fetchErrorToast}
               </div>
             </div>
@@ -2042,7 +2049,7 @@ export default function App() {
             <div className="space-y-4">
               {isDaily && dailyDate && (
                 <div className="text-center">
-                  <span className="text-xs font-semibold tracking-wider text-green-600 dark:text-green-400 uppercase">
+                  <span className="nb-label-key inline-block text-sm tracking-[0.14em] uppercase px-3 py-1">
                     Daily Problem — {(() => {
                       const [y, m, d] = dailyDate.split('-').map(Number);
                       return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -2065,10 +2072,10 @@ export default function App() {
                   <button
                     onClick={isDaily ? handlePrevDaily : () => handleNavProblem(-1)}
                     disabled={isDaily ? !canGoPrevDaily : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) <= 0)}
-                    className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors shrink-0"
+                    className="nb-icon p-1.5 shrink-0"
                     title={isDaily ? "Previous day" : "Previous problem"}
                   >
-                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </button>
@@ -2083,10 +2090,10 @@ export default function App() {
                   <button
                     onClick={isDaily ? handleNextDaily : () => handleNavProblem(1)}
                     disabled={isDaily ? isToday : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) >= filteredProblems.length - 1)}
-                    className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors shrink-0"
+                    className="nb-icon p-1.5 shrink-0"
                     title={isDaily ? "Next day" : "Next problem"}
                   >
-                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>
                   </button>
@@ -2097,7 +2104,7 @@ export default function App() {
                   className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0 ml-1"
                   title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
                 >
-                  <svg className={`w-5 h-5 ${isBookmarked ? 'text-yellow-500' : 'text-gray-400 dark:text-gray-500'}`}
+                  <svg className={`w-5 h-5 ${isBookmarked ? 'text-[var(--acid)]' : 'text-gray-400 dark:text-gray-500'}`}
                     viewBox="0 0 24 24" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round"
                       d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -2120,11 +2127,11 @@ export default function App() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 13h4v8H3zM10 9h4v12h-4zM17 5h4v16h-4z" />
                     </svg>
                     {solveStats.uniqueSolvers > 0 ? (
-                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--bad)] text-white text-[10px] font-bold flex items-center justify-center leading-none">
                         {solveStats.uniqueSolvers}
                       </span>
                     ) : (
-                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500" />
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[var(--bad)]" />
                     )}
                   </button>
                 )}
@@ -2189,8 +2196,8 @@ export default function App() {
                 />
               )}
 
-              <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 pb-1">
-              <div className="flex justify-center -mx-4 sm:mx-0">
+              <div className="sticky top-0 z-10 bg-[var(--surface)] pb-1">
+              <div className="flex justify-center -mx-1">
                 <Board
                   key={`${problem.problem?.id ?? 'loading'}:${problem.initialFen}`}
                   fen={problem.fen}
@@ -2214,20 +2221,20 @@ export default function App() {
                   <button
                     onClick={problem.playbackFirst}
                     disabled={problem.playback.moveIndex <= -1 && !problem.playback.exploring}
-                    className="w-10 h-10 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
+                    className="nb-icon w-10 h-10"
                     title="First (Home)"
                   >
-                    <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" />
                     </svg>
                   </button>
                   <button
                     onClick={problem.playbackPrev}
                     disabled={problem.playback.moveIndex <= -1 && !problem.playback.exploring}
-                    className="w-10 h-10 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
+                    className="nb-icon w-10 h-10"
                     title="Previous (←)"
                   >
-                    <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </button>
@@ -2237,20 +2244,20 @@ export default function App() {
                   <button
                     onClick={problem.playbackNext}
                     disabled={problem.playback.moveIndex >= problem.playback.positions.length - 2 && !problem.playback.exploring}
-                    className="w-10 h-10 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
+                    className="nb-icon w-10 h-10"
                     title="Next (→)"
                   >
-                    <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>
                   </button>
                   <button
                     onClick={problem.playbackLast}
                     disabled={problem.playback.moveIndex >= problem.playback.positions.length - 2 && !problem.playback.exploring}
-                    className="w-10 h-10 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
+                    className="nb-icon w-10 h-10"
                     title="Last (End)"
                   >
-                    <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M4.293 15.707a1 1 0 010-1.414L8.586 10 4.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0zm6 0a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" />
                     </svg>
                   </button>
@@ -2327,14 +2334,14 @@ export default function App() {
                 const isIllegal = st.includes('{(illegal');
                 if (!isBlack && !isIllegal) return null;
                 return (
-                  <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+                  <p className="text-xs font-semibold text-[var(--bad)] dark:text-[var(--bad)]">
                     {isIllegal ? "White's move is illegal — it's Black's turn." : 'Black to move'}
                   </p>
                 );
               })()}
 
               {(problem.status === 'correct' || problem.status === 'viewing') && problem.problem.keywords?.includes('Shortmate') && (
-                <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                <p className="text-xs font-semibold text-[var(--ink)] dark:text-[var(--ink)]">
                   This is a known flawed problem ("shortmate"): mate is possible in fewer moves than the stipulation.
                 </p>
               )}
@@ -2401,7 +2408,7 @@ export default function App() {
             </ul>
             <button
               onClick={() => setShowTutorial(false)}
-              className="mt-5 w-full py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-semibold text-base transition-colors"
+              className="mt-5 w-full py-3 bg-[var(--ink)] hover:bg-[var(--ink)] text-white rounded-xl font-semibold text-base transition-colors"
             >
               Got it
             </button>
@@ -2428,7 +2435,7 @@ export default function App() {
             </ol>
             <button
               onClick={() => setShowTutorial(false)}
-              className="mt-5 w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-base transition-colors"
+              className="mt-5 w-full py-3 bg-[var(--acid)] hover:bg-[var(--acid)] text-white rounded-xl font-semibold text-base transition-colors"
             >
               Start Solving
             </button>
@@ -2651,7 +2658,7 @@ export default function App() {
                 {p.award && (
                   <div>
                     <span className="text-gray-400 dark:text-gray-500">Award: </span>
-                    <span className="text-yellow-600 dark:text-yellow-400">{p.award}</span>
+                    <span className="text-[var(--acid)] dark:text-[var(--acid)]">{p.award}</span>
                   </div>
                 )}
                 {p.keywords.length > 0 && (

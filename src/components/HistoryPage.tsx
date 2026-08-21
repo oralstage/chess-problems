@@ -143,7 +143,7 @@ export function HistoryPage({
   const failedCount = entries.filter(e => e.status === 'failed').length;
 
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col overflow-hidden">
+    <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col p-4 max-w-3xl mx-auto w-full min-h-0">
         <div className="flex items-center justify-between mb-2 shrink-0">
           <h3 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -152,7 +152,7 @@ export function HistoryPage({
               ({solvedCount} solved{failedCount > 0 ? `, ${failedCount} failed` : ''})
             </span>
           </h3>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors">
+          <button onClick={onClose} className="nb-icon p-1.5">
             <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -194,26 +194,26 @@ export function HistoryPage({
                           key={`${entry.genre}-${entry.id}`}
                           onClick={() => { if (p) onSelectProblem(entry.genre, p, ratedIds.has(entry.id)); }}
                           disabled={!p}
-                          className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-gray-50 dark:hover:bg-white/5 transition-colors flex gap-3 disabled:opacity-60"
+                          className="nb-tile nb-shadow-room-sm w-full text-left px-3 py-2.5 mb-2 flex gap-3 disabled:opacity-60"
                         >
-                          <div className="shrink-0 rounded overflow-hidden relative" style={{ width: 56, height: 56 }}>
+                          <div className="shrink-0 rounded-[6px] overflow-hidden relative border-2 border-[var(--ink)]" style={{ width: 56, height: 56 }}>
                             {p ? (
                               <Chessboard position={p.fen} boardWidth={56} arePiecesDraggable={false} animationDuration={0}
                                 customBoardStyle={{ borderRadius: '0' }} customDarkSquareStyle={{ backgroundColor: '#779952' }} customLightSquareStyle={{ backgroundColor: '#edeed1' }} />
                             ) : (
-                              <div className="w-full h-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                              <div className="w-full h-full bg-[var(--surface-2)] flex items-center justify-center">
                                 <span className="text-lg text-gray-300 dark:text-gray-600">♚</span>
                               </div>
                             )}
-                            <span className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center text-[8px] font-bold text-white rounded-bl ${entry.status === 'solved' ? 'bg-green-500' : 'bg-orange-500'}`}>
+                            <span className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center text-[8px] font-bold text-white rounded-bl ${entry.status === 'solved' ? 'bg-green-500' : 'bg-[var(--bad)]'}`}>
                               {entry.status === 'solved' ? '✓' : '✗'}
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
                               <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{prefix}{entry.id}</span>
-                              {p && <span className="px-1.5 py-0.5 rounded text-xs font-bold font-mono bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">{p.stipulation}</span>}
-                              <span className={`text-xs ${ratedIds.has(entry.id) ? 'text-amber-500 dark:text-amber-400 font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                              {p && <span className="nb-chip px-2 py-0.5 text-xs font-mono">{p.stipulation}</span>}
+                              <span className={`text-xs ${ratedIds.has(entry.id) ? 'text-[var(--ink)] dark:text-[var(--ink)] font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
                                 {ratedIds.has(entry.id) ? 'Rated' : GENRE_LABELS[entry.genre]}
                               </span>
                             </div>

@@ -64,10 +64,10 @@ function DualRangeSlider({
       </span>
       <div className="relative h-8 flex items-center">
         {/* Track background */}
-        <div className="absolute inset-x-0 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full" />
+        <div className="absolute inset-x-0 h-1.5 bg-[var(--surface-2)] border border-[var(--ink)] rounded-full" />
         {/* Active range */}
         <div
-          className="absolute h-1.5 bg-green-500 dark:bg-green-600 rounded-full"
+          className="absolute h-1.5 bg-[var(--ink)] rounded-full"
           style={{
             left: `${((valueLow - min) / (max - min)) * 100}%`,
             right: `${100 - ((valueHigh - min) / (max - min)) * 100}%`,
@@ -279,10 +279,10 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
     : allKeywords;
 
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col overflow-hidden">
+    <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full min-h-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--ink)] shrink-0">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">Filters</h2>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
@@ -295,7 +295,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
             )}
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+              className="nb-icon p-1.5"
             >
               <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -456,7 +456,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
                 value={themeSearch}
                 onChange={e => setThemeSearch(e.target.value)}
                 placeholder="Search themes..."
-                className="w-full px-3 py-1.5 mb-2 rounded-lg text-sm bg-gray-50 border border-gray-200 text-gray-700 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="nb-input w-full px-4 py-1.5 mb-2 text-sm focus:outline-none"
               />
             )}
             <div className="flex flex-wrap gap-1.5">
@@ -485,10 +485,10 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 shrink-0">
+        <div className="px-4 py-3 border-t-2 border-[var(--ink)] shrink-0">
           <button
             onClick={onClose}
-            className="w-full py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+            className="nb-btn nb-btn-key nb-shadow-room w-full py-2.5"
           >
             {hasActiveFilters ? `Done · ${matchCount.toLocaleString()} ${matchCount === 1 ? 'problem' : 'problems'}` : 'Done'}
           </button>
