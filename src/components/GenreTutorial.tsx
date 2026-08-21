@@ -45,9 +45,12 @@ const TUTORIALS: Record<Genre, {
     title: 'Helpmate',
     mark: 'Helpmates',
     steps: [
-      'You play both sides — Black moves first, then White, alternating',
-      'The answer is the one line where both sides play to get the black king mated — Black walks into it on purpose, it never defends',
-      'The mate lands on the last move — h#2 means each side moves twice',
+      // "You play both sides" states the mechanic but not the thing you
+      // actually need: what makes each move right. Black's and White's are
+      // chosen on different grounds, so they get a beat each.
+      'Black moves first, and you play it — the right black move is one that walks into the mate, not one that defends',
+      'Then you play White\'s move — the one that closes in on the mate Black just allowed',
+      'Alternate until White mates on the last move exactly. h#2 means each side moves twice, and usually only one line works',
     ],
     general: [
       'Some problems have multiple solutions',
