@@ -119,11 +119,14 @@ export function CategoryMark({ name }: { name: string }) {
        two round pommels plus a crossing is the scissors glyph, and it read as
        scissors at every angle and every pommel size that was tried. A dial was
        tried before that and read as a speedometer, which is about speed rather
-       than about a contest. */
+       than about a contest. Tilted 30 degrees, tip to the upper right: upright
+       it sat as a specimen rather than as something anyone is holding. At that
+       angle the whole thing — tip, guard corners and pommel — still lands
+       inside the 44 box. */
     case 'Rated Mode':
       return (
         <svg {...box}>
-          <g transform="translate(22 21)">
+          <g transform="translate(22 21) rotate(30)">
             <path d="M0 -23 L3.4 -15 L3.4 6 L-3.4 6 L-3.4 -15 Z" fill={CREAM} />
             <rect x="-10" y="6" width="20" height="4" rx="2" fill="var(--ink)" />
             <rect x="-2.6" y="10" width="5.2" height="7" rx="1.8" fill={CREAM} />

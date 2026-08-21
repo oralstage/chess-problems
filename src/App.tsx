@@ -12,6 +12,7 @@ import { ProblemCard } from './components/ProblemCard';
 import { FeedbackPanel } from './components/FeedbackPanel';
 import { SolutionTree } from './components/SolutionTree';
 import { GenreTutorial } from './components/GenreTutorial';
+import { CategoryMark } from './components/CategoryMark';
 // import { TermsPage } from './components/TermsPage';
 import { ProblemList } from './components/ProblemList';
 import { FilterPage } from './components/FilterPage';
@@ -1012,18 +1013,17 @@ export default function App() {
     for (const def of CATEGORY_DEFS) {
       if (def.minMoves != null) {
         // Direct subcategories: count by moveCount.
-        // genreLoaded flips true when the lightweight INDEX loads, but the
-        // full genreData loads separately in the background (and with ~400k
-        // direct problems it often hasn't finished) — counting an empty
-        // genreData yields 0, which made ModeSelector hide the whole
-        // Direct Mates group. Only count locally when data is really there.
-        if (genreLoaded[def.genre] && genreData[def.genre].length > 0) {
-          counts[def.category] = genreData[def.genre].filter(p => {
-            if (def.maxMoves === 0) return p.moveCount >= def.minMoves!;
-            return p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!;
-          }).length;
-        } else if (apiMoveCounts[def.genre]) {
-          // Use API move counts for accurate numbers
+        //
+        // The API counts the whole table, so it is preferred over anything
+        // local. Counting genreData first was wrong in a way that only showed
+        // up mid-load: genreLoaded flips true when the lightweight INDEX
+        // arrives while the full genreData streams in behind it, and with
+        // ~400k direct problems "some rows have arrived" is the normal state
+        // for a long time. Those rows are not a random sample either — the
+        // first pages are all #2 — so Twomovers showed a fraction of its real
+        // count and Threemovers and Moremovers came out at 0, which the
+        // `total === 0` guard in ModeSelector then hid entirely.
+        if (apiMoveCounts[def.genre]) {
           let total = 0;
           for (const [mc, cnt] of Object.entries(apiMoveCounts[def.genre])) {
             const m = parseInt(mc);
@@ -1031,13 +1031,20 @@ export default function App() {
             else { if (m >= def.minMoves! && m <= def.maxMoves!) total += cnt; }
           }
           counts[def.category] = total;
+        } else if (genreLoaded[def.genre] && genreData[def.genre].length > 0) {
+          counts[def.category] = genreData[def.genre].filter(p => {
+            if (def.maxMoves === 0) return p.moveCount >= def.minMoves!;
+            return p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!;
+          }).length;
         } else {
           // Fallback estimates
           const est: Record<string, number> = { onemover: 350, twomover: 36000, threemover: 11000, moremover: 5800 };
           counts[def.category] = est[def.category] || 0;
         }
       } else {
-        counts[def.category] = genreLoaded[def.genre] ? genreIndex[def.genre].length : (apiCounts[def.genre] || ESTIMATED_COUNTS[def.genre]);
+        // Same order for the whole-genre rows: the API total beats a local
+        // index that may still be arriving.
+        counts[def.category] = apiCounts[def.genre] || (genreLoaded[def.genre] ? genreIndex[def.genre].length : ESTIMATED_COUNTS[def.genre]);
       }
     }
     return counts;
@@ -2393,7 +2400,7 @@ export default function App() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="text-center mb-4">
-              <span className="text-3xl">🔁</span>
+              <span className="mx-auto mb-1 block w-14 h-14"><CategoryMark name="Review Mode" /></span>
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Review Mode</h2>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -2408,7 +2415,7 @@ export default function App() {
             </ul>
             <button
               onClick={() => setShowTutorial(false)}
-              className="mt-5 w-full py-3 bg-[var(--ink)] hover:bg-[var(--ink)] text-white rounded-xl font-semibold text-base transition-colors"
+              className="nb-btn nb-shadow-room mt-5 w-full py-3 text-base"
             >
               Got it
             </button>
@@ -2421,7 +2428,7 @@ export default function App() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-xl" onClick={e => e.stopPropagation()}>
             <div className="text-center mb-4">
-              <span className="text-3xl">&#9876;</span>
+              <span className="mx-auto mb-1 block w-14 h-14"><CategoryMark name="Rated Mode" /></span>
               <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Rated Mode</h2>
             </div>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
@@ -2435,7 +2442,7 @@ export default function App() {
             </ol>
             <button
               onClick={() => setShowTutorial(false)}
-              className="mt-5 w-full py-3 bg-[var(--acid)] hover:bg-[var(--acid)] text-white rounded-xl font-semibold text-base transition-colors"
+              className="nb-btn nb-btn-key nb-shadow-room mt-5 w-full py-3 text-base"
             >
               Start Solving
             </button>
