@@ -10,6 +10,8 @@ interface GenreTutorialProps {
    settled before the board can be touched: which side you play, and which
    side gets mated. For direct, help and self that is a pair — selfmate is
    the case that proves it, since there the king being mated is your own.
+   Helpmate takes a third, because the order you enter the moves in (Black
+   first) is also something you have to know before the first click.
    Studies and retros have no mate to name, so only the first line qualifies. */
 const TUTORIALS: Record<Genre, { title: string; description: string; rules: string[]; mark: string; lead: number }> = {
   direct: {
@@ -27,7 +29,7 @@ const TUTORIALS: Record<Genre, { title: string; description: string; rules: stri
   },
   help: {
     title: 'Helpmate',
-    lead: 2,
+    lead: 3,
     mark: 'Helpmates',
     description: 'Black and White cooperate to checkmate Black\'s own king. A completely reversed concept from normal chess — former enemies work toward the same goal.',
     rules: [
@@ -108,7 +110,8 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
             numbers were doing active harm and the ink discs made it worse. */}
         <div className="nb-panel px-4 py-3 mb-3 space-y-1">
           {tutorial.rules.slice(0, tutorial.lead).map((rule, i) => (
-            <p key={i} className="text-base font-extrabold text-[var(--ink)] leading-snug">
+            <p key={i} className="flex gap-2.5 text-base font-extrabold text-[var(--ink)] leading-snug">
+              <span className="shrink-0 w-2 h-2 rounded-full bg-[var(--ink)] mt-[0.45rem]" />
               {rule}
             </p>
           ))}
