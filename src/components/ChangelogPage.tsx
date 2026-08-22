@@ -10,6 +10,7 @@ const CHANGELOG = [
         title: 'Improved',
         items: [
           'Joke problems now say when their solution needs a move normal chess does not allow, and show it on the board.',
+          'Twins that rotate, mirror or shift the board now show that position, so their solution can be played.',
         ],
       },
     ],
