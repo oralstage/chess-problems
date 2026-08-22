@@ -8,11 +8,28 @@ function normalizeGerman(s: string): string {
 }
 
 // Long algebraic: Piece + from + sep + to + promo (sep includes ':' for captures)
-const LONG_RE = /([KQRBSNPDTL]?)([a-h][1-8])([-*x:])([a-h][1-8])(=?[QRBNSDTL])?([+#!?]*)/i;
+// The promotion group also takes the joke forms: =K and =P (pieces FIDE does
+// not allow) and =bS / =wQ (promoting to the opponent's colour). They are only
+// accepted with the '=' in front, so ordinary text cannot fall into them.
+const LONG_RE = /([KQRBSNPDTL]?)([a-h][1-8])([-*x:])([a-h][1-8])(=[bw][QRBSNPDTLK](?![A-Za-z])|=[KP](?![A-Za-z])|=?[QRBNSDTL])?([+#!?]*)/i;
+// The joke promotions, allowed only where a promotion can happen: on a move by a
+// pawn. Fairy conditions demote pieces with the same suffix (RelegationChess
+// writes Qh7-a7=P), and that is a different thing on a different mover.
+const JOKE_PROMO = '(?:=[bw][QRBSNPDTLK](?![A-Za-z])|=[KP](?![A-Za-z]))';
 // Any move pattern (for extracting from text)
 // Note: [a-h][18][QRBNS] handles promotions without '=' (e.g., f8Q instead of f8=Q)
 // Note: ':' is used as capture separator in some notations (e.g., R:c3)
-const ANY_MOVE_RE = /(?:0-0-0|O-O-O|0-0|O-O|[KQRBSNPDTL]?[a-h][1-8][-*x:][a-h][1-8](?:=?[QRBNSDTL])?|[KQRBSNPDTL][a-h]?[1-8]?[x*:]?[a-h][1-8](?:=?[QRBNSDTL])?|[a-h][x*:][a-h][1-8](?:=?[QRBNSDTL])?|[a-h][18][QRBNSDTL]|[a-h][1-8](?:=[QRBNSDTL])?)([+#!?]*)/;
+const ANY_MOVE_RE = new RegExp(
+  '(?:0-0-0|O-O-O|0-0|O-O'
+  // pawn moves first: only these may carry a joke promotion
+  + '|P?[a-h][1-8][-*x:][a-h][1-8](?:' + JOKE_PROMO + '|=?[QRBNSDTL])?'
+  + '|[KQRBSNDTL][a-h][1-8][-*x:][a-h][1-8](?:=?[QRBNSDTL])?'
+  + '|[KQRBSNPDTL][a-h]?[1-8]?[x*:]?[a-h][1-8](?:=?[QRBNSDTL])?'
+  + '|[a-h][x*:][a-h][1-8](?:' + JOKE_PROMO + '|=?[QRBNSDTL])?'
+  + '|[a-h][18][QRBNSDTL]'
+  + '|[a-h][1-8](?:' + JOKE_PROMO + '|=[QRBNSDTL])?'
+  + ')([+#!?]*)',
+);
 const CASTLING_RE = /^(0-0-0|O-O-O|0-0|O-O)([+#!?]*)/;
 
 function yacpdbToUci(move: string): string {
@@ -24,6 +41,17 @@ function yacpdbToUci(move: string): string {
   if (clean === '0-0-0' || clean === 'O-O-O') return 'san:O-O-O';
 
   // Long algebraic: Bf7-g8 → f7g8, also handles promotion without '=' (d7-d8Q)
+  // A joke promotion (=K, =P, or the opponent's colour) has no UCI to give, and
+  // chess.js has no move to make of it either. Pass it on as SAN so it fails as
+  // one unplayable move instead of being read as an ordinary promotion.
+  // A joke promotion (=K, =P, or the opponent's colour) has no UCI to give, and
+  // no engine can make the move either. Marked with its own prefix rather than
+  // "san:", because chess.js reads "c7-c8=K" loosely and answers with c8=N --
+  // which would then be accepted from the solver as the key move.
+  if (/^P?[a-h][1-8][-*x:]?[a-h][1-8](?:=[bw][QRBSNPKDTL]|=[KP](?![a-z]))/i.test(clean)) {
+    return 'joke:' + normalizeGerman(clean).replace(/:/g, 'x');
+  }
+
   const mLong = clean.match(/^([KQRBSNP]?)([a-h][1-8])[-*x]?([a-h][1-8])(?:=?([QRBNS]))?$/i);
   if (mLong) {
     const promo = mLong[4] ? (mLong[4] === 'S' || mLong[4] === 's' ? 'n' : mLong[4].toLowerCase()) : '';
@@ -59,9 +87,13 @@ function yacpdbToSanApprox(move: string): string {
     const piece = normalizePiece(mLong[1]);
     const capture = mLong[3] === '*' || mLong[3] === 'x' || mLong[3] === ':' ? 'x' : '';
     const to = mLong[4];
-    const promoRaw = mLong[5] || '';
+    const promoRaw = piece && piece !== 'P' && /^=[bw]?[KP]/i.test(mLong[5] || '') ? '' : (mLong[5] || '');
     const promoChar = promoRaw.replace('=', '');
-    const promo = promoChar ? '=' + normalizePiece(promoChar) : '';
+    // "bS" keeps its colour letter and its YACPDB piece letter: the point of the
+    // move is which colour it promotes to, and "=bN" would read as a typo.
+    const promo = promoChar
+      ? '=' + (/^[bw]/.test(promoChar) ? promoChar : normalizePiece(promoChar))
+      : '';
     const suffix = mLong[6] || '';
 
     if (!piece || piece === 'P' || piece === 'p') {

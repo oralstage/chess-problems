@@ -28,6 +28,11 @@ interface SolutionTreeProps {
 function tryExecuteNode(chess: Chess, node: SolutionNode): { from: string; to: string } | null {
   const uci = node.moveUci;
 
+  // A move no board can hold (promotion to a king, or to the other colour).
+  // Never hand it to chess.js: it reads such a move loosely and offers an
+  // ordinary promotion in its place.
+  if (uci.startsWith('joke:')) return null;
+
   // Wildcard "any move" — pick a legal move by the specified piece type
   if (uci === 'any') {
     return executeWildcardMove(chess, node.moveSan);

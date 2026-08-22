@@ -246,45 +246,112 @@ function tryExecuteNode(chess: Chess, node: SolutionNode): ReturnType<Chess['mov
   return null;
 }
 
+/**
+ * Apply a move by rewriting the FEN, with no legality check at all.
+ *
+ * Joke problems end in positions no engine will hold -- two white kings after
+ * c8=K, a pawn on the eighth rank, a black queen conjured by White. chess.js
+ * refuses to load or play any of it, and it is right to. But replaying a
+ * solution that is already written down needs no rules: only "put this piece on
+ * that square". react-chessboard draws whatever FEN it is handed, so the
+ * position can still be shown. Used only where chess.js has already refused.
+ */
+function applyMoveByFen(fen: string, node: SolutionNode): { fen: string; from: string; to: string; san: string } | null {
+  // Needs the departure square, which SAN-shaped moves do not carry.
+  const m = node.move.match(/^([KQRBSNPDTL]?)([a-h][1-8])[-*x:]?([a-h][1-8])(?:=([bw]?)([KQRBSNPDTL]))?/i);
+  if (!m) return null;
+  const [, , from, to, promoColor, promoPiece] = m;
+
+  const parts = fen.split(' ');
+  const board: string[][] = parts[0].split('/').map(row => {
+    const cells: string[] = [];
+    for (const ch of row) {
+      if (ch >= '1' && ch <= '9') for (let i = 0; i < parseInt(ch); i++) cells.push('');
+      else cells.push(ch);
+    }
+    while (cells.length < 8) cells.push('');
+    return cells.slice(0, 8);
+  });
+  while (board.length < 8) board.push(Array(8).fill(''));
+
+  const sq = (v: string) => ({ row: 8 - parseInt(v[1]), col: v.charCodeAt(0) - 97 });
+  const f = sq(from.toLowerCase());
+  const t = sq(to.toLowerCase());
+  const piece = board[f.row]?.[f.col];
+  if (!piece) return null;
+
+  const moverIsWhite = piece === piece.toUpperCase();
+  let placed = piece;
+  if (promoPiece) {
+    const letter = promoPiece.toUpperCase() === 'S' ? 'N' : promoPiece.toUpperCase();
+    // "=bS" promotes to the other side's piece; a bare "=K" keeps the mover's.
+    const white = promoColor ? promoColor.toLowerCase() === 'w' : moverIsWhite;
+    placed = white ? letter : letter.toLowerCase();
+  }
+  board[f.row][f.col] = '';
+  board[t.row][t.col] = placed;
+
+  const rows = board.map(row => {
+    let out = '', empty = 0;
+    for (const cell of row) {
+      if (!cell) empty++;
+      else { if (empty) { out += empty; empty = 0; } out += cell; }
+    }
+    return empty ? out + empty : out;
+  });
+  // Castling rights and en passant cannot be tracked through a position that
+  // has stopped being chess; the counters are equally meaningless here.
+  const nextFen = `${rows.join('/')} ${moverIsWhite ? 'b' : 'w'} - - 0 1`;
+  return { fen: nextFen, from: from.toLowerCase(), to: to.toLowerCase(), san: node.moveSan || node.move };
+}
+
 function computePositions(initialFen: string, mainLine: SolutionNode[]): PlaybackPosition[] {
   const positions: PlaybackPosition[] = [{ fen: initialFen, lastMove: null, san: '' }];
-  const chess = new Chess(initialFen);
+  let curFen = initialFen;
   for (const node of mainLine) {
-    let move = tryExecuteNode(chess, node);
-    // If move fails, try with flipped turn (retro problems may start with opposite color)
-    if (!move && node.color !== chess.turn()) {
-      const curFen = chess.fen();
-      const curTurn = curFen.split(' ')[1];
-      const flipped = curFen.replace(/ [wb] /, curTurn === 'w' ? ' b ' : ' w ');
-      const chess2 = new Chess(flipped);
-      move = tryExecuteNode(chess2, node);
-      if (move) {
-        chess.load(chess2.fen());
+    // The position itself may be one chess.js will not load -- after a joke
+    // promotion it holds two kings of one colour -- so the engine is optional
+    // from here on and the FEN is what carries the line forward.
+    let chess: Chess | null = null;
+    try {
+      chess = new Chess(curFen);
+    } catch { /* not a legal position; fall through to plain FEN editing */ }
+
+    let applied: { fen: string; from: string; to: string; san: string } | null = null;
+
+    if (chess) {
+      let move = tryExecuteNode(chess, node);
+      // If move fails, try with flipped turn (retro problems may start with opposite color)
+      if (!move && node.color !== chess.turn()) {
+        const curTurn = curFen.split(' ')[1];
+        const flipped = chess.fen().replace(/ [wb] /, curTurn === 'w' ? ' b ' : ' w ');
+        try {
+          const chess2 = new Chess(flipped);
+          move = tryExecuteNode(chess2, node);
+          if (move) chess.load(chess2.fen());
+        } catch { /* keep move null */ }
       }
-    }
-    if (move) {
-      positions.push({
-        fen: chess.fen(),
-        lastMove: { from: move.from, to: move.to },
-        san: move.san,
-      });
-    } else if (node === AUTO_MOVE_PLACEHOLDER || (node.moveSan === '...' && node.moveUci === '')) {
-      // Placeholder for auto-played opponent move — pick first legal move
-      const legalMoves = chess.moves({ verbose: true });
-      if (legalMoves.length > 0) {
+      if (move) {
+        applied = { fen: chess.fen(), from: move.from, to: move.to, san: move.san };
+      } else if (node === AUTO_MOVE_PLACEHOLDER || (node.moveSan === '...' && node.moveUci === '')) {
+        // Placeholder for auto-played opponent move — pick first legal move
+        const legalMoves = chess.moves({ verbose: true });
+        if (legalMoves.length === 0) break;
         const autoMove = legalMoves[0];
         chess.move(autoMove);
-        positions.push({
-          fen: chess.fen(),
-          lastMove: { from: autoMove.from, to: autoMove.to },
-          san: autoMove.san,
-        });
-      } else {
-        break;
+        applied = { fen: chess.fen(), from: autoMove.from, to: autoMove.to, san: autoMove.san };
       }
-    } else {
-      break;
     }
+
+    if (!applied) applied = applyMoveByFen(curFen, node);
+    if (!applied) break;
+
+    curFen = applied.fen;
+    positions.push({
+      fen: curFen,
+      lastMove: { from: applied.from, to: applied.to },
+      san: applied.san,
+    });
   }
   return positions;
 }
