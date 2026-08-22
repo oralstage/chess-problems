@@ -4,51 +4,18 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
-    date: '2026-08-22',
-    sections: [
-      {
-        title: 'Fixes',
-        items: [
-          'Choosing what a pawn promotes to is readable again: the four pieces sit on a panel with a frame and a rule between them, instead of floating over the board with no ground under them.',
-          'That panel no longer hangs off the board when a pawn on the a- or h-file promotes, or over the header on the last rank.',
-        ],
-      },
-      {
-        title: 'Changed',
-        items: [
-          'The arrow to the next problem now sits beside the composer\u2019s name rather than out at the edge of the header.',
-          'Both problem arrows are solid triangles now. They were the only bare hairlines in a header made of ink, and they read as marks rather than buttons.',
-        ],
-      },
-    ],
-  },
-  {
     date: '2026-08-21',
     sections: [
       {
         title: 'New',
         items: [
-          'The site has a new look, matching its sister site for fairy chess problems.',
-          'A Japanese beginner\u2019s guide has been added next to the English one.',
+          'The site has a new look.',
         ],
       },
       {
         title: 'Improved',
         items: [
-          'Opening a category is much faster. The board now appears in about a second; before, it waited for an index of every problem in the genre \u2014 nearly 400,000 rows for direct mates \u2014 before showing anything.',
-          'Your rating is shown on the home page, on the Rated Mode card.',
-        ],
-      },
-      {
-        title: 'Changed',
-        items: [
-          'The dark theme and the light/dark toggle have been removed. The site now has one look.',
-        ],
-      },
-      {
-        title: 'Fixes',
-        items: [
-          'Opening Direct Mates no longer lands on twomovers only.',
+          'The rules for each genre have been rewritten.',
         ],
       },
     ],
