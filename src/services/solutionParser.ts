@@ -794,6 +794,20 @@ export function parseTwinMods(modLine: string): FenMod[] {
     mods.push({ type: 'add', square: m[2], piece: pieceToFen(m[1]) });
   }
 
+  // Substitution: a bare "wRa8" means the piece standing on a8 becomes a white
+  // rook. Blank out everything the patterns above already claimed so their
+  // operands (the "wR" of "-wRf3", the "wK" of "wKc2-->c1") are not read a
+  // second time as substitutions.
+  let rest = modLine;
+  for (const pattern of [movePattern, removePattern, addPattern]) {
+    pattern.lastIndex = 0;
+    rest = rest.replace(pattern, (matched) => ' '.repeat(matched.length));
+  }
+  const substPattern = /([bw][KQRBSP])([a-h][1-8])/gi;
+  while ((m = substPattern.exec(rest)) !== null) {
+    mods.push({ type: 'add', square: m[2], piece: pieceToFen(m[1]) });
+  }
+
   return mods;
 }
 
@@ -912,7 +926,11 @@ export function parseTwins(solutionText: string, originalFen: string, firstMoveC
     const lines = content.split('\n');
     const firstLine = lines[0].trim();
     // Check if first line is a modification or the start of the solution
-    const hasMod = /[bw][KQRBSP][a-h][1-8]\s*-->|^-[bw][KQRBSP]|^\+[bw][KQRBSP][a-h]/.test(firstLine);
+    // A substitution line ("wRa8", or several separated by spaces) carries no
+    // punctuation to recognise it by, so accept it only when the whole line is
+    // made of those tokens -- otherwise a line of solution moves could pass.
+    const hasMod = /[bw][KQRBSP][a-h][1-8]\s*-->|^-[bw][KQRBSP]|^\+[bw][KQRBSP][a-h]/.test(firstLine)
+      || /^[bw][KQRBSP][a-h][1-8](?:\s+[bw][KQRBSP][a-h][1-8])*$/.test(firstLine);
     const modLine = hasMod ? firstLine : '';
     const solText = hasMod ? lines.slice(1).join('\n') : content;
     twins.push({
