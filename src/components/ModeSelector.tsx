@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
@@ -60,6 +61,24 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
   // }, []);
+
+  // The diagram used to be drawn at a flat 320px inside a card capped at the
+  // same number — but the card spends 4px a side on its border and gives up
+  // more to whatever padding is around it, so the board ran past the card's
+  // content box and overflow-hidden shaved the h-file off. Measure the slot
+  // the board actually gets and draw to that.
+  const boardSlotRef = useRef<HTMLButtonElement>(null);
+  const [dailyBoardSize, setDailyBoardSize] = useState(320);
+
+  useEffect(() => {
+    const el = boardSlotRef.current;
+    if (!el) return;
+    const measure = () => setDailyBoardSize(el.clientWidth || 320);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [dailyProblem]);
 
   const displayedDailyRating = dailyProblem
     ? Math.round((dailyProblemRating ?? difficultyToRating(
@@ -224,16 +243,17 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
               </p>
             </div>
             <button
+              ref={boardSlotRef}
               type="button"
               onClick={onSolveDaily}
               aria-label={`Solve today's mate in ${dailyProblem.moveCount}`}
-              className="block border-y-4"
+              className="block w-full border-y-4"
               style={{ borderColor: 'var(--ink)' }}
             >
-              <div className="relative shrink-0 overflow-hidden" style={{ width: 320, height: 320 }}>
+              <div className="relative shrink-0 overflow-hidden" style={{ width: dailyBoardSize, height: dailyBoardSize }}>
                 <Chessboard
                   position={dailyProblem.fen}
-                  boardWidth={320}
+                  boardWidth={dailyBoardSize}
                   arePiecesDraggable={false}
                   animationDuration={0}
                   customBoardStyle={{ borderRadius: '0' }}
