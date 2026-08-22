@@ -62,7 +62,7 @@ const TUTORIALS: Record<Genre, {
     steps: [
       'You play White first. The key \u2014 the answer \u2014 is the one move that leaves Black no legal way out but to deliver the mate.',
       'Black answers by itself, avoiding the mate as long as it can \u2014 it only delivers when nothing else is legal.',
-      'Black is forced to mate the white king on the last move. s#2 = two moves.',
+      'Black is forced to mate the white king on the last move. s#1 = one move each \u2014 White moves, Black mates.',
     ],
     general: [],
   },
