@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Chess } from 'chess.js';
 import { useTheme } from './hooks/useTheme';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { useProblem } from './hooks/useProblem';
+import { useProblem, isUnplayableJokeProblem } from './hooks/useProblem';
 import { useStockfish } from './hooks/useStockfish';
 import { Header } from './components/Header';
 import { ModeSelector } from './components/ModeSelector';
@@ -425,6 +425,15 @@ export default function App() {
   const isSecondaryTwin = !!activeTwinId
     && !!problem.problem?.twins?.length
     && activeTwinId !== problem.problem.twins[0].id;
+
+  // Joke problems whose solution cannot be played here. Nothing the solver does
+  // will be accepted, so say so rather than let the user hunt for a move that
+  // does not exist.
+  const jokeUnplayable = useMemo(
+    () => !!problem.problem && isUnplayableJokeProblem(problem.problem),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [problem.problem?.id, problem.problem?.solutionTree],
+  );
 
   const handleSelectTwin = useCallback((id: string) => {
     const twins = problem.problem?.twins;
@@ -2348,6 +2357,17 @@ export default function App() {
                 </div>
               )}
 
+              {jokeUnplayable && (
+                <div className="nb-panel nb-tile-bad px-3 py-2.5 mb-2">
+                  <p className="text-sm font-extrabold">Joke problem — it cannot be played here</p>
+                  <p className="text-xs mt-1 leading-snug">
+                    The solution needs a move normal chess does not allow: promoting to a
+                    king or to the opponent's colour, turning the board around, taking a
+                    piece off first. Press Give Up to see it.
+                  </p>
+                </div>
+              )}
+
               <FeedbackPanel
                 status={problem.status}
                 feedback={problem.feedback}
@@ -2403,6 +2423,7 @@ export default function App() {
                 problemRating={lastProblemRating ?? (problem.problem ? getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount).rating : undefined)}
                 problemRatingDelta={isRatedMode && problemRatingBefore != null && lastProblemRating != null ? Math.round(lastProblemRating - problemRatingBefore) : undefined}
                 hideHintUntilWrong={isRatedMode || isReviewMode}
+                hideHint={jokeUnplayable}
                 wrongMoveCount={problem.wrongMoveCount}
                 reviewNextDays={isReviewMode && reviewNextInterval != null ? reviewNextInterval : undefined}
                 classicBoard={printMode !== 'off'}

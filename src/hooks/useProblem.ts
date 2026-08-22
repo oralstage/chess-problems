@@ -111,8 +111,49 @@ function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
   return line;
 }
 
+/**
+ * A joke problem whose solution cannot be played on a legal board -- promotion
+ * to a king or a pawn, a board that has to be rotated, a piece that has to be
+ * removed first. The joke keyword is required: a key move that will not execute
+ * is far more often our own parsing gap (castling written as Ke1-c1, an en
+ * passant capture) on an ordinary problem, and those must be fixed, not
+ * excused with a banner.
+ */
+export function isUnplayableJokeProblem(problem: ChessProblem): boolean {
+  if (!problem.keywords?.includes('Joke problem')) return false;
+  // Promotion to a king or a pawn. Read from the raw text because the parser
+  // drops the piece from "c7-c8=K", leaving a move that looks playable.
+  if (/=\s*[KP](?![a-z])/.test(problem.solutionText || '')) return true;
+  // Twins carry a position per diagram; the tree parsed here belongs to a) and
+  // is not the tree the board will be holding. Leave them alone.
+  if (/^\s*a\)/i.test(problem.solutionText || '')) return false;
+  const keys = problem.solutionTree;
+  if (!keys || keys.length === 0) return false;
+  const fens = [problem.fen];
+  // Retro lets the user move either colour, and the solver flips the turn to
+  // try the other one, so both have to be searched before calling it unplayable
+  fens.push(problem.fen.includes(' w ') ? problem.fen.replace(' w ', ' b ') : problem.fen.replace(' b ', ' w '));
+  for (const fen of fens) {
+    let chess: Chess;
+    try {
+      chess = new Chess(fen);
+    } catch {
+      continue;
+    }
+    for (const m of chess.moves({ verbose: true })) {
+      if (matchMoveToTree(fen, m.from, m.to, m.san, m.promotion, keys)) return false;
+    }
+  }
+  return true; // no legal move anywhere on the board is the key
+}
+
 function tryExecuteNode(chess: Chess, node: SolutionNode): ReturnType<Chess['move']> | null {
   const uci = node.moveUci;
+
+  // A move no board can hold (promotion to a king, or to the other colour).
+  // Never hand it to chess.js: it reads such a move loosely and offers an
+  // ordinary promotion in its place.
+  if (uci.startsWith('joke:')) return null;
 
   // Wildcard "any move" — pick a legal move by the specified piece type
   if (uci === 'any') {

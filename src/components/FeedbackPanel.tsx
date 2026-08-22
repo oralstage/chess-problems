@@ -36,6 +36,8 @@ interface FeedbackPanelProps {
   problemRating?: number;
   problemRatingDelta?: number | null;
   hideHintUntilWrong?: boolean;
+  /** No hint to give: the solution cannot be played on this board. */
+  hideHint?: boolean;
   wrongMoveCount?: number;
   onBackToRated?: () => void;
   reviewNextDays?: number;
@@ -75,6 +77,7 @@ export function FeedbackPanel({
   problemRating,
   problemRatingDelta,
   hideHintUntilWrong,
+  hideHint,
   wrongMoveCount = 0,
   onBackToRated,
   reviewNextDays,
@@ -253,7 +256,7 @@ export function FeedbackPanel({
           {solutionLoading && (
             <span className="text-xs text-gray-400 dark:text-gray-500 animate-pulse">Loading...</span>
           )}
-          {!classicBoard && !solutionLoading && !hintActive && !(hideHintUntilWrong && wrongMoveCount === 0) && (
+          {!classicBoard && !solutionLoading && !hintActive && !hideHint && !(hideHintUntilWrong && wrongMoveCount === 0) && (
             <button
               onClick={onShowHint}
               className="nb-btn px-3 py-1.5 text-xs"
