@@ -4,6 +4,24 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-08-22',
+    sections: [
+      {
+        title: 'Fixes',
+        items: [
+          'Choosing what a pawn promotes to is readable again: the four pieces sit on a panel with a frame and a rule between them, instead of floating over the board with no ground under them.',
+          'That panel no longer hangs off the board when a pawn on the a- or h-file promotes, or over the header on the last rank.',
+        ],
+      },
+      {
+        title: 'Changed',
+        items: [
+          'The arrow to the next problem now sits beside the composer\u2019s name rather than out at the edge of the header.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-08-21',
     sections: [
       {

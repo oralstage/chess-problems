@@ -237,8 +237,24 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     }
   }, [disabled, allowAnyColor, fen]);
 
+  // Which way the 2x2 picker opens out from the promotion square. It is always
+  // anchored with that square as one of its four cells, on the side that keeps
+  // the whole block on the board — otherwise an a-file promotion hangs off the
+  // edge and an eighth-rank one sits half over the header.
+  const promotionAnchor = useMemo(() => {
+    if (!promotionMove) return '';
+    const file = promotionMove.to.charCodeAt(0) - 97;
+    const rank = parseInt(promotionMove.to[1], 10);
+    const col = orientation === 'white' ? file : 7 - file;
+    const row = orientation === 'white' ? 8 - rank : rank - 1;
+    return `${row <= 6 ? '' : 'cp-promo-up'} ${col <= 6 ? '' : 'cp-promo-left'}`;
+  }, [promotionMove, orientation]);
+
   return (
-    <div className={`relative ${PRINT_MODE_CLASS[printMode]}`} style={{ touchAction: 'manipulation' }}>
+    <div
+      className={`relative ${PRINT_MODE_CLASS[printMode]} ${promotionAnchor}`}
+      style={{ touchAction: 'manipulation', ['--sq' as string]: `${boardWidth / 8}px` } as React.CSSProperties}
+    >
       <Chessboard
         position={fen}
         onPieceDrop={handlePieceDrop}
@@ -247,6 +263,12 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
         onPromotionPieceSelect={handlePromotionPieceSelect}
         promotionToSquare={promotionMove?.to as never}
         showPromotionDialog={!!promotionMove}
+        // Never let the library open the picker off its own state: a dragged
+        // promotion would then bypass promotionMove, and the anchor above would
+        // have nothing to work from. Refusing here sends the drop through
+        // onPieceDrop, so drag and click both arrive at handlePieceDrop.
+        onPromotionCheck={() => false}
+        promotionDialogVariant="vertical"
         boardWidth={boardWidth}
         boardOrientation={orientation}
         customSquareStyles={customSquareStyles}

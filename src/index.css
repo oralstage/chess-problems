@@ -275,6 +275,60 @@ body {
   border-radius: 10px;
 }
 
+/* The promotion picker.
+
+   react-chessboard builds each option's background as `${squareColour}aa` — a
+   colour string with an alpha suffix glued on. The board's colours became
+   custom properties in the restyle, so that now produces `var(--board-d)aa`,
+   which is not a colour at all: the declaration is dropped and the four options
+   render as bare pieces floating over the dimmed board, with a fill appearing
+   only under the cursor. So the surface is painted here instead.
+
+   Same two-by-two block and same size as before. The gap is the picker's own
+   background showing through, which is what rules the four options apart; the
+   ring outside is a shadow rather than a border so it costs no layout and the
+   block still measures exactly two squares.
+
+   The library anchors the block on the CENTRE of the promotion square, so it
+   always hangs half a square off the eighth rank and, on the a- and h-files,
+   half a square off the side. The transforms below anchor it on a CORNER of
+   that square instead, choosing the corner that keeps it on the board. */
+[title="Choose promotion piece"] {
+  display: flex;
+  flex-wrap: wrap;
+  width: calc(var(--sq) * 2 + 3px);
+  gap: 3px;
+  background: var(--ink);
+  border-radius: 10px;
+  box-shadow: 0 0 0 4px var(--ink);
+  overflow: hidden;
+  transform: translate(calc(var(--sq) * -0.5), calc(var(--sq) * -0.5)) !important;
+}
+
+/* Only where the block sits moves; the options stay queen, rook, knight,
+   bishop in that order wherever it opens, so the piece you reach for is always
+   in the same corner of the block. */
+.cp-promo-left [title="Choose promotion piece"] {
+  transform: translate(calc(var(--sq) * -1.5 - 3px), calc(var(--sq) * -0.5)) !important;
+}
+
+.cp-promo-up [title="Choose promotion piece"] {
+  transform: translate(calc(var(--sq) * -0.5), calc(var(--sq) * -1.5 - 3px)) !important;
+}
+
+.cp-promo-up.cp-promo-left [title="Choose promotion piece"] {
+  transform: translate(calc(var(--sq) * -1.5 - 3px), calc(var(--sq) * -1.5 - 3px)) !important;
+}
+
+[title="Choose promotion piece"] > [data-piece] {
+  background-color: var(--surface) !important;
+  border-radius: 0 !important;
+}
+
+[title="Choose promotion piece"] > [data-piece]:hover {
+  background-color: var(--acid) !important;
+}
+
 /* Blocks that sit INSIDE a sheet get an outline but no shadow — a hard shadow
    means "this sits on the ground", and these sit on a surface. Adding one made
    a card float on a card. This is the frame for the problem header, the

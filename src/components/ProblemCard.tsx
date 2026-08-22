@@ -34,7 +34,7 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
   const stipColor = getStipulationColorClasses(problem.stipulation, problem.genre);
 
   return (
-    <div className="space-y-1 min-w-0 w-full">
+    <div className="space-y-1 min-w-0">
       <div className="flex items-center gap-2 flex-wrap">
         {problemNumber !== undefined && (
           <span className="text-base font-extrabold text-[var(--ink)] tabular-nums">
