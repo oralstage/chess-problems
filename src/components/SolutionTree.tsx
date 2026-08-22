@@ -346,11 +346,11 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
           premise is written down: an illegal position, a missing last move,
           a stipulation that is not the one in the header. */}
       {notes && notes.length > 0 && (
-        <div className="nb-panel-plain px-3 py-2 space-y-1">
+        <blockquote className="nb-panel border-l-[7px] px-3 py-2.5 space-y-1.5">
           {notes.map((note, i) => (
-            <p key={i} className="text-xs italic text-[var(--muted)] leading-snug">{note}</p>
+            <p key={i} className="text-sm font-semibold text-[var(--ink)] leading-snug">{note}</p>
           ))}
-        </div>
+        </blockquote>
       )}
 
       {/* Main line playback */}
