@@ -1936,12 +1936,12 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.status, problem.problem, setProgress, setTimestamps, problem.moveHistory]);
 
-  // Fetch a live problem rating only when it is needed. Rated/review modes need
-  // it immediately; ordinary browsing waits until Info is opened or the solve
-  // ends, avoiding an extra request for every problem a user flips past.
+  // Fetch a live problem rating only when it is needed: rated/review modes, or
+  // Info on a direct mate. Only direct mates are in problem_ratings at all, so
+  // asking for any other genre is a guaranteed 404.
   useEffect(() => {
-    const shouldFetch = isRatedMode || isReviewMode || showProblemInfo || problem.status !== 'solving';
-    if (shouldFetch && problem.problem && lastProblemRating == null) {
+    const shouldFetch = isRatedMode || isReviewMode || showProblemInfo;
+    if (shouldFetch && problem.problem?.genre === 'direct' && lastProblemRating == null) {
       let cancelled = false;
       fetchProblemRating(problem.problem.id).then(res => {
         if (!cancelled) setLastProblemRating(res.rating);
@@ -2673,11 +2673,16 @@ export default function App() {
       {showProblemInfo && problem.problem && (() => {
         const p = problem.problem!;
         const pc = pieceCount(p.fen);
-        const infoRating = Math.round((lastProblemRating ?? getProblemInitialRating(
-          p.difficultyScore,
-          p.moveCount,
-          p.pieceCount,
-        ).rating) / 50) * 50;
+        // Only direct mates have ratings. The other genres never enter rated
+        // mode, so nothing ever rates them -- printing the formula's guess
+        // would be inventing a number.
+        const infoRating = p.genre === 'direct'
+          ? Math.round((lastProblemRating ?? getProblemInitialRating(
+              p.difficultyScore,
+              p.moveCount,
+              p.pieceCount,
+            ).rating) / 50) * 50
+          : null;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/40" onClick={() => setShowProblemInfo(false)} />
@@ -2716,10 +2721,12 @@ export default function App() {
                   <span className="text-[var(--faint)] font-semibold">Pieces: </span>
                   <span className="text-[var(--ink)]">{pc}</span>
                 </div>
-                <div>
-                  <span className="text-[var(--faint)] font-semibold">Problem rating: </span>
-                  <span className="text-[var(--ink)] font-semibold">~{infoRating}</span>
-                </div>
+                {infoRating != null && (
+                  <div>
+                    <span className="text-[var(--faint)] font-semibold">Problem rating: </span>
+                    <span className="text-[var(--ink)] font-semibold">~{infoRating}</span>
+                  </div>
+                )}
                 {p.award && (
                   <div>
                     <span className="text-[var(--faint)] font-semibold">Award: </span>
