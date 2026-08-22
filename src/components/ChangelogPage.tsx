@@ -17,6 +17,7 @@ const CHANGELOG = [
         title: 'Changed',
         items: [
           'The arrow to the next problem now sits beside the composer\u2019s name rather than out at the edge of the header.',
+          'Both problem arrows are solid triangles now. They were the only bare hairlines in a header made of ink, and they read as marks rather than buttons.',
         ],
       },
     ],

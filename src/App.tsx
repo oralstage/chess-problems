@@ -2110,8 +2110,12 @@ export default function App() {
                     className="nb-icon p-1.5 shrink-0"
                     title={isDaily ? "Previous day" : "Previous problem"}
                   >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    {/* A solid triangle, not the thin chevron the playback bar
+                        uses: this button carries no frame of its own, so the
+                        glyph has to hold the weight the rest of the header
+                        holds with ink. */}
+                    <svg className="w-5 h-5" fill="currentColor" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" viewBox="0 0 20 20">
+                      <path d="M12.5 4.5 6.5 10l6 5.5z" />
                     </svg>
                   </button>
                   )}
@@ -2128,8 +2132,8 @@ export default function App() {
                     className="nb-icon p-1.5 shrink-0"
                     title={isDaily ? "Next day" : "Next problem"}
                   >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    <svg className="w-5 h-5" fill="currentColor" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" viewBox="0 0 20 20">
+                      <path d="M7.5 4.5 13.5 10l-6 5.5z" />
                     </svg>
                   </button>
                   )}
