@@ -25,7 +25,7 @@ import { ChangelogPage } from './components/ChangelogPage';
 import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
-import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins } from './services/solutionParser';
+import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins, extractSolutionNotes } from './services/solutionParser';
 import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, type SyncReviewCard } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import { useReviewQueue } from './hooks/useReviewQueue';
@@ -433,6 +433,14 @@ export default function App() {
     () => !!problem.problem && isUnplayableJokeProblem(problem.problem),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [problem.problem?.id, problem.problem?.solutionTree],
+  );
+
+  // Only read once the problem is over: some of these notes say whose move it
+  // is, which is the puzzle itself in a retro. The Solution section they live
+  // in is not rendered before then either.
+  const solutionNotes = useMemo(
+    () => extractSolutionNotes(problem.problem?.solutionText || ''),
+    [problem.problem?.solutionText],
   );
 
   const handleSelectTwin = useCallback((id: string) => {
@@ -2471,6 +2479,7 @@ export default function App() {
                   onLast={problem.playbackLast}
                   onExplore={problem.playbackExplore}
                   isCooked={problem.problem.keywords?.includes('Cooked')}
+                  notes={solutionNotes}
                 />
               )}
             </div>

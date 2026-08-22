@@ -20,6 +20,8 @@ interface SolutionTreeProps {
   onLast: () => void;
   onExplore: (fen: string, lastMove: { from: string; to: string } | null) => void;
   isCooked?: boolean;
+  /** Prose comments from the source notation, shown above the moves. */
+  notes?: string[];
 }
 
 /**
@@ -271,7 +273,7 @@ function VariationLineView({ line, startMoveNum, onNodeClick, activeNode }: {
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, isCooked }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, isCooked, notes }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -339,6 +341,17 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
           </span>
         )}
       </div>
+
+      {/* What the source says in words -- often the only place a problem's
+          premise is written down: an illegal position, a missing last move,
+          a stipulation that is not the one in the header. */}
+      {notes && notes.length > 0 && (
+        <div className="nb-panel-plain px-3 py-2 space-y-1">
+          {notes.map((note, i) => (
+            <p key={i} className="text-xs italic text-[var(--muted)] leading-snug">{note}</p>
+          ))}
+        </div>
+      )}
 
       {/* Main line playback */}
       {positions.length > 1 && (

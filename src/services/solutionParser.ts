@@ -929,6 +929,40 @@ export interface TwinData {
  * Returns array of twin data with computed FENs and solution trees.
  * Returns null if not a twin problem.
  */
+/**
+ * The prose comments in a YACPDB solution, in the order they appear.
+ *
+ * Most braces hold machine annotation -- "display-departure-file" is an
+ * instruction to YACPDB's own renderer, "(S~)" restates the move next to it,
+ * "A"/"[B]"/"(a)" label variations. Across 28,587 problems only 101 brace
+ * groups were sentences, but those carry what the diagram cannot say: "Black
+ * has no last move.", "Original stipulation: ...", "The position of Black
+ * Pawns is illegal. One White piece must be removed!". Nearly half sit before
+ * the first move, describing the problem rather than any move in it.
+ *
+ * So: keep what reads as a sentence, drop the rest.
+ */
+const MACHINE_NOTE = /^(?:display-departure-(?:file|rank)|cook|dual|zugzwang|stalemate|[A-Za-z]|\[[A-Za-z]\]|\([a-z]\)|#\d+)$/i;
+
+export function extractSolutionNotes(solutionText: string): string[] {
+  if (!solutionText) return [];
+  const notes: string[] = [];
+  const seen = new Set<string>();
+  for (const m of solutionText.matchAll(/\{([^}]*)\}/g)) {
+    const inner = m[1].replace(/\s+/g, ' ').trim().replace(/^\(([^()]*)\)$/, '$1').trim();
+    if (!inner || MACHINE_NOTE.test(inner)) continue;
+    const words = inner.split(' ').filter(Boolean);
+    // A sentence, not a move or a label: several words, at least two of them
+    // words rather than notation.
+    const real = words.filter(w => /^[A-Za-zÀ-ÿ]{3,}$/.test(w.replace(/[.,;:!?()'"]/g, '')));
+    if (words.length < 3 || real.length < 2) continue;
+    if (seen.has(inner)) continue;
+    seen.add(inner);
+    notes.push(inner);
+  }
+  return notes;
+}
+
 export function parseTwins(solutionText: string, originalFen: string, firstMoveColor: 'w' | 'b' = 'w'): TwinData[] | null {
   if (!solutionText) return null;
   const trimmed = solutionText.trim();
