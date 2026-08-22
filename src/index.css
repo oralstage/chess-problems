@@ -358,6 +358,14 @@ body {
     border-radius: 0;
     box-shadow: 0 5px 0 var(--ink);
   }
+
+  /* Two classes, so this beats the utility class setting the same property.
+     A phone puts its own bar over the bottom of the viewport, and the last
+     row of buttons was landing under it. Clear the inset the browser reports,
+     and keep the same visible gap underneath on the phones that report none. */
+  .nb-sheet.nb-sheet-bleed {
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* The home page's daily diagram is a picture, not something to solve on, so

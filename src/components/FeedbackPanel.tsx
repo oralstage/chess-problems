@@ -5,6 +5,10 @@ interface FeedbackPanelProps {
   status: SolveStatus;
   feedback: string;
   moveHistory: string[];
+  /** True while the opponent's reply is on its way. Nothing under the board
+   *  may appear or disappear during that window: the whole point of the pause
+   *  is that the only thing moving is the piece. */
+  waitingForAutoPlay?: boolean;
   hintActive: boolean;
   onReset: () => void;
   onShowSolution: () => void;
@@ -43,6 +47,7 @@ interface FeedbackPanelProps {
 export function FeedbackPanel({
   status,
   moveHistory,
+  waitingForAutoPlay,
   hintActive,
   onReset,
   onShowSolution,
@@ -80,7 +85,7 @@ export function FeedbackPanel({
   return (
     <div className="space-y-3">
       {/* Move history (only during solving — after solving, Solution section shows same info) */}
-      {moveHistory.length > 0 && status === 'solving' && (
+      {moveHistory.length > 0 && status === 'solving' && !waitingForAutoPlay && (
         <div className="text-sm text-gray-600 dark:text-gray-400">
           <span className="text-xs text-gray-400">Moves: </span>
           {moveHistory.map((m, i) => (
@@ -272,7 +277,7 @@ export function FeedbackPanel({
               Hide Hint
             </button>
           )}
-          {moveHistory.length > 0 && (
+          {moveHistory.length > 0 && !waitingForAutoPlay && (
             <button
               onClick={onReset}
               className="nb-btn px-3 py-1.5 text-xs"

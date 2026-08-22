@@ -9,6 +9,7 @@ import { ModeSelector } from './components/ModeSelector';
 import { Board } from './components/Board';
 import { getPromotionForMove } from './services/moveInput';
 import { ProblemCard } from './components/ProblemCard';
+import { ThemeTags } from './components/ThemeTags';
 import { FeedbackPanel } from './components/FeedbackPanel';
 import { SolutionTree } from './components/SolutionTree';
 import { GenreTutorial } from './components/GenreTutorial';
@@ -1996,7 +1997,7 @@ export default function App() {
   return (
     <div className={`min-h-screen ${view === 'solving' ? 'nb-fine' : ''}`}>
       <div className={view === 'solving'
-        ? 'nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-3 overflow-hidden'
+        ? 'nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-8 overflow-hidden'
         : 'max-w-2xl mx-auto'}>
         <Header
           view={view}
@@ -2123,7 +2124,6 @@ export default function App() {
                     problem={problem.problem}
                     problemNumber={problem.problem!.id}
                     genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[currentGenre || 'direct'] || 'D'}
-                    showThemes={problem.status === 'correct' || problem.status === 'viewing'}
                   />
                   {!isRatedMode && (
                   <button
@@ -2308,6 +2308,7 @@ export default function App() {
                 status={problem.status}
                 feedback={problem.feedback}
                 moveHistory={problem.moveHistory}
+                waitingForAutoPlay={problem.waitingForAutoPlay}
                 hintActive={!!problem.hintSquares}
                 solutionLoading={!problem.problem?.solutionText && (problem.problem?.solutionTree?.length ?? 0) === 0}
                 onReset={() => { problem.resetProblem(); setLastRatingDelta(null); analysisActiveRef.current = false; setAnalysisActive(false); setAnalysisResult(null); setAnalysisArrow(null); setAnalyzing(false); }}
@@ -2383,6 +2384,10 @@ export default function App() {
                 <p className="text-xs font-semibold text-[var(--ink)] dark:text-[var(--ink)]">
                   This is a known flawed problem ("shortmate"): mate is possible in fewer moves than the stipulation.
                 </p>
+              )}
+
+              {(problem.status === 'correct' || problem.status === 'viewing') && (
+                <ThemeTags keywords={problem.problem.keywords} />
               )}
 
               {(problem.status === 'correct' || problem.status === 'viewing') && (

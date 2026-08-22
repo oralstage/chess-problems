@@ -52,6 +52,15 @@ interface ProblemState {
 
 // Timing constants
 const AUTO_PLAY_DELAY = 250;
+// How long the finished position is held on its own when the LAST move of a
+// problem is auto-played rather than made by the solver — a selfmate always
+// ends that way, a study sometimes. Everything the solved state brings in
+// (the bottom bar swapping, the playback strip, the solution, the theme tags)
+// changes the page's height, so with no pause the board shifts under the eye
+// on the same frame the mate lands, and the one move nobody played goes
+// unseen. Moves the solver makes themselves are their own doing: those keep
+// arriving with no pause at all.
+const SOLVED_HOLD = 600;
 const CORRECT_FLASH = 300;
 const WRONG_MOVE_PAUSE = 500;
 // Thematic-try demo: how long the user's try stays before the refutation is
@@ -298,6 +307,11 @@ export function useProblem(stockfish?: StockfishApi) {
   });
 
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // True while a finished position is being held before the solved state
+  // lands. The solving bar is still on screen during that gap, so Give Up and
+  // Show Hint have to be refused: the problem is already solved, and either
+  // one would file it as a failure.
+  const solveHoldRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -364,6 +378,7 @@ export function useProblem(stockfish?: StockfishApi) {
 
   const loadProblem = useCallback((problem: ChessProblem) => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    solveHoldRef.current = false;
 
     let firstColor = getFirstMoveColor(problem.genre, problem.stipulation);
     let userColor = getUserColor(problem.genre, problem.stipulation);
@@ -697,11 +712,30 @@ export function useProblem(stockfish?: StockfishApi) {
             if (isDefCheckmate || isDefStalemate || defenseNode.children.length === 0) {
               const defHistory = [...newHistory, defMove.san];
               const pb = startPlayback(state.initialFen, problem.solutionTree, true, defHistory);
+              // Land the finishing move by itself, then hold — see SOLVED_HOLD.
+              // The board stays locked for the length of the hold, and the
+              // move list deliberately does NOT get the finishing move yet:
+              // the panel still reads as solving, so writing it there would
+              // print the answer in text on the frame it is meant to be read
+              // off the board. Position moves; nothing else does.
+              // feedbackSquare/feedbackType are left alone on purpose: they are
+              // still marking the solver's own move, and clearing them here
+              // would wipe the one tick confirming it at the very moment the
+              // problem is won. A selfmate ends on a move the solver did not
+              // make, so this is the only mark the finish can carry.
               setState(prev => ({
-                ...prev, fen: afterDefenseFen, moveHistory: defHistory,
-                currentNodes: [], status: 'correct', feedback: '', lastMove: defLastMove,
-                feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
+                ...prev, fen: afterDefenseFen,
+                currentNodes: [], feedback: '', lastMove: defLastMove,
+                waitingForAutoPlay: true,
               }));
+              solveHoldRef.current = true;
+              autoPlayTimerRef.current = setTimeout(() => {
+                solveHoldRef.current = false;
+                setState(prev => ({
+                  ...prev, status: 'correct', moveHistory: defHistory,
+                  waitingForAutoPlay: false, playback: pb,
+                }));
+              }, SOLVED_HOLD);
             } else {
               setState(prev => ({
                 ...prev, fen: afterDefenseFen, moveHistory: [...newHistory, defMove.san],
@@ -748,14 +782,23 @@ export function useProblem(stockfish?: StockfishApi) {
             const randomLastMove = { from: randomMove.from, to: randomMove.to };
 
             if (randomChess.isCheckmate() || randomChess.isStalemate()) {
-              // Opponent has no useful moves — problem effectively solved
+              // Opponent has no useful moves — problem effectively solved.
+              // Auto-played finish, so it is held the same way.
               const randomHistory = [...newHistory, randomMove.san];
               const pb = startPlayback(state.initialFen, problem.solutionTree, true, randomHistory);
               setState(prev => ({
-                ...prev, fen: afterRandomFen, moveHistory: randomHistory,
-                currentNodes: [], status: 'correct', feedback: '', lastMove: randomLastMove,
-                feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
+                ...prev, fen: afterRandomFen,
+                currentNodes: [], feedback: '', lastMove: randomLastMove,
+                waitingForAutoPlay: true,
               }));
+              solveHoldRef.current = true;
+              autoPlayTimerRef.current = setTimeout(() => {
+                solveHoldRef.current = false;
+                setState(prev => ({
+                  ...prev, status: 'correct', moveHistory: randomHistory,
+                  waitingForAutoPlay: false, playback: pb,
+                }));
+              }, SOLVED_HOLD);
             } else {
               // Advance: user should now play the threat move(s)
               setState(prev => ({
@@ -858,7 +901,7 @@ export function useProblem(stockfish?: StockfishApi) {
   // ── Show hint ──
   const showHint = useCallback(() => {
     const { fen, problem, currentNodes } = state;
-    if (!problem) return;
+    if (!problem || solveHoldRef.current) return;
     trackEvent('hint_used', problem.id, {
       moveNumber: state.moveHistory.length + 1,
       genre: problem.genre,
@@ -939,13 +982,14 @@ export function useProblem(stockfish?: StockfishApi) {
 
   const clearProblem = useCallback(() => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    solveHoldRef.current = false;
     setState(prev => ({ ...prev, problem: null, fen: '', initialFen: '', status: 'idle', playback: null, moveHistory: [], currentNodes: [], hintSquares: null, feedback: '', feedbackSquare: null, feedbackType: null }));
   }, []);
 
   // ── Give Up / Show Solution ──
   const showSolution = useCallback(() => {
     const { problem, initialFen } = state;
-    if (!problem) return;
+    if (!problem || solveHoldRef.current) return;
 
     // Cancel any pending auto-play: if the user gives up during the 500ms
     // window after a correct move, the timer would otherwise fire afterwards

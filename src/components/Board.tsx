@@ -91,7 +91,13 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
       styles[lastMove.from] = { backgroundColor: 'rgba(255, 255, 0, 0.3)' };
       styles[lastMove.to] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
     }
-    if (feedbackSquare && feedbackType === 'correct') {
+    // The green wash goes on only while the tick is marking the move that was
+    // just played. A selfmate finishes on the opponent's move, so the tick
+    // stays behind on the solver's own square while lastMove has moved on —
+    // painting both would light three squares at once and bury which one was
+    // last. There the tick carries the mark alone and the yellow keeps the
+    // last move to itself.
+    if (feedbackSquare && feedbackType === 'correct' && lastMove?.to === feedbackSquare) {
       styles[feedbackSquare] = {
         ...styles[feedbackSquare],
         backgroundColor: 'rgba(34, 197, 94, 0.5)',

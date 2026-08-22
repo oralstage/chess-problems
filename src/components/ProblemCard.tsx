@@ -1,11 +1,8 @@
-import { useState } from 'react';
 import type { ChessProblem } from '../types';
-import { findTheme } from '../data/themes';
 import { getStipulationColorClasses } from '../utils/stipulationColor';
 
 interface ProblemCardProps {
   problem: ChessProblem;
-  showThemes?: boolean;
   problemNumber?: number;
   genrePrefix?: string;
 }
@@ -29,8 +26,7 @@ function stipulationDisplay(stip: string): string {
   return stip;
 }
 
-export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }: ProblemCardProps) {
-  const [expandedTag, setExpandedTag] = useState<string | null>(null);
+export function ProblemCard({ problem, problemNumber, genrePrefix }: ProblemCardProps) {
   const stipColor = getStipulationColorClasses(problem.stipulation, problem.genre);
 
   return (
@@ -59,42 +55,6 @@ export function ProblemCard({ problem, showThemes, problemNumber, genrePrefix }:
         </div>
       </div>
 
-      {showThemes && problem.keywords.length > 0 && (
-        <div className="space-y-1.5 pt-1">
-          <div className="flex flex-wrap gap-1">
-            {problem.keywords.map(kw => {
-              const theme = findTheme(kw);
-              const hasDescription = !!theme?.description;
-              const isExpanded = expandedTag === kw;
-              return hasDescription ? (
-                <button
-                  key={kw}
-                  onClick={() => setExpandedTag(isExpanded ? null : kw)}
-                  className={`nb-chip px-2.5 py-0.5 text-xs ${isExpanded ? 'nb-chip-on' : ''}`}
-                >
-                  {kw}
-                </button>
-              ) : (
-                <span
-                  key={kw}
-                  className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500"
-                >
-                  {kw}
-                </span>
-              );
-            })}
-          </div>
-          {expandedTag && (() => {
-            const theme = findTheme(expandedTag);
-            if (!theme?.description) return null;
-            return (
-              <div className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-lg px-3 py-2 leading-relaxed">
-                {theme.description}
-              </div>
-            );
-          })()}
-        </div>
-      )}
     </div>
   );
 }
