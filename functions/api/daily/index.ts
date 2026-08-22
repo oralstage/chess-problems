@@ -46,7 +46,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   let problemId: number;
 
-  if (cachedRow) {
+  // A daily_cache row outlives the filter that picked it, so a problem later
+  // recognised as fairy would keep being served here — and posted to X by
+  // scripts/generate-daily-post.mjs. Verify the cached pick still passes the
+  // filter, and treat it as a miss if it doesn't.
+  const cachedIsUsable = cachedRow
+    ? await context.env.DB.prepare(
+        'SELECT 1 FROM problems WHERE id = ? AND is_fairy = 0'
+      ).bind(cachedRow.problem_id).first() !== null
+    : false;
+
+  if (cachedRow && cachedIsUsable) {
     problemId = cachedRow.problem_id;
   } else {
     // ── 3. Full calculation ──
@@ -79,10 +89,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     problemId = idRow.id;
 
-    // Store in daily_cache for future requests
+    // Store in daily_cache for future requests. REPLACE rather than IGNORE so
+    // a row rejected just above is corrected instead of being recomputed on
+    // every request from here on.
     context.waitUntil(
       context.env.STATS_DB.prepare(
-        'INSERT OR IGNORE INTO daily_cache (date, problem_id) VALUES (?, ?)'
+        'INSERT OR REPLACE INTO daily_cache (date, problem_id) VALUES (?, ?)'
       ).bind(dateKey, problemId).run()
     );
   }

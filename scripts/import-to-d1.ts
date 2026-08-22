@@ -10,6 +10,7 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
+import { isFairyEntry, PIECE_MAP } from './fairy-detect';
 
 // ── Types ──────────────────────────────────────────────
 interface YacpdbEntry {
@@ -17,17 +18,15 @@ interface YacpdbEntry {
   authors?: string[];
   source?: { name?: string; date?: { year?: number } };
   stipulation?: string;
-  algebraic?: { white: string[]; black: string[] };
+  algebraic?: { white: string[]; black: string[]; neutral?: string[] };
+  options?: string[];
+  legend?: Record<string, string[]>;
   solution?: string;
   keywords?: string[];
   award?: { distinction?: string; tourney?: { name?: string } };
 }
 
 // ── YACPDB Algebraic → FEN ─────────────────────────────
-const PIECE_MAP: Record<string, string> = {
-  K: 'K', Q: 'Q', R: 'R', B: 'B', S: 'N', N: 'N', P: 'P',
-};
-
 function parsePieceString(s: string): { piece: string; rank: number; file: number } | null {
   const trimmed = s.trim();
   if (trimmed.length < 2) return null;
@@ -84,21 +83,6 @@ function algebraicToFen(alg: { white: string[]; black: string[] }, sideToMove: '
   }
 
   return ranks.join('/') + ` ${sideToMove} - - 0 1`;
-}
-
-function hasFairyPieces(alg: { white: string[]; black: string[] }): boolean {
-  const validPieces = new Set(['K', 'Q', 'R', 'B', 'S', 'N', 'P']);
-  for (const pieces of [alg.white, alg.black]) {
-    if (!Array.isArray(pieces)) return true;
-    for (const ps of pieces) {
-      const t = ps.trim();
-      if (t.length < 2) return true;
-      const fc = t[0];
-      if (fc >= 'a' && fc <= 'h') continue;
-      if (!validPieces.has(fc.toUpperCase())) return true;
-    }
-  }
-  return false;
 }
 
 // ── Stipulation parsing ────────────────────────────────
@@ -161,7 +145,7 @@ async function main() {
       const isRetro = (entry.keywords || []).includes('Retro');
       const finalGenre = isRetro ? 'retro' as const : stip.genre;
 
-      if (hasFairyPieces(entry.algebraic)) { skipped++; continue; }
+      if (isFairyEntry(entry)) { skipped++; continue; }
 
       const fen = algebraicToFen(entry.algebraic, stip.sideToMove);
       if (!fen) { skipped++; continue; }

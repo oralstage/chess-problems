@@ -10,6 +10,7 @@ artifacts/chest-full-shadow/
 tools/popeye/
 tools/chest/
 scripts/import-data*.sql
+scripts/flag-fairy.sql
 *.local
 public/stockfish/
 daily-posts/
