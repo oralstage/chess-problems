@@ -49,7 +49,7 @@ const TUTORIALS: Record<Genre, {
     steps: [
       'You play Black first. Black wants its own king mated, so its move is the one that makes White\u2019s mate possible \u2014 it never defends.',
       'Then you play White. White wants to mate the black king too, so its move takes what Black just gave it.',
-      'Alternate until White\u2019s last move mates the black king. h#2 = two moves each.',
+      'Alternate until White\u2019s last move mates the black king. h#2 = two moves each \u2014 Black moves, White moves, Black moves, and White mates.',
     ],
     general: [
       'Usually only one line works \u2014 but some helpmates are composed with several on purpose, unlike a direct mate where a second solution would be a flaw.',
