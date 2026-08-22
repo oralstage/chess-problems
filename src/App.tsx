@@ -448,7 +448,7 @@ export default function App() {
     const twin = twins?.find(t => t.id === id);
     if (!twins || !twin) return;
     setActiveTwinId(id);
-    problem.startTwin(twin.fen, twin.solutionTree, id === twins[0].id);
+    problem.startTwin(twin.fen, twin.solutionTree, id === twins[0].id, twin.firstColor);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.problem, problem.startTwin]);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);

@@ -424,7 +424,7 @@ export function useProblem(stockfish?: StockfishApi) {
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Which twin is on the board, so Try Again restarts that one and not the
   // diagram the problem was loaded with.
-  const activeTwinRef = useRef<{ fen: string; tree: SolutionNode[]; record: boolean } | null>(null);
+  const activeTwinRef = useRef<{ fen: string; tree: SolutionNode[]; record: boolean; firstColor?: 'w' | 'b' } | null>(null);
   // Every event here is filed under the problem's single ID, which has no room
   // for a twin. Solving b) would therefore land its moves in a)'s statistics --
   // as a wrong first move, since a)'s key is a different move on a different
@@ -554,20 +554,22 @@ export function useProblem(stockfish?: StockfishApi) {
    * The problem itself does not change -- only which of its diagrams is being
    * played -- so the metadata, the user's colour and the move count all stay.
    */
-  const startTwin = useCallback((twinFen: string, twinTree: SolutionNode[], record: boolean) => {
+  const startTwin = useCallback((twinFen: string, twinTree: SolutionNode[], record: boolean, twinFirstColor?: 'w' | 'b') => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
     solveHoldRef.current = false;
-    activeTwinRef.current = { fen: twinFen, tree: twinTree, record };
+    activeTwinRef.current = { fen: twinFen, tree: twinTree, record, firstColor: twinFirstColor };
     recordEventsRef.current = record;
     setState(prev => {
       if (!prev.problem) return prev;
-      const firstColor = getFirstMoveColor(prev.problem.genre, prev.problem.stipulation);
-      let fen = twinFen;
-      if (firstColor === 'b' && fen.includes(' w ')) fen = fen.replace(' w ', ' b ');
+      // The turn is already set in the twin's own FEN: a twin can carry its own
+      // stipulation ("b) rotate 90 {h#2}"), so the problem's is not the answer.
+      const fen = twinFen;
       return {
         ...prev,
         fen,
         initialFen: fen,
+        // A helpmate twin is played from both sides, whatever the problem is.
+        userColor: twinFirstColor === 'b' ? 'b' : prev.userColor,
         moveHistory: [],
         currentNodes: twinTree,
         status: 'solving',
@@ -1146,7 +1148,7 @@ export function useProblem(stockfish?: StockfishApi) {
   const resetProblem = useCallback(() => {
     if (!state.problem) return;
     const twin = activeTwinRef.current;
-    if (twin) startTwin(twin.fen, twin.tree, twin.record);
+    if (twin) startTwin(twin.fen, twin.tree, twin.record, twin.firstColor);
     else loadProblem(state.problem);
   }, [state.problem, loadProblem, startTwin]);
 
