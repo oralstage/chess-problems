@@ -1997,7 +1997,7 @@ export default function App() {
   return (
     <div className={`min-h-screen ${view === 'solving' ? 'nb-fine' : ''}`}>
       <div className={view === 'solving'
-        ? 'nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-8 overflow-hidden'
+        ? 'nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-14 overflow-hidden'
         : 'max-w-2xl mx-auto'}>
         <Header
           view={view}

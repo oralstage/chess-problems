@@ -364,7 +364,7 @@ body {
      row of buttons was landing under it. Clear the inset the browser reports,
      and keep the same visible gap underneath on the phones that report none. */
   .nb-sheet.nb-sheet-bleed {
-    padding-bottom: calc(2rem + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
