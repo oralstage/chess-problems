@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-08-22',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          'Joke problems now say when their solution needs a move normal chess does not allow, and show it on the board.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-08-21',
     sections: [
       {
