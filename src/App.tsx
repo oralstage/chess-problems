@@ -417,6 +417,23 @@ export default function App() {
   stockfishRef.current = stockfish;
   const problem = useProblem(stockfish);
   const solveStats = useSolveStats(problem.problem?.id ?? null);
+
+  // A twin other than the diagram the problem arrives with. Everything we
+  // record -- progress, solve events, ratings, statistics -- is filed under the
+  // problem's single ID, which cannot tell a) from b), so those positions are
+  // playable but never recorded. See handleSelectTwin.
+  const isSecondaryTwin = !!activeTwinId
+    && !!problem.problem?.twins?.length
+    && activeTwinId !== problem.problem.twins[0].id;
+
+  const handleSelectTwin = useCallback((id: string) => {
+    const twins = problem.problem?.twins;
+    const twin = twins?.find(t => t.id === id);
+    if (!twins || !twin) return;
+    setActiveTwinId(id);
+    problem.startTwin(twin.fen, twin.solutionTree, id === twins[0].id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem.problem, problem.startTwin]);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisActive, setAnalysisActive] = useState(false);
@@ -437,9 +454,12 @@ export default function App() {
   // Cache current problem in localStorage for instant reload
   const cacheProblem = useCallback((p: ChessProblem) => {
     try {
-      // Store minimal data needed to display immediately (no solutionTree — too large)
-      const { solutionTree, ...rest } = p;
+      // Store minimal data needed to display immediately (no solutionTree — too
+      // large). Twins go too: they are rebuilt from solutionText on restore, and
+      // a cached copy would otherwise pin a stale parse of the twin positions.
+      const { solutionTree, twins, ...rest } = p;
       void solutionTree;
+      void twins;
       localStorage.setItem('cp-cached-problem', JSON.stringify(rest));
     } catch { /* quota exceeded — ignore */ }
   }, []);
@@ -832,7 +852,7 @@ export default function App() {
     if (!problem.problem) return;
     // Clear ALL difficulty slots — rating moved, all cached problems are now stale
     clearAllRatedProblems();
-    if (problem.status === 'correct' && currentGenre) {
+    if (problem.status === 'correct' && currentGenre && !isSecondaryTwin) {
       const pid = String(problem.problem.id);
       const perfect = problem.wrongMoveCount === 0 && !hintUsedRef.current;
       const newStatus = perfect ? 'solved' as const : 'failed' as const;
@@ -1660,7 +1680,7 @@ export default function App() {
   }, [currentGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, exitSpecialModes]);
 
   const handleGiveUp = useCallback(() => {
-    if (currentGenre && problem.problem) {
+    if (currentGenre && problem.problem && !isSecondaryTwin) {
       const pid = String(problem.problem.id);
       setProgress(prev => {
         const genreProgress = prev[currentGenre] || {};
@@ -1721,7 +1741,7 @@ export default function App() {
       }
     }
     problem.showSolution();
-  }, [currentGenre, problem, setProgress, setTimestamps, isRatedMode, isRated, getProblemInitialRating, updateAfterSolve, playerRating]);
+  }, [currentGenre, problem, setProgress, setTimestamps, isRatedMode, isRated, getProblemInitialRating, updateAfterSolve, playerRating, isSecondaryTwin]);
 
   // Fetch a random problem via API (used when genre data hasn't loaded yet)
   const fetchRandomFromApi = useCallback(async () => {
@@ -1867,7 +1887,7 @@ export default function App() {
   // makes the recording once-per-solve (it resets when status returns to
   // 'solving'), which also stops duplicate problem_solved analytics.
   useEffect(() => {
-    if (problem.status === 'correct' && problem.problem) {
+    if (problem.status === 'correct' && problem.problem && !isSecondaryTwin) {
       if (recordedSolveRef.current === problem.problem.id) return;
       recordedSolveRef.current = problem.problem.id;
       const genre = problem.problem.genre as Genre;
@@ -1964,7 +1984,7 @@ export default function App() {
 
   // Lock rating on first wrong move in rated mode
   useEffect(() => {
-    if (isRatedMode && problem.wrongMoveCount === 1 && problem.problem && !isRated(problem.problem.id)) {
+    if (isRatedMode && !isSecondaryTwin && problem.wrongMoveCount === 1 && problem.problem && !isRated(problem.problem.id)) {
       const serverRating = lastProblemRating;
       const probRating = serverRating
         ? { rating: serverRating, rd: 350 }
@@ -2304,6 +2324,30 @@ export default function App() {
               )}
               </div>
 
+              {/* Twin selector. Twins are separate positions with separate
+                  solutions, so each one is played in its own right -- the
+                  buttons stay up while solving, not just in the solution. */}
+              {problem.problem.twins && problem.problem.twins.length >= 2 && printMode === 'off' && (
+                <div className="flex items-center gap-1 flex-wrap mb-2">
+                  {problem.problem.twins.map(twin => {
+                    const active = (activeTwinId ?? problem.problem!.twins![0].id) === twin.id;
+                    return (
+                      <button
+                        key={twin.id}
+                        onClick={() => handleSelectTwin(twin.id)}
+                        className={`nb-chip px-2.5 py-1 text-xs ${active ? 'nb-btn-key' : ''}`}
+                        title={twin.label}
+                      >
+                        {twin.id})
+                      </button>
+                    );
+                  })}
+                  <span className="text-xs text-[var(--faint)] ml-1 truncate">
+                    {(problem.problem.twins.find(t => t.id === (activeTwinId ?? problem.problem!.twins![0].id))?.label || '').replace(/^[a-z]\)\s*/, '')}
+                  </span>
+                </div>
+              )}
+
               <FeedbackPanel
                 status={problem.status}
                 feedback={problem.feedback}
@@ -2405,15 +2449,6 @@ export default function App() {
                   onNext={problem.playbackNext}
                   onLast={problem.playbackLast}
                   onExplore={problem.playbackExplore}
-                  twins={problem.problem.twins}
-                  activeTwinId={activeTwinId || (problem.problem.twins?.[0]?.id)}
-                  onSelectTwin={(id) => {
-                    setActiveTwinId(id);
-                    const twin = problem.problem?.twins?.find(t => t.id === id);
-                    if (twin) {
-                      problem.switchTwinPlayback(twin.fen, twin.solutionTree);
-                    }
-                  }}
                   isCooked={problem.problem.keywords?.includes('Cooked')}
                 />
               )}

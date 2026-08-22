@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import type { SolutionNode } from '../types';
-import type { TwinData } from '../services/solutionParser';
 
 interface SolutionTreeProps {
   fullNodes: SolutionNode[];
@@ -20,9 +19,6 @@ interface SolutionTreeProps {
   onNext: () => void;
   onLast: () => void;
   onExplore: (fen: string, lastMove: { from: string; to: string } | null) => void;
-  twins?: TwinData[];
-  activeTwinId?: string;
-  onSelectTwin?: (id: string) => void;
   isCooked?: boolean;
 }
 
@@ -270,7 +266,7 @@ function VariationLineView({ line, startMoveNum, onNodeClick, activeNode }: {
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, twins, activeTwinId, onSelectTwin, isCooked }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, isCooked }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -338,24 +334,6 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
           </span>
         )}
       </div>
-
-      {/* Twin navigation */}
-      {twins && twins.length >= 2 && onSelectTwin && (
-        <div className="flex items-center gap-1 flex-wrap">
-          {twins.map(twin => (
-            <button
-              key={twin.id}
-              onClick={() => onSelectTwin(twin.id)}
-              className={`nb-chip px-2.5 py-1 text-xs ${
-                activeTwinId === twin.id ? 'nb-btn-key' : ''
-              }`}
-              title={twin.label}
-            >
-              {twin.id})
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Main line playback */}
       {positions.length > 1 && (

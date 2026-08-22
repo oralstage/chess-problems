@@ -48,6 +48,12 @@ interface ProblemState {
     exploreFen: string;
     exploreLastMove: { from: string; to: string } | null;
   } | null;
+  /**
+   * The tree being solved right now. Normally the problem's own solution, but
+   * a twin puts its own tree here -- Give Up and playback have to follow the
+   * position on the board, not the diagram the problem arrived with.
+   */
+  activeTree: SolutionNode[];
 }
 
 // Timing constants
@@ -304,9 +310,18 @@ export function useProblem(stockfish?: StockfishApi) {
     refutationArrow: null,
     movesRemaining: 0,
     playback: null,
+    activeTree: [],
   });
 
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Which twin is on the board, so Try Again restarts that one and not the
+  // diagram the problem was loaded with.
+  const activeTwinRef = useRef<{ fen: string; tree: SolutionNode[]; record: boolean } | null>(null);
+  // Every event here is filed under the problem's single ID, which has no room
+  // for a twin. Solving b) would therefore land its moves in a)'s statistics --
+  // as a wrong first move, since a)'s key is a different move on a different
+  // position. So only the diagram the problem arrives with is recorded.
+  const recordEventsRef = useRef(true);
   // True while a finished position is being held before the solved state
   // lands. The solving bar is still on screen during that gap, so Give Up and
   // Show Hint have to be refused: the problem is already solved, and either
@@ -420,6 +435,50 @@ export function useProblem(stockfish?: StockfishApi) {
       refutationArrow: null,
       movesRemaining: problem.moveCount,
       playback: null,
+      activeTree: problem.solutionTree,
+    });
+    activeTwinRef.current = null;
+    recordEventsRef.current = true;
+  }, []);
+
+  /**
+   * Put a twin's position on the board and hand its solution to the solver.
+   * The problem itself does not change -- only which of its diagrams is being
+   * played -- so the metadata, the user's colour and the move count all stay.
+   */
+  const startTwin = useCallback((twinFen: string, twinTree: SolutionNode[], record: boolean) => {
+    if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    solveHoldRef.current = false;
+    activeTwinRef.current = { fen: twinFen, tree: twinTree, record };
+    recordEventsRef.current = record;
+    setState(prev => {
+      if (!prev.problem) return prev;
+      const firstColor = getFirstMoveColor(prev.problem.genre, prev.problem.stipulation);
+      let fen = twinFen;
+      if (firstColor === 'b' && fen.includes(' w ')) fen = fen.replace(' w ', ' b ');
+      return {
+        ...prev,
+        fen,
+        initialFen: fen,
+        moveHistory: [],
+        currentNodes: twinTree,
+        status: 'solving',
+        feedback: '',
+        lastMove: null,
+        feedbackSquare: null,
+        feedbackType: null,
+        waitingForAutoPlay: false,
+        hintSquares: null,
+        wrongMoveCount: 0,
+        wrongMoveFen: null,
+        wrongMoveLastMove: null,
+        lastWrongMove: null,
+        refutationText: null,
+        refutationArrow: null,
+        movesRemaining: prev.problem.moveCount,
+        playback: null,
+        activeTree: twinTree,
+      };
     });
   }, []);
 
@@ -486,10 +545,10 @@ export function useProblem(stockfish?: StockfishApi) {
 
   // ── Main tryMove ──
   const tryMove = useCallback((from: string, to: string, promotion?: string): boolean => {
-    const { problem, currentNodes, status, playback, movesRemaining } = state;
+    const { problem, currentNodes, status, playback, movesRemaining, activeTree } = state;
 
-    // Block moves while solution is still loading (solutionTree empty)
-    if (problem && problem.solutionTree.length === 0 && status === 'solving' && !playback) {
+    // Block moves while solution is still loading (tree empty)
+    if (problem && activeTree.length === 0 && status === 'solving' && !playback) {
       return false;
     }
 
@@ -559,7 +618,7 @@ export function useProblem(stockfish?: StockfishApi) {
     // Emitted only on the accepted-move branches below. Emitting here (right
     // after the legality check) fired 'move_correct' for wrong moves too,
     // double-counting them in the solve statistics.
-    const emitMoveCorrect = () => trackEvent('move_correct', problem.id, {
+    const emitMoveCorrect = () => recordEventsRef.current && trackEvent('move_correct', problem.id, {
       san: move!.san,
       fen: state.fen,
       moveNumber: newHistory.length,
@@ -581,7 +640,7 @@ export function useProblem(stockfish?: StockfishApi) {
     if (isCheckmate && problem.genre !== 'self' && !retroWrongSide) {
       // User delivered checkmate — solved! (direct/study/help)
       emitMoveCorrect();
-      const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
+      const pb = startPlayback(state.initialFen, activeTree, true, newHistory);
       setState(prev => ({
         ...prev,
         fen: newFen,
@@ -602,7 +661,7 @@ export function useProblem(stockfish?: StockfishApi) {
     if (problem.stipulation === '=' && afterChess.isStalemate()) {
       // Study draw: stalemate — solved!
       emitMoveCorrect();
-      const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
+      const pb = startPlayback(state.initialFen, activeTree, true, newHistory);
       setState(prev => ({
         ...prev,
         fen: newFen,
@@ -645,7 +704,7 @@ export function useProblem(stockfish?: StockfishApi) {
       }
 
       if (isSolved) {
-        const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
+        const pb = startPlayback(state.initialFen, activeTree, true, newHistory);
         setState(prev => ({
           ...prev,
           fen: newFen,
@@ -711,7 +770,7 @@ export function useProblem(stockfish?: StockfishApi) {
 
             if (isDefCheckmate || isDefStalemate || defenseNode.children.length === 0) {
               const defHistory = [...newHistory, defMove.san];
-              const pb = startPlayback(state.initialFen, problem.solutionTree, true, defHistory);
+              const pb = startPlayback(state.initialFen, activeTree, true, defHistory);
               // Land the finishing move by itself, then hold — see SOLVED_HOLD.
               // The board stays locked for the length of the hold, and the
               // move list deliberately does NOT get the finishing move yet:
@@ -785,7 +844,7 @@ export function useProblem(stockfish?: StockfishApi) {
               // Opponent has no useful moves — problem effectively solved.
               // Auto-played finish, so it is held the same way.
               const randomHistory = [...newHistory, randomMove.san];
-              const pb = startPlayback(state.initialFen, problem.solutionTree, true, randomHistory);
+              const pb = startPlayback(state.initialFen, activeTree, true, randomHistory);
               setState(prev => ({
                 ...prev, fen: afterRandomFen,
                 currentNodes: [], feedback: '', lastMove: randomLastMove,
@@ -874,7 +933,7 @@ export function useProblem(stockfish?: StockfishApi) {
             `Thematic try! ${trySanText} is refuted by ${refSanText}`,
             state.fen, wrongUci,
           );
-          trackEvent('move_wrong', problem.id, {
+          if (recordEventsRef.current) trackEvent('move_wrong', problem.id, {
             san: move.san,
             fen: state.fen,
             moveNumber: state.moveHistory.length + 1,
@@ -888,7 +947,7 @@ export function useProblem(stockfish?: StockfishApi) {
     }
 
     flashWrongMove(to, newFen, from, state.fen, wrongUci);
-    trackEvent('move_wrong', problem.id, {
+    if (recordEventsRef.current) trackEvent('move_wrong', problem.id, {
       san: move.san,
       fen: state.fen,
       moveNumber: state.moveHistory.length + 1,
@@ -902,7 +961,7 @@ export function useProblem(stockfish?: StockfishApi) {
   const showHint = useCallback(() => {
     const { fen, problem, currentNodes } = state;
     if (!problem || solveHoldRef.current) return;
-    trackEvent('hint_used', problem.id, {
+    if (recordEventsRef.current) trackEvent('hint_used', problem.id, {
       moveNumber: state.moveHistory.length + 1,
       genre: problem.genre,
       wrongMoveCount: state.wrongMoveCount,
@@ -977,8 +1036,11 @@ export function useProblem(stockfish?: StockfishApi) {
   }, []);
 
   const resetProblem = useCallback(() => {
-    if (state.problem) loadProblem(state.problem);
-  }, [state.problem, loadProblem]);
+    if (!state.problem) return;
+    const twin = activeTwinRef.current;
+    if (twin) startTwin(twin.fen, twin.tree, twin.record);
+    else loadProblem(state.problem);
+  }, [state.problem, loadProblem, startTwin]);
 
   const clearProblem = useCallback(() => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
@@ -988,7 +1050,7 @@ export function useProblem(stockfish?: StockfishApi) {
 
   // ── Give Up / Show Solution ──
   const showSolution = useCallback(() => {
-    const { problem, initialFen } = state;
+    const { problem, initialFen, activeTree } = state;
     if (!problem || solveHoldRef.current) return;
 
     // Cancel any pending auto-play: if the user gives up during the 500ms
@@ -997,7 +1059,7 @@ export function useProblem(stockfish?: StockfishApi) {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
 
     // Always use solution tree (works for all genres, no Stockfish dependency)
-    let pb = startPlayback(initialFen, problem.solutionTree);
+    let pb = startPlayback(initialFen, activeTree);
     if (pb && pb.positions.length > 1) {
       pb.moveIndex = 0;
     }
@@ -1008,7 +1070,7 @@ export function useProblem(stockfish?: StockfishApi) {
       ...prev, status: 'viewing', feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null,
       refutationText: null, refutationArrow: null, playback: pb,
     }));
-  }, [state.problem, state.initialFen, startPlayback]);
+  }, [state.problem, state.initialFen, state.activeTree, startPlayback]);
 
   // ── Playback navigation ──
   const playbackGoTo = useCallback((index: number) => {
@@ -1104,16 +1166,7 @@ export function useProblem(stockfish?: StockfishApi) {
     playbackPrev,
     playbackNext,
     playbackLast,
-    switchTwinPlayback: useCallback((twinFen: string, twinSolutionTree: SolutionNode[]) => {
-      let pb = startPlayback(twinFen, twinSolutionTree);
-      if (pb && pb.positions.length > 1) {
-        pb = { ...pb, moveIndex: 0 };
-      }
-      setState(prev => ({
-        ...prev,
-        playback: pb,
-      }));
-    }, [startPlayback]),
+    startTwin,
     playbackExplore: useCallback((fen: string, lastMove: { from: string; to: string } | null) => {
       setState(prev => {
         if (!prev.playback) return prev;
