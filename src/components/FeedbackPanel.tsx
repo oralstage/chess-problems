@@ -143,14 +143,6 @@ export function FeedbackPanel({
         </div>
       )}
 
-      {/* Problem rating after completion in non-rated modes */}
-      {!classicBoard && playerRating == null && problemRating != null && (status === 'correct' || status === 'viewing') && (
-        <div className="nb-panel flex items-center gap-2 py-1.5 px-3">
-          <span className="text-xs text-gray-500 dark:text-gray-400">Problem rating:</span>
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">~{Math.round(problemRating / 50) * 50}</span>
-        </div>
-      )}
-
       {/* Success */}
       {status === 'correct' && (
         <div className="flex items-center justify-between">
