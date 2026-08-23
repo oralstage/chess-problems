@@ -121,16 +121,6 @@ function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetP
   );
 }
 
-/* The same names the home page's three pool buttons carry, which is where the
-   player just came from. They were the short forms — "Direct", "Help", "Self" —
-   while the buttons were, and the buttons have since gone to the full ones:
-   "Help" on its own reads as a support link rather than as a helpmate. */
-const POOL_NAMES: Partial<Record<Genre, string>> = {
-  direct: 'Direct mate',
-  help: 'Helpmates',
-  self: 'Selfmates',
-};
-
 /* What each print mode paints the board's two square colours. Kept beside the
    button rather than read off the DOM: the swatch has to show the mode the menu
    would switch to even while the board itself is still the old one. */
@@ -143,6 +133,11 @@ const SWATCH: Record<PrintMode, { light: string; dark: string }> = {
   bw:     { light: '#ffffff', dark: '#ffffff' },
 };
 
+/* Singular, and the rated header uses these too. A heading names what is in
+   front of you — the kind of problem you are solving — where the home page's
+   buttons name sets to draw from and take the plural: "Helpmates · Rated" on
+   the button, "Helpmate · Rated" once you are in one. The separate table of
+   pool names that used to sit here said the same words as this one. */
 const GENRE_NAMES: Record<Genre, string> = {
   direct: 'Direct mate',
   help: 'Helpmate',
@@ -192,7 +187,7 @@ export function Header({ view, currentGenre, onBack, onShowHelp, onOpenMenu, onO
           {reviewMode
             ? 'Review'
             : ratedMode
-              ? `${(currentGenre && POOL_NAMES[currentGenre]) || 'Direct'} · Rated`
+              ? `${currentGenre ? GENRE_NAMES[currentGenre] : 'Direct mate'} · Rated`
               : currentGenre ? GENRE_NAMES[currentGenre] : 'Chess Problems'}
         </h1>
         {onShowHelp && (

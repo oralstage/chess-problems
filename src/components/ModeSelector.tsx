@@ -29,7 +29,7 @@ interface ModeSelectorProps {
    mark is the genre's own object with the rating line clipped to its corner, so
    a pool button is recognisably the same object as its free-play row. */
 const RATED_POOLS: { genre: RatedGenre; label: string; mark: string; progressKey: string; tint: string }[] = [
-  { genre: 'direct', label: 'Direct\u00a0mate ·\u00a0Rated', mark: 'Rated Direct', progressKey: 'direct', tint: '--card-direct' },
+  { genre: 'direct', label: 'Direct\u00a0mates ·\u00a0Rated', mark: 'Rated Direct', progressKey: 'direct', tint: '--card-direct' },
   { genre: 'help', label: 'Helpmates ·\u00a0Rated', mark: 'Rated Helpmates', progressKey: 'help', tint: '--card-help' },
   { genre: 'self', label: 'Selfmates ·\u00a0Rated', mark: 'Rated Selfmates', progressKey: 'self', tint: '--card-self' },
 ];
@@ -70,6 +70,12 @@ const CARD_WIDE =
    stipulation rides on the drawing, in the same move-count colour the badge
    uses on the problem page.
 
+   Every one of these names a set, so its head noun is plural and any qualifier
+   in front stays singular, the way "a two-car garage" does: "twomovers",
+   "Helpmates in 2", "Selfmates". "Direct mate" is singular in "Direct mate
+   twomovers" because there it modifies twomovers — where it is the head noun
+   itself, on the pool buttons, it is "Direct mates".
+
    "Direct" and "mate" are joined by a hard space so the three read alike. Left
    to itself the twomover broke into three lines while its neighbours took two,
    and for a reason that runs backwards: a text box is at least as wide as its
@@ -81,9 +87,9 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'twomover', title: 'Direct\u00a0mate twomovers', mark: 'Direct Mates', stip: '#2', stipVar: '--mc-2', tint: '--card-direct' },
   { category: 'threemover', title: 'Direct\u00a0mate threemovers', mark: 'Direct Mates', stip: '#3', stipVar: '--mc-3', tint: '--card-direct' },
   { category: 'moremover', title: 'Direct\u00a0mate moremovers', mark: 'Direct Mates', stip: '#4+', stipVar: '--mc-4', tint: '--card-direct' },
-  { category: 'help2', title: 'Helpmate in 2', mark: 'Helpmates', stip: 'h#2', stipVar: '--mc-2', tint: '--card-help' },
-  { category: 'help3', title: 'Helpmate in 3', mark: 'Helpmates', stip: 'h#3', stipVar: '--mc-3', tint: '--card-help' },
-  { category: 'helpmore', title: 'Helpmate in 4+', mark: 'Helpmates', stip: 'h#4+', stipVar: '--mc-4', tint: '--card-help' },
+  { category: 'help2', title: 'Helpmates in 2', mark: 'Helpmates', stip: 'h#2', stipVar: '--mc-2', tint: '--card-help' },
+  { category: 'help3', title: 'Helpmates in 3', mark: 'Helpmates', stip: 'h#3', stipVar: '--mc-3', tint: '--card-help' },
+  { category: 'helpmore', title: 'Helpmates in 4+', mark: 'Helpmates', stip: 'h#4+', stipVar: '--mc-4', tint: '--card-help' },
   { category: 'self', title: 'Selfmates', mark: 'Selfmates', tint: '--card-self' },
   { category: 'study', title: 'Studies', mark: 'Studies', tint: '--card-study' },
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
@@ -263,13 +269,6 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
       </div>
 
       {/* ── Daily Problem ── */}
-      {/* The gap under this card is small and the one under the pools is large,
-          which is the reverse of what it was. The daily and the pools are the
-          same kind of offer — something handed to you without being asked for —
-          and "All problems" is the other kind, the shelf you go to yourself.
-          Even spacing made the page read as three unrelated blocks; this makes
-          it two, and pairs with the pools having no heading of their own while
-          "All problems" keeps one. */}
       {/* Brought onto the sister site's shape. It used to be a caption floating
           on the check, a board plate, and an ink bar welded under it — three
           objects that happened to be stacked. It is one card now: the label is
@@ -280,7 +279,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
           the heading is a heading and the two pressable parts say what they
           do. */}
       {dailyProblem && (
-        <section className="px-5 mb-8" aria-labelledby="daily-problem-heading">
+        <section className="px-5 mb-12" aria-labelledby="daily-problem-heading">
           <div className="nb-card nb-shadow-nudge mx-auto overflow-hidden" style={{ maxWidth: 320 }}>
             <div className="px-4 py-3">
               <p className="nb-label-key inline-block text-[11px] uppercase tracking-[0.16em] px-3 py-0.5">
