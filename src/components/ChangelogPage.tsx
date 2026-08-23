@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-08-23',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Rated Mode now has helpmate and selfmate pools, each with its own rating, alongside direct mates.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-08-22',
     sections: [
       {
