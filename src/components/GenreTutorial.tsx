@@ -118,8 +118,13 @@ export function GenreTutorial({ genre, rated, review, onClose }: GenreTutorialPr
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/45 p-4" onClick={onClose}>
+      {/* The card scrolls itself rather than the backdrop. Centring a taller-than-
+          viewport child with flex clips its top beyond reach — the overflow goes
+          both ways and only the bottom is scrollable — and this dialog is taller
+          than a phone once a genre's three steps and its small print are on it.
+          dvh, not vh, so the mobile address bar does not eat the last lines. */}
       <div
-        className="nb-card nb-shadow-nudge max-w-md w-full p-6 animate-fade-in"
+        className="nb-card nb-shadow-nudge max-w-md w-full p-6 animate-fade-in max-h-[calc(100dvh-2rem)] overflow-y-auto"
         onClick={e => e.stopPropagation()}
       >
         <div className="text-center mb-4">
