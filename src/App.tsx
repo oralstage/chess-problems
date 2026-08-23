@@ -868,6 +868,7 @@ export default function App() {
 
     if (!nextSession) {
       // Queue exhausted — go home
+      problem.clearProblem();
       setView('mode-select');
       setIsReviewMode(false);
       setIsDaily(false);
@@ -1201,7 +1202,8 @@ export default function App() {
     const handlePopState = () => {
       const hash = window.location.hash;
       if (!hash || hash === '#') {
-        // Back to home
+        // Back to home — same reason as goBack: clear before the next open.
+        problem.clearProblem();
         setView('mode-select');
         setCurrentGenre(null);
         setCurrentCategory(null);
@@ -1612,6 +1614,13 @@ export default function App() {
   }, [currentGenre, setSeenTutorials]);
 
   const goBack = useCallback(() => {
+    // Drop the problem on the way out, not on the way back in. Opening anything
+    // from home starts with a network round trip, and until it lands the board,
+    // the number and the author are still the last problem's — so the previous
+    // position sits there for a beat and then swaps under you. Only React state
+    // goes; which problem to resume lives in localStorage and is untouched, and
+    // moves played were never persisted in the first place.
+    problem.clearProblem();
     setView('mode-select');
     setIsDaily(false);
     setIsRatedMode(false);
@@ -1620,7 +1629,7 @@ export default function App() {
     setCurrentGenre(null);
     setCurrentCategory(null);
     updateHash(null, null, false);
-  }, [updateHash, setCurrentCategory]);
+  }, [updateHash, setCurrentCategory, problem]);
 
 
   const SITE_OPEN_DATE = '2026-03-15';
