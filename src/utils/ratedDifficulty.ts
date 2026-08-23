@@ -61,18 +61,31 @@ export function saveRatedDifficulty(genre: RatedSlotGenre, d: RatedDifficulty): 
   try { localStorage.setItem(difficultyKey(genre), d); } catch {}
 }
 
+/** A joke problem asks for a move no board can hold, so it can never be solved
+ *  and the slot would hand the same dead end back on every visit. Matchmaking no
+ *  longer serves them; this clears out the ones already sitting in a slot. */
+function isJokeProblem(data: unknown): boolean {
+  const keywords = (data as { keywords?: unknown } | null)?.keywords;
+  return Array.isArray(keywords) && keywords.includes('Joke problem');
+}
+
 export function loadRatedProblem<T = unknown>(genre: RatedSlotGenre, d: RatedDifficulty): T | null {
   try {
-    const raw = localStorage.getItem(ratedProblemKey(genre, d));
-    if (raw) return JSON.parse(raw) as T;
+    const keys = [ratedProblemKey(genre, d)];
     // Everything stored before the split was direct, so only direct inherits it.
     if (genre === 'direct') {
-      const preGenre = localStorage.getItem(`${RATED_PROBLEM_KEY_PREFIX}${d}`);
-      if (preGenre) return JSON.parse(preGenre) as T;
-      if (d === 'normal') {
-        const legacy = localStorage.getItem(LEGACY_RATED_PROBLEM_KEY);
-        if (legacy) return JSON.parse(legacy) as T;
+      keys.push(`${RATED_PROBLEM_KEY_PREFIX}${d}`);
+      if (d === 'normal') keys.push(LEGACY_RATED_PROBLEM_KEY);
+    }
+    for (const key of keys) {
+      const raw = localStorage.getItem(key);
+      if (!raw) continue;
+      const data = JSON.parse(raw);
+      if (isJokeProblem(data)) {
+        localStorage.removeItem(key);
+        continue;
       }
+      return data as T;
     }
   } catch {}
   return null;

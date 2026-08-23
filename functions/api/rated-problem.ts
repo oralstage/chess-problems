@@ -91,7 +91,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       // solve a #2. Only sound ones are reachable — the task/record problems that
       // list a dozen alternative keys, and the twins, were removed from
       // problem_ratings, so nothing filters them here.
-      const conditions: string[] = ['id = ?', 'genre = ?', 'move_count >= 1', "keywords NOT LIKE '%Shortmate%'"];
+      // Joke problems ask for a move no board can hold — a promotion to a king,
+      // a rotation, a piece lifted off first. They are worth meeting while
+      // browsing, where a banner explains them, but here they are a problem the
+      // player cannot solve and cannot leave without losing rating.
+      const conditions: string[] = [
+        'id = ?', 'genre = ?', 'move_count >= 1',
+        "keywords NOT LIKE '%Shortmate%'",
+        "keywords NOT LIKE '%Joke problem%'",
+      ];
       const bindings: (string | number)[] = [rated.problem_id, genre];
       addFairyExclusion(conditions, bindings);
 
