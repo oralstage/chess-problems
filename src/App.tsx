@@ -276,6 +276,13 @@ export default function App() {
   const [stipulationToast, setStipulationToast] = useState<{ label: string; stipulation: string; genre: Genre } | null>(null);
   const [fetchErrorToast, setFetchErrorToast] = useState<string | null>(null);
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
+  /* In Rated Mode the twin buttons stay down until the problem is over.
+     Only a) is the graded problem — solving b) records nothing and moves no
+     rating — so putting every diagram up at once does nothing but ask the
+     player which one they are supposed to be solving. Once a) is answered or
+     given up, the buttons come out and the other twins are free to play.
+     Browsing is untouched: there the buttons are up from the start. */
+  const [twinsRevealed, setTwinsRevealed] = useState(false);
   /* What the last problem asked for, as the badge writes it — "#2", "h#3".
       Tracking the stipulation rather than the move count is what lets a switch
       from #2 to h#2 announce itself: the move count is the same, the task is
@@ -457,6 +464,13 @@ export default function App() {
     && !!problem.problem?.twins?.length
     && activeTwinId !== problem.problem.twins[0].id;
 
+  // The twin buttons come out once a) is answered or given up. Selecting a twin
+  // puts the solver back into 'solving', so this only ever latches on: without
+  // that, clicking b) would take the buttons away and strand the player there.
+  useEffect(() => {
+    if (problem.status === 'correct' || problem.status === 'viewing') setTwinsRevealed(true);
+  }, [problem.status]);
+
   // Joke problems whose solution cannot be played here. Nothing the solver does
   // will be accepted, so say so rather than let the user hunt for a move that
   // does not exist.
@@ -624,6 +638,7 @@ export default function App() {
     setLastProblemRating(null);
     setProblemRatingBefore(null);
     setActiveTwinId(null);
+    setTwinsRevealed(false);
     trackEvent('problem_started', p.id, { genre: p.genre, stipulation: p.stipulation });
     // Show board immediately if solution needs to be fetched.
     // Skip for index stubs (no FEN yet) — an empty board is worse than the
@@ -2426,8 +2441,10 @@ export default function App() {
 
               {/* Twin selector. Twins are separate positions with separate
                   solutions, so each one is played in its own right -- the
-                  buttons stay up while solving, not just in the solution. */}
-              {problem.problem.twins && problem.problem.twins.length >= 2 && printMode === 'off' && (
+                  buttons stay up while solving, not just in the solution.
+                  Rated Mode is the exception: see twinsRevealed. */}
+              {problem.problem.twins && problem.problem.twins.length >= 2 && printMode === 'off'
+                && (!isRatedMode || twinsRevealed) && (
                 <div className="flex items-center gap-1 flex-wrap mb-2">
                   {problem.problem.twins.map(twin => {
                     const active = (activeTwinId ?? problem.problem!.twins![0].id) === twin.id;
