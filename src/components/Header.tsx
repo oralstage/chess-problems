@@ -108,6 +108,16 @@ function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetP
   );
 }
 
+/* The rated pools go by their short name here, not their full one: the header
+   already carries a back button, a "?", a printer and a menu, and "Direct Mate ·
+   Rated" pushes them off a 375px screen. These match the labels on the home
+   page's three pool buttons, which is where the player just came from. */
+const POOL_NAMES: Partial<Record<Genre, string>> = {
+  direct: 'Direct',
+  help: 'Help',
+  self: 'Self',
+};
+
 const GENRE_NAMES: Record<Genre, string> = {
   direct: 'Direct Mate',
   help: 'Helpmate',
@@ -152,7 +162,11 @@ export function Header({ view, currentGenre, onBack, onShowHelp, onOpenMenu, onO
           </svg>
         </button>
         <h1 className="text-xl font-extrabold tracking-tight text-[var(--ink)]">
-          {reviewMode ? 'Review' : ratedMode ? 'Rated' : currentGenre ? GENRE_NAMES[currentGenre] : 'Chess Problems'}
+          {reviewMode
+            ? 'Review'
+            : ratedMode
+              ? `${(currentGenre && POOL_NAMES[currentGenre]) || 'Direct'} · Rated`
+              : currentGenre ? GENRE_NAMES[currentGenre] : 'Chess Problems'}
         </h1>
         {onShowHelp && (
           <button

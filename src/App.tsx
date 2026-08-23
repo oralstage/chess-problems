@@ -242,6 +242,8 @@ export default function App() {
 
   // Player rating (Glicko-2), for the pool currently selected
   const { playerRating, ratingsByGenre, isRated, updateAfterSolve, getProblemInitialRating, restoreRating } = usePlayerRating(ratedGenre);
+  const ratingsByGenreRef = useRef(ratingsByGenre);
+  ratingsByGenreRef.current = ratingsByGenre;
   const [lastRatingDelta, setLastRatingDelta] = useState<number | null>(null);
   const [lastProblemRating, setLastProblemRating] = useState<number | null>(null);
   const [problemRatingBefore, setProblemRatingBefore] = useState<number | null>(null);
@@ -723,8 +725,14 @@ export default function App() {
   const fetchAndStartRatedProblem = useCallback(async (difficulty?: RatedDifficulty) => {
     const d = difficulty ?? ratedDifficultyRef.current;
     const offset = RATED_DIFFICULTY_OFFSET[d];
+    // Both halves of the query have to come from refs. Switching pools sets the
+    // genre through a ref and fetches in the same tick, so a rating read from the
+    // closure is still the pool you just left — asking for direct problems around
+    // a helpmate rating, and landing hundreds of points off.
+    const g = ratedGenreRef.current;
+    const base = ratingsByGenreRef.current[g].rating;
     try {
-      const data = await fetchRatedProblem(playerRating.rating + offset, ratedGenreRef.current);
+      const data = await fetchRatedProblem(base + offset, g);
       const p = metaToChessProblem(data, data.solutionText);
       if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
         setStipulationToast({ label: `Mate in ${data.moveCount}`, moveCount: data.moveCount });
@@ -733,18 +741,18 @@ export default function App() {
       prevMoveCountRef.current = data.moveCount;
       loadAndStartProblem(p);
       cacheProblem(p);
-      saveRatedProblemSlot(ratedGenreRef.current, d, data);
+      saveRatedProblemSlot(g, d, data);
       setLastProblemRating(data.problemRating);
       setRecentRatedIds(prev => [...prev.slice(-49), data.id]);
       updateHash(null, data.id, true, undefined, true);
     } catch (e) {
       const noneInRange = e instanceof Error && e.message === 'no-problems-in-range';
       setFetchErrorToast(noneInRange
-        ? `No problems found near rating ${Math.round(playerRating.rating + offset)}. Try a different difficulty.`
+        ? `No problems found near rating ${Math.round(base + offset)}. Try a different difficulty.`
         : 'Could not load a problem. Check your connection and try again.');
       setTimeout(() => setFetchErrorToast(null), 4000);
     }
-  }, [playerRating.rating, loadAndStartProblem, cacheProblem, updateHash]);
+  }, [loadAndStartProblem, cacheProblem, updateHash]);
 
   const fetchRatedRef = useRef(fetchAndStartRatedProblem);
   fetchRatedRef.current = fetchAndStartRatedProblem;
