@@ -250,12 +250,19 @@ export default function App() {
   const [isRatedMode, setIsRatedMode] = useState(false);
   // Removed isSpecificRatedProblem - now determined by comparing current problem with cache
   const [, setRecentRatedIds] = useState<number[]>([]);
-  const [ratedDifficulty, setRatedDifficultyState] = useState<RatedDifficulty>(() => loadRatedDifficulty());
+  const [ratedDifficulty, setRatedDifficultyState] = useState<RatedDifficulty>(() => loadRatedDifficulty(ratedGenre));
   const ratedDifficultyRef = useRef(ratedDifficulty);
   ratedDifficultyRef.current = ratedDifficulty;
   const setRatedDifficulty = useCallback((d: RatedDifficulty) => {
     setRatedDifficultyState(d);
-    saveRatedDifficultyPref(d);
+    saveRatedDifficultyPref(ratedGenreRef.current, d);
+  }, []);
+  /* Entering a pool restores that pool's own setting. Through the ref as well as
+     state, because the fetch that follows in the same tick reads the ref. */
+  const adoptGenreDifficulty = useCallback((genre: RatedGenre) => {
+    const d = loadRatedDifficulty(genre);
+    ratedDifficultyRef.current = d;
+    setRatedDifficultyState(d);
   }, []);
 
   // Review Mode (spaced repetition)
@@ -798,6 +805,7 @@ export default function App() {
     // Set the pool before anything reads it: fetching, caching and the rating
     // update all key off this, and the ref is what the async paths see.
     setRatedGenre(genre);
+    adoptGenreDifficulty(genre);
     setCurrentGenre(genre);
     setCurrentCategory(null);
     setView('solving');

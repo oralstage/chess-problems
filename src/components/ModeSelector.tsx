@@ -323,7 +323,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
                     // one, so leaving the page and coming back does not throw
                     // away the position the player was thinking about.
                     try {
-                      const data = loadRatedProblemSlot<{ id: number }>(pool.genre, loadRatedDifficulty());
+                      const data = loadRatedProblemSlot<{ id: number }>(pool.genre, loadRatedDifficulty(pool.genre));
                       if (data) {
                         const pid = String(data.id);
                         const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');

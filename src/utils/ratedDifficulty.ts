@@ -18,7 +18,8 @@ export const RATED_DIFFICULTY_LABEL: Record<RatedDifficulty, string> = {
   'very-hard': 'Very Hard',
 };
 
-const RATED_DIFFICULTY_KEY = 'cp-rated-difficulty';
+/** Pre-split key, holding what is now direct's setting. Read, never written. */
+const LEGACY_RATED_DIFFICULTY_KEY = 'cp-rated-difficulty';
 const RATED_PROBLEM_KEY_PREFIX = 'cp-rated-problem-';
 /** Pre-split keys: one slot per difficulty, all of them direct. Read, never written. */
 const LEGACY_RATED_PROBLEM_KEY = 'cp-rated-problem';
@@ -31,18 +32,33 @@ export function ratedProblemKey(genre: RatedSlotGenre, d: RatedDifficulty): stri
   return `${RATED_PROBLEM_KEY_PREFIX}${genre}-${d}`;
 }
 
-export function loadRatedDifficulty(): RatedDifficulty {
+/* The difficulty offset is per pool. The pools are separate games with separate
+   ratings, and a player who wants selfmates easier than their rating has no
+   reason to want direct mates easier too — sharing one setting made choosing in
+   one pool silently change the other two. */
+function difficultyKey(genre: RatedSlotGenre): string {
+  return `cp-rated-difficulty-${genre}`;
+}
+
+export function loadRatedDifficulty(genre: RatedSlotGenre = 'direct'): RatedDifficulty {
   try {
-    const saved = localStorage.getItem(RATED_DIFFICULTY_KEY);
+    const saved = localStorage.getItem(difficultyKey(genre));
     if (saved && (RATED_DIFFICULTIES as string[]).includes(saved)) {
       return saved as RatedDifficulty;
+    }
+    // Whatever was chosen before the split was chosen for direct mates.
+    if (genre === 'direct') {
+      const legacy = localStorage.getItem(LEGACY_RATED_DIFFICULTY_KEY);
+      if (legacy && (RATED_DIFFICULTIES as string[]).includes(legacy)) {
+        return legacy as RatedDifficulty;
+      }
     }
   } catch {}
   return 'normal';
 }
 
-export function saveRatedDifficulty(d: RatedDifficulty): void {
-  try { localStorage.setItem(RATED_DIFFICULTY_KEY, d); } catch {}
+export function saveRatedDifficulty(genre: RatedSlotGenre, d: RatedDifficulty): void {
+  try { localStorage.setItem(difficultyKey(genre), d); } catch {}
 }
 
 export function loadRatedProblem<T = unknown>(genre: RatedSlotGenre, d: RatedDifficulty): T | null {
