@@ -24,7 +24,10 @@ interface RatingEventBody {
   playerRating: number;
   playerRd: number;
   playerVol?: number;
+  genre?: string;
 }
+
+const RATED_GENRES = ['direct', 'self', 'help'];
 
 // Rate limiting (per-isolate)
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -50,7 +53,7 @@ async function getProblemRating(env: Env, problemId: number, dev: number): Promi
     return { rating: row.rating, rd: row.rd, vol: row.volatility };
   }
 
-  // Fallback for problems not yet in problem_ratings (e.g. fairy, helpmate)
+  // Fallback for problems not yet in problem_ratings (e.g. fairy, study)
   return { rating: 1500, rd: 350, vol: 0.06 };
 }
 
@@ -90,6 +93,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const playerRd = Math.max(20, Math.min(400, body.playerRd));
 
   const dev = body.dev ? 1 : 0;
+  const genre = body.genre && RATED_GENRES.includes(body.genre) ? body.genre : 'direct';
 
   // Get current problem rating
   const problemRating = await getProblemRating(context.env, body.problemId, dev);
@@ -97,8 +101,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   // Try to insert rating event (PK dedup: problem_id + session_id + dev)
   try {
     await context.env.STATS_DB.prepare(
-      `INSERT INTO rating_events (problem_id, session_id, dev, score, player_rating, player_rd, problem_rating, problem_rd)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO rating_events (problem_id, session_id, dev, score, player_rating, player_rd, problem_rating, problem_rd, genre)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(
       body.problemId,
       body.sessionId,
@@ -108,6 +112,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       playerRd,
       problemRating.rating,
       problemRating.rd,
+      genre,
     ).run();
   } catch (e: unknown) {
     // PRIMARY KEY conflict = duplicate (same person, same problem)
@@ -121,6 +126,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     throw e;
   }
 
+  // Staging and dev-mode sessions never move a problem's rating. The event is
+  // still recorded and the player's own rating still moves, so matchmaking behaves
+  // exactly as it does in production — but testing a build must not quietly
+  // rewrite the seeded ratings the test is being run against. Production traffic
+  // is dev = 0 and is unaffected.
+  if (dev === 1) {
+    return Response.json({
+      ok: true,
+      problemRatingFrozen: true,
+      problemRating: { rating: problemRating.rating, rd: problemRating.rd },
+    });
+  }
+
   // Update the problem's rating (problem "plays" against the player with inverted score).
   // The player's own rating is mirrored separately by the client via /api/save-rating —
   // we never recompute it server-side, so client and server stay in lockstep.
@@ -132,15 +150,15 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   );
 
   await context.env.STATS_DB.prepare(
-    `INSERT INTO problem_ratings (problem_id, dev, rating, rd, volatility, solve_count, updated_at)
-     VALUES (?, ?, ?, ?, ?, 1, datetime('now'))
+    `INSERT INTO problem_ratings (problem_id, dev, rating, rd, volatility, solve_count, updated_at, genre)
+     VALUES (?, ?, ?, ?, ?, 1, datetime('now'), ?)
      ON CONFLICT(problem_id, dev) DO UPDATE SET
        rating = ?, rd = ?, volatility = ?,
        solve_count = solve_count + 1,
        updated_at = datetime('now')`
   ).bind(
     body.problemId, dev,
-    newProblemRating.rating, newProblemRating.rd, newProblemRating.vol,
+    newProblemRating.rating, newProblemRating.rd, newProblemRating.vol, genre,
     newProblemRating.rating, newProblemRating.rd, newProblemRating.vol,
   ).run();
 

@@ -3,8 +3,26 @@ import { CategoryMark } from './CategoryMark';
 
 interface GenreTutorialProps {
   genre: Genre;
+  /** Rated and Review show this same dialog with a banner on top. The banner is
+   *  the only part that is about the mode rather than about the genre, and it says
+   *  the same thing whichever genre is being played — so everything below it stays
+   *  shared rather than being copied per mode and drifting.
+   *
+   *  Review needs the genre rules more than anywhere else: its queue mixes all
+   *  three, so the problem in front of you may be a helpmate when the last one was
+   *  a direct mate, and "?" has to answer "how does this one work again?". */
+  rated?: boolean;
+  review?: boolean;
   onClose: () => void;
 }
+
+/** The rated pools draw their own composite mark: the genre's object with the
+ *  rating line clipped to its corner. */
+const RATED_MARK: Partial<Record<Genre, string>> = {
+  direct: 'Rated Direct',
+  help: 'Rated Helpmates',
+  self: 'Rated Selfmates',
+};
 
 /* Three parts: the aim, the procedure, and the small print.
 
@@ -93,8 +111,10 @@ const TUTORIALS: Record<Genre, {
   },
 };
 
-export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
+export function GenreTutorial({ genre, rated, review, onClose }: GenreTutorialProps) {
   const tutorial = TUTORIALS[genre];
+  const mark = review ? 'Review Mode' : (rated && RATED_MARK[genre]) || tutorial.mark;
+  const suffix = rated ? ' · Rated' : review ? ' · Review' : '';
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--ink)]/45 p-4" onClick={onClose}>
@@ -103,11 +123,38 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
         onClick={e => e.stopPropagation()}
       >
         <div className="text-center mb-4">
-          <span className="mx-auto mb-2 block w-16 h-16"><CategoryMark name={tutorial.mark} /></span>
+          <span className="mx-auto mb-2 block w-16 h-16"><CategoryMark name={mark} /></span>
           <h2 className="text-2xl font-extrabold tracking-tight text-[var(--ink)]">
-            {tutorial.title}
+            {tutorial.title}{suffix}
           </h2>
         </div>
+
+        {/* What you get served and what your result does — the two facts that
+            are about Rated Mode rather than about the genre. One block, not two
+            chips: as separate pills the second ran off both edges of the card,
+            and they are one idea anyway. Neither is a step in solving, so
+            neither belongs in the numbered list below. */}
+        {rated && (
+          <div className="rounded-[14px] border-2 border-[var(--ink)] bg-emerald-700 text-[var(--surface)] px-4 py-3 mb-4 space-y-1">
+            <p className="text-sm font-extrabold leading-snug">
+              {tutorial.title}s, matched to your rating.
+            </p>
+            <p className="text-xs font-semibold leading-snug">
+              Your rating moves with the result — a clean solve wins, a mistake or a hint loses.
+            </p>
+          </div>
+        )}
+
+        {review && (
+          <div className="rounded-[14px] border-2 border-[var(--ink)] bg-emerald-700 text-[var(--surface)] px-4 py-3 mb-4 space-y-1">
+            <p className="text-sm font-extrabold leading-snug">
+              Problems you have already played in Rated Mode, coming back on a schedule so they stick. Your rating is not affected.
+            </p>
+            <p className="text-xs font-semibold leading-snug">
+              A clean solve pushes the next review further out. A mistake, or a hint, brings it back sooner.
+            </p>
+          </div>
+        )}
 
         <p className="nb-panel px-4 py-3 mb-4 text-base font-extrabold text-[var(--ink)] leading-snug">
           {tutorial.aim}
@@ -121,6 +168,15 @@ export function GenreTutorial({ genre, onClose }: GenreTutorialProps) {
             </li>
           ))}
         </ol>
+
+        {review && (
+          <div className="border-t-2 border-[var(--hairline)] pt-3 mb-4">
+            <p className="flex gap-2 text-xs font-medium text-[var(--faint)] leading-snug">
+              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--faint)] mt-[0.35rem]" />
+              The schedule uses FSRS, a spaced-repetition model based on the forgetting curve — the better you know a problem, the longer until it returns.
+            </p>
+          </div>
+        )}
 
         {tutorial.general.length > 0 && (
           <div className="border-t-2 border-[var(--hairline)] pt-3 mb-6">

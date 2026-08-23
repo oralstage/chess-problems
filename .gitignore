@@ -17,3 +17,6 @@ daily-posts/
 src/data/*.json
 .claude/settings.local.json
 CLAUDE.md
+
+# Generated rating seed SQL (regenerate with scripts/populate-genre-ratings.ts)
+scripts/seed/

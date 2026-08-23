@@ -13,7 +13,6 @@ import { ThemeTags } from './components/ThemeTags';
 import { FeedbackPanel } from './components/FeedbackPanel';
 import { SolutionTree } from './components/SolutionTree';
 import { GenreTutorial } from './components/GenreTutorial';
-import { CategoryMark } from './components/CategoryMark';
 // import { TermsPage } from './components/TermsPage';
 import { ProblemList } from './components/ProblemList';
 import { FilterPage } from './components/FilterPage';
@@ -26,8 +25,9 @@ import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins, extractSolutionNotes } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, type SyncReviewCard } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, RATED_GENRES, type RatedGenre, type SyncReviewCard } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
+import type { Glicko2Rating } from './utils/glicko2';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses } from './utils/stipulationColor';
 import {
@@ -37,7 +37,7 @@ import {
   saveRatedDifficulty as saveRatedDifficultyPref,
   loadRatedProblem as loadRatedProblemSlot,
   saveRatedProblem as saveRatedProblemSlot,
-  clearAllRatedProblems,
+  clearRatedProblems,
 } from './utils/ratedDifficulty';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem, PrintMode } from './types';
 import { CATEGORY_DEFS } from './types';
@@ -222,8 +222,26 @@ export default function App() {
   });
   const [timestamps, setTimestamps] = useLocalStorage<Record<string, number>>('cp-timestamps', {});
 
-  // Player rating (Glicko-2)
-  const { playerRating, isRated, updateAfterSolve, getProblemInitialRating, restoreRating } = usePlayerRating();
+  // Which rated pool is being played. Each genre keeps its own player rating,
+  // its own problem ratings and its own cache slots — switching is a switch of
+  // game, not a filter over one game.
+  const [ratedGenre, setRatedGenreState] = useState<RatedGenre>(() => {
+    try {
+      const saved = localStorage.getItem('cp-rated-genre');
+      if (saved && (RATED_GENRES as string[]).includes(saved)) return saved as RatedGenre;
+    } catch { /* ignore */ }
+    return 'direct';
+  });
+  const ratedGenreRef = useRef(ratedGenre);
+  ratedGenreRef.current = ratedGenre;
+  const setRatedGenre = useCallback((g: RatedGenre) => {
+    setRatedGenreState(g);
+    ratedGenreRef.current = g;
+    try { localStorage.setItem('cp-rated-genre', g); } catch { /* ignore */ }
+  }, []);
+
+  // Player rating (Glicko-2), for the pool currently selected
+  const { playerRating, ratingsByGenre, isRated, updateAfterSolve, getProblemInitialRating, restoreRating } = usePlayerRating(ratedGenre);
   const [lastRatingDelta, setLastRatingDelta] = useState<number | null>(null);
   const [lastProblemRating, setLastProblemRating] = useState<number | null>(null);
   const [problemRatingBefore, setProblemRatingBefore] = useState<number | null>(null);
@@ -616,9 +634,9 @@ export default function App() {
     }
     if (rated) {
       if (problemId) {
-        history[method]({ rated: true, problemId }, '', `#/rated/yacpdb/${problemId}`);
+        history[method]({ rated: true, problemId }, '', `#/rated/${ratedGenreRef.current}/yacpdb/${problemId}`);
       } else {
-        history[method]({ rated: true }, '', `#/rated`);
+        history[method]({ rated: true }, '', `#/rated/${ratedGenreRef.current}`);
       }
       return;
     }
@@ -706,7 +724,7 @@ export default function App() {
     const d = difficulty ?? ratedDifficultyRef.current;
     const offset = RATED_DIFFICULTY_OFFSET[d];
     try {
-      const data = await fetchRatedProblem(playerRating.rating + offset);
+      const data = await fetchRatedProblem(playerRating.rating + offset, ratedGenreRef.current);
       const p = metaToChessProblem(data, data.solutionText);
       if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
         setStipulationToast({ label: `Mate in ${data.moveCount}`, moveCount: data.moveCount });
@@ -715,7 +733,7 @@ export default function App() {
       prevMoveCountRef.current = data.moveCount;
       loadAndStartProblem(p);
       cacheProblem(p);
-      saveRatedProblemSlot(d, data);
+      saveRatedProblemSlot(ratedGenreRef.current, d, data);
       setLastProblemRating(data.problemRating);
       setRecentRatedIds(prev => [...prev.slice(-49), data.id]);
       updateHash(null, data.id, true, undefined, true);
@@ -738,7 +756,7 @@ export default function App() {
   updateHashRef.current = updateHash;
 
   const ratedLoadingRef = useRef(false);
-  const handleStartRatedImpl = (specificProblemId?: number, _fromCache?: boolean) => {
+  const handleStartRatedImpl = (genre: RatedGenre = 'direct', specificProblemId?: number, _fromCache?: boolean) => {
     // Prevent double invocation (React StrictMode, popstate race, etc.)
     if (ratedLoadingRef.current) return;
     ratedLoadingRef.current = true;
@@ -748,7 +766,10 @@ export default function App() {
     setIsRatedMode(true);
     setIsReviewMode(false);
     setIsDaily(false);
-    setCurrentGenre('direct');
+    // Set the pool before anything reads it: fetching, caching and the rating
+    // update all key off this, and the ref is what the async paths see.
+    setRatedGenre(genre);
+    setCurrentGenre(genre);
     setCurrentCategory(null);
     setView('solving');
     setRecentRatedIds([]);
@@ -763,7 +784,7 @@ export default function App() {
     const currentHash = window.location.hash;
     const isAlreadyRatedUrl = currentHash.startsWith('#/rated');
     if (!isAlreadyRatedUrl) {
-      window.history.pushState(null, '', '#/rated');
+      window.history.pushState(null, '', `#/rated/${genre}`);
     }
 
     // If a specific problem ID is requested (e.g. from URL or history), load it directly
@@ -788,11 +809,11 @@ export default function App() {
 
     // Cache path — read from current difficulty's slot
     try {
-      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(ratedDifficultyRef.current);
+      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(genre, ratedDifficultyRef.current);
       if (data) {
         const pid = String(data.id);
         const currentProgress = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-        const alreadyAttempted = currentProgress.direct?.[pid] === 'solved' || currentProgress.direct?.[pid] === 'failed';
+        const alreadyAttempted = currentProgress[genre]?.[pid] === 'solved' || currentProgress[genre]?.[pid] === 'failed';
         if (!alreadyAttempted) {
           const p = metaToChessProblem(data, data.solutionText);
           prevMoveCountRef.current = p.moveCount;
@@ -809,8 +830,8 @@ export default function App() {
   };
   const handleStartRatedRef = useRef(handleStartRatedImpl);
   handleStartRatedRef.current = handleStartRatedImpl;
-  const handleStartRated = useCallback((specificProblemId?: number, fromCache?: boolean) => {
-    handleStartRatedRef.current(specificProblemId, fromCache);
+  const handleStartRated = useCallback((genre: RatedGenre = 'direct', specificProblemId?: number, fromCache?: boolean) => {
+    handleStartRatedRef.current(genre, specificProblemId, fromCache);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -868,7 +889,9 @@ export default function App() {
   const handleNextRatedProblem = useCallback(() => {
     if (!problem.problem) return;
     // Clear ALL difficulty slots — rating moved, all cached problems are now stale
-    clearAllRatedProblems();
+    // Only this pool's rating moved, so only its slots are stale. The other
+    // pools keep the problem the player was in the middle of.
+    clearRatedProblems(ratedGenreRef.current);
     if (problem.status === 'correct' && currentGenre && !isSecondaryTwin) {
       const pid = String(problem.problem.id);
       const perfect = problem.wrongMoveCount === 0 && !hintUsedRef.current;
@@ -892,11 +915,12 @@ export default function App() {
     if (d === ratedDifficultyRef.current) return;
     setRatedDifficulty(d);
     try {
-      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(d);
+      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(ratedGenreRef.current, d);
       if (data) {
         const pid = String(data.id);
         const currentProgress = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-        const alreadyAttempted = currentProgress.direct?.[pid] === 'solved' || currentProgress.direct?.[pid] === 'failed';
+        const g = ratedGenreRef.current;
+        const alreadyAttempted = currentProgress[g]?.[pid] === 'solved' || currentProgress[g]?.[pid] === 'failed';
         if (!alreadyAttempted) {
           const p = metaToChessProblem(data, data.solutionText);
           if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
@@ -1189,16 +1213,18 @@ export default function App() {
         setShowProblemInfo(false);
         return;
       }
-      // Rated mode hash: #/rated/yacpdb/123 (with specific ID only)
+      // Rated mode hash: #/rated/{genre}/yacpdb/123 (with specific ID only).
+      // The genre segment is optional — links shared before the pools were split
+      // have none, and everything rated back then was direct.
       // #/rated without ID is handled by the Rated Mode button click, not popstate
-      const ratedMatch = hash.match(/^#\/rated\/yacpdb\/(\d+)$/);
+      const ratedMatch = hash.match(/^#\/rated(?:\/(direct|self|help))?\/yacpdb\/(\d+)$/);
       if (ratedMatch) {
-        const ratedProblemId = parseInt(ratedMatch[1]);
-        handleStartRated(ratedProblemId);
+        const ratedProblemId = parseInt(ratedMatch[2]);
+        handleStartRated((ratedMatch[1] as RatedGenre) || 'direct', ratedProblemId);
         return;
       }
       // #/rated without ID - just set rated mode view without fetching new problem
-      if (hash === '#/rated') {
+      if (/^#\/rated(\/(direct|self|help))?$/.test(hash)) {
         setIsRatedMode(true);
         setIsReviewMode(false);
         setIsDaily(false);
@@ -1291,11 +1317,11 @@ export default function App() {
       setView('mode-select');
       return;
     }
-    // Rated mode hash: #/rated or #/rated/yacpdb/123
-    const ratedMatch = hash.match(/^#\/rated(\/yacpdb\/(\d+))?$/);
+    // Rated mode hash: #/rated/{genre} or #/rated/{genre}/yacpdb/123
+    const ratedMatch = hash.match(/^#\/rated(?:\/(direct|self|help))?(?:\/yacpdb\/(\d+))?$/);
     if (ratedMatch) {
       const ratedProblemId = ratedMatch[2] ? parseInt(ratedMatch[2]) : undefined;
-      handleStartRated(ratedProblemId);
+      handleStartRated((ratedMatch[1] as RatedGenre) || 'direct', ratedProblemId);
       return;
     }
     // Daily problem hash: #/daily/YYYY-MM-DD
@@ -1752,6 +1778,7 @@ export default function App() {
           playerRating: playerRating.rating,
           playerRd: playerRating.rd,
           playerVol: playerRating.vol,
+          genre: ratedGenreRef.current,
         }).then(res => {
           if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
         });
@@ -1965,6 +1992,7 @@ export default function App() {
           playerRating: playerRating.rating,
           playerRd: playerRating.rd,
           playerVol: playerRating.vol,
+          genre: ratedGenreRef.current,
         }).then(res => {
           if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
         });
@@ -2016,6 +2044,7 @@ export default function App() {
         playerRating: playerRating.rating,
         playerRd: playerRating.rd,
         playerVol: playerRating.vol,
+        genre: ratedGenreRef.current,
       }).then(res => {
         if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
       });
@@ -2075,8 +2104,7 @@ export default function App() {
                 onStartReview={handleStartReview}
                 reviewDueCount={reviewQueue.dueCount}
                 reviewTotalCount={reviewQueue.totalCount}
-                playerRating={playerRating.rating}
-                playerRd={playerRating.rd}
+                ratingsByGenre={ratingsByGenre}
               />
           )}
 
@@ -2160,7 +2188,10 @@ export default function App() {
                   <ProblemCard
                     problem={problem.problem}
                     problemNumber={problem.problem!.id}
-                    genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[currentGenre || 'direct'] || 'D'}
+                    /* From the problem itself, not from currentGenre: Review Mode
+                       and Rated pools serve problems the current genre does not
+                       describe, and the prefix would name the wrong one. */
+                    genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[problem.problem.genre || currentGenre || 'direct'] || 'D'}
                   />
                   {!isRatedMode && (
                   <button
@@ -2387,7 +2418,7 @@ export default function App() {
                 onShowSolution={handleGiveUp}
                 onNextProblem={isDaily ? undefined : isReviewMode ? (problem.status !== 'solving' ? handleReviewNext : undefined) : isRatedMode ? (problem.status !== 'solving' ? (() => {
                   // Show "Next" only if current problem IS the cached rated problem at current difficulty
-                  const cached = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
+                  const cached = loadRatedProblemSlot<{ id: number }>(ratedGenre, ratedDifficulty);
                   if (cached && cached.id === problem.problem?.id) return handleNextRatedProblem;
                   return undefined;
                 })() : undefined) : handleNextProblem}
@@ -2396,16 +2427,16 @@ export default function App() {
                   // problem at current difficulty — including when no slot is cached
                   // at all (fresh device opening #/rated/yacpdb/{id}), otherwise the
                   // user gets neither Next nor Back to Rated after solving
-                  const cached = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
+                  const cached = loadRatedProblemSlot<{ id: number }>(ratedGenre, ratedDifficulty);
                   return !cached || cached.id !== problem.problem?.id;
                 })() ? () => {
-                  const data = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
+                  const data = loadRatedProblemSlot<{ id: number }>(ratedGenre, ratedDifficulty);
                   if (data) {
                     const pid = String(data.id);
                     try {
                       const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-                      if (prog.direct?.[pid] !== 'solved' && prog.direct?.[pid] !== 'failed') {
-                        handleStartRated(data.id, true);
+                      if (prog[ratedGenre]?.[pid] !== 'solved' && prog[ratedGenre]?.[pid] !== 'failed') {
+                        handleStartRated(ratedGenre, data.id, true);
                         return;
                       }
                     } catch {}
@@ -2498,77 +2529,16 @@ export default function App() {
       )}
 
       {/* Review Mode tutorial */}
-      {showTutorial && isReviewMode && (
-        <div className="fixed inset-0 bg-[var(--ink)]/45 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
-          <div className="nb-card nb-shadow-nudge p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-4">
-              <span className="mx-auto mb-1 block w-14 h-14"><CategoryMark name="Review Mode" /></span>
-              <h2 className="text-2xl font-extrabold tracking-tight text-[var(--ink)] mt-1">Review Mode</h2>
-            </div>
-            <p className="nb-panel px-4 py-3 mb-4 text-base font-extrabold text-[var(--ink)] leading-snug">
-              Problems you have already played in Rated Mode, coming back on a schedule so they stick. Your rating is not affected.
-            </p>
-            <ol className="space-y-2.5 mb-4">
-              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">1</span>Solve it as usual.</li>
-              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">2</span>A clean solve pushes the next review further out. A mistake, or a hint, brings it back sooner.</li>
-            </ol>
-            <div className="border-t-2 border-[var(--hairline)] pt-3">
-              <p className="flex gap-2 text-xs font-medium text-[var(--faint)] leading-snug"><span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--faint)] mt-[0.35rem]" />The schedule uses FSRS, a spaced-repetition model based on the forgetting curve — the better you know a problem, the longer until it returns.</p>
-            </div>
-            <button
-              onClick={() => setShowTutorial(false)}
-              className="nb-btn nb-shadow-room mt-5 w-full py-3 text-base"
-            >
-              Got it
-            </button>
-          </div>
-        </div>
+      {showTutorial && isReviewMode && problem.problem && (
+        <GenreTutorial
+          genre={(problem.problem.genre as Genre) || 'direct'}
+          review
+          onClose={() => setShowTutorial(false)}
+        />
       )}
 
-      {/* Rated Mode tutorial */}
       {showTutorial && isRatedMode && (
-        <div className="fixed inset-0 bg-[var(--ink)]/45 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
-          <div className="nb-card nb-shadow-nudge p-6 max-w-md w-full" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-4">
-              <span className="mx-auto mb-1 block w-14 h-14"><CategoryMark name="Rated Mode" /></span>
-              <h2 className="text-2xl font-extrabold tracking-tight text-[var(--ink)] mt-1">Rated Mode</h2>
-            </div>
-            {/* The only line in this dialog that is about Rated Mode rather
-                than about direct mates, and it was the faintest thing on it.
-                An ink chip, not acid (acid means "the thing to press") and
-                not a second panel, which would compete with the aim below. */}
-            {/* The two facts that are about Rated Mode rather than about
-                direct mates: what you get served, and what your result does.
-                One block, not two chips — as separate pills the second one
-                was long enough to run off both edges of the card, and they
-                are one idea anyway. Neither is a step in solving, so neither
-                belongs in the numbered list below. */}
-            <div className="rounded-[14px] border-2 border-[var(--ink)] bg-emerald-700 text-[var(--surface)] px-4 py-3 mb-4 space-y-1">
-              <p className="text-sm font-extrabold leading-snug">
-                Direct mates, matched to your rating.
-              </p>
-              <p className="text-xs font-semibold leading-snug">
-                Your rating moves with the result — a clean solve wins, a mistake or a hint loses.
-              </p>
-            </div>
-            <p className="nb-panel px-4 py-3 mb-4 text-base font-extrabold text-[var(--ink)] leading-snug">
-              White is trying to mate the black king. Black is trying to survive.
-            </p>
-            {/* Same aim and the same three steps as the Direct Mate tutorial —
-                this IS direct mate, just matched to your rating. */}
-            <ol className="space-y-2.5 mb-6">
-              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">1</span>You play White first. The key — the answer — is the one move that forces mate within the given number of moves whatever Black defends — it does not have to be a check.</li>
-              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">2</span>Black answers by itself, defending as well as it possibly can.</li>
-              <li className="flex gap-2.5 text-sm font-semibold text-[var(--ink)] leading-snug"><span className="shrink-0 w-5 h-5 rounded-full bg-[var(--ink)] text-[var(--surface)] text-[11px] font-extrabold flex items-center justify-center mt-px">3</span>The mate lands on the last move exactly. #2 = mate in 2, #3 = mate in 3.</li>
-            </ol>
-            <button
-              onClick={() => setShowTutorial(false)}
-              className="nb-btn nb-btn-key nb-shadow-room mt-5 w-full py-3 text-base"
-            >
-              Start Solving
-            </button>
-          </div>
-        </div>
+        <GenreTutorial genre={ratedGenre} rated onClose={() => setShowTutorial(false)} />
       )}
 
       <HamburgerMenu
@@ -2625,12 +2595,15 @@ export default function App() {
         onRestore={(code, snapshot) => {
           // Replace sessionId so future events go to the recovered account
           try { localStorage.setItem('cp-session-id', code); } catch { /* ignore */ }
-          // Apply rating (or reset to defaults if account has no rated solves yet)
-          if (snapshot.rating) {
-            restoreRating(code, { rating: snapshot.rating.rating, rd: snapshot.rating.rd, vol: snapshot.rating.vol });
-          } else {
-            restoreRating(code, { rating: 800, rd: 350, vol: 0.06 });
+          // Apply each pool's rating. `ratings` is the per-genre map; `rating`
+          // (singular) is the direct pool, kept for snapshots written before the
+          // genres were split. Pools the account never played reset to default.
+          const restored: Partial<Record<RatedGenre, Glicko2Rating>> = {};
+          for (const g of RATED_GENRES) {
+            const r = snapshot.ratings?.[g] ?? (g === 'direct' ? snapshot.rating : undefined);
+            if (r) restored[g] = { rating: r.rating, rd: r.rd, vol: r.vol };
           }
+          restoreRating(code, restored);
           // Mirror the rest into localStorage. We replace wholesale (no merging) — the user
           // explicitly confirmed they want this device to become the synced account.
           try {

@@ -3,6 +3,7 @@ import { Chessboard } from 'react-chessboard';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
+import type { RatedGenre } from '../services/api';
 import { difficultyToRating } from '../utils/glicko2';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
@@ -16,13 +17,23 @@ interface ModeSelectorProps {
   onSolveDaily: () => void;
   dailySolved: boolean;
   onShowChangelog?: () => void;
-  onStartRated?: (problemId?: number, fromCache?: boolean) => void;
+  onStartRated?: (genre: RatedGenre, problemId?: number, fromCache?: boolean) => void;
   onStartReview?: () => void;
   reviewDueCount?: number;
   reviewTotalCount?: number;
-  playerRating?: number;
-  playerRd?: number;
+  /** One rating per pool. The pools are separate games — a number from one says
+   *  nothing about another — so all three are shown rather than one total. */
+  ratingsByGenre?: Record<RatedGenre, { rating: number; rd: number }>;
 }
+
+/* The rated pools, in the order the free-play list already introduces them. The
+   mark is the genre's own object with the rating line clipped to its corner, so
+   a pool button is recognisably the same object as its free-play row. */
+const RATED_POOLS: { genre: RatedGenre; label: string; mark: string; progressKey: string }[] = [
+  { genre: 'direct', label: 'Direct', mark: 'Rated Direct', progressKey: 'direct' },
+  { genre: 'help', label: 'Help', mark: 'Rated Helpmates', progressKey: 'help' },
+  { genre: 'self', label: 'Self', mark: 'Rated Selfmates', progressKey: 'self' },
+];
 
 // Group categories by their group label
 
@@ -56,7 +67,7 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
 ];
 
-export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, playerRating, playerRd }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -287,90 +298,85 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
       {onStartRated && (
         <div className="px-4 mb-6">
           <div className="nb-section-head">
-            <h2>For you</h2>
+            <h2>Rated</h2>
             <span className="nb-heading-object" style={{ width: '3.2rem', height: '3rem', transform: 'translateY(-50%) rotate(-5deg)' }} aria-hidden="true">
+              {/* The parcel belonged to "For you". This section is "Rated", and the
+                  thing it is about is the rating — so the object is the same rising
+                  line the three buttons carry in their corner, drawn large. */}
               <svg viewBox="0 0 44 44" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-                <rect x="4" y="17" width="36" height="22" rx="3" fill="var(--surface)" />
-                <rect x="2" y="12" width="40" height="8" rx="2.5" fill="var(--board-d)" />
-                <path d="M22 12v27" strokeWidth="3.4" />
-                <path d="M22 12c-5 0-9-2-9-5s5-4 9 5c4-7 9-8 9-5s-4 5-9 5z" fill="var(--board-d)" />
+                <rect x="3" y="6" width="38" height="32" rx="3.5" fill="var(--surface)" />
+                <path d="M8 30l9-10 7 5.5 12-14" strokeWidth="4.5" stroke="var(--acid)" />
               </svg>
             </span>
           </div>
+          {/* One button per pool. They were a single "Rated Mode" card while
+              direct was the only rated genre; three pools cannot share one
+              button because they do not share a rating. */}
           <div className="grid grid-cols-3 gap-2.5">
-            <button
-              onClick={() => {
-                try {
-                  const data = loadRatedProblemSlot<{ id: number }>(loadRatedDifficulty());
-                  if (data) {
-                    const pid = String(data.id);
-                    const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-                    if (prog.direct?.[pid] !== 'solved' && prog.direct?.[pid] !== 'failed') {
-                      onStartRated(data.id, true);
-                      return;
-                    }
-                  }
-                } catch {}
-                onStartRated();
-              }}
-              className={`${reviewTotalCount > 0 ? `${CARD} col-span-2` : `${CARD_WIDE} col-span-3`}`}
-              /* The board's own light square, and a 4px edge where every other
-                 card on the page has 2px.
-
-                 White read as unfinished here — nine cards carry a tint and the
-                 one the site most wants pressed carried none. But the answer is
-                 not a louder colour: a seventh tint reads as a seventh genre,
-                 ink was harsh, and the amber family is ruled out outright
-                 because the rising line inside the mark IS --acid and would
-                 vanish into the card. So the emphasis is carried by the BUILD
-                 instead — 4px is the weight this design gives big containers,
-                 and it says "different kind of object" without spending a
-                 colour at all. */
-              style={{ backgroundColor: 'var(--board-l)', borderWidth: '4px' }}
-            >
-              {/* Two layouts, because this card has two widths. Along the row
-                  when it owns the row; back to the column when Review Mode
-                  takes a third of it — at 375px that leaves 199px, and the row
-                  layout overflows its own card by 9px there once the rating
-                  reaches four digits and carries a ~. */}
-              <span
-                className={`block shrink-0 ${reviewTotalCount > 0 ? 'w-14 h-14 mx-auto' : 'w-14 h-14 sm:w-16 sm:h-16'}`}
-                aria-hidden="true"
-              >
-                <CategoryMark name="Rated Mode" />
-              </span>
-              <span className={CARD_TITLE}>Rated Mode</span>
-              {/* The section is called "For you" and had nothing of yours in
-                  it. The rating is the one number that is, and it is what the
-                  rising line in the mark was drawing without ever naming.
-
-                  ~ while the deviation is still wide, on the same threshold
-                  FeedbackPanel uses, so the two never disagree. No label:
-                  nothing else on this page explains itself either. */}
-              {playerRating != null && (
-                <span
-                  className={`shrink-0 font-extrabold tabular-nums leading-none text-[var(--ink)] ${
-                    reviewTotalCount > 0 ? 'text-xl sm:text-2xl' : 'ml-auto text-2xl sm:text-4xl'
-                  }`}
+            {RATED_POOLS.map(pool => {
+              const r = ratingsByGenre?.[pool.genre];
+              return (
+                <button
+                  key={pool.genre}
+                  onClick={() => {
+                    // Resume this pool's own in-progress problem if it still has
+                    // one, so leaving the page and coming back does not throw
+                    // away the position the player was thinking about.
+                    try {
+                      const data = loadRatedProblemSlot<{ id: number }>(pool.genre, loadRatedDifficulty());
+                      if (data) {
+                        const pid = String(data.id);
+                        const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
+                        const seen = prog[pool.progressKey]?.[pid];
+                        if (seen !== 'solved' && seen !== 'failed') {
+                          onStartRated(pool.genre, data.id, true);
+                          return;
+                        }
+                      }
+                    } catch { /* fall through to a fresh problem */ }
+                    onStartRated(pool.genre);
+                  }}
+                  className={CARD}
+                  /* The board's own light square, and a 4px edge where every
+                     other card on the page has 2px — the weight this design
+                     gives big containers, saying "different kind of object"
+                     without spending a seventh tint on it. */
+                  style={{ backgroundColor: 'var(--board-l)', borderWidth: '4px' }}
                 >
-                  {(playerRd ?? 350) > 200 ? '~' : ''}{Math.round(playerRating)}
+                  <span className="block w-14 h-14 mx-auto" aria-hidden="true">
+                    <CategoryMark name={pool.mark} />
+                  </span>
+                  <span className={CARD_TITLE}>{pool.label}</span>
+                  {/* ~ while the deviation is still wide, on the same threshold
+                      FeedbackPanel uses, so the two never disagree. */}
+                  {r && (
+                    <span className="shrink-0 font-extrabold tabular-nums leading-none text-[var(--ink)] text-xl sm:text-2xl">
+                      {r.rd > 200 ? '~' : ''}{Math.round(r.rating)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Hidden until there is a queue: on a first visit it was half the
+              section and could not be pressed. Full width under the pools — it
+              draws from all three, so it does not belong beside any one. */}
+          {reviewTotalCount > 0 && (
+            <button
+              onClick={onStartReview}
+              disabled={reviewDueCount === 0}
+              className={`${CARD_WIDE} mt-2.5 w-full disabled:opacity-40 disabled:cursor-not-allowed`}
+            >
+              <span className="block w-12 h-12 shrink-0" aria-hidden="true"><CategoryMark name="Review Mode" /></span>
+              <span className={CARD_TITLE}>Review Mode</span>
+              {reviewDueCount > 0 && (
+                <span className="ml-auto shrink-0 font-extrabold tabular-nums leading-none text-[var(--ink)] text-xl sm:text-2xl">
+                  {reviewDueCount}
                 </span>
               )}
             </button>
-
-            {/* Hidden until there is a queue: on a first visit it was half the
-                section and could not be pressed. */}
-            {reviewTotalCount > 0 && (
-              <button
-                onClick={onStartReview}
-                disabled={reviewDueCount === 0}
-                className={`${CARD} disabled:opacity-40 disabled:cursor-not-allowed`}
-              >
-                <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Review Mode" /></span>
-                <span className={CARD_TITLE}>Review Mode</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
       )}
 

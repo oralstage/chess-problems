@@ -15,7 +15,10 @@ interface SaveRatingBody {
   vol: number;
   solveCount?: number;
   dev?: boolean;
+  genre?: string;
 }
+
+const RATED_GENRES = ['direct', 'self', 'help'];
 
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
 function isRateLimited(ip: string): boolean {
@@ -62,29 +65,32 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     : null;
 
   const dev = body.dev ? 1 : 0;
+  // Each genre is its own rated pool with its own player rating, so genre is part
+  // of the key. Requests without one are pre-split clients, whose rating is direct.
+  const genre = body.genre && RATED_GENRES.includes(body.genre) ? body.genre : 'direct';
 
   // Upsert; if solveCount not provided we don't touch the existing one
   if (solveCount !== null) {
     await context.env.STATS_DB.prepare(
-      `INSERT INTO player_ratings (session_id, dev, rating, rd, volatility, solve_count, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-       ON CONFLICT(session_id, dev) DO UPDATE SET
+      `INSERT INTO player_ratings (session_id, dev, genre, rating, rd, volatility, solve_count, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(session_id, dev, genre) DO UPDATE SET
          rating = excluded.rating,
          rd = excluded.rd,
          volatility = excluded.volatility,
          solve_count = excluded.solve_count,
          updated_at = excluded.updated_at`
-    ).bind(body.sessionId, dev, rating, rd, vol, solveCount).run();
+    ).bind(body.sessionId, dev, genre, rating, rd, vol, solveCount).run();
   } else {
     await context.env.STATS_DB.prepare(
-      `INSERT INTO player_ratings (session_id, dev, rating, rd, volatility, solve_count, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, datetime('now'))
-       ON CONFLICT(session_id, dev) DO UPDATE SET
+      `INSERT INTO player_ratings (session_id, dev, genre, rating, rd, volatility, solve_count, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 0, datetime('now'))
+       ON CONFLICT(session_id, dev, genre) DO UPDATE SET
          rating = excluded.rating,
          rd = excluded.rd,
          volatility = excluded.volatility,
          updated_at = excluded.updated_at`
-    ).bind(body.sessionId, dev, rating, rd, vol).run();
+    ).bind(body.sessionId, dev, genre, rating, rd, vol).run();
   }
 
   return Response.json({ ok: true });

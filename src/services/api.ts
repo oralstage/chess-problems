@@ -514,12 +514,21 @@ export interface MyRating {
 }
 
 /**
+ * The three rated pools. Each keeps its own player rating and its own problem
+ * ratings — a number from one pool means nothing in another, the same way a
+ * blitz rating says nothing about rapid.
+ */
+export type RatedGenre = 'direct' | 'self' | 'help';
+
+export const RATED_GENRES: RatedGenre[] = ['direct', 'self', 'help'];
+
+/**
  * Reconstruct a player's current rating from server-side rating_events.
  * Returns null if no events found for the session (i.e. invalid code or fresh session).
  */
-export async function fetchMyRating(sessionId: string): Promise<MyRating | null> {
+export async function fetchMyRating(sessionId: string, genre: RatedGenre = 'direct'): Promise<MyRating | null> {
   const dev = isDevMode() ? 1 : 0;
-  const res = await fetch(`${API_BASE}/my-rating?sessionId=${encodeURIComponent(sessionId)}&dev=${dev}`);
+  const res = await fetch(`${API_BASE}/my-rating?sessionId=${encodeURIComponent(sessionId)}&dev=${dev}&genre=${genre}`);
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`My rating API error: ${res.status}`);
   return res.json();
@@ -538,7 +547,11 @@ export interface SyncReviewCard {
 }
 
 export interface MySnapshot {
+  /** The direct pool. Kept alongside `ratings` so snapshots written before the
+   *  genre split still restore. */
   rating: { rating: number; rd: number; vol: number; solveCount: number } | null;
+  /** One entry per rated pool the account has played. */
+  ratings?: Partial<Record<RatedGenre, { rating: number; rd: number; vol: number; solveCount: number }>>;
   progress: Record<SyncGenre, Record<string, 'solved' | 'failed'>>;
   timestamps: Record<string, number>;
   bookmarks: Record<SyncGenre, string[]>;
@@ -567,7 +580,11 @@ export async function fetchMySnapshot(sessionId: string): Promise<MySnapshot | n
  * Push the client's current Glicko-2 rating to the server. Fire-and-forget;
  * the client's localStorage stays authoritative on this device.
  */
-export function pushPlayerRating(rating: { rating: number; rd: number; vol: number }, solveCount?: number): void {
+export function pushPlayerRating(
+  rating: { rating: number; rd: number; vol: number },
+  solveCount?: number,
+  genre: RatedGenre = 'direct',
+): void {
   const dev = isDevMode();
   fetch(`${API_BASE}/save-rating`, {
     method: 'POST',
@@ -579,6 +596,7 @@ export function pushPlayerRating(rating: { rating: number; rd: number; vol: numb
       vol: rating.vol,
       ...(typeof solveCount === 'number' ? { solveCount } : {}),
       dev,
+      genre,
     }),
     keepalive: true,
   }).catch(() => { /* ignore network errors */ });
@@ -665,6 +683,7 @@ export interface RatingEventData {
   playerRating: number;
   playerRd: number;
   playerVol?: number;
+  genre?: RatedGenre;
 }
 
 export interface RatingEventResponse {
@@ -687,6 +706,7 @@ export async function submitRatingEvent(data: RatingEventData): Promise<RatingEv
         playerRating: data.playerRating,
         playerRd: data.playerRd,
         playerVol: data.playerVol ?? 0.06,
+        genre: data.genre ?? 'direct',
       }),
     });
     if (!res.ok) return null;
@@ -704,10 +724,14 @@ export interface RatedProblemResponse extends ProblemMeta {
 }
 
 /** Fetch a random problem matched to the player's rating (excludes already-solved) */
-export async function fetchRatedProblem(rating: number): Promise<RatedProblemResponse> {
+export async function fetchRatedProblem(
+  rating: number,
+  genre: RatedGenre = 'direct',
+): Promise<RatedProblemResponse> {
   const params = new URLSearchParams({
     rating: String(rating),
     sessionId: getSessionId(),
+    genre,
   });
   if (isDevMode()) params.set('dev', '1');
   const res = await fetch(`${API_BASE}/rated-problem?${params}`);

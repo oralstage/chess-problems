@@ -30,6 +30,67 @@ const SAGE = 'var(--surface-2)';
 const GREEN = 'var(--board-d)';
 const RED = 'var(--bad)';
 
+/* The three rated pools reuse their genre's drawing, so the button for the
+   direct pool is recognisably the same object as the Direct Mates row. Pulled
+   out as fragments rather than duplicated: a change to the target has to reach
+   both places or the two stop being the same thing. */
+const DirectGlyph = (
+  <>
+    <circle cx="29" cy="22" r="13" fill={CREAM} />
+    <circle cx="29" cy="22" r="7.6" fill={SAGE} />
+    <circle cx="29" cy="22" r="2.6" fill={RED} stroke="none" />
+    <g transform="translate(29 22) rotate(45)">
+      <path d="M-6 0 L-21 0" strokeWidth={2.6} />
+      <path d="M0 0 L-7 -4.2 L-7 4.2 Z" fill="var(--ink)" strokeWidth={2} />
+      <path d="M-22 -1 L-14.5 -1 L-16.5 -6.4 L-24 -5 Z" fill="var(--ink)" strokeWidth={1.8} />
+      <path d="M-22 1 L-14.5 1 L-16.5 6.4 L-24 5 Z" fill="var(--ink)" strokeWidth={1.8} />
+    </g>
+  </>
+);
+
+const HelpGlyph = (
+  <g strokeWidth={2}>
+    <path d="M22.23 22.78 L24.08 25.59 L21.38 27.53 L19.31 24.87 L15.82 25.69 L15.15 28.99 L11.86 28.46 L12.27 25.12 L9.22 23.23 L6.41 25.08 L4.47 22.38 L7.13 20.31 L6.31 16.82 L3.01 16.15 L3.54 12.86 L6.88 13.27 L8.77 10.22 L6.92 7.41 L9.62 5.47 L11.69 8.13 L15.18 7.31 L15.85 4.01 L19.14 4.54 L18.73 7.88 L21.78 9.77 L24.59 7.92 L26.53 10.62 L23.87 12.69 L24.69 16.18 L27.99 16.85 L27.46 20.14 L24.12 19.73 Z" fill={CREAM} />
+    <circle cx="15.5" cy="16.5" r="3.4" fill={SAGE} />
+    <path d="M27.96 23.98 L27.62 21.45 L30.64 21.00 L31.04 23.52 L34.02 24.45 L35.78 22.60 L38.01 24.69 L36.30 26.57 L37.42 29.48 L39.97 29.70 L39.73 32.75 L37.18 32.58 L35.62 35.28 L37.02 37.41 L34.49 39.12 L33.04 37.02 L29.96 37.48 L29.17 39.91 L26.25 39.00 L26.98 36.55 L24.70 34.43 L22.32 35.32 L21.21 32.48 L23.58 31.52 L23.82 28.42 L21.63 27.11 L23.16 24.47 L25.38 25.72 Z" fill={GREEN} />
+    <circle cx="30.5" cy="30.5" r="2.8" fill={CREAM} />
+  </g>
+);
+
+const SelfGlyph = (
+  <>
+    <path d="M22 5v-2" strokeWidth={2.6} />
+    <circle cx="22" cy="4" r="3.4" fill="none" strokeWidth={2.6} />
+    <path d="M7 34V22a15 15 0 0 1 30 0v12z" fill={CREAM} />
+    <path d="M14.5 34V12.5M22 34V8M29.5 34V12.5" strokeWidth={2.6} />
+    <path d="M8 24h28" strokeWidth={2.4} />
+    <rect x="4" y="34" width="36" height="6" rx="3" fill={GREEN} />
+  </>
+);
+
+/* The genre's own object, with the rating's rising line pinned to its top-right
+   corner. Keeping the object near full size is the point — the button for the
+   direct pool has to read as the target first and as "rated" second. The line is
+   the Rated Mode mark's shape and its acid colour, small enough to sit as a
+   corner badge; it gets a cream plate behind it so it stays legible where it
+   overlaps the drawing. */
+function RatedComposite({ glyph }: { glyph: React.ReactNode }) {
+  return (
+    <svg {...box}>
+      <g transform="translate(20 25) scale(0.8) translate(-22 -22)">{glyph}</g>
+      {/* No axis under the line: the plate's own bottom edge already reads as
+          one, and drawing both put two parallel rules a pixel apart. Without it
+          the chip stops looking like a framed picture and the line has the room
+          to actually show its rise at 56px, which is the only thing it is here
+          to say — the genre is already named in words on the button. */}
+      <g transform="translate(26 4)">
+        <rect x="-2.5" y="-2.5" width="19" height="15.5" rx="3" fill={CREAM} strokeWidth={1.8} />
+        <path d="M0.5 8.5l4-4 3 2 5.5-6.5" strokeWidth={3} stroke="var(--acid)" />
+      </g>
+    </svg>
+  );
+}
+
 /* The stipulation is drawn into the mark itself, bottom-left, on a plate in
    its move-count colour so it matches the badge the problem page shows.
 
@@ -84,46 +145,25 @@ function markBody(name: string) {
        shaft ran straight into it. The tail is 5 units shorter than it was, or
        the fletch leaves the top of the box once it is turned. */
     case 'Direct Mates':
-      return (
-        <svg {...box}>
-          <circle cx="29" cy="22" r="13" fill={CREAM} />
-          <circle cx="29" cy="22" r="7.6" fill={SAGE} />
-          <circle cx="29" cy="22" r="2.6" fill={RED} stroke="none" />
-          <g transform="translate(29 22) rotate(45)">
-            <path d="M-6 0 L-21 0" strokeWidth={2.6} />
-            <path d="M0 0 L-7 -4.2 L-7 4.2 Z" fill="var(--ink)" strokeWidth={2} />
-            <path d="M-22 -1 L-14.5 -1 L-16.5 -6.4 L-24 -5 Z" fill="var(--ink)" strokeWidth={1.8} />
-            <path d="M-22 1 L-14.5 1 L-16.5 6.4 L-24 5 Z" fill="var(--ink)" strokeWidth={1.8} />
-          </g>
-        </svg>
-      );
+      return <svg {...box}>{DirectGlyph}</svg>;
+
+    case 'Rated Direct':
+      return <RatedComposite glyph={DirectGlyph} />;
+
+    case 'Rated Helpmates':
+      return <RatedComposite glyph={HelpGlyph} />;
+
+    case 'Rated Selfmates':
+      return <RatedComposite glyph={SelfGlyph} />;
 
     /* Both sides pulling the same way. */
     case 'Helpmates':
-      return (
-        <svg {...box}>
-          <g strokeWidth={2}>
-            <path d="M22.23 22.78 L24.08 25.59 L21.38 27.53 L19.31 24.87 L15.82 25.69 L15.15 28.99 L11.86 28.46 L12.27 25.12 L9.22 23.23 L6.41 25.08 L4.47 22.38 L7.13 20.31 L6.31 16.82 L3.01 16.15 L3.54 12.86 L6.88 13.27 L8.77 10.22 L6.92 7.41 L9.62 5.47 L11.69 8.13 L15.18 7.31 L15.85 4.01 L19.14 4.54 L18.73 7.88 L21.78 9.77 L24.59 7.92 L26.53 10.62 L23.87 12.69 L24.69 16.18 L27.99 16.85 L27.46 20.14 L24.12 19.73 Z" fill={CREAM} />
-            <circle cx="15.5" cy="16.5" r="3.4" fill={SAGE} />
-            <path d="M27.96 23.98 L27.62 21.45 L30.64 21.00 L31.04 23.52 L34.02 24.45 L35.78 22.60 L38.01 24.69 L36.30 26.57 L37.42 29.48 L39.97 29.70 L39.73 32.75 L37.18 32.58 L35.62 35.28 L37.02 37.41 L34.49 39.12 L33.04 37.02 L29.96 37.48 L29.17 39.91 L26.25 39.00 L26.98 36.55 L24.70 34.43 L22.32 35.32 L21.21 32.48 L23.58 31.52 L23.82 28.42 L21.63 27.11 L23.16 24.47 L25.38 25.72 Z" fill={GREEN} />
-            <circle cx="30.5" cy="30.5" r="2.8" fill={CREAM} />
-          </g>
-        </svg>
-      );
+      return <svg {...box}>{HelpGlyph}</svg>;
 
     /* No way out. Built as one object, the way the balance below is — that is
        the only mark in this set that read first time, every time. */
     case 'Selfmates':
-      return (
-        <svg {...box}>
-          <path d="M22 5v-2" strokeWidth={2.6} />
-          <circle cx="22" cy="4" r="3.4" fill="none" strokeWidth={2.6} />
-          <path d="M7 34V22a15 15 0 0 1 30 0v12z" fill={CREAM} />
-          <path d="M14.5 34V12.5M22 34V8M29.5 34V12.5" strokeWidth={2.6} />
-          <path d="M8 24h28" strokeWidth={2.4} />
-          <rect x="4" y="34" width="36" height="6" rx="3" fill={GREEN} />
-        </svg>
-      );
+      return <svg {...box}>{SelfGlyph}</svg>;
 
     /* Win or draw — the position is weighed, not counted in moves. */
     case 'Studies':

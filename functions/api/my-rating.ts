@@ -1,5 +1,5 @@
 /**
- * GET /api/my-rating?sessionId=xxx&dev=0|1
+ * GET /api/my-rating?sessionId=xxx&dev=0|1&genre=direct|self|help
  *
  * Return the player's current Glicko-2 rating.
  *
@@ -23,6 +23,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const sessionId = url.searchParams.get('sessionId');
   const dev = url.searchParams.get('dev') === '1' ? 1 : 0;
+  const genreParam = url.searchParams.get('genre') || 'direct';
+  const genre = ['direct', 'self', 'help'].includes(genreParam) ? genreParam : 'direct';
 
   if (!sessionId || sessionId.length > 64 || sessionId.length < 8) {
     return Response.json({ error: 'Invalid sessionId' }, { status: 400 });
@@ -32,8 +34,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const stored = await context.env.STATS_DB.prepare(
     `SELECT rating, rd, volatility, solve_count, updated_at
      FROM player_ratings
-     WHERE session_id = ? AND dev = ?`
-  ).bind(sessionId, dev).first<{ rating: number; rd: number; volatility: number; solve_count: number; updated_at: string }>();
+     WHERE session_id = ? AND dev = ? AND genre = ?`
+  ).bind(sessionId, dev, genre).first<{ rating: number; rd: number; volatility: number; solve_count: number; updated_at: string }>();
 
   if (stored) {
     return Response.json({
@@ -51,8 +53,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // Fallback: derive from the last rating event
   const totalRow = await context.env.STATS_DB.prepare(
     `SELECT COUNT(*) AS n, MIN(created_at) AS first_at FROM rating_events
-     WHERE session_id = ? AND dev = ?`
-  ).bind(sessionId, dev).first<{ n: number; first_at: string | null }>();
+     WHERE session_id = ? AND dev = ? AND genre = ?`
+  ).bind(sessionId, dev, genre).first<{ n: number; first_at: string | null }>();
 
   const totalEvents = totalRow?.n ?? 0;
 
@@ -63,10 +65,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const lastEvent = await context.env.STATS_DB.prepare(
     `SELECT player_rating, player_rd, problem_rating, problem_rd, score, created_at
      FROM rating_events
-     WHERE session_id = ? AND dev = ?
+     WHERE session_id = ? AND dev = ? AND genre = ?
      ORDER BY created_at DESC, problem_id DESC
      LIMIT 1`
-  ).bind(sessionId, dev).first<{
+  ).bind(sessionId, dev, genre).first<{
     player_rating: number;
     player_rd: number;
     problem_rating: number;
