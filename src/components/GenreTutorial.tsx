@@ -139,17 +139,17 @@ export function GenreTutorial({ genre, rated, review, onClose }: GenreTutorialPr
             chips: as separate pills the second ran off both edges of the card,
             and they are one idea anyway. Neither is a step in solving, so
             neither belongs in the numbered list below. */}
-        {rated && (
-          <div className="rounded-[14px] border-2 border-[var(--ink)] bg-emerald-700 text-[var(--surface)] px-4 py-3 mb-4 space-y-1">
-            <p className="text-sm font-extrabold leading-snug">
-              {tutorial.title}s, matched to your rating.
-            </p>
-            <p className="text-xs font-semibold leading-snug">
-              Your rating moves with the result — a clean solve wins, a mistake or a hint loses.
-            </p>
-          </div>
-        )}
+        {/* Rated gets no banner of its own. Everything it said was already known
+            to whoever pressed the Rated button: that the problems are matched to
+            a rating, and that one wrong move or a hint costs it — which is how
+            every puzzle rating anyone has met already behaves. What is left is
+            the part that is actually this genre's: the rules. */}
 
+        {/* Everything about the mode goes in this one block. Split across the
+            dialog it read mode, genre, mode, genre — the schedule explained
+            twice with a helpmate's rules in between. The algorithm's name went
+            with it: naming FSRS tells the player nothing they can act on, and
+            the line under it already says what a clean solve does. */}
         {review && (
           <div className="rounded-[14px] border-2 border-[var(--ink)] bg-emerald-700 text-[var(--surface)] px-4 py-3 mb-4 space-y-1">
             <p className="text-sm font-extrabold leading-snug">
@@ -173,15 +173,6 @@ export function GenreTutorial({ genre, rated, review, onClose }: GenreTutorialPr
             </li>
           ))}
         </ol>
-
-        {review && (
-          <div className="border-t-2 border-[var(--hairline)] pt-3 mb-4">
-            <p className="flex gap-2 text-xs font-medium text-[var(--faint)] leading-snug">
-              <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-[var(--faint)] mt-[0.35rem]" />
-              The schedule uses FSRS, a spaced-repetition model based on the forgetting curve — the better you know a problem, the longer until it returns.
-            </p>
-          </div>
-        )}
 
         {tutorial.general.length > 0 && (
           <div className="border-t-2 border-[var(--hairline)] pt-3 mb-6">
