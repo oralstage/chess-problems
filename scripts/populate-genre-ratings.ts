@@ -6,7 +6,11 @@
  * back as SQL files.
  *
  * Usage:
- *   npx tsx scripts/populate-genre-ratings.ts <genre> [--out scripts/seed]
+ *   npx tsx scripts/populate-genre-ratings.ts <genre> [--dev 0|1] [--out scripts/seed]
+ *
+ * --dev picks which pool of rows to write: 0 is production, 1 is staging. It is
+ * part of problem_ratings' primary key, so getting it wrong writes a second set
+ * of rows rather than overwriting the first.
  * then execute the generated files against the TARGET stats database yourself.
  * This script never writes to a database — it only produces .sql files.
  */
@@ -44,6 +48,14 @@ if (!genre || !['help', 'self', 'study', 'retro'].includes(genre)) {
 // script existed, from a call that passed no solution length; re-running it here
 // would pass one and shift every untouched direct rating.
 
+const devFlag = process.argv.includes('--dev')
+  ? process.argv[process.argv.indexOf('--dev') + 1]
+  : '1';
+if (devFlag !== '0' && devFlag !== '1') {
+  console.error('--dev must be 0 (production) or 1 (staging)');
+  process.exit(1);
+}
+
 const outDir = process.argv.includes('--out')
   ? process.argv[process.argv.indexOf('--out') + 1]
   : 'scripts/seed';
@@ -75,13 +87,13 @@ for (;;) {
   lastId = page[page.length - 1].id;
   process.stdout.write(`\r  read ${rows.length}`);
 }
-console.log(`\n  ${rows.length} ${genre} problems`);
+console.log(`\n  ${rows.length} ${genre} problems (dev=${devFlag})`);
 
 const values = rows.map(r => {
   const rating = Math.round(
     difficultyToRating(r.difficulty_score, r.move_count, r.piece_count, genre, r.sol_len)
   );
-  return `(${r.id},1,${rating},350,0.06,0,'${genre}')`;
+  return `(${r.id},${devFlag},${rating},350,0.06,0,'${genre}')`;
 });
 
 let fileNo = 0;
