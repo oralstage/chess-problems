@@ -76,25 +76,33 @@ async function getProblemRating(problem) {
   }
 }
 
-function postText(problem, date, link, problemRating) {
-  const displayDate = new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(`${date}T00:00:00Z`));
+/* The first two lines are the whole post. Everything the old opening carried —
+   "Daily Chess Problem", the date, "White to play and mate in 2", the rating —
+   is either already in the picture or already in the timestamp, so it spent the
+   only line that gets read in the timeline on a label.
+
+   Line one is the site's own, said by the king who is about to be mated, and it
+   carries the task in the same breath. Line two is the thing a scrolling chess
+   player has to un-learn: the mate puzzles they have met are check sequences
+   almost without exception, so a quiet key is not merely unfamiliar to them, it
+   is outside the search. */
+const MOVE_WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+
+function moveWord(count) {
+  return MOVE_WORDS[count] || String(count);
+}
+
+function postText(problem, link) {
   const composer = Array.isArray(problem.authors) && problem.authors.length
     ? problem.authors.join(', ')
     : '';
   const source = [problem.sourceName, problem.sourceYear].filter(Boolean).join(', ');
   const attribution = [composer, source].filter(Boolean).join(' — ');
-  const approximateRating = Math.round(problemRating.rating / 50) * 50;
 
   return [
-    `Daily Chess Problem — ${displayDate}`,
+    `Checkmate me. In ${moveWord(problem.moveCount)}.`,
+    'No need to start with a check.',
     '',
-    `White to play and mate in ${problem.moveCount}.`,
-    `Problem rating: ~${approximateRating}`,
     attribution,
     '',
     link,
@@ -155,7 +163,7 @@ async function main() {
 
   mkdirSync(outputDir, { recursive: true });
   if (existsSync(oldSvgPath)) unlinkSync(oldSvgPath);
-  writeFileSync(resolve(outputDir, 'post.txt'), `${postText(problem, date, link, problemRating)}\n`);
+  writeFileSync(resolve(outputDir, 'post.txt'), `${postText(problem, link)}\n`);
   writeFileSync(resolve(outputDir, 'link.txt'), `${link}\n`);
   writeFileSync(resolve(outputDir, 'problem.json'), `${JSON.stringify({ date, ...problem, problemRating }, null, 2)}\n`);
   await renderBoard(problem, problemRating, pngPath);
