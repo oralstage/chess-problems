@@ -25,8 +25,20 @@ export function getStipulationColorClasses(stipulation: string, genre: Genre): s
   return `${MOVE_COUNT_BG[mc] ?? 'bg-[var(--mc-x)]'} text-[var(--ink)]`;
 }
 
-export function getStipulationToastClasses(moveCount: number): string {
-  return MOVE_COUNT_BG[moveCount] ?? 'bg-[var(--mc-x)]';
+/* The toast that announces a change of stipulation. It takes the stipulation
+   and the genre rather than a bare move count, because the move-count coding
+   only means anything for direct mates — an h#3 is not a "#3 but helpmate", and
+   painting it in #3's hue would say it is. */
+export function getStipulationToastClasses(stipulation: string, genre: Genre): string {
+  const mc = moveCountOf(stipulation, genre);
+  return mc === null ? 'bg-[var(--mc-2)]' : (MOVE_COUNT_BG[mc] ?? 'bg-[var(--mc-x)]');
+}
+
+/** "Mate in 3" / "Helpmate in 3" / "Selfmate in 3" — what the badge is short for. */
+export function stipulationPhrase(stipulation: string, genre: Genre, moveCount: number): string {
+  const noun = genre === 'help' ? 'Helpmate' : genre === 'self' ? 'Selfmate' : 'Mate';
+  if (genre === 'study' || genre === 'retro') return stipulation;
+  return `${noun} in ${moveCount}`;
 }
 
 export function getStipulationTextColorClasses(stipulation: string, genre: Genre): string {

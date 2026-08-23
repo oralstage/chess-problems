@@ -29,7 +29,7 @@ import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, f
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { Glicko2Rating } from './utils/glicko2';
 import { useReviewQueue } from './hooks/useReviewQueue';
-import { getStipulationToastClasses } from './utils/stipulationColor';
+import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import {
   type RatedDifficulty,
   RATED_DIFFICULTY_OFFSET,
@@ -266,10 +266,14 @@ export default function App() {
   const [reviewProblemQueue, setReviewProblemQueue] = useState<number[]>([]);
   const [reviewQueueIndex, setReviewQueueIndex] = useState(0);
   const [reviewNextInterval, setReviewNextInterval] = useState<number | null>(null);
-  const [stipulationToast, setStipulationToast] = useState<{ label: string; moveCount: number } | null>(null);
+  const [stipulationToast, setStipulationToast] = useState<{ label: string; stipulation: string; genre: Genre } | null>(null);
   const [fetchErrorToast, setFetchErrorToast] = useState<string | null>(null);
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
-  const prevMoveCountRef = useRef<number | null>(null);
+  /* What the last problem asked for, as the badge writes it — "#2", "h#3".
+      Tracking the stipulation rather than the move count is what lets a switch
+      from #2 to h#2 announce itself: the move count is the same, the task is
+      not. */
+  const prevStipulationRef = useRef<string | null>(null);
 
   // Any normal-navigation path (problem list, search, go-to-ID, history) must
   // clear ALL special-mode flags. If e.g. isRatedMode leaks onto a searched
@@ -734,11 +738,7 @@ export default function App() {
     try {
       const data = await fetchRatedProblem(base + offset, g);
       const p = metaToChessProblem(data, data.solutionText);
-      if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
-        setStipulationToast({ label: `Mate in ${data.moveCount}`, moveCount: data.moveCount });
-        setTimeout(() => setStipulationToast(null), 2500);
-      }
-      prevMoveCountRef.current = data.moveCount;
+      announceStipulationRef.current(p);
       loadAndStartProblem(p);
       cacheProblem(p);
       saveRatedProblemSlot(g, d, data);
@@ -756,6 +756,27 @@ export default function App() {
 
   const fetchRatedRef = useRef(fetchAndStartRatedProblem);
   fetchRatedRef.current = fetchAndStartRatedProblem;
+  /* Announce the task. Shown on the first problem after entering a mode — the
+     moment the player is asking "how many moves is this?" and the answer had
+     never been given — and after that only when the stipulation actually
+     changes. Firing on every problem would make it a ritual rather than a
+     signal: ten #2s in a row would say the same thing ten times, over a board
+     the player is already reading. The badge carries it the rest of the time. */
+  const announceStipulation = useCallback((p: { stipulation: string; genre: Genre; moveCount: number }) => {
+    if (prevStipulationRef.current === null || p.stipulation !== prevStipulationRef.current) {
+      setStipulationToast({
+        label: stipulationPhrase(p.stipulation, p.genre, p.moveCount),
+        stipulation: p.stipulation,
+        genre: p.genre,
+      });
+      setTimeout(() => setStipulationToast(null), 2500);
+    }
+    prevStipulationRef.current = p.stipulation;
+  }, []);
+
+  const announceStipulationRef = useRef(announceStipulation);
+  announceStipulationRef.current = announceStipulation;
+
   const loadAndStartProblemRef = useRef(loadAndStartProblem);
   loadAndStartProblemRef.current = loadAndStartProblem;
   const cacheProblemRef = useRef(cacheProblem);
@@ -801,7 +822,7 @@ export default function App() {
       // No longer tracking isSpecificRatedProblem - determined by cache comparison
       fetchProblem(specificProblemId).then(full => {
         const p = metaToChessProblem(full, full.solutionText);
-        prevMoveCountRef.current = p.moveCount;
+        announceStipulationRef.current(p);
         loadAndStartProblemRef.current(p);
         updateHashRef.current(null, full.id, true, undefined, true);
         // Fetch current problem rating from server
@@ -824,7 +845,7 @@ export default function App() {
         const alreadyAttempted = currentProgress[genre]?.[pid] === 'solved' || currentProgress[genre]?.[pid] === 'failed';
         if (!alreadyAttempted) {
           const p = metaToChessProblem(data, data.solutionText);
-          prevMoveCountRef.current = p.moveCount;
+          announceStipulationRef.current(p);
           loadAndStartProblemRef.current(p);
           cacheProblemRef.current(p);
           if (data.problemRating) setLastProblemRating(data.problemRating);
@@ -860,6 +881,7 @@ export default function App() {
     fetchProblem(firstId).then(full => {
       const p = metaToChessProblem(full, full.solutionText);
       setCurrentGenre(p.genre);
+      announceStipulationRef.current(p);
       loadAndStartProblemRef.current(p);
     }).catch(() => { /* ignore */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -877,6 +899,7 @@ export default function App() {
     if (!nextSession) {
       // Queue exhausted — go home
       problem.clearProblem();
+      prevStipulationRef.current = null;
       setView('mode-select');
       setIsReviewMode(false);
       setIsDaily(false);
@@ -890,6 +913,7 @@ export default function App() {
     fetchProblem(nextId).then(full => {
       const p = metaToChessProblem(full, full.solutionText);
       setCurrentGenre(p.genre);
+      announceStipulationRef.current(p);
       loadAndStartProblemRef.current(p);
     }).catch(() => { /* ignore */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -932,11 +956,7 @@ export default function App() {
         const alreadyAttempted = currentProgress[g]?.[pid] === 'solved' || currentProgress[g]?.[pid] === 'failed';
         if (!alreadyAttempted) {
           const p = metaToChessProblem(data, data.solutionText);
-          if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
-            setStipulationToast({ label: `Mate in ${data.moveCount}`, moveCount: data.moveCount });
-            setTimeout(() => setStipulationToast(null), 2500);
-          }
-          prevMoveCountRef.current = data.moveCount;
+          announceStipulationRef.current(p);
           loadAndStartProblemRef.current(p);
           cacheProblemRef.current(p);
           if (data.problemRating) setLastProblemRating(data.problemRating);
@@ -1212,6 +1232,7 @@ export default function App() {
       if (!hash || hash === '#') {
         // Back to home — same reason as goBack: clear before the next open.
         problem.clearProblem();
+        prevStipulationRef.current = null;
         setView('mode-select');
         setCurrentGenre(null);
         setCurrentCategory(null);
@@ -1629,6 +1650,7 @@ export default function App() {
     // goes; which problem to resume lives in localStorage and is untouched, and
     // moves played were never persisted in the first place.
     problem.clearProblem();
+    prevStipulationRef.current = null;
     setView('mode-select');
     setIsDaily(false);
     setIsRatedMode(false);
@@ -2179,7 +2201,12 @@ export default function App() {
               {/* Stipulation change toast */}
               {stipulationToast && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-                  <div className={`text-white text-3xl font-bold px-8 py-4 rounded-2xl animate-stipulation-toast ${getStipulationToastClasses(stipulationToast.moveCount)}`}>
+                  {/* Built like the rest of the page — 4px ink edge, hard shadow,
+                      ink type on the colour — rather than the white-on-flat-fill
+                      pill it used to be, which belonged to the old look. */}
+                  <div
+                    className={`text-[var(--ink)] text-3xl font-extrabold px-8 py-4 border-4 border-[var(--ink)] rounded-[var(--radius-nb)] shadow-[var(--hard)] animate-stipulation-toast ${getStipulationToastClasses(stipulationToast.stipulation, stipulationToast.genre)}`}
+                  >
                     {stipulationToast.label}
                   </div>
                 </div>
