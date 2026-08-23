@@ -50,7 +50,7 @@ const TUTORIALS: Record<Genre, {
   general: string[];
 }> = {
   direct: {
-    title: 'Direct Mate',
+    title: 'Direct mate',
     mark: 'Direct Mates',
     aim: 'White is trying to mate the black king. Black is trying to survive.',
     steps: [

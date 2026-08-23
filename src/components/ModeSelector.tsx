@@ -4,7 +4,6 @@ import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
 import type { RatedGenre } from '../services/api';
-import { difficultyToRating } from '../utils/glicko2';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
 
@@ -29,11 +28,26 @@ interface ModeSelectorProps {
 /* The rated pools, in the order the free-play list already introduces them. The
    mark is the genre's own object with the rating line clipped to its corner, so
    a pool button is recognisably the same object as its free-play row. */
-const RATED_POOLS: { genre: RatedGenre; label: string; mark: string; progressKey: string }[] = [
-  { genre: 'direct', label: 'Direct', mark: 'Rated Direct', progressKey: 'direct' },
-  { genre: 'help', label: 'Help', mark: 'Rated Helpmates', progressKey: 'help' },
-  { genre: 'self', label: 'Self', mark: 'Rated Selfmates', progressKey: 'self' },
+const RATED_POOLS: { genre: RatedGenre; label: string; mark: string; progressKey: string; tint: string }[] = [
+  { genre: 'direct', label: 'Direct\u00a0mate ·\u00a0Rated', mark: 'Rated Direct', progressKey: 'direct', tint: '--card-direct' },
+  { genre: 'help', label: 'Helpmates ·\u00a0Rated', mark: 'Rated Helpmates', progressKey: 'help', tint: '--card-help' },
+  { genre: 'self', label: 'Selfmates ·\u00a0Rated', mark: 'Rated Selfmates', progressKey: 'self', tint: '--card-self' },
 ];
+
+/* "Direct · Rated" — the genre leads and the qualifier follows, which is the
+   form the "?" dialog already uses for its own title. One label at one size,
+   the way the free-play tiles set "Direct mate twomovers": split across two
+   sizes it stops being a name and becomes a name with a caption stuck on it. */
+function PoolRating({ r, className = '' }: { r?: { rating: number; rd: number }; className?: string }) {
+  if (!r) return null;
+  return (
+    /* ~ while the deviation is still wide, on the same threshold FeedbackPanel
+       uses, so the two never disagree. */
+    <span className={`shrink-0 font-extrabold tabular-nums leading-none text-[var(--ink)] text-xl sm:text-2xl ${className}`}>
+      {r.rd > 200 ? '~' : ''}{Math.round(r.rating)}
+    </span>
+  );
+}
 
 // Group categories by their group label
 
@@ -54,11 +68,19 @@ const CARD_WIDE =
 /* Flat list, in reading order. The name carries the genre — "Twomovers" on
    its own does not say whether it is a direct mate or a helpmate — and the
    stipulation rides on the drawing, in the same move-count colour the badge
-   uses on the problem page. */
+   uses on the problem page.
+
+   "Direct" and "mate" are joined by a hard space so the three read alike. Left
+   to itself the twomover broke into three lines while its neighbours took two,
+   and for a reason that runs backwards: a text box is at least as wide as its
+   longest unbreakable word, so "threemovers" (82px) widens its box until
+   "Direct mate" (74px) fits on one line, while the shorter "twomovers" (73px)
+   leaves the box at the 72px on offer and forces a break after "Direct". The
+   odd one out was odd because its last word was too SHORT. */
 const FREE_PLAY: { category: Category; title: string; mark: string; stip?: string; stipVar?: string; tint: string }[] = [
-  { category: 'twomover', title: 'Direct mate twomovers', mark: 'Direct Mates', stip: '#2', stipVar: '--mc-2', tint: '--card-direct' },
-  { category: 'threemover', title: 'Direct mate threemovers', mark: 'Direct Mates', stip: '#3', stipVar: '--mc-3', tint: '--card-direct' },
-  { category: 'moremover', title: 'Direct mate moremovers', mark: 'Direct Mates', stip: '#4+', stipVar: '--mc-4', tint: '--card-direct' },
+  { category: 'twomover', title: 'Direct\u00a0mate twomovers', mark: 'Direct Mates', stip: '#2', stipVar: '--mc-2', tint: '--card-direct' },
+  { category: 'threemover', title: 'Direct\u00a0mate threemovers', mark: 'Direct Mates', stip: '#3', stipVar: '--mc-3', tint: '--card-direct' },
+  { category: 'moremover', title: 'Direct\u00a0mate moremovers', mark: 'Direct Mates', stip: '#4+', stipVar: '--mc-4', tint: '--card-direct' },
   { category: 'help2', title: 'Helpmate in 2', mark: 'Helpmates', stip: 'h#2', stipVar: '--mc-2', tint: '--card-help' },
   { category: 'help3', title: 'Helpmate in 3', mark: 'Helpmates', stip: 'h#3', stipVar: '--mc-3', tint: '--card-help' },
   { category: 'helpmore', title: 'Helpmate in 4+', mark: 'Helpmates', stip: 'h#4+', stipVar: '--mc-4', tint: '--card-help' },
@@ -67,7 +89,7 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
 ];
 
-export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -91,13 +113,25 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
     return () => ro.disconnect();
   }, [dailyProblem]);
 
-  const displayedDailyRating = dailyProblem
-    ? Math.round((dailyProblemRating ?? difficultyToRating(
-        dailyProblem.difficultyScore,
-        dailyProblem.moveCount,
-        dailyProblem.pieceCount,
-      )) / 50) * 50
-    : null;
+  /* Resume this pool's own in-progress problem if it still has one, so leaving
+     the page and coming back does not throw away the position the player was
+     thinking about. */
+  const startPool = (pool: typeof RATED_POOLS[number]) => {
+    if (!onStartRated) return;
+    try {
+      const data = loadRatedProblemSlot<{ id: number }>(pool.genre, loadRatedDifficulty(pool.genre));
+      if (data) {
+        const pid = String(data.id);
+        const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
+        const seen = prog[pool.progressKey]?.[pid];
+        if (seen !== 'solved' && seen !== 'failed') {
+          onStartRated(pool.genre, data.id, true);
+          return;
+        }
+      }
+    } catch { /* fall through to a fresh problem */ }
+    onStartRated(pool.genre);
+  };
 
 
   return (
@@ -229,6 +263,13 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
       </div>
 
       {/* ── Daily Problem ── */}
+      {/* The gap under this card is small and the one under the pools is large,
+          which is the reverse of what it was. The daily and the pools are the
+          same kind of offer — something handed to you without being asked for —
+          and "All problems" is the other kind, the shelf you go to yourself.
+          Even spacing made the page read as three unrelated blocks; this makes
+          it two, and pairs with the pools having no heading of their own while
+          "All problems" keeps one. */}
       {/* Brought onto the sister site's shape. It used to be a caption floating
           on the check, a board plate, and an ink bar welded under it — three
           objects that happened to be stacked. It is one card now: the label is
@@ -245,13 +286,25 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
               <p className="nb-label-key inline-block text-[11px] uppercase tracking-[0.16em] px-3 py-0.5">
                 Today&rsquo;s Problem
               </p>
-              <h2 id="daily-problem-heading" className="mt-2.5 text-2xl font-extrabold tracking-tight text-[var(--ink)]">
-                Mate in {dailyProblem.moveCount}
-              </h2>
-              <p className="mt-0.5 text-xs font-semibold text-[var(--muted)]">
-                {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                {displayedDailyRating != null && ` · Rating ~${displayedDailyRating}`}
-              </p>
+              {/* The date sits on the heading's line rather than under it. It is
+                  not a second fact about the problem, it is which day's problem
+                  this is — a dateline — and a line of its own gave it the weight
+                  of one.
+
+                  The rating is gone. It was the problem's difficulty, while
+                  every other figure on this page is the reader's own rating, and
+                  two unlike numbers in one column is a worse cost than the
+                  little the figure bought: nobody chooses whether to try the
+                  daily, so a difficulty they cannot act on only sets a bar to
+                  fail at. */}
+              <div className="mt-2.5 flex items-baseline justify-between gap-3">
+                <h2 id="daily-problem-heading" className="text-2xl font-extrabold tracking-tight text-[var(--ink)]">
+                  Mate in {dailyProblem.moveCount}
+                </h2>
+                <p className="shrink-0 text-xs font-semibold text-[var(--muted)]">
+                  {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                </p>
+              </div>
             </div>
             <button
               ref={boardSlotRef}
@@ -294,69 +347,71 @@ export function ModeSelector({ onSelectMode, dailyProblem, dailyProblemRating, o
         </section>
       )}
 
-      {/* ── Rated Play ── */}
+      {/* ── Rated pools ── */}
+      {/* No section head. The heading said "Rated", which named the scoring and
+          not the thing the section actually does — hand you one without being
+          asked. That is the page's default, and a default does not need naming;
+          "All problems" below is the marked case, so it is the only one that
+          keeps a heading. The rising-line object went with the heading: this
+          page draws headings as pill + object, and an object with nothing on
+          its left points at nothing. The line survives clipped into each mark.
+
+          Direct is drawn wide and the other two half-size. The three pools are
+          peers mechanically — separate ratings, separate matchmaking — but they
+          are not peers to arrive at: the direct mate is the front door of the
+          whole form and help and self are rooms you reach later. Three equal
+          tiles said the opposite, and said it to exactly the person who cannot
+          tell. Size says it without spending a word, and takes nothing away
+          from anyone who already knows where they are going. */}
       {onStartRated && (
-        <div className="px-4 mb-6">
+        /* Held to the daily card's width and centred under it. The two are the
+           same offer at different cadences — one chosen for you today, one
+           chosen for you whenever you ask — so they read as one column of
+           things that arrive rather than two unrelated blocks. */
+        <div className="px-4 mb-12">
+          {/* The heading is back. Without it each tile had to introduce itself
+              and the short names could not do it — "Help" on its own reads as a
+              support link, not as a helpmate. The names are the full ones now,
+              the same words the free-play tiles use, and the heading says the
+              one thing a name cannot: that this is the row you do not have to
+              choose from. Full width, so its pill starts on the same margin as
+              "All problems" below rather than inset to the daily card's. */}
           <div className="nb-section-head">
-            <h2>Rated</h2>
+            <h2>For you</h2>
             <span className="nb-heading-object" style={{ width: '3.2rem', height: '3rem', transform: 'translateY(-50%) rotate(-5deg)' }} aria-hidden="true">
-              {/* The parcel belonged to "For you". This section is "Rated", and the
-                  thing it is about is the rating — so the object is the same rising
-                  line the three buttons carry in their corner, drawn large. */}
+              {/* The parcel, which is what this heading always had. The rising
+                  line replaced it while the section was called "Rated" and was
+                  about the number; called "For you" it is about the giving, and
+                  the line has gone back to being what it is on the tiles — the
+                  mark of a pool that scores you. */}
               <svg viewBox="0 0 44 44" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-                <rect x="3" y="6" width="38" height="32" rx="3.5" fill="var(--surface)" />
-                <path d="M8 30l9-10 7 5.5 12-14" strokeWidth="4.5" stroke="var(--acid)" />
+                <rect x="4" y="17" width="36" height="22" rx="3" fill="var(--surface)" />
+                <rect x="2" y="12" width="40" height="8" rx="2.5" fill="var(--board-d)" />
+                <path d="M22 12v27" strokeWidth="3.4" />
+                <path d="M22 12c-5 0-9-2-9-5s5-4 9 5c4-7 9-8 9-5s-4 5-9 5z" fill="var(--board-d)" />
               </svg>
             </span>
           </div>
-          {/* One button per pool. They were a single "Rated Mode" card while
-              direct was the only rated genre; three pools cannot share one
-              button because they do not share a rating. */}
+          {/* Three across, all the same size. Drawing direct big and the other
+              two small was tried and put back: the pools are peers — separate
+              ratings, separate matchmaking — and sizing one of them up made the
+              row an opinion about which genre matters rather than a set of
+              three doors. */}
           <div className="grid grid-cols-3 gap-2.5">
-            {RATED_POOLS.map(pool => {
-              const r = ratingsByGenre?.[pool.genre];
-              return (
-                <button
-                  key={pool.genre}
-                  onClick={() => {
-                    // Resume this pool's own in-progress problem if it still has
-                    // one, so leaving the page and coming back does not throw
-                    // away the position the player was thinking about.
-                    try {
-                      const data = loadRatedProblemSlot<{ id: number }>(pool.genre, loadRatedDifficulty(pool.genre));
-                      if (data) {
-                        const pid = String(data.id);
-                        const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-                        const seen = prog[pool.progressKey]?.[pid];
-                        if (seen !== 'solved' && seen !== 'failed') {
-                          onStartRated(pool.genre, data.id, true);
-                          return;
-                        }
-                      }
-                    } catch { /* fall through to a fresh problem */ }
-                    onStartRated(pool.genre);
-                  }}
-                  className={CARD}
-                  /* The board's own light square, and a 4px edge where every
-                     other card on the page has 2px — the weight this design
-                     gives big containers, saying "different kind of object"
-                     without spending a seventh tint on it. */
-                  style={{ backgroundColor: 'var(--board-l)', borderWidth: '4px' }}
-                >
-                  <span className="block w-14 h-14 mx-auto" aria-hidden="true">
-                    <CategoryMark name={pool.mark} />
-                  </span>
-                  <span className={CARD_TITLE}>{pool.label}</span>
-                  {/* ~ while the deviation is still wide, on the same threshold
-                      FeedbackPanel uses, so the two never disagree. */}
-                  {r && (
-                    <span className="shrink-0 font-extrabold tabular-nums leading-none text-[var(--ink)] text-xl sm:text-2xl">
-                      {r.rd > 200 ? '~' : ''}{Math.round(r.rating)}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+            {RATED_POOLS.map(pool => (
+              <button
+                key={pool.genre}
+                onClick={() => startPool(pool)}
+                className={CARD}
+                style={{ backgroundColor: `var(${pool.tint})` }}
+              >
+                <span className="block w-14 h-14 mx-auto" aria-hidden="true">
+                  <CategoryMark name={pool.mark} />
+                </span>
+                <span className={CARD_TITLE}>{pool.label}</span>
+                <PoolRating r={ratingsByGenre?.[pool.genre]} />
+              </button>
+            ))}
           </div>
 
           {/* Hidden until there is a queue: on a first visit it was half the

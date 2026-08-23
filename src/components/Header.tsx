@@ -121,14 +121,14 @@ function PrintMenu({ printMode, onSetPrintMode }: { printMode: PrintMode; onSetP
   );
 }
 
-/* The rated pools go by their short name here, not their full one: the header
-   already carries a back button, a "?", a printer and a menu, and "Direct Mate ·
-   Rated" pushes them off a 375px screen. These match the labels on the home
-   page's three pool buttons, which is where the player just came from. */
+/* The same names the home page's three pool buttons carry, which is where the
+   player just came from. They were the short forms — "Direct", "Help", "Self" —
+   while the buttons were, and the buttons have since gone to the full ones:
+   "Help" on its own reads as a support link rather than as a helpmate. */
 const POOL_NAMES: Partial<Record<Genre, string>> = {
-  direct: 'Direct',
-  help: 'Help',
-  self: 'Self',
+  direct: 'Direct mate',
+  help: 'Helpmates',
+  self: 'Selfmates',
 };
 
 /* What each print mode paints the board's two square colours. Kept beside the
@@ -144,7 +144,7 @@ const SWATCH: Record<PrintMode, { light: string; dark: string }> = {
 };
 
 const GENRE_NAMES: Record<Genre, string> = {
-  direct: 'Direct Mate',
+  direct: 'Direct mate',
   help: 'Helpmate',
   self: 'Selfmate',
   study: 'Study',

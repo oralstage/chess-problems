@@ -68,31 +68,40 @@ const SelfGlyph = (
   </>
 );
 
-/* The genre's own object, with the rating's rising line pinned to its top-right
-   corner. Keeping the object near full size is the point — the button for the
-   direct pool has to read as the target first and as "rated" second. The line is
-   the Rated Mode mark's shape and its acid colour, small enough to sit as a
-   corner badge; it gets a cream plate behind it so it stays legible where it
-   overlaps the drawing. */
+/* The genre's own object at full size, with the rating's rising line on a plate
+   in the bottom-left corner. The button for the direct pool has to read as the
+   target first and as "rated" second, so the drawing keeps its size and the line
+   takes the corner the stipulation takes on a free-play tile. */
 function RatedComposite({ glyph }: { glyph: React.ReactNode }) {
   return (
     <svg {...box}>
-      <g transform="translate(20 25) scale(0.8) translate(-22 -22)">{glyph}</g>
-      {/* No axis under the line: the plate's own bottom edge already reads as
-          one, and drawing both put two parallel rules a pixel apart. Without it
-          the chip stops looking like a framed picture and the line has the room
-          to actually show its rise at 56px, which is the only thing it is here
-          to say — the genre is already named in words on the button. */}
-      <g transform="translate(26 4)">
-        <rect x="-2.5" y="-2.5" width="19" height="15.5" rx="3" fill={CREAM} strokeWidth={1.8} />
-        <path d="M0.5 8.5l4-4 3 2 5.5-6.5" strokeWidth={3} stroke="var(--acid)" />
-      </g>
+      {glyph}
+      <RatedPlate />
     </svg>
+  );
+}
+
+/* The rating plate sits where the stipulation plate sits — bottom-left, same
+   size, same build — so a pool tile and a free-play tile of the same genre
+   differ in one corner and nowhere else. It was a chip in the top-right corner
+   with the drawing shrunk to 0.8 to clear it, which cost the genre's own object
+   its size to make room for the smaller of the two marks. */
+function RatedPlate() {
+  return (
+    <g>
+      <rect x={1.5} y={29.5} width={21} height={13} rx={4} fill={CREAM} strokeWidth={2} />
+      <path d="M5 39l4.5-3 3 1.5 6.5-5" strokeWidth={3} stroke="var(--acid)" />
+    </g>
   );
 }
 
 /* The stipulation is drawn into the mark itself, bottom-left, on a plate in
    its move-count colour so it matches the badge the problem page shows.
+
+   Inset from the box rather than flush with it: a 2-wide stroke on a rect at
+   x=0 puts half its width at x=-1, outside the viewBox, so the left and bottom
+   edges of the plate were being clipped and it read as a plate running off the
+   drawing rather than one sitting on it.
 
    Bottom-left, not bottom-right: every mark that takes one puts its weight on
    the right — the target's disc on Direct Mates, the small gear on Helpmates —
@@ -102,10 +111,10 @@ function Stip({ text }: { text: string }) {
   const w = 6.2 * text.length + 8;
   return (
     <g>
-      <rect x={0} y={30} width={w} height={13} rx={4} fill="var(--stip-bg, var(--surface))" strokeWidth={2} />
+      <rect x={1.5} y={29.5} width={w} height={13} rx={4} fill="var(--stip-bg, var(--surface))" strokeWidth={2} />
       <text
-        x={w / 2}
-        y={39.6}
+        x={1.5 + w / 2}
+        y={39.1}
         textAnchor="middle"
         fill="var(--ink)"
         stroke="none"
