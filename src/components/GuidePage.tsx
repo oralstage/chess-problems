@@ -267,8 +267,8 @@ export function GuidePage({ onClose, focus, fromTutorial, onOpenCategory }: Guid
             <Diagram example={EXAMPLES.help} />
 
             <p className={P}>
-              A helpmate in two: two moves each, four in all, in the order Black, White, Black,
-              White, with White&rsquo;s last move mating the black king.
+              A helpmate in two: two moves each, in the order Black, White, Black, White,
+              with White&rsquo;s last move mating the black king.
             </p>
             <p className={P}>
               White has nothing but a king and a rook here, so those two have to do the whole
