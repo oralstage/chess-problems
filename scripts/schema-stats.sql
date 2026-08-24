@@ -79,3 +79,13 @@ CREATE TABLE IF NOT EXISTS review_state (
 );
 
 CREATE INDEX IF NOT EXISTS idx_review_state_session ON review_state(session_id, dev);
+
+-- Cached /api/stats payloads (problems-table aggregates full-scan ~4M rows,
+-- so they run once per key and are served from here; see functions/api/stats.ts).
+-- Invalidate after a problems import: DELETE FROM stats_cache (or bump
+-- CACHE_VERSION in stats.ts).
+CREATE TABLE IF NOT EXISTS stats_cache (
+  key TEXT PRIMARY KEY,
+  payload TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
