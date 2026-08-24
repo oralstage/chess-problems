@@ -146,11 +146,39 @@ export function defaultRating(): Glicko2Rating {
  *
  * Also accepts difficultyScore as fallback (legacy).
  */
-export function difficultyToRating(difficultyScore: number, moveCount?: number, pieceCount?: number): number {
+/**
+ * Spread apart problems that share a move and piece count.
+ *
+ * difficultyScore carries a solution-length term of its own, but it is capped at
+ * +50, which is far too narrow: inside a single (moveCount, pieceCount) bucket
+ * real solutions run from ~10 to ~2000 characters — a branchy problem and a
+ * one-liner currently land on the exact same rating. A log scale turns that 200x
+ * range into about half a move-step of rating: enough to break the tie, not
+ * enough to overturn the move/piece ordering.
+ */
+function solutionSpread(solutionLength: number | undefined, perDoubling: number, lo: number, hi: number): number {
+  if (!solutionLength || solutionLength <= 0) return 0;
+  return Math.max(lo, Math.min(hi, perDoubling * Math.log2(solutionLength / 200)));
+}
+
+export function difficultyToRating(difficultyScore: number, moveCount?: number, pieceCount?: number, genre?: string, solutionLength?: number): number {
   if (moveCount != null && pieceCount != null) {
-    const solutionComponent = Math.min((difficultyScore - moveCount * 100 - pieceCount * 2) * 5, 50);
-    const rating = 600 + (moveCount - 2) * 300 + pieceCount * 50 + Math.max(0, solutionComponent);
-    return Math.max(600, Math.min(3200, rating));
+    // difficultyScore is built in scripts/fetch-problems.ts as
+    //   genreBase + moveCount*100 + pieceCount*2 + min(solutionLen/10, 50)
+    // so the genre offset has to come off too, or the leftover is >= 500 for
+    // help and >= 1000 for self and the term below pins to its +50 cap.
+    const genreBase = genre === 'help' ? 500 : genre === 'self' ? 1000 : 0;
+    const solutionComponent = Math.min((difficultyScore - genreBase - moveCount * 100 - pieceCount * 2) * 5, 50);
+    // Same weights for every genre: move count and material carry the difficulty,
+    // the solution term only breaks ties between problems that match on both.
+    // Genre averages are left where they fall (self runs high because selfmates in
+    // this collection are simply longer) — the pools are rated separately, so there
+    // is nothing to normalise against.
+    const rating = 600 + (moveCount - 2) * 300 + pieceCount * 50
+      + Math.max(0, solutionComponent) + solutionSpread(solutionLength, 8, -25, 25);
+    // No lower clamp: a floor of 600 collapsed every light #1 onto one value
+    // (3 pieces computed 505 and 4 pieces 555, and both came out 600).
+    return Math.min(3200, rating);
   }
   // Fallback: estimate from difficultyScore alone
   return Math.max(600, Math.min(3200, 700 + (difficultyScore - 200) * 7));

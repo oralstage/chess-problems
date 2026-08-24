@@ -2,13 +2,14 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Chess } from 'chess.js';
 import { useTheme } from './hooks/useTheme';
 import { useLocalStorage } from './hooks/useLocalStorage';
-import { useProblem } from './hooks/useProblem';
+import { useProblem, isUnplayableJokeProblem } from './hooks/useProblem';
 import { useStockfish } from './hooks/useStockfish';
 import { Header } from './components/Header';
 import { ModeSelector } from './components/ModeSelector';
 import { Board } from './components/Board';
 import { getPromotionForMove } from './services/moveInput';
 import { ProblemCard } from './components/ProblemCard';
+import { ThemeTags } from './components/ThemeTags';
 import { FeedbackPanel } from './components/FeedbackPanel';
 import { SolutionTree } from './components/SolutionTree';
 import { GenreTutorial } from './components/GenreTutorial';
@@ -20,14 +21,16 @@ import { RatingSyncModal } from './components/RatingSyncModal';
 import { SearchPage } from './components/SearchPage';
 import { BookmarksPage } from './components/BookmarksPage';
 import { ChangelogPage } from './components/ChangelogPage';
+import { GuidePage } from './components/GuidePage';
 import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
-import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, type SyncReviewCard } from './services/api';
+import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins, extractSolutionNotes } from './services/solutionParser';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, RATED_GENRES, type RatedGenre, type SyncReviewCard } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
+import type { Glicko2Rating } from './utils/glicko2';
 import { useReviewQueue } from './hooks/useReviewQueue';
-import { getStipulationToastClasses } from './utils/stipulationColor';
+import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import {
   type RatedDifficulty,
   RATED_DIFFICULTY_OFFSET,
@@ -35,10 +38,15 @@ import {
   saveRatedDifficulty as saveRatedDifficultyPref,
   loadRatedProblem as loadRatedProblemSlot,
   saveRatedProblem as saveRatedProblemSlot,
-  clearAllRatedProblems,
+  clearRatedProblems,
 } from './utils/ratedDifficulty';
 import type { AppView, Genre, Category, ProblemProgress, ChessProblem, PrintMode } from './types';
 import { CATEGORY_DEFS } from './types';
+
+/** Rows read when opening a category cold, to find the first unsolved problem
+ *  without waiting for the genre index. Wide enough that a visitor who has
+ *  solved the easiest problems in a category still gets a hit in one request. */
+const QUICK_START_PAGE_SIZE = 50;
 
 /**
  * Fix FEN for problems where the solution requires en passant but the FEN
@@ -162,7 +170,7 @@ function useWindowWidth() {
 }
 
 export default function App() {
-  const { theme, toggleTheme } = useTheme();
+  useTheme();
   const [view, setView] = useState<AppView>('mode-select');
   const [isDaily, setIsDaily] = useState(false);
   const [dailyDate, setDailyDate] = useState<string | null>(null); // YYYY-MM-DD
@@ -210,25 +218,60 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<import('./services/api').SearchResult[] | null>(null);
   const [showBookmarksPage, setShowBookmarksPage] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  /* The rules guide, and which genre's section to land on. Opened from the home
+     page card with no focus, and from a "?" dialog with the genre it was showing. */
+  const [guideFocus, setGuideFocus] = useState<Genre | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const openGuide = useCallback((focus?: Genre) => {
+    setGuideFocus(focus ?? null);
+    setShowGuide(true);
+  }, []);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
     direct: [], help: [], self: [], study: [], retro: [],
   });
   const [timestamps, setTimestamps] = useLocalStorage<Record<string, number>>('cp-timestamps', {});
 
-  // Player rating (Glicko-2)
-  const { playerRating, isRated, updateAfterSolve, getProblemInitialRating, restoreRating } = usePlayerRating();
+  // Which rated pool is being played. Each genre keeps its own player rating,
+  // its own problem ratings and its own cache slots — switching is a switch of
+  // game, not a filter over one game.
+  const [ratedGenre, setRatedGenreState] = useState<RatedGenre>(() => {
+    try {
+      const saved = localStorage.getItem('cp-rated-genre');
+      if (saved && (RATED_GENRES as string[]).includes(saved)) return saved as RatedGenre;
+    } catch { /* ignore */ }
+    return 'direct';
+  });
+  const ratedGenreRef = useRef(ratedGenre);
+  ratedGenreRef.current = ratedGenre;
+  const setRatedGenre = useCallback((g: RatedGenre) => {
+    setRatedGenreState(g);
+    ratedGenreRef.current = g;
+    try { localStorage.setItem('cp-rated-genre', g); } catch { /* ignore */ }
+  }, []);
+
+  // Player rating (Glicko-2), for the pool currently selected
+  const { playerRating, ratingsByGenre, isRated, updateAfterSolve, getProblemInitialRating, restoreRating } = usePlayerRating(ratedGenre);
+  const ratingsByGenreRef = useRef(ratingsByGenre);
+  ratingsByGenreRef.current = ratingsByGenre;
   const [lastRatingDelta, setLastRatingDelta] = useState<number | null>(null);
   const [lastProblemRating, setLastProblemRating] = useState<number | null>(null);
   const [problemRatingBefore, setProblemRatingBefore] = useState<number | null>(null);
   const [isRatedMode, setIsRatedMode] = useState(false);
   // Removed isSpecificRatedProblem - now determined by comparing current problem with cache
   const [, setRecentRatedIds] = useState<number[]>([]);
-  const [ratedDifficulty, setRatedDifficultyState] = useState<RatedDifficulty>(() => loadRatedDifficulty());
+  const [ratedDifficulty, setRatedDifficultyState] = useState<RatedDifficulty>(() => loadRatedDifficulty(ratedGenre));
   const ratedDifficultyRef = useRef(ratedDifficulty);
   ratedDifficultyRef.current = ratedDifficulty;
   const setRatedDifficulty = useCallback((d: RatedDifficulty) => {
     setRatedDifficultyState(d);
-    saveRatedDifficultyPref(d);
+    saveRatedDifficultyPref(ratedGenreRef.current, d);
+  }, []);
+  /* Entering a pool restores that pool's own setting. Through the ref as well as
+     state, because the fetch that follows in the same tick reads the ref. */
+  const adoptGenreDifficulty = useCallback((genre: RatedGenre) => {
+    const d = loadRatedDifficulty(genre);
+    ratedDifficultyRef.current = d;
+    setRatedDifficultyState(d);
   }, []);
 
   // Review Mode (spaced repetition)
@@ -239,10 +282,21 @@ export default function App() {
   const [reviewProblemQueue, setReviewProblemQueue] = useState<number[]>([]);
   const [reviewQueueIndex, setReviewQueueIndex] = useState(0);
   const [reviewNextInterval, setReviewNextInterval] = useState<number | null>(null);
-  const [stipulationToast, setStipulationToast] = useState<{ label: string; moveCount: number } | null>(null);
+  const [stipulationToast, setStipulationToast] = useState<{ label: string; stipulation: string; genre: Genre } | null>(null);
   const [fetchErrorToast, setFetchErrorToast] = useState<string | null>(null);
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
-  const prevMoveCountRef = useRef<number | null>(null);
+  /* In Rated Mode the twin buttons stay down until the problem is over.
+     Only a) is the graded problem — solving b) records nothing and moves no
+     rating — so putting every diagram up at once does nothing but ask the
+     player which one they are supposed to be solving. Once a) is answered or
+     given up, the buttons come out and the other twins are free to play.
+     Browsing is untouched: there the buttons are up from the start. */
+  const [twinsRevealed, setTwinsRevealed] = useState(false);
+  /* What the last problem asked for, as the badge writes it — "#2", "h#3".
+      Tracking the stipulation rather than the move count is what lets a switch
+      from #2 to h#2 announce itself: the move count is the same, the task is
+      not. */
+  const prevStipulationRef = useRef<string | null>(null);
 
   // Any normal-navigation path (problem list, search, go-to-ID, history) must
   // clear ALL special-mode flags. If e.g. isRatedMode leaks onto a searched
@@ -395,7 +449,14 @@ export default function App() {
   const filters = useMemo(() => migrateFilters(filtersRaw), [filtersRaw]);
 
   const windowWidth = useWindowWidth();
-  const boardWidth = Math.min(windowWidth < 480 ? windowWidth : windowWidth - 32, 480);
+  // Below sm the sheet drops its side borders and margin (.nb-sheet-bleed), so
+  // the board is exactly the viewport wide. From sm up the sheet keeps its
+  // frame and the board fills the inside of it: 8px of outer margin plus two
+  // 4px ink borders come off. Either way the board row cancels the sheet's own
+  // px-1 with -mx-1, so nothing is left over to clip the a-file label.
+  const boardWidth = windowWidth < 640
+    ? windowWidth
+    : Math.min(windowWidth, 672) - (16 + 8);
 
   const [printMode, setPrintMode] = useState<PrintMode>('off');
   const stockfish = useStockfish();
@@ -403,6 +464,47 @@ export default function App() {
   stockfishRef.current = stockfish;
   const problem = useProblem(stockfish);
   const solveStats = useSolveStats(problem.problem?.id ?? null);
+
+  // A twin other than the diagram the problem arrives with. Everything we
+  // record -- progress, solve events, ratings, statistics -- is filed under the
+  // problem's single ID, which cannot tell a) from b), so those positions are
+  // playable but never recorded. See handleSelectTwin.
+  const isSecondaryTwin = !!activeTwinId
+    && !!problem.problem?.twins?.length
+    && activeTwinId !== problem.problem.twins[0].id;
+
+  // The twin buttons come out once a) is answered or given up. Selecting a twin
+  // puts the solver back into 'solving', so this only ever latches on: without
+  // that, clicking b) would take the buttons away and strand the player there.
+  useEffect(() => {
+    if (problem.status === 'correct' || problem.status === 'viewing') setTwinsRevealed(true);
+  }, [problem.status]);
+
+  // Joke problems whose solution cannot be played here. Nothing the solver does
+  // will be accepted, so say so rather than let the user hunt for a move that
+  // does not exist.
+  const jokeUnplayable = useMemo(
+    () => !!problem.problem && isUnplayableJokeProblem(problem.problem),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [problem.problem?.id, problem.problem?.solutionTree],
+  );
+
+  // Only read once the problem is over: some of these notes say whose move it
+  // is, which is the puzzle itself in a retro. The Solution section they live
+  // in is not rendered before then either.
+  const solutionNotes = useMemo(
+    () => extractSolutionNotes(problem.problem?.solutionText || ''),
+    [problem.problem?.solutionText],
+  );
+
+  const handleSelectTwin = useCallback((id: string) => {
+    const twins = problem.problem?.twins;
+    const twin = twins?.find(t => t.id === id);
+    if (!twins || !twin) return;
+    setActiveTwinId(id);
+    problem.startTwin(twin.fen, twin.solutionTree, id === twins[0].id, twin.firstColor);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem.problem, problem.startTwin]);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisActive, setAnalysisActive] = useState(false);
@@ -423,9 +525,12 @@ export default function App() {
   // Cache current problem in localStorage for instant reload
   const cacheProblem = useCallback((p: ChessProblem) => {
     try {
-      // Store minimal data needed to display immediately (no solutionTree — too large)
-      const { solutionTree, ...rest } = p;
+      // Store minimal data needed to display immediately (no solutionTree — too
+      // large). Twins go too: they are rebuilt from solutionText on restore, and
+      // a cached copy would otherwise pin a stale parse of the twin positions.
+      const { solutionTree, twins, ...rest } = p;
       void solutionTree;
+      void twins;
       localStorage.setItem('cp-cached-problem', JSON.stringify(rest));
     } catch { /* quota exceeded — ignore */ }
   }, []);
@@ -542,6 +647,7 @@ export default function App() {
     setLastProblemRating(null);
     setProblemRatingBefore(null);
     setActiveTwinId(null);
+    setTwinsRevealed(false);
     trackEvent('problem_started', p.id, { genre: p.genre, stipulation: p.stipulation });
     // Show board immediately if solution needs to be fetched.
     // Skip for index stubs (no FEN yet) — an empty board is worse than the
@@ -565,9 +671,9 @@ export default function App() {
     }
     if (rated) {
       if (problemId) {
-        history[method]({ rated: true, problemId }, '', `#/rated/yacpdb/${problemId}`);
+        history[method]({ rated: true, problemId }, '', `#/rated/${ratedGenreRef.current}/yacpdb/${problemId}`);
       } else {
-        history[method]({ rated: true }, '', `#/rated`);
+        history[method]({ rated: true }, '', `#/rated/${ratedGenreRef.current}`);
       }
       return;
     }
@@ -654,31 +760,54 @@ export default function App() {
   const fetchAndStartRatedProblem = useCallback(async (difficulty?: RatedDifficulty) => {
     const d = difficulty ?? ratedDifficultyRef.current;
     const offset = RATED_DIFFICULTY_OFFSET[d];
+    // Both halves of the query have to come from refs. Switching pools sets the
+    // genre through a ref and fetches in the same tick, so a rating read from the
+    // closure is still the pool you just left — asking for direct problems around
+    // a helpmate rating, and landing hundreds of points off.
+    const g = ratedGenreRef.current;
+    const base = ratingsByGenreRef.current[g].rating;
     try {
-      const data = await fetchRatedProblem(playerRating.rating + offset);
+      const data = await fetchRatedProblem(base + offset, g);
       const p = metaToChessProblem(data, data.solutionText);
-      if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
-        setStipulationToast({ label: `Mate in ${data.moveCount}`, moveCount: data.moveCount });
-        setTimeout(() => setStipulationToast(null), 2500);
-      }
-      prevMoveCountRef.current = data.moveCount;
+      announceStipulationRef.current(p);
       loadAndStartProblem(p);
       cacheProblem(p);
-      saveRatedProblemSlot(d, data);
+      saveRatedProblemSlot(g, d, data);
       setLastProblemRating(data.problemRating);
       setRecentRatedIds(prev => [...prev.slice(-49), data.id]);
       updateHash(null, data.id, true, undefined, true);
     } catch (e) {
       const noneInRange = e instanceof Error && e.message === 'no-problems-in-range';
       setFetchErrorToast(noneInRange
-        ? `No problems found near rating ${Math.round(playerRating.rating + offset)}. Try a different difficulty.`
+        ? `No problems found near rating ${Math.round(base + offset)}. Try a different difficulty.`
         : 'Could not load a problem. Check your connection and try again.');
       setTimeout(() => setFetchErrorToast(null), 4000);
     }
-  }, [playerRating.rating, loadAndStartProblem, cacheProblem, updateHash]);
+  }, [loadAndStartProblem, cacheProblem, updateHash]);
 
   const fetchRatedRef = useRef(fetchAndStartRatedProblem);
   fetchRatedRef.current = fetchAndStartRatedProblem;
+  /* Announce the task. Shown on the first problem after entering a mode — the
+     moment the player is asking "how many moves is this?" and the answer had
+     never been given — and after that only when the stipulation actually
+     changes. Firing on every problem would make it a ritual rather than a
+     signal: ten #2s in a row would say the same thing ten times, over a board
+     the player is already reading. The badge carries it the rest of the time. */
+  const announceStipulation = useCallback((p: { stipulation: string; genre: Genre; moveCount: number }) => {
+    if (prevStipulationRef.current === null || p.stipulation !== prevStipulationRef.current) {
+      setStipulationToast({
+        label: stipulationPhrase(p.stipulation, p.genre, p.moveCount),
+        stipulation: p.stipulation,
+        genre: p.genre,
+      });
+      setTimeout(() => setStipulationToast(null), 2500);
+    }
+    prevStipulationRef.current = p.stipulation;
+  }, []);
+
+  const announceStipulationRef = useRef(announceStipulation);
+  announceStipulationRef.current = announceStipulation;
+
   const loadAndStartProblemRef = useRef(loadAndStartProblem);
   loadAndStartProblemRef.current = loadAndStartProblem;
   const cacheProblemRef = useRef(cacheProblem);
@@ -687,7 +816,7 @@ export default function App() {
   updateHashRef.current = updateHash;
 
   const ratedLoadingRef = useRef(false);
-  const handleStartRatedImpl = (specificProblemId?: number, _fromCache?: boolean) => {
+  const handleStartRatedImpl = (genre: RatedGenre = 'direct', specificProblemId?: number, _fromCache?: boolean) => {
     // Prevent double invocation (React StrictMode, popstate race, etc.)
     if (ratedLoadingRef.current) return;
     ratedLoadingRef.current = true;
@@ -697,7 +826,11 @@ export default function App() {
     setIsRatedMode(true);
     setIsReviewMode(false);
     setIsDaily(false);
-    setCurrentGenre('direct');
+    // Set the pool before anything reads it: fetching, caching and the rating
+    // update all key off this, and the ref is what the async paths see.
+    setRatedGenre(genre);
+    adoptGenreDifficulty(genre);
+    setCurrentGenre(genre);
     setCurrentCategory(null);
     setView('solving');
     setRecentRatedIds([]);
@@ -712,7 +845,7 @@ export default function App() {
     const currentHash = window.location.hash;
     const isAlreadyRatedUrl = currentHash.startsWith('#/rated');
     if (!isAlreadyRatedUrl) {
-      window.history.pushState(null, '', '#/rated');
+      window.history.pushState(null, '', `#/rated/${genre}`);
     }
 
     // If a specific problem ID is requested (e.g. from URL or history), load it directly
@@ -721,7 +854,7 @@ export default function App() {
       // No longer tracking isSpecificRatedProblem - determined by cache comparison
       fetchProblem(specificProblemId).then(full => {
         const p = metaToChessProblem(full, full.solutionText);
-        prevMoveCountRef.current = p.moveCount;
+        announceStipulationRef.current(p);
         loadAndStartProblemRef.current(p);
         updateHashRef.current(null, full.id, true, undefined, true);
         // Fetch current problem rating from server
@@ -737,14 +870,14 @@ export default function App() {
 
     // Cache path — read from current difficulty's slot
     try {
-      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(ratedDifficultyRef.current);
+      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(genre, ratedDifficultyRef.current);
       if (data) {
         const pid = String(data.id);
         const currentProgress = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-        const alreadyAttempted = currentProgress.direct?.[pid] === 'solved' || currentProgress.direct?.[pid] === 'failed';
+        const alreadyAttempted = currentProgress[genre]?.[pid] === 'solved' || currentProgress[genre]?.[pid] === 'failed';
         if (!alreadyAttempted) {
           const p = metaToChessProblem(data, data.solutionText);
-          prevMoveCountRef.current = p.moveCount;
+          announceStipulationRef.current(p);
           loadAndStartProblemRef.current(p);
           cacheProblemRef.current(p);
           if (data.problemRating) setLastProblemRating(data.problemRating);
@@ -758,8 +891,8 @@ export default function App() {
   };
   const handleStartRatedRef = useRef(handleStartRatedImpl);
   handleStartRatedRef.current = handleStartRatedImpl;
-  const handleStartRated = useCallback((specificProblemId?: number, fromCache?: boolean) => {
-    handleStartRatedRef.current(specificProblemId, fromCache);
+  const handleStartRated = useCallback((genre: RatedGenre = 'direct', specificProblemId?: number, fromCache?: boolean) => {
+    handleStartRatedRef.current(genre, specificProblemId, fromCache);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -780,6 +913,7 @@ export default function App() {
     fetchProblem(firstId).then(full => {
       const p = metaToChessProblem(full, full.solutionText);
       setCurrentGenre(p.genre);
+      announceStipulationRef.current(p);
       loadAndStartProblemRef.current(p);
     }).catch(() => { /* ignore */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -796,6 +930,8 @@ export default function App() {
 
     if (!nextSession) {
       // Queue exhausted — go home
+      problem.clearProblem();
+      prevStipulationRef.current = null;
       setView('mode-select');
       setIsReviewMode(false);
       setIsDaily(false);
@@ -809,6 +945,7 @@ export default function App() {
     fetchProblem(nextId).then(full => {
       const p = metaToChessProblem(full, full.solutionText);
       setCurrentGenre(p.genre);
+      announceStipulationRef.current(p);
       loadAndStartProblemRef.current(p);
     }).catch(() => { /* ignore */ });
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -817,8 +954,10 @@ export default function App() {
   const handleNextRatedProblem = useCallback(() => {
     if (!problem.problem) return;
     // Clear ALL difficulty slots — rating moved, all cached problems are now stale
-    clearAllRatedProblems();
-    if (problem.status === 'correct' && currentGenre) {
+    // Only this pool's rating moved, so only its slots are stale. The other
+    // pools keep the problem the player was in the middle of.
+    clearRatedProblems(ratedGenreRef.current);
+    if (problem.status === 'correct' && currentGenre && !isSecondaryTwin) {
       const pid = String(problem.problem.id);
       const perfect = problem.wrongMoveCount === 0 && !hintUsedRef.current;
       const newStatus = perfect ? 'solved' as const : 'failed' as const;
@@ -841,18 +980,15 @@ export default function App() {
     if (d === ratedDifficultyRef.current) return;
     setRatedDifficulty(d);
     try {
-      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(d);
+      const data = loadRatedProblemSlot<import('./services/api').RatedProblemResponse>(ratedGenreRef.current, d);
       if (data) {
         const pid = String(data.id);
         const currentProgress = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-        const alreadyAttempted = currentProgress.direct?.[pid] === 'solved' || currentProgress.direct?.[pid] === 'failed';
+        const g = ratedGenreRef.current;
+        const alreadyAttempted = currentProgress[g]?.[pid] === 'solved' || currentProgress[g]?.[pid] === 'failed';
         if (!alreadyAttempted) {
           const p = metaToChessProblem(data, data.solutionText);
-          if (prevMoveCountRef.current != null && data.moveCount !== prevMoveCountRef.current) {
-            setStipulationToast({ label: `Mate in ${data.moveCount}`, moveCount: data.moveCount });
-            setTimeout(() => setStipulationToast(null), 2500);
-          }
-          prevMoveCountRef.current = data.moveCount;
+          announceStipulationRef.current(p);
           loadAndStartProblemRef.current(p);
           cacheProblemRef.current(p);
           if (data.problemRating) setLastProblemRating(data.problemRating);
@@ -1005,18 +1141,17 @@ export default function App() {
     for (const def of CATEGORY_DEFS) {
       if (def.minMoves != null) {
         // Direct subcategories: count by moveCount.
-        // genreLoaded flips true when the lightweight INDEX loads, but the
-        // full genreData loads separately in the background (and with ~400k
-        // direct problems it often hasn't finished) — counting an empty
-        // genreData yields 0, which made ModeSelector hide the whole
-        // Direct Mates group. Only count locally when data is really there.
-        if (genreLoaded[def.genre] && genreData[def.genre].length > 0) {
-          counts[def.category] = genreData[def.genre].filter(p => {
-            if (def.maxMoves === 0) return p.moveCount >= def.minMoves!;
-            return p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!;
-          }).length;
-        } else if (apiMoveCounts[def.genre]) {
-          // Use API move counts for accurate numbers
+        //
+        // The API counts the whole table, so it is preferred over anything
+        // local. Counting genreData first was wrong in a way that only showed
+        // up mid-load: genreLoaded flips true when the lightweight INDEX
+        // arrives while the full genreData streams in behind it, and with
+        // ~400k direct problems "some rows have arrived" is the normal state
+        // for a long time. Those rows are not a random sample either — the
+        // first pages are all #2 — so Twomovers showed a fraction of its real
+        // count and Threemovers and Moremovers came out at 0, which the
+        // `total === 0` guard in ModeSelector then hid entirely.
+        if (apiMoveCounts[def.genre]) {
           let total = 0;
           for (const [mc, cnt] of Object.entries(apiMoveCounts[def.genre])) {
             const m = parseInt(mc);
@@ -1024,13 +1159,20 @@ export default function App() {
             else { if (m >= def.minMoves! && m <= def.maxMoves!) total += cnt; }
           }
           counts[def.category] = total;
+        } else if (genreLoaded[def.genre] && genreData[def.genre].length > 0) {
+          counts[def.category] = genreData[def.genre].filter(p => {
+            if (def.maxMoves === 0) return p.moveCount >= def.minMoves!;
+            return p.moveCount >= def.minMoves! && p.moveCount <= def.maxMoves!;
+          }).length;
         } else {
           // Fallback estimates
           const est: Record<string, number> = { onemover: 350, twomover: 36000, threemover: 11000, moremover: 5800 };
           counts[def.category] = est[def.category] || 0;
         }
       } else {
-        counts[def.category] = genreLoaded[def.genre] ? genreIndex[def.genre].length : (apiCounts[def.genre] || ESTIMATED_COUNTS[def.genre]);
+        // Same order for the whole-genre rows: the API total beats a local
+        // index that may still be arriving.
+        counts[def.category] = apiCounts[def.genre] || (genreLoaded[def.genre] ? genreIndex[def.genre].length : ESTIMATED_COUNTS[def.genre]);
       }
     }
     return counts;
@@ -1120,7 +1262,9 @@ export default function App() {
     const handlePopState = () => {
       const hash = window.location.hash;
       if (!hash || hash === '#') {
-        // Back to home
+        // Back to home — same reason as goBack: clear before the next open.
+        problem.clearProblem();
+        prevStipulationRef.current = null;
         setView('mode-select');
         setCurrentGenre(null);
         setCurrentCategory(null);
@@ -1132,16 +1276,18 @@ export default function App() {
         setShowProblemInfo(false);
         return;
       }
-      // Rated mode hash: #/rated/yacpdb/123 (with specific ID only)
+      // Rated mode hash: #/rated/{genre}/yacpdb/123 (with specific ID only).
+      // The genre segment is optional — links shared before the pools were split
+      // have none, and everything rated back then was direct.
       // #/rated without ID is handled by the Rated Mode button click, not popstate
-      const ratedMatch = hash.match(/^#\/rated\/yacpdb\/(\d+)$/);
+      const ratedMatch = hash.match(/^#\/rated(?:\/(direct|self|help))?\/yacpdb\/(\d+)$/);
       if (ratedMatch) {
-        const ratedProblemId = parseInt(ratedMatch[1]);
-        handleStartRated(ratedProblemId);
+        const ratedProblemId = parseInt(ratedMatch[2]);
+        handleStartRated((ratedMatch[1] as RatedGenre) || 'direct', ratedProblemId);
         return;
       }
       // #/rated without ID - just set rated mode view without fetching new problem
-      if (hash === '#/rated') {
+      if (/^#\/rated(\/(direct|self|help))?$/.test(hash)) {
         setIsRatedMode(true);
         setIsReviewMode(false);
         setIsDaily(false);
@@ -1234,11 +1380,11 @@ export default function App() {
       setView('mode-select');
       return;
     }
-    // Rated mode hash: #/rated or #/rated/yacpdb/123
-    const ratedMatch = hash.match(/^#\/rated(\/yacpdb\/(\d+))?$/);
+    // Rated mode hash: #/rated/{genre} or #/rated/{genre}/yacpdb/123
+    const ratedMatch = hash.match(/^#\/rated(?:\/(direct|self|help))?(?:\/yacpdb\/(\d+))?$/);
     if (ratedMatch) {
       const ratedProblemId = ratedMatch[2] ? parseInt(ratedMatch[2]) : undefined;
-      handleStartRated(ratedProblemId);
+      handleStartRated((ratedMatch[1] as RatedGenre) || 'direct', ratedProblemId);
       return;
     }
     // Daily problem hash: #/daily/YYYY-MM-DD
@@ -1442,8 +1588,31 @@ export default function App() {
           updateHash(category, quickProblem.id);
           quickStarted = true;
         } else {
-          // No saved unsolved problem — load genre index to find first unsolved
-          // Don't quick-start with API first page, as it may return a solved problem
+          // No saved unsolved problem. The genre index is the wrong tool for
+          // this: it is one row per problem for the WHOLE genre (direct is
+          // ~398k rows / 13MB, and it carries no move count, so opening
+          // Twomovers pulled #1..#100 as well) and the first visit blocked on
+          // it for ~5s just to answer "which is the first unsolved one".
+          // Ask the API that question instead — one page, in this category's
+          // own move range, on the same difficulty sort the index uses, so the
+          // problem chosen here is the same one the index would have chosen.
+          // The page is read past the first row because a returning visitor
+          // may have solved the leaders; a first-time visitor takes row 0.
+          const filters: Record<string, string> = {};
+          if (def.minMoves) filters.minMoves = String(def.minMoves);
+          if (def.maxMoves) filters.maxMoves = String(def.maxMoves);
+          const { problems: firstPage } = await fetchProblemsPage(genre, 0, QUICK_START_PAGE_SIZE, filters);
+          const fresh = firstPage.find(m => !genreProgress[String(m.id)]);
+          if (fresh) {
+            // Metadata only — no solutionText. loadAndStartProblem paints the
+            // board from the FEN straight away and ensureSolution fills the
+            // solution in behind it, so the board is up after this one request.
+            const quickProblem = metaToChessProblem(fresh);
+            updateHash(category, quickProblem.id);
+            loadAndStartProblem(quickProblem).then(() => cacheProblem(quickProblem));
+            quickStarted = true;
+          }
+          // Nobody unsolved in the first page — fall through to the full index.
         }
       } catch { /* quick-start failed — will fall through to full load below */ }
 
@@ -1506,6 +1675,14 @@ export default function App() {
   }, [currentGenre, setSeenTutorials]);
 
   const goBack = useCallback(() => {
+    // Drop the problem on the way out, not on the way back in. Opening anything
+    // from home starts with a network round trip, and until it lands the board,
+    // the number and the author are still the last problem's — so the previous
+    // position sits there for a beat and then swaps under you. Only React state
+    // goes; which problem to resume lives in localStorage and is untouched, and
+    // moves played were never persisted in the first place.
+    problem.clearProblem();
+    prevStipulationRef.current = null;
     setView('mode-select');
     setIsDaily(false);
     setIsRatedMode(false);
@@ -1514,7 +1691,7 @@ export default function App() {
     setCurrentGenre(null);
     setCurrentCategory(null);
     updateHash(null, null, false);
-  }, [updateHash, setCurrentCategory]);
+  }, [updateHash, setCurrentCategory, problem]);
 
 
   const SITE_OPEN_DATE = '2026-03-15';
@@ -1598,6 +1775,29 @@ export default function App() {
     }
   }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, exitSpecialModes, categoryFromGenreProblem, setCurrentCategory]);
 
+  /* Open one problem by its YACPDB id, whatever genre it turns out to be. Used
+     by the hamburger's Go to ID and by the guide's worked examples — both hand
+     over a bare number and expect to land on that board. */
+  const openProblemById = useCallback(async (id: number) => {
+    try {
+      const full = await fetchProblem(id);
+      const p = metaToChessProblem(full, full.solutionText);
+      const genre = p.genre as Genre;
+      const cat = categoryFromGenreProblem(genre, p.moveCount);
+      exitSpecialModes();
+      setCurrentGenre(genre);
+      setCurrentCategory(cat);
+      setView('solving');
+      loadAndStartProblem(p);
+      cacheProblem(p);
+      setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
+      updateHash(cat, p.id);
+      loadGenre(genre);
+    } catch {
+      // Problem not found — ignore silently
+    }
+  }, [categoryFromGenreProblem, exitSpecialModes, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, loadGenre, setCurrentCategory]);
+
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
     // react-chessboard passes the chosen piece (e.g. 'wN') after its
     // promotion dialog. Only attach promotion data when the source is a pawn;
@@ -1617,7 +1817,7 @@ export default function App() {
   }, [currentGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, exitSpecialModes]);
 
   const handleGiveUp = useCallback(() => {
-    if (currentGenre && problem.problem) {
+    if (currentGenre && problem.problem && !isSecondaryTwin) {
       const pid = String(problem.problem.id);
       setProgress(prev => {
         const genreProgress = prev[currentGenre] || {};
@@ -1672,13 +1872,14 @@ export default function App() {
           playerRating: playerRating.rating,
           playerRd: playerRating.rd,
           playerVol: playerRating.vol,
+          genre: ratedGenreRef.current,
         }).then(res => {
           if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
         });
       }
     }
     problem.showSolution();
-  }, [currentGenre, problem, setProgress, setTimestamps, isRatedMode, isRated, getProblemInitialRating, updateAfterSolve, playerRating]);
+  }, [currentGenre, problem, setProgress, setTimestamps, isRatedMode, isRated, getProblemInitialRating, updateAfterSolve, playerRating, isSecondaryTwin]);
 
   // Fetch a random problem via API (used when genre data hasn't loaded yet)
   const fetchRandomFromApi = useCallback(async () => {
@@ -1824,7 +2025,7 @@ export default function App() {
   // makes the recording once-per-solve (it resets when status returns to
   // 'solving'), which also stops duplicate problem_solved analytics.
   useEffect(() => {
-    if (problem.status === 'correct' && problem.problem) {
+    if (problem.status === 'correct' && problem.problem && !isSecondaryTwin) {
       if (recordedSolveRef.current === problem.problem.id) return;
       recordedSolveRef.current = problem.problem.id;
       const genre = problem.problem.genre as Genre;
@@ -1885,6 +2086,7 @@ export default function App() {
           playerRating: playerRating.rating,
           playerRd: playerRating.rd,
           playerVol: playerRating.vol,
+          genre: ratedGenreRef.current,
         }).then(res => {
           if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
         });
@@ -1893,12 +2095,12 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.status, problem.problem, setProgress, setTimestamps, problem.moveHistory]);
 
-  // Fetch a live problem rating only when it is needed. Rated/review modes need
-  // it immediately; ordinary browsing waits until Info is opened or the solve
-  // ends, avoiding an extra request for every problem a user flips past.
+  // Fetch a live problem rating only when it is needed: rated/review modes, or
+  // Info on a direct mate. Only direct mates are in problem_ratings at all, so
+  // asking for any other genre is a guaranteed 404.
   useEffect(() => {
-    const shouldFetch = isRatedMode || isReviewMode || showProblemInfo || problem.status !== 'solving';
-    if (shouldFetch && problem.problem && lastProblemRating == null) {
+    const shouldFetch = isRatedMode || isReviewMode || showProblemInfo;
+    if (shouldFetch && problem.problem?.genre === 'direct' && lastProblemRating == null) {
       let cancelled = false;
       fetchProblemRating(problem.problem.id).then(res => {
         if (!cancelled) setLastProblemRating(res.rating);
@@ -1921,7 +2123,7 @@ export default function App() {
 
   // Lock rating on first wrong move in rated mode
   useEffect(() => {
-    if (isRatedMode && problem.wrongMoveCount === 1 && problem.problem && !isRated(problem.problem.id)) {
+    if (isRatedMode && !isSecondaryTwin && problem.wrongMoveCount === 1 && problem.problem && !isRated(problem.problem.id)) {
       const serverRating = lastProblemRating;
       const probRating = serverRating
         ? { rating: serverRating, rd: 350 }
@@ -1936,6 +2138,7 @@ export default function App() {
         playerRating: playerRating.rating,
         playerRd: playerRating.rd,
         playerVol: playerRating.vol,
+        genre: ratedGenreRef.current,
       }).then(res => {
         if (res?.problemRating) setLastProblemRating(res.problemRating.rating);
       });
@@ -1952,11 +2155,11 @@ export default function App() {
       : [];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
-      <div className="max-w-2xl mx-auto">
+    <div className={`min-h-screen ${view === 'solving' ? 'nb-fine' : ''}`}>
+      <div className={view === 'solving'
+        ? 'nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-14 overflow-hidden'
+        : 'max-w-2xl mx-auto'}>
         <Header
-          theme={theme}
-          onToggleTheme={toggleTheme}
           view={view}
           currentGenre={currentGenre}
           onBack={goBack}
@@ -1979,7 +2182,7 @@ export default function App() {
           onSetPrintMode={view === 'solving' ? setPrintMode : undefined}
         />
 
-        <main className="px-4 pb-8">
+        <main className={view === 'solving' ? 'px-4 pb-1' : 'px-4 pb-8'}>
 
           {view === 'mode-select' && (
               <ModeSelector
@@ -1991,19 +2194,19 @@ export default function App() {
                 onSolveDaily={handleSolveDaily}
                 dailySolved={dailySolved}
                 onShowChangelog={() => setShowChangelog(true)}
+                onShowGuide={() => openGuide()}
                 onStartRated={handleStartRated}
                 onStartReview={handleStartReview}
                 reviewDueCount={reviewQueue.dueCount}
                 reviewTotalCount={reviewQueue.totalCount}
-                playerRating={playerRating.rating}
-                playerRd={playerRating.rd}
+                ratingsByGenre={ratingsByGenre}
               />
           )}
 
           {/* Top-level fetch error toast (shown even during loading state) */}
           {fetchErrorToast && (
             <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-              <div className="bg-red-600/95 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-lg max-w-sm text-center">
+              <div className="bg-[var(--bad)] text-white text-sm font-medium px-4 py-2 rounded-lg shadow-lg max-w-sm text-center">
                 {fetchErrorToast}
               </div>
             </div>
@@ -2042,7 +2245,7 @@ export default function App() {
             <div className="space-y-4">
               {isDaily && dailyDate && (
                 <div className="text-center">
-                  <span className="text-xs font-semibold tracking-wider text-green-600 dark:text-green-400 uppercase">
+                  <span className="nb-label-key inline-block text-sm tracking-[0.14em] uppercase px-3 py-1">
                     Daily Problem — {(() => {
                       const [y, m, d] = dailyDate.split('-').map(Number);
                       return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -2054,7 +2257,12 @@ export default function App() {
               {/* Stipulation change toast */}
               {stipulationToast && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
-                  <div className={`text-white text-3xl font-bold px-8 py-4 rounded-2xl animate-stipulation-toast ${getStipulationToastClasses(stipulationToast.moveCount)}`}>
+                  {/* Built like the rest of the page — 4px ink edge, hard shadow,
+                      ink type on the colour — rather than the white-on-flat-fill
+                      pill it used to be, which belonged to the old look. */}
+                  <div
+                    className={`text-[var(--ink)] text-3xl font-extrabold px-8 py-4 border-4 border-[var(--ink)] rounded-[var(--radius-nb)] shadow-[var(--hard)] animate-stipulation-toast ${getStipulationToastClasses(stipulationToast.stipulation, stipulationToast.genre)}`}
+                  >
                     {stipulationToast.label}
                   </div>
                 </div>
@@ -2065,29 +2273,35 @@ export default function App() {
                   <button
                     onClick={isDaily ? handlePrevDaily : () => handleNavProblem(-1)}
                     disabled={isDaily ? !canGoPrevDaily : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) <= 0)}
-                    className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors shrink-0"
+                    className="nb-icon p-1.5 shrink-0"
                     title={isDaily ? "Previous day" : "Previous problem"}
                   >
-                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                    {/* A solid triangle, not the thin chevron the playback bar
+                        uses: this button carries no frame of its own, so the
+                        glyph has to hold the weight the rest of the header
+                        holds with ink. */}
+                    <svg className="w-5 h-5" fill="currentColor" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" viewBox="0 0 20 20">
+                      <path d="M12.5 4.5 6.5 10l6 5.5z" />
                     </svg>
                   </button>
                   )}
                   <ProblemCard
                     problem={problem.problem}
                     problemNumber={problem.problem!.id}
-                    genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[currentGenre || 'direct'] || 'D'}
-                    showThemes={problem.status === 'correct' || problem.status === 'viewing'}
+                    /* From the problem itself, not from currentGenre: Review Mode
+                       and Rated pools serve problems the current genre does not
+                       describe, and the prefix would name the wrong one. */
+                    genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[problem.problem.genre || currentGenre || 'direct'] || 'D'}
                   />
                   {!isRatedMode && (
                   <button
                     onClick={isDaily ? handleNextDaily : () => handleNavProblem(1)}
                     disabled={isDaily ? isToday : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) >= filteredProblems.length - 1)}
-                    className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-20 transition-colors shrink-0"
+                    className="nb-icon p-1.5 shrink-0"
                     title={isDaily ? "Next day" : "Next problem"}
                   >
-                    <svg className="w-5 h-5 text-gray-600 dark:text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                    <svg className="w-5 h-5" fill="currentColor" stroke="currentColor" strokeWidth={2} strokeLinejoin="round" viewBox="0 0 20 20">
+                      <path d="M7.5 4.5 13.5 10l-6 5.5z" />
                     </svg>
                   </button>
                   )}
@@ -2097,7 +2311,7 @@ export default function App() {
                   className="p-1.5 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors shrink-0 ml-1"
                   title={isBookmarked ? 'Remove bookmark' : 'Bookmark'}
                 >
-                  <svg className={`w-5 h-5 ${isBookmarked ? 'text-yellow-500' : 'text-gray-400 dark:text-gray-500'}`}
+                  <svg className={`w-5 h-5 ${isBookmarked ? 'text-[var(--acid)]' : 'text-gray-400 dark:text-gray-500'}`}
                     viewBox="0 0 24 24" fill={isBookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round"
                       d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
@@ -2120,11 +2334,11 @@ export default function App() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 13h4v8H3zM10 9h4v12h-4zM17 5h4v16h-4z" />
                     </svg>
                     {solveStats.uniqueSolvers > 0 ? (
-                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                      <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-[var(--bad)] text-white text-[10px] font-bold flex items-center justify-center leading-none">
                         {solveStats.uniqueSolvers}
                       </span>
                     ) : (
-                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-500" />
+                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-[var(--bad)]" />
                     )}
                   </button>
                 )}
@@ -2189,8 +2403,8 @@ export default function App() {
                 />
               )}
 
-              <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 pb-1">
-              <div className="flex justify-center -mx-4 sm:mx-0">
+              <div className="sticky top-0 z-10 bg-[var(--surface)] pb-1">
+              <div className="flex justify-center -mx-1">
                 <Board
                   key={`${problem.problem?.id ?? 'loading'}:${problem.initialFen}`}
                   fen={problem.fen}
@@ -2214,20 +2428,20 @@ export default function App() {
                   <button
                     onClick={problem.playbackFirst}
                     disabled={problem.playback.moveIndex <= -1 && !problem.playback.exploring}
-                    className="w-10 h-10 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
+                    className="nb-icon w-10 h-10"
                     title="First (Home)"
                   >
-                    <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" />
                     </svg>
                   </button>
                   <button
                     onClick={problem.playbackPrev}
                     disabled={problem.playback.moveIndex <= -1 && !problem.playback.exploring}
-                    className="w-10 h-10 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
+                    className="nb-icon w-10 h-10"
                     title="Previous (←)"
                   >
-                    <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                     </svg>
                   </button>
@@ -2237,20 +2451,20 @@ export default function App() {
                   <button
                     onClick={problem.playbackNext}
                     disabled={problem.playback.moveIndex >= problem.playback.positions.length - 2 && !problem.playback.exploring}
-                    className="w-10 h-10 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
+                    className="nb-icon w-10 h-10"
                     title="Next (→)"
                   >
-                    <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>
                   </button>
                   <button
                     onClick={problem.playbackLast}
                     disabled={problem.playback.moveIndex >= problem.playback.positions.length - 2 && !problem.playback.exploring}
-                    className="w-10 h-10 flex items-center justify-center rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-30 transition-colors"
+                    className="nb-icon w-10 h-10"
                     title="Last (End)"
                   >
-                    <svg className="w-5 h-5 text-gray-700 dark:text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M4.293 15.707a1 1 0 010-1.414L8.586 10 4.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0zm6 0a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" />
                     </svg>
                   </button>
@@ -2258,17 +2472,55 @@ export default function App() {
               )}
               </div>
 
+              {/* Twin selector. Twins are separate positions with separate
+                  solutions, so each one is played in its own right -- the
+                  buttons stay up while solving, not just in the solution.
+                  Rated Mode is the exception: see twinsRevealed. */}
+              {problem.problem.twins && problem.problem.twins.length >= 2 && printMode === 'off'
+                && (!isRatedMode || twinsRevealed) && (
+                <div className="flex items-center gap-1 flex-wrap mb-2">
+                  {problem.problem.twins.map(twin => {
+                    const active = (activeTwinId ?? problem.problem!.twins![0].id) === twin.id;
+                    return (
+                      <button
+                        key={twin.id}
+                        onClick={() => handleSelectTwin(twin.id)}
+                        className={`nb-chip px-2.5 py-1 text-xs ${active ? 'nb-btn-key' : ''}`}
+                        title={twin.label}
+                      >
+                        {twin.id})
+                      </button>
+                    );
+                  })}
+                  <span className="text-xs text-[var(--faint)] ml-1 truncate">
+                    {(problem.problem.twins.find(t => t.id === (activeTwinId ?? problem.problem!.twins![0].id))?.label || '').replace(/^[a-z]\)\s*/, '')}
+                  </span>
+                </div>
+              )}
+
+              {jokeUnplayable && (
+                <div className="nb-panel nb-tile-bad px-3 py-2.5 mb-2">
+                  <p className="text-sm font-extrabold">Joke problem — it cannot be played here</p>
+                  <p className="text-xs mt-1 leading-snug">
+                    The solution needs a move normal chess does not allow: promoting to a
+                    king or to the opponent's colour, turning the board around, taking a
+                    piece off first. Press Give Up to see it.
+                  </p>
+                </div>
+              )}
+
               <FeedbackPanel
                 status={problem.status}
                 feedback={problem.feedback}
                 moveHistory={problem.moveHistory}
+                waitingForAutoPlay={problem.waitingForAutoPlay}
                 hintActive={!!problem.hintSquares}
                 solutionLoading={!problem.problem?.solutionText && (problem.problem?.solutionTree?.length ?? 0) === 0}
                 onReset={() => { problem.resetProblem(); setLastRatingDelta(null); analysisActiveRef.current = false; setAnalysisActive(false); setAnalysisResult(null); setAnalysisArrow(null); setAnalyzing(false); }}
                 onShowSolution={handleGiveUp}
                 onNextProblem={isDaily ? undefined : isReviewMode ? (problem.status !== 'solving' ? handleReviewNext : undefined) : isRatedMode ? (problem.status !== 'solving' ? (() => {
                   // Show "Next" only if current problem IS the cached rated problem at current difficulty
-                  const cached = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
+                  const cached = loadRatedProblemSlot<{ id: number }>(ratedGenre, ratedDifficulty);
                   if (cached && cached.id === problem.problem?.id) return handleNextRatedProblem;
                   return undefined;
                 })() : undefined) : handleNextProblem}
@@ -2277,16 +2529,16 @@ export default function App() {
                   // problem at current difficulty — including when no slot is cached
                   // at all (fresh device opening #/rated/yacpdb/{id}), otherwise the
                   // user gets neither Next nor Back to Rated after solving
-                  const cached = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
+                  const cached = loadRatedProblemSlot<{ id: number }>(ratedGenre, ratedDifficulty);
                   return !cached || cached.id !== problem.problem?.id;
                 })() ? () => {
-                  const data = loadRatedProblemSlot<{ id: number }>(ratedDifficulty);
+                  const data = loadRatedProblemSlot<{ id: number }>(ratedGenre, ratedDifficulty);
                   if (data) {
                     const pid = String(data.id);
                     try {
                       const prog = JSON.parse(localStorage.getItem('cp-progress') || '{}');
-                      if (prog.direct?.[pid] !== 'solved' && prog.direct?.[pid] !== 'failed') {
-                        handleStartRated(data.id, true);
+                      if (prog[ratedGenre]?.[pid] !== 'solved' && prog[ratedGenre]?.[pid] !== 'failed') {
+                        handleStartRated(ratedGenre, data.id, true);
                         return;
                       }
                     } catch {}
@@ -2312,6 +2564,7 @@ export default function App() {
                 problemRating={lastProblemRating ?? (problem.problem ? getProblemInitialRating(problem.problem.difficultyScore, problem.problem.moveCount, problem.problem.pieceCount).rating : undefined)}
                 problemRatingDelta={isRatedMode && problemRatingBefore != null && lastProblemRating != null ? Math.round(lastProblemRating - problemRatingBefore) : undefined}
                 hideHintUntilWrong={isRatedMode || isReviewMode}
+                hideHint={jokeUnplayable}
                 wrongMoveCount={problem.wrongMoveCount}
                 reviewNextDays={isReviewMode && reviewNextInterval != null ? reviewNextInterval : undefined}
                 classicBoard={printMode !== 'off'}
@@ -2327,16 +2580,20 @@ export default function App() {
                 const isIllegal = st.includes('{(illegal');
                 if (!isBlack && !isIllegal) return null;
                 return (
-                  <p className="text-xs font-semibold text-red-600 dark:text-red-400">
+                  <p className="text-xs font-semibold text-[var(--bad)] dark:text-[var(--bad)]">
                     {isIllegal ? "White's move is illegal — it's Black's turn." : 'Black to move'}
                   </p>
                 );
               })()}
 
               {(problem.status === 'correct' || problem.status === 'viewing') && problem.problem.keywords?.includes('Shortmate') && (
-                <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                <p className="text-xs font-semibold text-[var(--ink)] dark:text-[var(--ink)]">
                   This is a known flawed problem ("shortmate"): mate is possible in fewer moves than the stipulation.
                 </p>
+              )}
+
+              {(problem.status === 'correct' || problem.status === 'viewing') && (
+                <ThemeTags keywords={problem.problem.keywords} />
               )}
 
               {(problem.status === 'correct' || problem.status === 'viewing') && (
@@ -2354,16 +2611,8 @@ export default function App() {
                   onNext={problem.playbackNext}
                   onLast={problem.playbackLast}
                   onExplore={problem.playbackExplore}
-                  twins={problem.problem.twins}
-                  activeTwinId={activeTwinId || (problem.problem.twins?.[0]?.id)}
-                  onSelectTwin={(id) => {
-                    setActiveTwinId(id);
-                    const twin = problem.problem?.twins?.find(t => t.id === id);
-                    if (twin) {
-                      problem.switchTwinPlayback(twin.fen, twin.solutionTree);
-                    }
-                  }}
                   isCooked={problem.problem.keywords?.includes('Cooked')}
+                  notes={solutionNotes}
                 />
               )}
             </div>
@@ -2378,62 +2627,21 @@ export default function App() {
       </div>
 
       {showTutorial && currentGenre && !isRatedMode && !isReviewMode && (
-        <GenreTutorial genre={currentGenre} onClose={closeTutorial} />
+        <GenreTutorial genre={currentGenre} onOpenGuide={() => openGuide(currentGenre)} onClose={closeTutorial} />
       )}
 
       {/* Review Mode tutorial */}
-      {showTutorial && isReviewMode && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-4">
-              <span className="text-3xl">🔁</span>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Review Mode</h2>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Reinforce problems you've attempted in Rated Mode using spaced repetition (FSRS algorithm).
-              Problems appear based on the forgetting curve — the better you know a problem, the less frequently it appears.
-            </p>
-            <ul className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-              <li>✓ Solve the problem as usual</li>
-              <li>✓ Perfect solve → next review scheduled further out</li>
-              <li>✓ Any mistake → review scheduled sooner</li>
-              <li>✓ Your rating is <strong>not</strong> affected</li>
-            </ul>
-            <button
-              onClick={() => setShowTutorial(false)}
-              className="mt-5 w-full py-3 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-semibold text-base transition-colors"
-            >
-              Got it
-            </button>
-          </div>
-        </div>
+      {showTutorial && isReviewMode && problem.problem && (
+        <GenreTutorial
+          genre={(problem.problem.genre as Genre) || 'direct'}
+          review
+          onOpenGuide={() => openGuide((problem.problem?.genre as Genre) || 'direct')}
+          onClose={() => setShowTutorial(false)}
+        />
       )}
 
-      {/* Rated Mode tutorial */}
       {showTutorial && isRatedMode && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowTutorial(false)}>
-          <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-md w-full shadow-xl" onClick={e => e.stopPropagation()}>
-            <div className="text-center mb-4">
-              <span className="text-3xl">&#9876;</span>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 mt-1">Rated Mode</h2>
-            </div>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Direct Mate problems matched to your rating level. White plays first and forces checkmate in a specified number of moves, regardless of Black's defense.
-            </p>
-            <ol className="space-y-3 text-sm text-gray-700 dark:text-gray-300 list-decimal list-inside">
-              <li>You play White</li>
-              <li>Checkmate Black within the specified number of moves</li>
-              <li>#2 = mate in 2, #3 = mate in 3, etc.</li>
-              <li>The solution doesn't have to be a series of checks</li>
-            </ol>
-            <button
-              onClick={() => setShowTutorial(false)}
-              className="mt-5 w-full py-3 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-semibold text-base transition-colors"
-            >
-              Start Solving
-            </button>
-          </div>
-        </div>
+        <GenreTutorial genre={ratedGenre} rated onOpenGuide={() => openGuide(ratedGenre)} onClose={() => setShowTutorial(false)} />
       )}
 
       <HamburgerMenu
@@ -2447,25 +2655,7 @@ export default function App() {
           setShowHamburgerMenu(false);
           setShowHistory(true);
         }}
-        onGoToId={async (id: number) => {
-          try {
-            const full = await fetchProblem(id);
-            const p = metaToChessProblem(full, full.solutionText);
-            const genre = p.genre as Genre;
-            const cat = categoryFromGenreProblem(genre, p.moveCount);
-            exitSpecialModes();
-            setCurrentGenre(genre);
-            setCurrentCategory(cat);
-            setView('solving');
-            loadAndStartProblem(p);
-            cacheProblem(p);
-            setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
-            updateHash(cat, p.id);
-            loadGenre(genre);
-          } catch {
-            // Problem not found — ignore silently
-          }
-        }}
+        onGoToId={openProblemById}
         onOpenBookmarks={() => {
           setShowHamburgerMenu(false);
           setShowBookmarksPage(true);
@@ -2490,12 +2680,15 @@ export default function App() {
         onRestore={(code, snapshot) => {
           // Replace sessionId so future events go to the recovered account
           try { localStorage.setItem('cp-session-id', code); } catch { /* ignore */ }
-          // Apply rating (or reset to defaults if account has no rated solves yet)
-          if (snapshot.rating) {
-            restoreRating(code, { rating: snapshot.rating.rating, rd: snapshot.rating.rd, vol: snapshot.rating.vol });
-          } else {
-            restoreRating(code, { rating: 800, rd: 350, vol: 0.06 });
+          // Apply each pool's rating. `ratings` is the per-genre map; `rating`
+          // (singular) is the direct pool, kept for snapshots written before the
+          // genres were split. Pools the account never played reset to default.
+          const restored: Partial<Record<RatedGenre, Glicko2Rating>> = {};
+          for (const g of RATED_GENRES) {
+            const r = snapshot.ratings?.[g] ?? (g === 'direct' ? snapshot.rating : undefined);
+            if (r) restored[g] = { rating: r.rating, rd: r.rd, vol: r.vol };
           }
+          restoreRating(code, restored);
           // Mirror the rest into localStorage. We replace wholesale (no merging) — the user
           // explicitly confirmed they want this device to become the synced account.
           try {
@@ -2581,6 +2774,20 @@ export default function App() {
         <ChangelogPage onClose={() => setShowChangelog(false)} />
       )}
 
+      {showGuide && (
+        /* Leaving the guide closes the "?" dialog underneath it as well, so the
+           reader lands on the board. Dropping them back on the dialog they came
+           through would make it rules, guide, rules, board — two screens to
+           dismiss for someone who has finished reading and wants to play. The
+           three steps are one press of "?" away if they want them again. */
+        <GuidePage
+          focus={guideFocus ?? undefined}
+          fromTutorial={guideFocus !== null}
+          onOpenCategory={cat => { setShowGuide(false); setShowTutorial(false); selectMode(cat); }}
+          onClose={() => { setShowGuide(false); setShowTutorial(false); }}
+        />
+      )}
+
       {showBookmarksPage && (
         <BookmarksPage
           genreData={genreData}
@@ -2603,63 +2810,72 @@ export default function App() {
       {showProblemInfo && problem.problem && (() => {
         const p = problem.problem!;
         const pc = pieceCount(p.fen);
-        const infoRating = Math.round((lastProblemRating ?? getProblemInitialRating(
-          p.difficultyScore,
-          p.moveCount,
-          p.pieceCount,
-        ).rating) / 50) * 50;
+        // Only direct mates have ratings. The other genres never enter rated
+        // mode, so nothing ever rates them -- printing the formula's guess
+        // would be inventing a number.
+        const infoRating = p.genre === 'direct'
+          ? Math.round((lastProblemRating ?? getProblemInitialRating(
+              p.difficultyScore,
+              p.moveCount,
+              p.pieceCount,
+            ).rating) / 50) * 50
+          : null;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/40" onClick={() => setShowProblemInfo(false)} />
-            <div className="relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-sm w-full mx-4 p-5 space-y-3">
+            {/* Was the last panel on the site still made of bg-white and a
+                blurred shadow — a soft rectangle among hard-edged ones. */}
+            <div className="nb-sheet relative max-w-sm w-full mx-4 p-5 space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white">Problem Info</h3>
-                <button onClick={() => setShowProblemInfo(false)} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800">
-                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <h3 className="text-lg font-extrabold text-[var(--ink)]">Problem Info</h3>
+                <button onClick={() => setShowProblemInfo(false)} className="nb-disc" aria-label="Close">
+                  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
               <div className="space-y-2 text-sm">
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">Author: </span>
-                  <span className="text-gray-900 dark:text-gray-100 font-medium">{p.authors.join(', ')}</span>
+                  <span className="text-[var(--faint)] font-semibold">Author: </span>
+                  <span className="text-[var(--ink)] font-medium">{p.authors.join(', ')}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">Source: </span>
-                  <span className="text-gray-900 dark:text-gray-100">{p.sourceName}{p.sourceYear ? `, ${p.sourceYear}` : ''}</span>
+                  <span className="text-[var(--faint)] font-semibold">Source: </span>
+                  <span className="text-[var(--ink)]">{p.sourceName}{p.sourceYear ? `, ${p.sourceYear}` : ''}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">YACPDB: </span>
+                  <span className="text-[var(--faint)] font-semibold">YACPDB: </span>
                   <a href={`https://www.yacpdb.org/#${p.id}`} target="_blank" rel="noopener noreferrer"
-                    className="text-green-600 dark:text-green-400 underline hover:text-green-700">
+                    className="text-[var(--ink)] font-bold underline decoration-2 underline-offset-2">
                     #{p.id}
                   </a>
                 </div>
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">Stipulation: </span>
-                  <span className="text-gray-900 dark:text-gray-100 font-mono">{p.stipulation}</span>
+                  <span className="text-[var(--faint)] font-semibold">Stipulation: </span>
+                  <span className="text-[var(--ink)] font-mono">{p.stipulation}</span>
                 </div>
                 <div>
-                  <span className="text-gray-400 dark:text-gray-500">Pieces: </span>
-                  <span className="text-gray-900 dark:text-gray-100">{pc}</span>
+                  <span className="text-[var(--faint)] font-semibold">Pieces: </span>
+                  <span className="text-[var(--ink)]">{pc}</span>
                 </div>
-                <div>
-                  <span className="text-gray-400 dark:text-gray-500">Problem rating: </span>
-                  <span className="text-gray-900 dark:text-gray-100 font-semibold">~{infoRating}</span>
-                </div>
+                {infoRating != null && (
+                  <div>
+                    <span className="text-[var(--faint)] font-semibold">Problem rating: </span>
+                    <span className="text-[var(--ink)] font-semibold">~{infoRating}</span>
+                  </div>
+                )}
                 {p.award && (
                   <div>
-                    <span className="text-gray-400 dark:text-gray-500">Award: </span>
-                    <span className="text-yellow-600 dark:text-yellow-400">{p.award}</span>
+                    <span className="text-[var(--faint)] font-semibold">Award: </span>
+                    <span className="text-[var(--acid)] dark:text-[var(--acid)]">{p.award}</span>
                   </div>
                 )}
                 {p.keywords.length > 0 && (
                   <div>
-                    <span className="text-gray-400 dark:text-gray-500 block mb-1">Themes:</span>
+                    <span className="text-[var(--faint)] font-semibold block mb-1">Themes:</span>
                     <div className="flex flex-wrap gap-1">
                       {p.keywords.map(kw => (
-                        <span key={kw} className="px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                        <span key={kw} className="nb-chip px-2 py-0.5 text-xs">
                           {kw}
                         </span>
                       ))}

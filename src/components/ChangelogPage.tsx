@@ -4,6 +4,46 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-08-23',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Rated Mode now has helpmate and selfmate pools, each with its own rating, alongside direct mates.',
+        ],
+      },
+    ],
+  },
+  {
+    date: '2026-08-22',
+    sections: [
+      {
+        title: 'Improved',
+        items: [
+          'Joke problems now say when their solution needs a move normal chess does not allow, and show it on the board.',
+          'Twins that rotate, mirror or shift the board now show that position, so their solution can be played.',
+        ],
+      },
+    ],
+  },
+  {
+    date: '2026-08-21',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'The site has a new look.',
+        ],
+      },
+      {
+        title: 'Improved',
+        items: [
+          'The rules for each genre have been rewritten.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-07-19',
     sections: [
       {
@@ -197,46 +237,61 @@ const CHANGELOG = [
   },
 ];
 
+/* Dates are stored as plain YYYY-MM-DD, so they are split rather than fed to
+   Date(): "2026-07-19" parses as UTC midnight, and formatting that in a
+   local calendar puts every entry a day early west of Greenwich. */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatDate(iso: string) {
+  const [y, m, d] = iso.split('-').map(Number);
+  if (!y || !m || !d) return iso;
+  return `${MONTHS[m - 1]} ${d}, ${y}`;
+}
+
 export function ChangelogPage({ onClose }: ChangelogPageProps) {
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col overflow-hidden">
-      <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full min-h-0">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white">What's New</h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
-          >
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    /* Restyled onto the sheet grammar the rest of the site uses. What was here
+       predated it: no outline, no shadow, a bullet character for a marker, and
+       a literal #fff background — the gray and green ramps were retinted so
+       the old utilities still land in the palette, but white was not, which
+       made this the one pure-white surface on the site. */
+    <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col p-4 max-w-2xl mx-auto w-full min-h-0">
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <h2 className="nb-shadow-type text-2xl font-extrabold tracking-tight text-[var(--ink)]">
+            What&rsquo;s new
+          </h2>
+          <button onClick={onClose} className="nb-disc" aria-label="Close">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-8">
-          {CHANGELOG.map(entry => (
-            <div key={entry.date}>
-              <h3 className="text-sm font-bold text-green-600 dark:text-green-400 uppercase tracking-wider mb-3">
-                {entry.date}
-              </h3>
+        <div className="nb-sheet nb-shadow-room flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5">
+          {CHANGELOG.map((entry, entryIndex) => (
+            <section key={entry.date} className={entryIndex > 0 ? 'mt-7 pt-7 border-t-2 border-[var(--hairline)]' : ''}>
+              <div className="nb-pill inline-block px-3 py-1 text-xs tracking-wide mb-3">
+                {formatDate(entry.date)}
+              </div>
               {entry.sections.map(section => (
-                <div key={section.title} className="mb-4">
-                  <h4 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                <div key={section.title} className="mb-4 last:mb-0">
+                  <h3 className="text-[0.7rem] font-extrabold uppercase tracking-[0.16em] text-[var(--muted)] mb-1.5">
                     {section.title}
-                  </h4>
-                  <ul className="space-y-1.5">
+                  </h3>
+                  <ul className="space-y-2">
                     {section.items.map((item, i) => (
-                      <li key={i} className="text-sm text-gray-600 dark:text-gray-400 flex gap-2">
-                        <span className="text-green-500 shrink-0 mt-0.5">•</span>
+                      <li key={i} className="text-sm leading-relaxed text-[var(--ink)] flex gap-2.5">
+                        {/* A square, not a dot: it is the one marker shape this
+                            site already has eight hundred of. */}
+                        <span className="mt-[0.5em] h-[7px] w-[7px] shrink-0 rounded-[1px] bg-[var(--board-d)]" />
                         <span>{item}</span>
                       </li>
                     ))}
                   </ul>
                 </div>
               ))}
-            </div>
+            </section>
           ))}
         </div>
       </div>

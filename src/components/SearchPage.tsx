@@ -73,17 +73,17 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
   }, [results, genreFilter, sortBy]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col overflow-hidden">
+    <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full min-h-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--ink)] shrink-0">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">Search by Author</h2>
           <div className="flex items-center gap-2">
             {results != null && results.length > 0 && (
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as SortKey)}
-                className="text-xs bg-transparent text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded px-1.5 py-1 focus:outline-none cursor-pointer"
+                className="nb-chip text-xs px-2 py-1 focus:outline-none cursor-pointer"
               >
                 <option value="year-desc">Newest</option>
                 <option value="year-asc">Oldest</option>
@@ -92,9 +92,9 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
             )}
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+              className="nb-disc" aria-label="Close"
             >
-              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -102,7 +102,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
         </div>
 
         {/* Search input */}
-        <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
+        <div className="px-4 py-3 border-b-2 border-[var(--ink)] shrink-0">
           <form className="flex gap-2" onSubmit={handleSearch}>
             <div className="flex-1 min-w-0 relative">
               <input
@@ -111,7 +111,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
                 onChange={(e) => { setQuery(e.target.value); onQueryChange?.(e.target.value); }}
                 placeholder="e.g. Loyd, Kasparyan, Nunn"
                 autoFocus
-                className="w-full px-3 py-2 pr-8 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                className="nb-input w-full px-4 py-2 pr-8 text-sm focus:outline-none"
               />
               {query && (
                 <button
@@ -128,7 +128,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
             <button
               type="submit"
               disabled={query.trim().length < 2 || searching}
-              className="px-4 py-2 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="nb-btn nb-btn-key px-4 py-2 text-sm"
             >
               {searching ? '...' : 'Search'}
             </button>
@@ -137,7 +137,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
 
         {/* Genre filter pills + sort */}
         {results != null && results.length > 0 && (
-          <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-800 shrink-0 flex items-center gap-2 overflow-x-auto">
+          <div className="px-4 py-2 border-b-2 border-[var(--ink)] shrink-0 flex items-center gap-2 overflow-x-auto">
             <button
               onClick={() => setGenreFilter(null)}
               className={`px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
@@ -163,20 +163,20 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
         {/* Results */}
         <div className="flex-1 overflow-y-auto">
           {results == null && (
-            <div className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
+            <div className="text-center py-12 text-[var(--faint)] text-sm">
               Enter an author name to search across all problems
             </div>
           )}
 
           {results != null && results.length === 0 && (
-            <div className="text-center py-12 text-gray-400 dark:text-gray-500 text-sm">
+            <div className="text-center py-12 text-[var(--faint)] text-sm">
               No results found for &ldquo;{query}&rdquo;
             </div>
           )}
 
           {displayResults.length > 0 && (
             <>
-              <div className="px-4 py-1.5 text-xs text-gray-400 dark:text-gray-500">
+              <div className="px-4 py-1.5 text-xs font-semibold text-[var(--faint)]">
                 {displayResults.length} result{displayResults.length !== 1 ? 's' : ''}{results && results.length >= 200 ? ' (limit reached)' : ''}
               </div>
               <div className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -186,10 +186,10 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
                     <button
                       key={r.id}
                       onClick={() => onSelectResult(r)}
-                      className="w-full text-left px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors flex gap-3"
+                      className="nb-tile nb-shadow-room-sm w-full text-left px-4 py-3 mb-2 flex gap-3"
                     >
                       {/* Mini board */}
-                      <div className="shrink-0 rounded overflow-hidden" style={{ width: 64, height: 64 }}>
+                      <div className="shrink-0 rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: 64, height: 64 }}>
                         <Chessboard
                           position={r.fen}
                           boardWidth={64}
@@ -207,7 +207,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
                           <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">
                             {GENRE_PREFIX[r.genre] || ''}{r.id}
                           </span>
-                          <span className="px-1.5 py-0.5 rounded text-xs font-bold font-mono bg-green-100 text-green-700 dark:bg-green-900/50 dark:text-green-300">
+                          <span className="nb-chip px-2 py-0.5 text-xs font-mono">
                             {r.stipulation}
                           </span>
                           <span className="text-xs text-gray-400 dark:text-gray-500">

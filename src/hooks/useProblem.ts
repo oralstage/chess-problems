@@ -48,10 +48,25 @@ interface ProblemState {
     exploreFen: string;
     exploreLastMove: { from: string; to: string } | null;
   } | null;
+  /**
+   * The tree being solved right now. Normally the problem's own solution, but
+   * a twin puts its own tree here -- Give Up and playback have to follow the
+   * position on the board, not the diagram the problem arrived with.
+   */
+  activeTree: SolutionNode[];
 }
 
 // Timing constants
 const AUTO_PLAY_DELAY = 250;
+// How long the finished position is held on its own when the LAST move of a
+// problem is auto-played rather than made by the solver — a selfmate always
+// ends that way, a study sometimes. Everything the solved state brings in
+// (the bottom bar swapping, the playback strip, the solution, the theme tags)
+// changes the page's height, so with no pause the board shifts under the eye
+// on the same frame the mate lands, and the one move nobody played goes
+// unseen. Moves the solver makes themselves are their own doing: those keep
+// arriving with no pause at all.
+const SOLVED_HOLD = 600;
 const CORRECT_FLASH = 300;
 const WRONG_MOVE_PAUSE = 500;
 // Thematic-try demo: how long the user's try stays before the refutation is
@@ -96,8 +111,49 @@ function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
   return line;
 }
 
+/**
+ * A joke problem whose solution cannot be played on a legal board -- promotion
+ * to a king or a pawn, a board that has to be rotated, a piece that has to be
+ * removed first. The joke keyword is required: a key move that will not execute
+ * is far more often our own parsing gap (castling written as Ke1-c1, an en
+ * passant capture) on an ordinary problem, and those must be fixed, not
+ * excused with a banner.
+ */
+export function isUnplayableJokeProblem(problem: ChessProblem): boolean {
+  if (!problem.keywords?.includes('Joke problem')) return false;
+  // Promotion to a king or a pawn. Read from the raw text because the parser
+  // drops the piece from "c7-c8=K", leaving a move that looks playable.
+  if (/=\s*[KP](?![a-z])/.test(problem.solutionText || '')) return true;
+  // Twins carry a position per diagram; the tree parsed here belongs to a) and
+  // is not the tree the board will be holding. Leave them alone.
+  if (/^\s*a\)/i.test(problem.solutionText || '')) return false;
+  const keys = problem.solutionTree;
+  if (!keys || keys.length === 0) return false;
+  const fens = [problem.fen];
+  // Retro lets the user move either colour, and the solver flips the turn to
+  // try the other one, so both have to be searched before calling it unplayable
+  fens.push(problem.fen.includes(' w ') ? problem.fen.replace(' w ', ' b ') : problem.fen.replace(' b ', ' w '));
+  for (const fen of fens) {
+    let chess: Chess;
+    try {
+      chess = new Chess(fen);
+    } catch {
+      continue;
+    }
+    for (const m of chess.moves({ verbose: true })) {
+      if (matchMoveToTree(fen, m.from, m.to, m.san, m.promotion, keys)) return false;
+    }
+  }
+  return true; // no legal move anywhere on the board is the key
+}
+
 function tryExecuteNode(chess: Chess, node: SolutionNode): ReturnType<Chess['move']> | null {
   const uci = node.moveUci;
+
+  // A move no board can hold (promotion to a king, or to the other colour).
+  // Never hand it to chess.js: it reads such a move loosely and offers an
+  // ordinary promotion in its place.
+  if (uci.startsWith('joke:')) return null;
 
   // Wildcard "any move" — pick a legal move by the specified piece type
   if (uci === 'any') {
@@ -190,45 +246,112 @@ function tryExecuteNode(chess: Chess, node: SolutionNode): ReturnType<Chess['mov
   return null;
 }
 
+/**
+ * Apply a move by rewriting the FEN, with no legality check at all.
+ *
+ * Joke problems end in positions no engine will hold -- two white kings after
+ * c8=K, a pawn on the eighth rank, a black queen conjured by White. chess.js
+ * refuses to load or play any of it, and it is right to. But replaying a
+ * solution that is already written down needs no rules: only "put this piece on
+ * that square". react-chessboard draws whatever FEN it is handed, so the
+ * position can still be shown. Used only where chess.js has already refused.
+ */
+function applyMoveByFen(fen: string, node: SolutionNode): { fen: string; from: string; to: string; san: string } | null {
+  // Needs the departure square, which SAN-shaped moves do not carry.
+  const m = node.move.match(/^([KQRBSNPDTL]?)([a-h][1-8])[-*x:]?([a-h][1-8])(?:=([bw]?)([KQRBSNPDTL]))?/i);
+  if (!m) return null;
+  const [, , from, to, promoColor, promoPiece] = m;
+
+  const parts = fen.split(' ');
+  const board: string[][] = parts[0].split('/').map(row => {
+    const cells: string[] = [];
+    for (const ch of row) {
+      if (ch >= '1' && ch <= '9') for (let i = 0; i < parseInt(ch); i++) cells.push('');
+      else cells.push(ch);
+    }
+    while (cells.length < 8) cells.push('');
+    return cells.slice(0, 8);
+  });
+  while (board.length < 8) board.push(Array(8).fill(''));
+
+  const sq = (v: string) => ({ row: 8 - parseInt(v[1]), col: v.charCodeAt(0) - 97 });
+  const f = sq(from.toLowerCase());
+  const t = sq(to.toLowerCase());
+  const piece = board[f.row]?.[f.col];
+  if (!piece) return null;
+
+  const moverIsWhite = piece === piece.toUpperCase();
+  let placed = piece;
+  if (promoPiece) {
+    const letter = promoPiece.toUpperCase() === 'S' ? 'N' : promoPiece.toUpperCase();
+    // "=bS" promotes to the other side's piece; a bare "=K" keeps the mover's.
+    const white = promoColor ? promoColor.toLowerCase() === 'w' : moverIsWhite;
+    placed = white ? letter : letter.toLowerCase();
+  }
+  board[f.row][f.col] = '';
+  board[t.row][t.col] = placed;
+
+  const rows = board.map(row => {
+    let out = '', empty = 0;
+    for (const cell of row) {
+      if (!cell) empty++;
+      else { if (empty) { out += empty; empty = 0; } out += cell; }
+    }
+    return empty ? out + empty : out;
+  });
+  // Castling rights and en passant cannot be tracked through a position that
+  // has stopped being chess; the counters are equally meaningless here.
+  const nextFen = `${rows.join('/')} ${moverIsWhite ? 'b' : 'w'} - - 0 1`;
+  return { fen: nextFen, from: from.toLowerCase(), to: to.toLowerCase(), san: node.moveSan || node.move };
+}
+
 function computePositions(initialFen: string, mainLine: SolutionNode[]): PlaybackPosition[] {
   const positions: PlaybackPosition[] = [{ fen: initialFen, lastMove: null, san: '' }];
-  const chess = new Chess(initialFen);
+  let curFen = initialFen;
   for (const node of mainLine) {
-    let move = tryExecuteNode(chess, node);
-    // If move fails, try with flipped turn (retro problems may start with opposite color)
-    if (!move && node.color !== chess.turn()) {
-      const curFen = chess.fen();
-      const curTurn = curFen.split(' ')[1];
-      const flipped = curFen.replace(/ [wb] /, curTurn === 'w' ? ' b ' : ' w ');
-      const chess2 = new Chess(flipped);
-      move = tryExecuteNode(chess2, node);
-      if (move) {
-        chess.load(chess2.fen());
+    // The position itself may be one chess.js will not load -- after a joke
+    // promotion it holds two kings of one colour -- so the engine is optional
+    // from here on and the FEN is what carries the line forward.
+    let chess: Chess | null = null;
+    try {
+      chess = new Chess(curFen);
+    } catch { /* not a legal position; fall through to plain FEN editing */ }
+
+    let applied: { fen: string; from: string; to: string; san: string } | null = null;
+
+    if (chess) {
+      let move = tryExecuteNode(chess, node);
+      // If move fails, try with flipped turn (retro problems may start with opposite color)
+      if (!move && node.color !== chess.turn()) {
+        const curTurn = curFen.split(' ')[1];
+        const flipped = chess.fen().replace(/ [wb] /, curTurn === 'w' ? ' b ' : ' w ');
+        try {
+          const chess2 = new Chess(flipped);
+          move = tryExecuteNode(chess2, node);
+          if (move) chess.load(chess2.fen());
+        } catch { /* keep move null */ }
       }
-    }
-    if (move) {
-      positions.push({
-        fen: chess.fen(),
-        lastMove: { from: move.from, to: move.to },
-        san: move.san,
-      });
-    } else if (node === AUTO_MOVE_PLACEHOLDER || (node.moveSan === '...' && node.moveUci === '')) {
-      // Placeholder for auto-played opponent move — pick first legal move
-      const legalMoves = chess.moves({ verbose: true });
-      if (legalMoves.length > 0) {
+      if (move) {
+        applied = { fen: chess.fen(), from: move.from, to: move.to, san: move.san };
+      } else if (node === AUTO_MOVE_PLACEHOLDER || (node.moveSan === '...' && node.moveUci === '')) {
+        // Placeholder for auto-played opponent move — pick first legal move
+        const legalMoves = chess.moves({ verbose: true });
+        if (legalMoves.length === 0) break;
         const autoMove = legalMoves[0];
         chess.move(autoMove);
-        positions.push({
-          fen: chess.fen(),
-          lastMove: { from: autoMove.from, to: autoMove.to },
-          san: autoMove.san,
-        });
-      } else {
-        break;
+        applied = { fen: chess.fen(), from: autoMove.from, to: autoMove.to, san: autoMove.san };
       }
-    } else {
-      break;
     }
+
+    if (!applied) applied = applyMoveByFen(curFen, node);
+    if (!applied) break;
+
+    curFen = applied.fen;
+    positions.push({
+      fen: curFen,
+      lastMove: { from: applied.from, to: applied.to },
+      san: applied.san,
+    });
   }
   return positions;
 }
@@ -295,9 +418,23 @@ export function useProblem(stockfish?: StockfishApi) {
     refutationArrow: null,
     movesRemaining: 0,
     playback: null,
+    activeTree: [],
   });
 
   const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Which twin is on the board, so Try Again restarts that one and not the
+  // diagram the problem was loaded with.
+  const activeTwinRef = useRef<{ fen: string; tree: SolutionNode[]; record: boolean; firstColor?: 'w' | 'b' } | null>(null);
+  // Every event here is filed under the problem's single ID, which has no room
+  // for a twin. Solving b) would therefore land its moves in a)'s statistics --
+  // as a wrong first move, since a)'s key is a different move on a different
+  // position. So only the diagram the problem arrives with is recorded.
+  const recordEventsRef = useRef(true);
+  // True while a finished position is being held before the solved state
+  // lands. The solving bar is still on screen during that gap, so Give Up and
+  // Show Hint have to be refused: the problem is already solved, and either
+  // one would file it as a failure.
+  const solveHoldRef = useRef(false);
 
   useEffect(() => {
     return () => {
@@ -364,6 +501,7 @@ export function useProblem(stockfish?: StockfishApi) {
 
   const loadProblem = useCallback((problem: ChessProblem) => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    solveHoldRef.current = false;
 
     let firstColor = getFirstMoveColor(problem.genre, problem.stipulation);
     let userColor = getUserColor(problem.genre, problem.stipulation);
@@ -405,6 +543,52 @@ export function useProblem(stockfish?: StockfishApi) {
       refutationArrow: null,
       movesRemaining: problem.moveCount,
       playback: null,
+      activeTree: problem.solutionTree,
+    });
+    activeTwinRef.current = null;
+    recordEventsRef.current = true;
+  }, []);
+
+  /**
+   * Put a twin's position on the board and hand its solution to the solver.
+   * The problem itself does not change -- only which of its diagrams is being
+   * played -- so the metadata, the user's colour and the move count all stay.
+   */
+  const startTwin = useCallback((twinFen: string, twinTree: SolutionNode[], record: boolean, twinFirstColor?: 'w' | 'b') => {
+    if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    solveHoldRef.current = false;
+    activeTwinRef.current = { fen: twinFen, tree: twinTree, record, firstColor: twinFirstColor };
+    recordEventsRef.current = record;
+    setState(prev => {
+      if (!prev.problem) return prev;
+      // The turn is already set in the twin's own FEN: a twin can carry its own
+      // stipulation ("b) rotate 90 {h#2}"), so the problem's is not the answer.
+      const fen = twinFen;
+      return {
+        ...prev,
+        fen,
+        initialFen: fen,
+        // A helpmate twin is played from both sides, whatever the problem is.
+        userColor: twinFirstColor === 'b' ? 'b' : prev.userColor,
+        moveHistory: [],
+        currentNodes: twinTree,
+        status: 'solving',
+        feedback: '',
+        lastMove: null,
+        feedbackSquare: null,
+        feedbackType: null,
+        waitingForAutoPlay: false,
+        hintSquares: null,
+        wrongMoveCount: 0,
+        wrongMoveFen: null,
+        wrongMoveLastMove: null,
+        lastWrongMove: null,
+        refutationText: null,
+        refutationArrow: null,
+        movesRemaining: prev.problem.moveCount,
+        playback: null,
+        activeTree: twinTree,
+      };
     });
   }, []);
 
@@ -471,10 +655,10 @@ export function useProblem(stockfish?: StockfishApi) {
 
   // ── Main tryMove ──
   const tryMove = useCallback((from: string, to: string, promotion?: string): boolean => {
-    const { problem, currentNodes, status, playback, movesRemaining } = state;
+    const { problem, currentNodes, status, playback, movesRemaining, activeTree } = state;
 
-    // Block moves while solution is still loading (solutionTree empty)
-    if (problem && problem.solutionTree.length === 0 && status === 'solving' && !playback) {
+    // Block moves while solution is still loading (tree empty)
+    if (problem && activeTree.length === 0 && status === 'solving' && !playback) {
       return false;
     }
 
@@ -544,7 +728,7 @@ export function useProblem(stockfish?: StockfishApi) {
     // Emitted only on the accepted-move branches below. Emitting here (right
     // after the legality check) fired 'move_correct' for wrong moves too,
     // double-counting them in the solve statistics.
-    const emitMoveCorrect = () => trackEvent('move_correct', problem.id, {
+    const emitMoveCorrect = () => recordEventsRef.current && trackEvent('move_correct', problem.id, {
       san: move!.san,
       fen: state.fen,
       moveNumber: newHistory.length,
@@ -566,7 +750,7 @@ export function useProblem(stockfish?: StockfishApi) {
     if (isCheckmate && problem.genre !== 'self' && !retroWrongSide) {
       // User delivered checkmate — solved! (direct/study/help)
       emitMoveCorrect();
-      const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
+      const pb = startPlayback(state.initialFen, activeTree, true, newHistory);
       setState(prev => ({
         ...prev,
         fen: newFen,
@@ -587,7 +771,7 @@ export function useProblem(stockfish?: StockfishApi) {
     if (problem.stipulation === '=' && afterChess.isStalemate()) {
       // Study draw: stalemate — solved!
       emitMoveCorrect();
-      const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
+      const pb = startPlayback(state.initialFen, activeTree, true, newHistory);
       setState(prev => ({
         ...prev,
         fen: newFen,
@@ -630,7 +814,7 @@ export function useProblem(stockfish?: StockfishApi) {
       }
 
       if (isSolved) {
-        const pb = startPlayback(state.initialFen, problem.solutionTree, true, newHistory);
+        const pb = startPlayback(state.initialFen, activeTree, true, newHistory);
         setState(prev => ({
           ...prev,
           fen: newFen,
@@ -696,12 +880,31 @@ export function useProblem(stockfish?: StockfishApi) {
 
             if (isDefCheckmate || isDefStalemate || defenseNode.children.length === 0) {
               const defHistory = [...newHistory, defMove.san];
-              const pb = startPlayback(state.initialFen, problem.solutionTree, true, defHistory);
+              const pb = startPlayback(state.initialFen, activeTree, true, defHistory);
+              // Land the finishing move by itself, then hold — see SOLVED_HOLD.
+              // The board stays locked for the length of the hold, and the
+              // move list deliberately does NOT get the finishing move yet:
+              // the panel still reads as solving, so writing it there would
+              // print the answer in text on the frame it is meant to be read
+              // off the board. Position moves; nothing else does.
+              // feedbackSquare/feedbackType are left alone on purpose: they are
+              // still marking the solver's own move, and clearing them here
+              // would wipe the one tick confirming it at the very moment the
+              // problem is won. A selfmate ends on a move the solver did not
+              // make, so this is the only mark the finish can carry.
               setState(prev => ({
-                ...prev, fen: afterDefenseFen, moveHistory: defHistory,
-                currentNodes: [], status: 'correct', feedback: '', lastMove: defLastMove,
-                feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
+                ...prev, fen: afterDefenseFen,
+                currentNodes: [], feedback: '', lastMove: defLastMove,
+                waitingForAutoPlay: true,
               }));
+              solveHoldRef.current = true;
+              autoPlayTimerRef.current = setTimeout(() => {
+                solveHoldRef.current = false;
+                setState(prev => ({
+                  ...prev, status: 'correct', moveHistory: defHistory,
+                  waitingForAutoPlay: false, playback: pb,
+                }));
+              }, SOLVED_HOLD);
             } else {
               setState(prev => ({
                 ...prev, fen: afterDefenseFen, moveHistory: [...newHistory, defMove.san],
@@ -748,14 +951,23 @@ export function useProblem(stockfish?: StockfishApi) {
             const randomLastMove = { from: randomMove.from, to: randomMove.to };
 
             if (randomChess.isCheckmate() || randomChess.isStalemate()) {
-              // Opponent has no useful moves — problem effectively solved
+              // Opponent has no useful moves — problem effectively solved.
+              // Auto-played finish, so it is held the same way.
               const randomHistory = [...newHistory, randomMove.san];
-              const pb = startPlayback(state.initialFen, problem.solutionTree, true, randomHistory);
+              const pb = startPlayback(state.initialFen, activeTree, true, randomHistory);
               setState(prev => ({
-                ...prev, fen: afterRandomFen, moveHistory: randomHistory,
-                currentNodes: [], status: 'correct', feedback: '', lastMove: randomLastMove,
-                feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false, playback: pb,
+                ...prev, fen: afterRandomFen,
+                currentNodes: [], feedback: '', lastMove: randomLastMove,
+                waitingForAutoPlay: true,
               }));
+              solveHoldRef.current = true;
+              autoPlayTimerRef.current = setTimeout(() => {
+                solveHoldRef.current = false;
+                setState(prev => ({
+                  ...prev, status: 'correct', moveHistory: randomHistory,
+                  waitingForAutoPlay: false, playback: pb,
+                }));
+              }, SOLVED_HOLD);
             } else {
               // Advance: user should now play the threat move(s)
               setState(prev => ({
@@ -831,7 +1043,7 @@ export function useProblem(stockfish?: StockfishApi) {
             `Thematic try! ${trySanText} is refuted by ${refSanText}`,
             state.fen, wrongUci,
           );
-          trackEvent('move_wrong', problem.id, {
+          if (recordEventsRef.current) trackEvent('move_wrong', problem.id, {
             san: move.san,
             fen: state.fen,
             moveNumber: state.moveHistory.length + 1,
@@ -845,7 +1057,7 @@ export function useProblem(stockfish?: StockfishApi) {
     }
 
     flashWrongMove(to, newFen, from, state.fen, wrongUci);
-    trackEvent('move_wrong', problem.id, {
+    if (recordEventsRef.current) trackEvent('move_wrong', problem.id, {
       san: move.san,
       fen: state.fen,
       moveNumber: state.moveHistory.length + 1,
@@ -858,8 +1070,8 @@ export function useProblem(stockfish?: StockfishApi) {
   // ── Show hint ──
   const showHint = useCallback(() => {
     const { fen, problem, currentNodes } = state;
-    if (!problem) return;
-    trackEvent('hint_used', problem.id, {
+    if (!problem || solveHoldRef.current) return;
+    if (recordEventsRef.current) trackEvent('hint_used', problem.id, {
       moveNumber: state.moveHistory.length + 1,
       genre: problem.genre,
       wrongMoveCount: state.wrongMoveCount,
@@ -934,18 +1146,22 @@ export function useProblem(stockfish?: StockfishApi) {
   }, []);
 
   const resetProblem = useCallback(() => {
-    if (state.problem) loadProblem(state.problem);
-  }, [state.problem, loadProblem]);
+    if (!state.problem) return;
+    const twin = activeTwinRef.current;
+    if (twin) startTwin(twin.fen, twin.tree, twin.record, twin.firstColor);
+    else loadProblem(state.problem);
+  }, [state.problem, loadProblem, startTwin]);
 
   const clearProblem = useCallback(() => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    solveHoldRef.current = false;
     setState(prev => ({ ...prev, problem: null, fen: '', initialFen: '', status: 'idle', playback: null, moveHistory: [], currentNodes: [], hintSquares: null, feedback: '', feedbackSquare: null, feedbackType: null }));
   }, []);
 
   // ── Give Up / Show Solution ──
   const showSolution = useCallback(() => {
-    const { problem, initialFen } = state;
-    if (!problem) return;
+    const { problem, initialFen, activeTree } = state;
+    if (!problem || solveHoldRef.current) return;
 
     // Cancel any pending auto-play: if the user gives up during the 500ms
     // window after a correct move, the timer would otherwise fire afterwards
@@ -953,7 +1169,7 @@ export function useProblem(stockfish?: StockfishApi) {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
 
     // Always use solution tree (works for all genres, no Stockfish dependency)
-    let pb = startPlayback(initialFen, problem.solutionTree);
+    let pb = startPlayback(initialFen, activeTree);
     if (pb && pb.positions.length > 1) {
       pb.moveIndex = 0;
     }
@@ -964,7 +1180,7 @@ export function useProblem(stockfish?: StockfishApi) {
       ...prev, status: 'viewing', feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null,
       refutationText: null, refutationArrow: null, playback: pb,
     }));
-  }, [state.problem, state.initialFen, startPlayback]);
+  }, [state.problem, state.initialFen, state.activeTree, startPlayback]);
 
   // ── Playback navigation ──
   const playbackGoTo = useCallback((index: number) => {
@@ -1060,16 +1276,7 @@ export function useProblem(stockfish?: StockfishApi) {
     playbackPrev,
     playbackNext,
     playbackLast,
-    switchTwinPlayback: useCallback((twinFen: string, twinSolutionTree: SolutionNode[]) => {
-      let pb = startPlayback(twinFen, twinSolutionTree);
-      if (pb && pb.positions.length > 1) {
-        pb = { ...pb, moveIndex: 0 };
-      }
-      setState(prev => ({
-        ...prev,
-        playback: pb,
-      }));
-    }, [startPlayback]),
+    startTwin,
     playbackExplore: useCallback((fen: string, lastMove: { from: string; to: string } | null) => {
       setState(prev => {
         if (!prev.playback) return prev;

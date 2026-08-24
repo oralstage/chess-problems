@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import type { SolutionNode } from '../types';
-import type { TwinData } from '../services/solutionParser';
 
 interface SolutionTreeProps {
   fullNodes: SolutionNode[];
@@ -20,10 +19,9 @@ interface SolutionTreeProps {
   onNext: () => void;
   onLast: () => void;
   onExplore: (fen: string, lastMove: { from: string; to: string } | null) => void;
-  twins?: TwinData[];
-  activeTwinId?: string;
-  onSelectTwin?: (id: string) => void;
   isCooked?: boolean;
+  /** Prose comments from the source notation, shown above the moves. */
+  notes?: string[];
 }
 
 /**
@@ -31,6 +29,11 @@ interface SolutionTreeProps {
  */
 function tryExecuteNode(chess: Chess, node: SolutionNode): { from: string; to: string } | null {
   const uci = node.moveUci;
+
+  // A move no board can hold (promotion to a king, or to the other colour).
+  // Never hand it to chess.js: it reads such a move loosely and offers an
+  // ordinary promotion in its place.
+  if (uci.startsWith('joke:')) return null;
 
   // Wildcard "any move" — pick a legal move by the specified piece type
   if (uci === 'any') {
@@ -212,7 +215,7 @@ function MoveButton({ node, path, onNodeClick, isActive }: {
     return (
       <button
         onClick={() => onNodeClick(path)}
-        className="bg-cp-primary text-white px-1.5 py-0.5 rounded text-xs cursor-pointer"
+        className="nb-key rounded-full px-2 py-0.5 text-xs cursor-pointer border-2 border-[var(--ink)]"
       >
         {node.moveSan}
       </button>
@@ -270,7 +273,7 @@ function VariationLineView({ line, startMoveNum, onNodeClick, activeNode }: {
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, twins, activeTwinId, onSelectTwin, isCooked }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, isCooked, notes }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -322,10 +325,10 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">Solution</h3>
+          <h3 className="nb-panel-label text-[0.7rem]">Solution</h3>
           {isCooked && (
             <span
-              className="text-xs font-semibold px-2 py-0.5 rounded bg-yellow-300 text-yellow-900 dark:bg-yellow-400 dark:text-yellow-950"
+              className="nb-chip px-2.5 py-0.5 text-xs bg-[var(--bad-bg)] text-[var(--bad)]"
               title="This problem has more than one move that mates (unintended cook). See the Key variations below."
             >
               ⚠ Cooked — another key also mates
@@ -333,30 +336,21 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
           )}
         </div>
         {exploring && (
-          <span className="text-xs px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
+          <span className="nb-chip nb-chip-on px-2.5 py-0.5 text-xs">
             Free play — click a move to return
           </span>
         )}
       </div>
 
-      {/* Twin navigation */}
-      {twins && twins.length >= 2 && onSelectTwin && (
-        <div className="flex items-center gap-1 flex-wrap">
-          {twins.map(twin => (
-            <button
-              key={twin.id}
-              onClick={() => onSelectTwin(twin.id)}
-              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                activeTwinId === twin.id
-                  ? 'bg-cp-primary text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-              }`}
-              title={twin.label}
-            >
-              {twin.id})
-            </button>
+      {/* What the source says in words -- often the only place a problem's
+          premise is written down: an illegal position, a missing last move,
+          a stipulation that is not the one in the header. */}
+      {notes && notes.length > 0 && (
+        <blockquote className="nb-panel border-l-[7px] px-3 py-2.5 space-y-1.5">
+          {notes.map((note, i) => (
+            <p key={i} className="text-sm font-semibold text-[var(--ink)] leading-snug">{note}</p>
           ))}
-        </div>
+        </blockquote>
       )}
 
       {/* Main line playback */}
@@ -367,12 +361,12 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
               <button
                 key={i}
                 onClick={() => onGoTo(i)}
-                className={`px-1.5 py-0.5 rounded text-xs transition-colors ${
+                className={`rounded-full px-2 py-0.5 text-xs transition-colors ${
                   !exploring && i === moveIndex
-                    ? 'bg-cp-primary text-white'
+                    ? 'nb-key border-2 border-[var(--ink)]'
                     : node.color === 'w'
-                      ? 'font-bold text-gray-900 dark:text-gray-100 hover:bg-gray-200 dark:hover:bg-gray-700'
-                      : 'italic text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+                      ? 'font-extrabold text-[var(--ink)] hover:bg-[var(--surface-2)]'
+                      : 'italic font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]'
                 }`}
               >
                 {firstColor === 'b'
@@ -388,10 +382,10 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
       {/* Plain solutions (helpmate-style: no key/try markers) */}
       {plainSolutions.length > 0 && (
         <details className="text-xs" open>
-          <summary className="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 text-sm font-medium">
+          <summary className="cursor-pointer text-sm font-bold text-[var(--ink)] underline decoration-2 underline-offset-2">
             Solutions ({plainSolutions.length})
           </summary>
-          <div className="mt-2 text-sm bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-1">
+          <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-1">
             {plainSolutions.map((v, vi) => (
               <div key={vi} className="leading-relaxed">
                 <div className="flex items-baseline gap-1 flex-wrap">
@@ -417,16 +411,16 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
       {/* Key variations (all defenses after the key move) */}
       {keyVariations.length > 0 && keyVariations.some(v => v.lines.length > 1) && (
         <details className="text-xs" open>
-          <summary className="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 text-sm font-medium">
+          <summary className="cursor-pointer text-sm font-bold text-[var(--ink)] underline decoration-2 underline-offset-2">
             Key variations
           </summary>
-          <div className="mt-2 text-sm bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-1">
+          <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-1">
             {keyVariations.map((v, vi) => (
               <div key={vi} className="leading-relaxed">
                 <div className="flex items-baseline gap-1">
                   <span className="text-gray-400 text-xs">1.</span>
                   <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} isActive={activeNode === v.rootNode} />
-                  <span className="text-red-500 font-bold text-xs">!</span>
+                  <span className="text-[var(--bad)] font-bold text-xs">!</span>
                   {v.lines.length === 1 && (
                     <VariationLineView line={v.lines[0]} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
                   )}
@@ -445,10 +439,10 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
       {/* Tries */}
       {tryVariations.length > 0 && (
         <details className="text-xs" open>
-          <summary className="text-gray-500 dark:text-gray-400 cursor-pointer hover:text-gray-700 dark:hover:text-gray-300 text-sm font-medium">
+          <summary className="cursor-pointer text-sm font-bold text-[var(--ink)] underline decoration-2 underline-offset-2">
             Tries ({tryVariations.length})
           </summary>
-          <div className="mt-2 text-sm bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-2">
+          <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-2">
             {tryVariations.map((v, vi) => (
               <div key={vi}>
                 {/* Try with continuations — each defense on its own indented line */}
@@ -456,7 +450,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
                   <div className="flex items-baseline gap-1">
                     <span className="text-gray-400 text-xs">1.</span>
                     <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} isActive={activeNode === v.rootNode} />
-                    <span className="text-orange-500 font-bold text-xs">?</span>
+                    <span className="text-[var(--bad)] font-bold text-xs">?</span>
                     {v.lines.length === 1 && (
                       <VariationLineView line={v.lines[0]} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
                     )}
@@ -471,7 +465,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
                 {v.refutation && (() => {
                   const refMoves = v.refutation.moves[0]?.node === v.rootNode ? v.refutation.moves.slice(1) : v.refutation.moves;
                   return (
-                    <div className="flex items-baseline gap-1 ml-4 text-red-600 dark:text-red-400 leading-relaxed">
+                    <div className="flex items-baseline gap-1 ml-4 text-[var(--bad)] dark:text-[var(--bad)] leading-relaxed">
                       <span className="text-xs font-medium">↳ but</span>
                       {refMoves.map((m, i) => {
                         const isBlack = m.node.color === 'b';
@@ -480,7 +474,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
                           <span key={i}>
                             {showNum && <span className="text-gray-400 text-xs mr-0.5">{isBlack ? '1...' : '1.'}</span>}
                             <MoveButton node={m.node} path={m.path} onNodeClick={handleNodeClick} isActive={activeNode === m.node} />
-                            {m.node.isKey && <span className="text-red-500 font-bold text-xs ml-0.5">!</span>}
+                            {m.node.isKey && <span className="text-[var(--bad)] font-bold text-xs ml-0.5">!</span>}
                           </span>
                         );
                       })}
@@ -495,10 +489,10 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
 
       {/* Raw solution text */}
       <details className="text-xs">
-        <summary className="text-gray-400 cursor-pointer hover:text-gray-600 dark:hover:text-gray-300">
+        <summary className="cursor-pointer font-bold text-[var(--muted)] underline decoration-2 underline-offset-2">
           YACPDB original notation
         </summary>
-        <pre className="mt-1 p-2 bg-gray-50 dark:bg-gray-800 rounded text-gray-600 dark:text-gray-400 whitespace-pre-wrap overflow-x-auto">
+        <pre className="nb-plate nb-shadow-room mt-2 p-3 text-[var(--muted)] whitespace-pre-wrap overflow-x-auto">
           {solutionText}
         </pre>
       </details>

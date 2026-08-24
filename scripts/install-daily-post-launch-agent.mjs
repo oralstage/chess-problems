@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 
 const LABEL = 'com.chess-problems.daily-post';
-const time = process.argv[2] || '07:00';
+const time = process.argv[2] || '22:00';
 const match = time.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
 
 if (!match) {
@@ -49,6 +49,7 @@ const plist = `<?xml version="1.0" encoding="UTF-8"?>
   <array>
     <string>${xml(nodePath)}</string>
     <string>${xml(generatorPath)}</string>
+    <string>--next</string>
   </array>
   <key>WorkingDirectory</key>
   <string>${xml(projectRoot)}</string>
@@ -59,10 +60,8 @@ const plist = `<?xml version="1.0" encoding="UTF-8"?>
     <key>Minute</key>
     <integer>${Number(minute)}</integer>
     <key>Weekday</key>
-    <integer>1</integer>
+    <integer>0</integer>
   </dict>
-  <key>RunAtLoad</key>
-  <true/>
   <key>StandardOutPath</key>
   <string>${xml(resolve(outputRoot, 'launchd.log'))}</string>
   <key>StandardErrorPath</key>
@@ -81,6 +80,6 @@ writeFileSync(plistPath, plist);
 execFileSync('plutil', ['-lint', plistPath], { stdio: 'inherit' });
 execFileSync('launchctl', ['bootstrap', `gui/${uid}`, plistPath], { stdio: 'inherit' });
 
-console.log(`Weekly Daily post generator installed for every Monday at ${time}.`);
+console.log(`Weekly Daily post generator installed for every Sunday at ${time}.`);
 console.log(`LaunchAgent: ${plistPath}`);
 console.log(`Output: ${outputRoot}`);

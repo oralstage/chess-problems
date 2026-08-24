@@ -19,6 +19,14 @@ interface SolveProgressRow {
   created_at: string;
 }
 
+interface StoredRatingRow {
+  genre: string;
+  rating: number;
+  rd: number;
+  volatility: number;
+  solve_count: number;
+}
+
 interface LastRatingEventRow {
   player_rating: number;
   player_rd: number;
@@ -52,21 +60,21 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // Run all queries in parallel
   const [storedRating, lastEventRow, ratingEventCountRow, progressRows, bookmarkRows, reviewRows, ratedIdRows] = await Promise.all([
     context.env.STATS_DB.prepare(
-      `SELECT rating, rd, volatility, solve_count
+      `SELECT genre, rating, rd, volatility, solve_count
        FROM player_ratings
        WHERE session_id = ? AND dev = ?`
-    ).bind(sessionId, dev).first<{ rating: number; rd: number; volatility: number; solve_count: number }>(),
+    ).bind(sessionId, dev).all<StoredRatingRow>(),
 
     context.env.STATS_DB.prepare(
       `SELECT player_rating, player_rd, problem_rating, problem_rd, score
        FROM rating_events
-       WHERE session_id = ? AND dev = ?
+       WHERE session_id = ? AND dev = ? AND genre = 'direct'
        ORDER BY created_at DESC, problem_id DESC
        LIMIT 1`
     ).bind(sessionId, dev).first<LastRatingEventRow>(),
 
     context.env.STATS_DB.prepare(
-      `SELECT COUNT(*) AS n FROM rating_events WHERE session_id = ? AND dev = ?`
+      `SELECT COUNT(*) AS n FROM rating_events WHERE session_id = ? AND dev = ? AND genre = 'direct'`
     ).bind(sessionId, dev).first<{ n: number }>(),
 
     // Aggregate per problem: local semantics are "once cleanly solved, never
@@ -104,7 +112,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   // Empty result -> 404 (let client know code is invalid)
   if (
-    !storedRating &&
+    storedRating.results.length === 0 &&
     totalRatingEvents === 0 &&
     progressRows.results.length === 0 &&
     bookmarkRows.results.length === 0 &&
@@ -114,16 +122,21 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   // ── Rating ──
-  let rating: { rating: number; rd: number; vol: number; solveCount: number } | null = null;
-  if (storedRating) {
-    // Fast path
-    rating = {
-      rating: storedRating.rating,
-      rd: storedRating.rd,
-      vol: storedRating.volatility,
-      solveCount: storedRating.solve_count,
+  // One rating per genre now. `rating` (singular) stays in the response as the
+  // direct pool so clients from before the split keep working.
+  type RatingValue = { rating: number; rd: number; vol: number; solveCount: number };
+  const ratings: Record<string, RatingValue> = {};
+  for (const row of storedRating.results) {
+    ratings[row.genre] = {
+      rating: row.rating,
+      rd: row.rd,
+      vol: row.volatility,
+      solveCount: row.solve_count,
     };
-  } else if (lastEventRow) {
+  }
+
+  let rating: RatingValue | null = ratings.direct ?? null;
+  if (!rating && lastEventRow) {
     // Fallback: derive rating from the latest event using the client's snapshot.
     // Replaying from default is wrong for sessions whose history pre-dates the events
     // table — RD compounding diverges. Last-event snapshot matches the client.
@@ -133,11 +146,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       lastEventRow.score,
     );
     rating = { rating: final.rating, rd: final.rd, vol: final.vol, solveCount: totalRatingEvents };
+    ratings.direct = rating;
     // Persist for next time
     await context.env.STATS_DB.prepare(
-      `INSERT INTO player_ratings (session_id, dev, rating, rd, volatility, solve_count, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-       ON CONFLICT(session_id, dev) DO UPDATE SET
+      `INSERT INTO player_ratings (session_id, dev, genre, rating, rd, volatility, solve_count, updated_at)
+       VALUES (?, ?, 'direct', ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(session_id, dev, genre) DO UPDATE SET
          rating = excluded.rating,
          rd = excluded.rd,
          volatility = excluded.volatility,
@@ -200,6 +214,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   return Response.json({
     rating,
+    ratings,
     progress,
     timestamps,
     bookmarks,

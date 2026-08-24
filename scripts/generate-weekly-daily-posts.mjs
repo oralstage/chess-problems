@@ -20,8 +20,17 @@ function parseMonday(value) {
   return date;
 }
 
+function nextMonday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  const daysUntilNextMonday = 8 - (date.getDay() || 7);
+  date.setDate(date.getDate() + daysUntilNextMonday);
+  return date;
+}
+
 async function main() {
-  const monday = parseMonday(process.argv[2]);
+  const argument = process.argv[2];
+  const monday = argument === '--next' ? nextMonday() : parseMonday(argument);
   const dates = Array.from({ length: 7 }, (_, offset) => {
     const date = new Date(monday);
     date.setDate(date.getDate() + offset);

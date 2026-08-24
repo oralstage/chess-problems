@@ -33,7 +33,7 @@ export function TermsPage({ onBack }: TermsPageProps) {
             The application includes features such as move validation, hints powered by
             Stockfish, solution playback, and progress tracking. All problem data is
             sourced from{' '}
-            <a href="https://www.yacpdb.org/" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
+            <a href="https://www.yacpdb.org/" target="_blank" rel="noopener noreferrer" className="text-[var(--ink)] dark:text-[var(--muted)] underline">
               YACPDB (Yet Another Chess Problem Database)
             </a>.
           </p>
@@ -47,7 +47,7 @@ export function TermsPage({ onBack }: TermsPageProps) {
           <h2 className="text-lg font-semibold mb-2">Donations / Payments</h2>
           <p>
             Users may optionally support the project through voluntary donations via{' '}
-            <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
+            <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer" className="text-[var(--ink)] dark:text-[var(--muted)] underline">
               Ko-fi
             </a>.
             Donations are processed in <strong>USD</strong> through Stripe (via Ko-fi).
@@ -67,7 +67,7 @@ export function TermsPage({ onBack }: TermsPageProps) {
             product or service is sold and no goods are delivered, refunds are not
             applicable. If you believe a payment was made in error, please contact
             Ko-fi support at{' '}
-            <a href="https://help.ko-fi.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
+            <a href="https://help.ko-fi.com" target="_blank" rel="noopener noreferrer" className="text-[var(--ink)] dark:text-[var(--muted)] underline">
               help.ko-fi.com
             </a>{' '}
             or reach out to the operator using the contact information below.
@@ -92,7 +92,7 @@ export function TermsPage({ onBack }: TermsPageProps) {
           </p>
           <p className="mt-2">
             Donation payments are processed by{' '}
-            <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
+            <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer" className="text-[var(--ink)] dark:text-[var(--muted)] underline">
               Stripe
             </a>{' '}
             through Ko-fi. The operator does not have access to your payment card details.
@@ -105,11 +105,11 @@ export function TermsPage({ onBack }: TermsPageProps) {
           <h2 className="text-lg font-semibold mb-2">Payment Security</h2>
           <p>
             All payment processing is handled securely by{' '}
-            <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
+            <a href="https://stripe.com" target="_blank" rel="noopener noreferrer" className="text-[var(--ink)] dark:text-[var(--muted)] underline">
               Stripe
             </a>{' '}
             through{' '}
-            <a href="https://ko-fi.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
+            <a href="https://ko-fi.com" target="_blank" rel="noopener noreferrer" className="text-[var(--ink)] dark:text-[var(--muted)] underline">
               Ko-fi
             </a>.
             Stripe is PCI DSS Level 1 certified — the highest level of certification
@@ -124,7 +124,7 @@ export function TermsPage({ onBack }: TermsPageProps) {
           <p>For questions, issues, or refund inquiries, you can reach the operator through:</p>
           <p className="mt-2 text-gray-700 dark:text-gray-300">
             Ko-fi:{' '}
-            <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 underline">
+            <a href="https://ko-fi.com/A0A21W2W51" target="_blank" rel="noopener noreferrer" className="text-[var(--ink)] dark:text-[var(--muted)] underline">
               ko-fi.com/ushiyutvj
             </a>{' '}
             (use the message feature)

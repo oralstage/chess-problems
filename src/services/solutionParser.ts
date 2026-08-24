@@ -8,11 +8,28 @@ function normalizeGerman(s: string): string {
 }
 
 // Long algebraic: Piece + from + sep + to + promo (sep includes ':' for captures)
-const LONG_RE = /([KQRBSNPDTL]?)([a-h][1-8])([-*x:])([a-h][1-8])(=?[QRBNSDTL])?([+#!?]*)/i;
+// The promotion group also takes the joke forms: =K and =P (pieces FIDE does
+// not allow) and =bS / =wQ (promoting to the opponent's colour). They are only
+// accepted with the '=' in front, so ordinary text cannot fall into them.
+const LONG_RE = /([KQRBSNPDTL]?)([a-h][1-8])([-*x:])([a-h][1-8])(=[bw][QRBSNPDTLK](?![A-Za-z])|=[KP](?![A-Za-z])|=?[QRBNSDTL])?([+#!?]*)/i;
+// The joke promotions, allowed only where a promotion can happen: on a move by a
+// pawn. Fairy conditions demote pieces with the same suffix (RelegationChess
+// writes Qh7-a7=P), and that is a different thing on a different mover.
+const JOKE_PROMO = '(?:=[bw][QRBSNPDTLK](?![A-Za-z])|=[KP](?![A-Za-z]))';
 // Any move pattern (for extracting from text)
 // Note: [a-h][18][QRBNS] handles promotions without '=' (e.g., f8Q instead of f8=Q)
 // Note: ':' is used as capture separator in some notations (e.g., R:c3)
-const ANY_MOVE_RE = /(?:0-0-0|O-O-O|0-0|O-O|[KQRBSNPDTL]?[a-h][1-8][-*x:][a-h][1-8](?:=?[QRBNSDTL])?|[KQRBSNPDTL][a-h]?[1-8]?[x*:]?[a-h][1-8](?:=?[QRBNSDTL])?|[a-h][x*:][a-h][1-8](?:=?[QRBNSDTL])?|[a-h][18][QRBNSDTL]|[a-h][1-8](?:=[QRBNSDTL])?)([+#!?]*)/;
+const ANY_MOVE_RE = new RegExp(
+  '(?:0-0-0|O-O-O|0-0|O-O'
+  // pawn moves first: only these may carry a joke promotion
+  + '|P?[a-h][1-8][-*x:][a-h][1-8](?:' + JOKE_PROMO + '|=?[QRBNSDTL])?'
+  + '|[KQRBSNDTL][a-h][1-8][-*x:][a-h][1-8](?:=?[QRBNSDTL])?'
+  + '|[KQRBSNPDTL][a-h]?[1-8]?[x*:]?[a-h][1-8](?:=?[QRBNSDTL])?'
+  + '|[a-h][x*:][a-h][1-8](?:' + JOKE_PROMO + '|=?[QRBNSDTL])?'
+  + '|[a-h][18][QRBNSDTL]'
+  + '|[a-h][1-8](?:' + JOKE_PROMO + '|=[QRBNSDTL])?'
+  + ')([+#!?]*)',
+);
 const CASTLING_RE = /^(0-0-0|O-O-O|0-0|O-O)([+#!?]*)/;
 
 function yacpdbToUci(move: string): string {
@@ -24,6 +41,17 @@ function yacpdbToUci(move: string): string {
   if (clean === '0-0-0' || clean === 'O-O-O') return 'san:O-O-O';
 
   // Long algebraic: Bf7-g8 → f7g8, also handles promotion without '=' (d7-d8Q)
+  // A joke promotion (=K, =P, or the opponent's colour) has no UCI to give, and
+  // chess.js has no move to make of it either. Pass it on as SAN so it fails as
+  // one unplayable move instead of being read as an ordinary promotion.
+  // A joke promotion (=K, =P, or the opponent's colour) has no UCI to give, and
+  // no engine can make the move either. Marked with its own prefix rather than
+  // "san:", because chess.js reads "c7-c8=K" loosely and answers with c8=N --
+  // which would then be accepted from the solver as the key move.
+  if (/^P?[a-h][1-8][-*x:]?[a-h][1-8](?:=[bw][QRBSNPKDTL]|=[KP](?![a-z]))/i.test(clean)) {
+    return 'joke:' + normalizeGerman(clean).replace(/:/g, 'x');
+  }
+
   const mLong = clean.match(/^([KQRBSNP]?)([a-h][1-8])[-*x]?([a-h][1-8])(?:=?([QRBNS]))?$/i);
   if (mLong) {
     const promo = mLong[4] ? (mLong[4] === 'S' || mLong[4] === 's' ? 'n' : mLong[4].toLowerCase()) : '';
@@ -59,9 +87,13 @@ function yacpdbToSanApprox(move: string): string {
     const piece = normalizePiece(mLong[1]);
     const capture = mLong[3] === '*' || mLong[3] === 'x' || mLong[3] === ':' ? 'x' : '';
     const to = mLong[4];
-    const promoRaw = mLong[5] || '';
+    const promoRaw = piece && piece !== 'P' && /^=[bw]?[KP]/i.test(mLong[5] || '') ? '' : (mLong[5] || '');
     const promoChar = promoRaw.replace('=', '');
-    const promo = promoChar ? '=' + normalizePiece(promoChar) : '';
+    // "bS" keeps its colour letter and its YACPDB piece letter: the point of the
+    // move is which colour it promotes to, and "=bN" would read as a typo.
+    const promo = promoChar
+      ? '=' + (/^[bw]/.test(promoChar) ? promoChar : normalizePiece(promoChar))
+      : '';
     const suffix = mLong[6] || '';
 
     if (!piece || piece === 'P' || piece === 'p') {
@@ -794,6 +826,20 @@ export function parseTwinMods(modLine: string): FenMod[] {
     mods.push({ type: 'add', square: m[2], piece: pieceToFen(m[1]) });
   }
 
+  // Substitution: a bare "wRa8" means the piece standing on a8 becomes a white
+  // rook. Blank out everything the patterns above already claimed so their
+  // operands (the "wR" of "-wRf3", the "wK" of "wKc2-->c1") are not read a
+  // second time as substitutions.
+  let rest = modLine;
+  for (const pattern of [movePattern, removePattern, addPattern]) {
+    pattern.lastIndex = 0;
+    rest = rest.replace(pattern, (matched) => ' '.repeat(matched.length));
+  }
+  const substPattern = /([bw][KQRBSP])([a-h][1-8])/gi;
+  while ((m = substPattern.exec(rest)) !== null) {
+    mods.push({ type: 'add', square: m[2], piece: pieceToFen(m[1]) });
+  }
+
   return mods;
 }
 
@@ -874,6 +920,8 @@ export interface TwinData {
   id: string;          // "a", "b", "c"...
   label: string;       // "a) diagram", "b) bKa7→a6"
   fen: string;
+  /** Who moves first here — a twin may carry its own stipulation ("{h#2}"). */
+  firstColor: 'w' | 'b';
   solutionTree: SolutionNode[];
   fullSolutionTree: SolutionNode[];
 }
@@ -883,6 +931,163 @@ export interface TwinData {
  * Returns array of twin data with computed FENs and solution trees.
  * Returns null if not a twin problem.
  */
+/**
+ * The prose comments in a YACPDB solution, in the order they appear.
+ *
+ * Most braces hold machine annotation -- "display-departure-file" is an
+ * instruction to YACPDB's own renderer, "(S~)" restates the move next to it,
+ * "A"/"[B]"/"(a)" label variations. Across 28,587 problems only 101 brace
+ * groups were sentences, but those carry what the diagram cannot say: "Black
+ * has no last move.", "Original stipulation: ...", "The position of Black
+ * Pawns is illegal. One White piece must be removed!". Nearly half sit before
+ * the first move, describing the problem rather than any move in it.
+ *
+ * So: keep what reads as a sentence, drop the rest.
+ */
+const MACHINE_NOTE = /^(?:display-departure-(?:file|rank)|cook|dual|zugzwang|stalemate|[A-Za-z]|\[[A-Za-z]\]|\([a-z]\)|#\d+)$/i;
+
+export function extractSolutionNotes(solutionText: string): string[] {
+  if (!solutionText) return [];
+  const notes: string[] = [];
+  const seen = new Set<string>();
+  for (const m of solutionText.matchAll(/\{([^}]*)\}/g)) {
+    const inner = m[1].replace(/\s+/g, ' ').trim().replace(/^\(([^()]*)\)$/, '$1').trim();
+    if (!inner || MACHINE_NOTE.test(inner)) continue;
+    const words = inner.split(' ').filter(Boolean);
+    // A sentence, not a move or a label: several words, at least two of them
+    // words rather than notation.
+    const real = words.filter(w => /^[A-Za-zÀ-ÿ]{3,}$/.test(w.replace(/[.,;:!?()'"]/g, '')));
+    if (words.length < 3 || real.length < 2) continue;
+    if (seen.has(inner)) continue;
+    seen.add(inner);
+    notes.push(inner);
+  }
+  return notes;
+}
+
+/**
+ * Rotate or mirror the whole board. YACPDB twins do this instead of moving
+ * pieces one by one: "b) rotate 90" is the same diagram seen from another side,
+ * and its solution is written in the turned coordinates -- so without the turn,
+ * the moves land on empty squares.
+ *
+ * Directions follow the YACPDB convention, taken from the fairy app where they
+ * were checked against that corpus. Castling and en passant do not survive a
+ * board that has been picked up and put down again; the side to move does.
+ */
+export function transformBoard(
+  fen: string,
+  kind: 'rotate90' | 'rotate180' | 'rotate270' | 'mirrorH' | 'mirrorV' | 'diagA1H8' | 'diagA8H1',
+): string {
+  const parts = fen.split(' ');
+  const grid: (string | null)[][] = parts[0].split('/').map(row => {
+    const cells: (string | null)[] = [];
+    for (const ch of row) {
+      if (ch >= '1' && ch <= '9') for (let i = 0; i < parseInt(ch); i++) cells.push(null);
+      else cells.push(ch);
+    }
+    while (cells.length < 8) cells.push(null);
+    return cells.slice(0, 8);
+  });
+  while (grid.length < 8) grid.push(Array(8).fill(null));
+
+  const out: (string | null)[][] = Array.from({ length: 8 }, () => Array<string | null>(8).fill(null));
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      let nr = r, nc = c;
+      switch (kind) {
+        case 'rotate90': nr = 7 - c; nc = r; break;
+        case 'rotate180': nr = 7 - r; nc = 7 - c; break;
+        case 'rotate270': nr = c; nc = 7 - r; break;
+        case 'mirrorH': nc = 7 - c; break;
+        case 'mirrorV': nr = 7 - r; break;
+        // Reflections in the two long diagonals: a1-h8 keeps a1 and h8 in
+        // place, a8-h1 keeps a8 and h1.
+        case 'diagA1H8': nr = 7 - c; nc = 7 - r; break;
+        case 'diagA8H1': nr = c; nc = r; break;
+      }
+      out[nr][nc] = grid[r][c];
+    }
+  }
+
+  const rows = out.map(row => {
+    let str = '', empty = 0;
+    for (const cell of row) {
+      if (cell === null) empty++;
+      else { if (empty) { str += empty; empty = 0; } str += cell; }
+    }
+    return empty ? str + empty : str;
+  });
+  return `${rows.join('/')} ${parts[1] || 'w'} - - 0 1`;
+}
+
+/**
+ * Slide every piece by the vector the twin names: "shift h1 ==> g1" moves the
+ * whole arrangement one file left. Anything pushed off the edge is dropped --
+ * a twin that did that would not be a twin.
+ */
+export function shiftBoard(fen: string, from: string, to: string): string {
+  const parts = fen.split(' ');
+  const grid: (string | null)[][] = parts[0].split('/').map(row => {
+    const cells: (string | null)[] = [];
+    for (const ch of row) {
+      if (ch >= '1' && ch <= '9') for (let i = 0; i < parseInt(ch); i++) cells.push(null);
+      else cells.push(ch);
+    }
+    while (cells.length < 8) cells.push(null);
+    return cells.slice(0, 8);
+  });
+  while (grid.length < 8) grid.push(Array(8).fill(null));
+
+  const dCol = to.charCodeAt(0) - from.charCodeAt(0);
+  const dRow = (8 - parseInt(to[1])) - (8 - parseInt(from[1]));
+  const out: (string | null)[][] = Array.from({ length: 8 }, () => Array<string | null>(8).fill(null));
+  for (let r = 0; r < 8; r++) {
+    for (let c = 0; c < 8; c++) {
+      const nr = r + dRow, nc = c + dCol;
+      if (nr < 0 || nr > 7 || nc < 0 || nc > 7) continue;
+      out[nr][nc] = grid[r][c];
+    }
+  }
+
+  const rows = out.map(row => {
+    let str = '', empty = 0;
+    for (const cell of row) {
+      if (cell === null) empty++;
+      else { if (empty) { str += empty; empty = 0; } str += cell; }
+    }
+    return empty ? str + empty : str;
+  });
+  return `${rows.join('/')} ${parts[1] || 'w'} - - 0 1`;
+}
+
+/** "rotate 90", "mirror a1<-->h1", "reflect" — a whole-board twin change. */
+const TWIN_GEO_RE = /\b(rotate\s*(?:90|180|270)|mirror|reflect)\b/i;
+/** "shift h1 ==> g1" — the whole arrangement slides across the board. */
+const TWIN_SHIFT_RE = /\bshift\s*([a-h][1-8])\s*=*>\s*([a-h][1-8])/i;
+
+/** The two squares a mirror swaps, which is what names its axis. */
+const TWIN_MIRROR_AXIS_RE = /([a-h][1-8])\s*<-+>\s*([a-h][1-8])/i;
+
+/**
+ * Read the axis out of "mirror a1<-->h1": the two squares that change places.
+ * Same rank means the files are swapped, same file means the ranks are, and a
+ * corner pair names one of the diagonals.
+ */
+function mirrorKindFrom(modLine: string): 'mirrorH' | 'mirrorV' | 'diagA1H8' | 'diagA8H1' {
+  const m = modLine.match(TWIN_MIRROR_AXIS_RE);
+  if (!m) return 'mirrorH';
+  const [a, b] = [m[1].toLowerCase(), m[2].toLowerCase()];
+  if (a[1] === b[1]) return 'mirrorH';
+  if (a[0] === b[0]) return 'mirrorV';
+  // The label names the two squares that TRADE PLACES, so the axis is the other
+  // diagonal: sending a1 to h8 is a reflection in the a8-h1 diagonal.
+  const pair = [a, b].sort().join('');
+  return pair === 'a1h8' ? 'diagA8H1' : pair === 'a8h1' ? 'diagA1H8' : 'mirrorH';
+}
+/** "{h#2}" — a twin that also changes the stipulation. */
+const TWIN_STIP_RE = /\{\s*([a-z]*[#=]\d*)\s*\}/i;
+
 export function parseTwins(solutionText: string, originalFen: string, firstMoveColor: 'w' | 'b' = 'w'): TwinData[] | null {
   if (!solutionText) return null;
   const trimmed = solutionText.trim();
@@ -912,7 +1117,16 @@ export function parseTwins(solutionText: string, originalFen: string, firstMoveC
     const lines = content.split('\n');
     const firstLine = lines[0].trim();
     // Check if first line is a modification or the start of the solution
-    const hasMod = /[bw][KQRBSP][a-h][1-8]\s*-->|^-[bw][KQRBSP]|^\+[bw][KQRBSP][a-h]/.test(firstLine);
+    // A substitution line ("wRa8", or several separated by spaces) carries no
+    // punctuation to recognise it by, so accept it only when the whole line is
+    // made of those tokens -- otherwise a line of solution moves could pass.
+    const hasMod = !/^\d/.test(firstLine) && (
+      TWIN_GEO_RE.test(firstLine)
+      || TWIN_SHIFT_RE.test(firstLine)
+      || TWIN_STIP_RE.test(firstLine)
+      || /[bw][KQRBSP][a-h][1-8]\s*-->|^-[bw][KQRBSP]|^\+[bw][KQRBSP][a-h]/.test(firstLine)
+      || /^[bw][KQRBSP][a-h][1-8](?:\s+[bw][KQRBSP][a-h][1-8])*$/.test(firstLine)
+    );
     const modLine = hasMod ? firstLine : '';
     const solText = hasMod ? lines.slice(1).join('\n') : content;
     twins.push({
@@ -929,12 +1143,32 @@ export function parseTwins(solutionText: string, originalFen: string, firstMoveC
 
   for (const twin of twins) {
     const baseFen = twin.cumulative ? prevFen : originalFen;
+    // The board turns first, then pieces move on the board as it now stands:
+    // "b) rotate 180 -wRc1" names c1 on the turned board.
+    let fen = baseFen;
+    const geo = twin.modLine.match(TWIN_GEO_RE);
+    if (geo) {
+      const g = geo[1].toLowerCase().replace(/\s+/g, '');
+      if (g === 'rotate90') fen = transformBoard(fen, 'rotate90');
+      else if (g === 'rotate180') fen = transformBoard(fen, 'rotate180');
+      else if (g === 'rotate270') fen = transformBoard(fen, 'rotate270');
+      else fen = transformBoard(fen, mirrorKindFrom(twin.modLine));
+    }
+    const shift = twin.modLine.match(TWIN_SHIFT_RE);
+    if (shift) fen = shiftBoard(fen, shift[1].toLowerCase(), shift[2].toLowerCase());
     const mods = parseTwinMods(twin.modLine);
-    const fen = mods.length > 0 ? applyTwinMods(baseFen, mods) : baseFen;
+    if (mods.length > 0) fen = applyTwinMods(fen, mods);
     prevFen = fen;
 
+    // A twin may set its own stipulation ("b) rotate 90 {h#2}"), and a helpmate
+    // is Black to move whatever the problem's own stipulation says.
+    const stip = twin.modLine.match(TWIN_STIP_RE);
+    const twinColor: 'w' | 'b' = stip ? (/^h/i.test(stip[1]) ? 'b' : 'w') : firstMoveColor;
+    if (twinColor === 'b' && fen.includes(' w ')) fen = fen.replace(' w ', ' b ');
+    if (twinColor === 'w' && fen.includes(' b ')) fen = fen.replace(' b ', ' w ');
+
     // Parse solution for this twin
-    const solNodes = parseSolution(twin.solutionText, firstMoveColor);
+    const solNodes = parseSolution(twin.solutionText, twinColor);
     const label = twin.modLine
       ? `${twin.id}) ${twin.modLine}`
       : `${twin.id}) diagram`;
@@ -943,7 +1177,8 @@ export function parseTwins(solutionText: string, originalFen: string, firstMoveC
       id: twin.id,
       label,
       fen,
-      solutionTree: filterKeyMoves(solNodes, firstMoveColor),
+      firstColor: twinColor,
+      solutionTree: filterKeyMoves(solNodes, twinColor),
       fullSolutionTree: solNodes,
     });
   }

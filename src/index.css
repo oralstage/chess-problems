@@ -1,36 +1,650 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* The site has one look. `dark:` utilities left in the views that are not
+   individually restyled compile against a selector that never matches, so
+   they are inert rather than needing to be stripped from every file. */
+@custom-variant dark (&:where(.__never-dark));
 
 @theme {
-  --color-cp-primary: #10b981;
-  --color-cp-dark: #059669;
-  --color-cp-accent: #f59e0b;
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --color-cp-primary: #3f6b23;
+  --color-cp-dark: #2f5119;
+  --color-cp-accent: #ffb020;
+  --font-sans: 'Baloo 2', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* The neutral ramp is not neutral: it runs cream -> sage -> forest, so the
+     screens still written in Tailwind's gray utilities land inside this
+     palette instead of sitting as a grey island on the green check. */
+  --color-gray-50:  #fffdf2;
+  --color-gray-100: #f1eedd;
+  --color-gray-200: #e0e3cb;
+  --color-gray-300: #c3cba9;
+  --color-gray-400: #8b9770;
+  --color-gray-500: #667254;
+  --color-gray-600: #4b5540;
+  --color-gray-700: #3b4433;
+  --color-gray-800: #2a3125;
+  --color-gray-900: #21281d;
+  --color-gray-950: #1a2017;
+
+  --color-slate-400: #8b9770;
+  --color-slate-500: #667254;
+
+  /* Same treatment for the emerald ramp the app uses for chips and solid
+     buttons. The light end stays a pale sage chip; the 600+ end is deep
+     forest so white type on solid buttons still passes. --acid is reserved
+     for the primary action and is never a ramp. */
+  --color-emerald-50:  #eef6e2;
+  --color-emerald-100: #dcecc6;
+  --color-emerald-200: #c6dfa5;
+  --color-emerald-300: #a8cc7e;
+  --color-emerald-400: #85ae55;
+  --color-emerald-500: #63893a;
+  --color-emerald-600: #3f6b23;
+  --color-emerald-700: #33561c;
+  --color-emerald-800: #2a4718;
+  --color-emerald-900: #223a14;
+  --color-emerald-950: #16270d;
+
+  --color-green-500: #63893a;
+  --color-green-600: #3f6b23;
+  --color-green-700: #33561c;
+}
+
+/* ============================================================
+   Design layer — flat fills, ink outlines, unblurred offset
+   shadows, chunky rounded type. Ported from fairy-chess-problems
+   (see its DESIGN-NOTES.md); same grammar, this site's own colour.
+
+   The ground is the board: a large green check in the same hue
+   the diagram uses, so the page and the diagram belong to one
+   world rather than the board being an island on a flat fill.
+
+   One structural colour, --acid. Amber, deliberately discordant
+   against the green, and light enough to take ink type on top,
+   so it never needs a second.
+   ============================================================ */
+
+:root {
+  --sq-a: #93ab6a;
+  --sq-b: #90a867;
+  --surface: #fffdf2;
+  --surface-2: #f1eedd;
+  --ink: #171d10;
+  --muted: #3b4433;
+  --faint: #667254;
+  --acid: #ffb020;
+  /* a rule between list entries, where full-strength ink would be a wall */
+  --hairline: color-mix(in srgb, var(--ink) 20%, transparent);
+
+  /* Status is not decoration and not the accent: solved and failed have to
+     read at a glance across a grid of eighteen tiles. */
+  --ok: #2f6d1f;
+  --ok-bg: #e2f0cf;
+  --bad: #b23c1e;
+  --bad-bg: #f8e2da;
+
+  /* The diagram's own squares, unchanged from the green board this site has
+     always used — now as tokens so the ground can be mixed from them. */
+  --board-l: #edeed1;
+  --board-d: #779952;
+
+  --hard: 5px 5px 0 var(--ink);
+  --hard-lg: 8px 8px 0 var(--ink);
+  --soft: 3px 3px 0 var(--ink);
+  --soft-xs: 2px 2px 0 var(--ink);
+
+  --radius-nb: 26px;
+  --radius-pill: 999px;
+
+  --check: 128px;
+
+  /* Move-count coding for the stipulation badge. This is a real distinction
+     the site already made (#2 green, #3 blue, ... ) and worth keeping, but it
+     was written in raw Tailwind ramps, which are far too saturated to sit on
+     cream next to this palette. Same seven hues, pulled down to tints that
+     take ink type; the badge's ink border carries the contrast. */
+  --mc-2: #cfe3b0;
+  --mc-3: #bfd3e8;
+  --mc-4: #f0dcae;
+  --mc-5: #eec9d4;
+  --mc-6: #d9cbe8;
+  --mc-7: #bfdfdd;
+  --mc-x: #ded9c8;
+
+  /* Card tints on the home page, one per genre. Separate tokens from --mc-*
+     even where a value repeats: those carry move count on the stipulation
+     badge, these carry genre on the card behind it, and the two appear on
+     top of each other. All are pale enough to take ink type. */
+  --card-direct: #dfe8cd;
+  --card-help:   #cfe0ee;
+  --card-self:   #f2ddb4;
+  --card-study:  #eecdd6;
+  --card-retro:  #dccfea;
+  --card-fairy:  #c4e2df;
 }
 
 html {
-  font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-family: 'Baloo 2', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
-html {
-  background-color: #f9fafb;
-}
-html.dark {
-  background-color: #030712;
+/* Match the app background so iOS Safari's chrome and over-scroll areas
+   don't flash white */
+html { background-color: var(--sq-a); }
+
+body {
+  color: var(--ink);
+  background-color: var(--sq-a);
+  background-image:
+    linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%),
+    linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%);
+  background-size: var(--check) var(--check);
+  background-position: 0 0, calc(var(--check) / 2) calc(var(--check) / 2);
+  background-attachment: fixed;
 }
 
-/* Subtle noise texture for depth */
-body::before {
-  content: '';
-  position: fixed;
+/* The solving screen keeps the same ground at a finer pitch — its elements
+   are small, and the home page's pitch reads as too loud behind them. Set on
+   a wrapper, not on body, so only that view changes. */
+.nb-fine { --check: 96px; }
+
+/* Full-screen overlays (problem list, history, bookmarks, search, filters)
+   cover the body, so they paint the check themselves. */
+.nb-ground {
+  background-color: var(--sq-a);
+  background-image:
+    linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%),
+    linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%);
+  background-size: var(--check) var(--check);
+  background-position: 0 0, calc(var(--check) / 2) calc(var(--check) / 2);
+}
+
+/* ---------- surfaces ---------- */
+
+/* Text must never sit straight on the check: small text on a patterned
+   mid-value ground is hard to read whatever the contrast ratio says. The fix
+   is a surface, not an outline. */
+.nb-sheet {
+  background: var(--surface);
+  border-radius: var(--radius-nb);
+  border: 4px solid var(--ink);
+  box-shadow: var(--hard-lg);
+}
+
+.nb-card {
+  background: var(--surface);
+  border: 4px solid var(--ink);
+  border-radius: var(--radius-nb);
+  box-shadow: var(--hard-lg);
+}
+
+.nb-plate {
+  background: var(--surface);
+  border: 4px solid var(--ink);
+  border-radius: 10px;
+  box-shadow: var(--hard);
+}
+
+/* The board must never dissolve into the ground — its dark square comes from
+   the same green family as the check — so it keeps the heaviest edge on the
+   page. No shadow: a hard shadow means "this sits on the ground", and the
+   board sits inside a surface, not on one. */
+.nb-plate-key { background: var(--acid); }
+
+/* The lede, said rather than posted.
+
+   It was a paragraph on .nb-plate — the same object as the print dropdown,
+   the sort dropdown and the raw-solution <pre> — so it wore the site's own
+   furniture and read as chrome before it read as a sentence.
+
+   personal-site's rule for this shape is that a balloon points at who is
+   talking, it does not come out of a mouth. The speaker here is the drawn
+   king beside the title, so the balloon is positioned against the KING, not
+   against the column: whatever the king's size, the tail tip lands on it.
+
+   Not acid. --acid means "the thing to press", and this cannot be pressed —
+   the same reason it was pulled off the fairy condition panel twice. */
+.nb-speech {
+  --speech-w: 20rem;
+  position: absolute;
+  bottom: calc(100% + 0.375rem);
+  /* 0.09375 is 30/320 — where the tail tip sits across the balloon. Taking it
+     off the king's half-width parks the tip over the crown at any width.
+
+     The balloon is long and low, and the tail hangs near its left END rather
+     than a fifth of the way in. That is what lets it be this wide: the tip has
+     to land on the king, who stands at the left of the page, so every unit of
+     width in front of the tip pushes the balloon off the left edge, while every
+     unit behind it runs harmlessly across the empty band over the title. */
+  left: calc(50% - (var(--speech-w) * 0.09375));
+  width: var(--speech-w);
+  aspect-ratio: 320 / 108;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+  /* The shadow is on the whole balloon, tail included, so it reads as one
+     object sitting on the ground rather than a plate with a spur. */
+  filter: drop-shadow(3px 3px 0 var(--ink));
+}
+
+.nb-speech > svg {
+  position: absolute;
   inset: 0;
-  z-index: -1;
-  opacity: 0.02;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  width: 100%;
+  height: 100%;
+}
+
+.nb-speech > svg path {
+  fill: var(--surface);
+  stroke: var(--ink);
+  stroke-width: 4;
+  stroke-linejoin: round;
+}
+
+/* Nudged up off the centre of the box, because the box includes the tail and
+   the tail is not part of the balloon the words sit in. */
+.nb-speech > span {
+  position: relative;
+  z-index: 1;
+  margin-top: -0.85rem;
+  /* width, not auto: the grid item is content-sized by default, so a long line
+     grows straight out through both sides of the balloon instead of wrapping
+     inside it. The padding is generous because the shape is an ellipse — text
+     set to the full box width would cross the curve at the top and bottom
+     lines even while it fits the middle one. */
+  width: 100%;
+  padding: 0 1.4rem;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+}
+
+@media (min-width: 640px) {
+  .nb-speech { --speech-w: 22rem; }
+  .nb-speech > span { font-size: 1.125rem; }
+}
+
+.nb-board {
+  display: inline-flex;
+  background: var(--surface);
+  border: 4px solid var(--ink);
+  border-radius: 10px;
+}
+
+/* The promotion picker.
+
+   react-chessboard builds each option's background as `${squareColour}aa` — a
+   colour string with an alpha suffix glued on. The board's colours became
+   custom properties in the restyle, so that now produces `var(--board-d)aa`,
+   which is not a colour at all: the declaration is dropped and the four options
+   render as bare pieces floating over the dimmed board, with a fill appearing
+   only under the cursor. So the surface is painted here instead.
+
+   Same two-by-two block and same size as before. The gap is the picker's own
+   background showing through, which is what rules the four options apart; the
+   ring outside is a shadow rather than a border so it costs no layout and the
+   block still measures exactly two squares.
+
+   The library anchors the block on the CENTRE of the promotion square, so it
+   always hangs half a square off the eighth rank and, on the a- and h-files,
+   half a square off the side. The transforms below anchor it on a CORNER of
+   that square instead, choosing the corner that keeps it on the board. */
+[title="Choose promotion piece"] {
+  display: flex;
+  flex-wrap: wrap;
+  width: calc(var(--sq) * 2 + 3px);
+  gap: 3px;
+  background: var(--ink);
+  border-radius: 10px;
+  box-shadow: 0 0 0 4px var(--ink);
+  overflow: hidden;
+  transform: translate(calc(var(--sq) * -0.5), calc(var(--sq) * -0.5)) !important;
+}
+
+/* Only where the block sits moves; the options stay queen, rook, knight,
+   bishop in that order wherever it opens, so the piece you reach for is always
+   in the same corner of the block. */
+.cp-promo-left [title="Choose promotion piece"] {
+  transform: translate(calc(var(--sq) * -1.5 - 3px), calc(var(--sq) * -0.5)) !important;
+}
+
+.cp-promo-up [title="Choose promotion piece"] {
+  transform: translate(calc(var(--sq) * -0.5), calc(var(--sq) * -1.5 - 3px)) !important;
+}
+
+.cp-promo-up.cp-promo-left [title="Choose promotion piece"] {
+  transform: translate(calc(var(--sq) * -1.5 - 3px), calc(var(--sq) * -1.5 - 3px)) !important;
+}
+
+[title="Choose promotion piece"] > [data-piece] {
+  background-color: var(--surface) !important;
+  border-radius: 0 !important;
+}
+
+[title="Choose promotion piece"] > [data-piece]:hover {
+  background-color: var(--acid) !important;
+}
+
+/* Blocks that sit INSIDE a sheet get an outline but no shadow — a hard shadow
+   means "this sits on the ground", and these sit on a surface. Adding one made
+   a card float on a card. This is the frame for the problem header, the
+   playback bar, the solution panel and the feedback strip. */
+.nb-panel {
+  background: var(--surface-2);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+}
+.nb-panel-plain {
+  background: transparent;
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+}
+
+/* On a phone the diagram is worth more than the frame around it, so the
+   solving sheet gives up its side borders and its outer margin and runs the
+   full width — the board then measures exactly the viewport, with nothing
+   left to clip the a-file label. Top and bottom keep the frame, so it still
+   reads as a sheet laid on the check rather than as a bare page. */
+@media (max-width: 639px) {
+  .nb-sheet-bleed {
+    margin-left: 0;
+    margin-right: 0;
+    border-left-width: 0;
+    border-right-width: 0;
+    border-radius: 0;
+    box-shadow: 0 5px 0 var(--ink);
+  }
+
+  /* Two classes, so this beats the utility class setting the same property.
+     A phone puts its own bar over the bottom of the viewport, and the last
+     row of buttons was landing under it. Clear the inset the browser reports,
+     and keep the same visible gap underneath on the phones that report none. */
+  .nb-sheet.nb-sheet-bleed {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* The home page's daily diagram is a picture, not something to solve on, so
+   unlike the board on the problem page it takes the frame and the shadow.
+   (The problem page's board stays bare: print / e-paper mode screenshots it,
+   and an ink frame would end up in the exported diagram.) */
+.nb-daily {
+  border: 4px solid var(--ink);
+  border-radius: 14px;
+  box-shadow: var(--hard);
+  overflow: hidden;
+  line-height: 0;
+}
+
+/* Section headings, built the way personal-site builds them: a sticker with
+   a heavy ink outline and a hard shadow, one step up in size from the body,
+   and all of them the same fill so the run of headings reads as one thread
+   down the page rather than as five competing colours.
+
+   The fill is ink, not acid. On that site the accent is free to carry a
+   heading; here --acid means "the thing to press", and a heading is not
+   pressable. Ink also keeps it clear of the cream buttons. */
+.nb-section-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+  margin-bottom: 1.1rem;
+}
+.nb-section-head h2 {
+  position: relative;
+  z-index: 1;
+  display: inline-block;
+  margin: 0;
+  padding: 0.2rem 1.1rem 0.3rem;
+  border: 3px solid var(--ink);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 4px 4px 0 var(--ink);
+  font-size: clamp(1.15rem, 3.4vw, 1.5rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+/* One drawing per section, in the band that is empty at every width: the
+   right-hand side of the heading row. Absolutely positioned so an object
+   taller than the sticker overflows into the section's padding instead of
+   pushing the cards down. Nothing goes behind a card or under body copy —
+   that costs reading and buys decoration. */
+.nb-heading-object {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  display: block;
+  pointer-events: none;
+}
+
+/* ---------- repeating content ---------- */
+
+/* A chip row or a grid of tiles IS the content, and its job is to be
+   countable at a glance — so every one is outlined, with one thin uniform
+   2px edge and no shadow. The heavy 4px-plus-hard-shadow treatment stays
+   reserved for the few big containers. */
+.nb-chip {
+  background: var(--surface-2);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.nb-chip:hover { background: var(--surface); color: var(--ink); }
+.nb-chip-on { background: var(--ink); color: var(--surface); font-weight: 800; }
+.nb-chip-on:hover { background: var(--ink); color: var(--surface); }
+
+.nb-tile {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 14px;
+  color: var(--ink);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+.nb-tile:hover { transform: translate(-1px, -1px); box-shadow: var(--soft); }
+.nb-tile-ok { background: var(--ok-bg); color: var(--ok); }
+.nb-tile-bad { background: var(--bad-bg); color: var(--bad); }
+.nb-tile-current {
+  background: var(--acid);
+  box-shadow: var(--hard);
+  color: var(--ink);
+  font-weight: 800;
+}
+.nb-tile-current:hover { box-shadow: var(--hard); }
+
+.nb-mark-ok { background: var(--ok); }
+.nb-mark-bad { background: var(--bad); }
+
+/* One entry reads fine as a name and a sentence. Several run together into a
+   wall, so entries after the first are separated by a rule. */
+.nb-entry + .nb-entry {
+  border-top: 2px solid var(--hairline);
+  padding-top: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+/* Pagination is navigation, not a filter: the numbers are read as a run, and
+   ringing each one turns a page range into a row of pills. */
+.nb-page {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--muted);
+  font-weight: 700;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+.nb-page:hover { background: var(--surface-2); color: var(--ink); }
+.nb-page-on { background: var(--ink); color: var(--surface); font-weight: 800; }
+.nb-page-on:hover { background: var(--ink); color: var(--surface); }
+
+/* ---------- controls ---------- */
+
+/* Outlines are the loudest thing here, so only a few objects get one: the
+   cards, the board plate, and the single primary action. Everything else —
+   icons, nav arrows, secondary buttons — is bare ink that only picks up a
+   fill on hover. */
+.nb-btn {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--soft-xs);
+  color: var(--ink);
+  font-weight: 700;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.nb-btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: var(--soft); }
+.nb-btn:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+.nb-btn:disabled { opacity: 0.42; cursor: not-allowed; }
+
+/* --acid means "the thing to press". Next, Solve, Start, the current problem,
+   the active filter. Nothing else — an acid block that cannot be clicked
+   sitting near an acid button that can costs more than the emphasis is worth. */
+.nb-btn-key { background: var(--acid); }
+.nb-key { background: var(--acid); color: var(--ink); font-weight: 800; }
+
+/* A label that needs to read as a label rather than as a heading: the pill
+   shape carries the distinction, so the type does not have to get louder.
+   Same treatment fairy gives "today's fairy problem" on its daily card.
+   Its own class because .nb-pill's surface fill would otherwise win over
+   .nb-key's acid — .nb-pill is declared later in this file. */
+.nb-label-key {
+  background: var(--acid);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--soft-xs);
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.nb-btn-quiet {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  box-shadow: none;
+  color: var(--ink);
+  font-weight: 700;
+  transition: background-color 0.12s ease;
+}
+.nb-btn-quiet:hover:not(:disabled) { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.nb-btn-quiet:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* The lone icon button that sits on the check with nothing around it: the
+   close ✕ on the overlays, and the menu on the home page. A bare glyph there
+   was the original bug — it was set in a grey the retint had landed on the
+   ground's own value — and even in ink it reads as a stray mark rather than a
+   control. A disc carries its own ground, so it never depends on what is
+   behind it. Cream with an ink edge, like every other object here, rather than
+   a solid ink dot: filled ink reads as a warning at this size, and neither
+   closing a list nor opening a menu is one.
+
+   NOT for icons that sit in a row on a surface — the solving header's four
+   controls are bare on purpose, so that ringing one of them would mean
+   something. */
+.nb-disc {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: var(--soft-xs);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  flex-shrink: 0;
+  transition: transform 0.12s ease, background-color 0.12s ease;
+}
+.nb-disc:hover { transform: translate(-1px, -1px); }
+.nb-disc:active { transform: none; }
+.nb-disc > svg { width: 1.05rem; height: 1.05rem; }
+
+/* A two-square swatch of the board a print mode actually produces. Naming the
+   hex ("Solid #FF0000") told the reader nothing they could act on — the point
+   of these modes is what the diagram LOOKS like on the sign, so the menu shows
+   two squares of it instead. */
+.nb-swatch {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  width: 1.6rem;
+  height: 1.6rem;
+  flex-shrink: 0;
+  border: 2px solid var(--ink);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.nb-swatch > i { display: block; }
+
+.nb-icon {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-pill);
+  color: var(--ink);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.12s ease;
+}
+.nb-icon:hover:not(:disabled) { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+.nb-icon:disabled { opacity: 0.3; }
+
+.nb-pill {
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--soft-xs);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.nb-pill-key { background: var(--acid); }
+
+.nb-input {
+  background: var(--surface-2);
+  border: 3px solid var(--ink);
+  border-radius: var(--radius-pill);
+  box-shadow: inset 2px 2px 0 rgb(23 29 16 / 0.12);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.nb-rule { background: var(--ink); border-radius: 2px; }
+
+.nb-panel-label {
+  display: block;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* A hard shadow is painted outside the box and the layout knows nothing about
+   it, so a centred box reads as pushed right. How to reserve it depends on the
+   placement and one rule cannot do both: a fixed margin-right beats mx-auto's
+   margin-right: auto and turns centred into right-aligned. Blocks that fill
+   their column give the width up; auto-centred boxes are nudged half a shadow
+   left instead, which leaves their centring intact. */
+.nb-shadow-room { width: calc(100% - 8px); }
+.nb-shadow-room-sm { width: calc(100% - 5px); }
+.nb-shadow-nudge { transform: translateX(-4px); }
+
+/* Display type sitting straight on the ground needs the acid behind it to
+   separate; in em so the offset scales with the type. */
+.nb-shadow-type { text-shadow: 0.04em 0.04em 0 var(--acid); }
+
+:where(button, a, input, [tabindex]):focus-visible {
+  outline: 3px solid var(--acid);
+  outline-offset: 2px;
 }
 
 .scrollbar-hide {

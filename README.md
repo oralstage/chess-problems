@@ -55,19 +55,26 @@ The post text includes the problem's current Rated Mode rating, rounded to the
 nearest 50 and marked as approximate. If the live rating is unavailable, the
 generator falls back to the same initial difficulty estimate used by the app.
 
-On a Mac, install a daily `launchd` job by passing the desired local time
-(7:00 AM in this example):
+On a Mac, install a weekly `launchd` job. It runs every Sunday at 10:00 PM
+local time and generates the following Monday through Sunday, while the social
+sites are accessible:
 
 ```bash
-npm run daily-post:install -- 07:00
+npm run daily-post:install
 ```
 
-The job runs every Monday and generates that Monday through Sunday. Generate a
-specific week manually with any date in that week:
+Pass a different local time only if the access schedule changes:
+
+```bash
+npm run daily-post:install -- 22:00
+```
+
+The job runs every Sunday and generates the following Monday through Sunday.
+Generate a specific week manually with any date in that week:
 
 ```bash
 npm run daily-post:week -- 2026-07-20
 ```
 
-The job also runs once when it is installed or loaded. A calendar run missed
-while the Mac is asleep is run after it wakes. Logs are kept in `daily-posts/`.
+It intentionally does not run when installed or loaded, so generation stays
+inside the access window. Logs are kept in `daily-posts/`.

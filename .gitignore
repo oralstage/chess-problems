@@ -2,10 +2,19 @@ node_modules/
 dist/
 .DS_Store
 scripts/.cache/
+artifacts/
+local-experiments/
+tools/popeye/
+tools/chest/
 scripts/import-data*.sql
+scripts/flag-fairy.sql
 *.local
 public/stockfish/
 daily-posts/
 src/data/*.json
 .claude/settings.local.json
 CLAUDE.md
+
+# Generated rating seed SQL (regenerate with scripts/populate-genre-ratings.ts)
+scripts/seed/
+scripts/seed-prod/

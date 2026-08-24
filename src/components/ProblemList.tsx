@@ -35,7 +35,6 @@ export function ProblemList({
   loading, genrePrefix = '',
 }: ProblemListProps) {
   const solved = Object.values(progress).filter(s => s === 'solved').length;
-  const failed = Object.values(progress).filter(s => s === 'failed').length;
 
   // YACPDB ID is used directly as the problem number
   void allProblems; // allProblems kept for prop compatibility
@@ -83,32 +82,28 @@ export function ProblemList({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col overflow-hidden">
+    <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col p-4 max-w-3xl mx-auto w-full min-h-0">
         {/* Header */}
-        <div className="flex items-center justify-between mb-2 shrink-0">
-          <div className="flex items-center gap-3">
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+        <div className="flex items-center justify-between gap-2 mb-2 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <h3 className="text-xl font-extrabold text-[var(--ink)] truncate min-w-0">
               Problems
-              <span className="text-base font-normal text-gray-400 ml-1.5">
-                ({solved}/{allProblems.length} solved{failed > 0 ? `, ${failed} failed` : ''})
+              <span className="text-sm font-semibold text-[var(--faint)] ml-1.5 whitespace-nowrap">
+                {solved}/{allProblems.length}
               </span>
             </h3>
             {/* Filter button */}
             <button
               onClick={onOpenFilters}
-              className={`relative p-1.5 rounded-lg transition-colors ${
-                activeFilterCount > 0
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400'
-                  : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400'
-              }`}
+              className={`nb-icon relative p-1.5 shrink-0 ${activeFilterCount > 0 ? 'bg-[var(--surface-2)]' : ''}`}
               title="Filters"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
               {activeFilterCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-green-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-[var(--ink)] text-[var(--surface)] text-[10px] font-extrabold rounded-full flex items-center justify-center">
                   {activeFilterCount}
                 </span>
               )}
@@ -117,7 +112,7 @@ export function ProblemList({
             <div className="relative" ref={sortRef}>
               <button
                 onClick={() => setShowSortMenu(prev => !prev)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 transition-colors border border-gray-200 dark:border-gray-700"
+                className="nb-btn flex items-center gap-1.5 px-3 py-1.5 text-xs"
               >
                 <span>{sortBy === 'year' ? 'Year' : 'Difficulty'}</span>
                 <svg className="w-3 h-3 opacity-60" fill="currentColor" viewBox="0 0 10 14">
@@ -126,7 +121,7 @@ export function ProblemList({
                 </svg>
               </button>
               {showSortMenu && (
-                <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 py-1 min-w-[180px]">
+                <div className="nb-plate absolute left-0 top-full mt-2 z-50 py-1.5 min-w-[180px] overflow-hidden">
                   {([['difficulty', 'Difficulty'], ['year', 'Year']] as const).map(([value, label]) => (
                     <div key={value}>
                       <button
@@ -159,9 +154,10 @@ export function ProblemList({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+            aria-label="Close"
+            className="nb-disc"
           >
-            <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -179,11 +175,7 @@ export function ProblemList({
             <button
               key={key}
               onClick={() => handleStatusFilterChange(key)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
-                statusFilter === key
-                  ? 'bg-green-700 text-white dark:bg-green-600 dark:text-white'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-white/10 dark:text-gray-400 dark:hover:bg-white/20'
-              }`}
+              className={`nb-chip px-3 py-1 text-sm ${statusFilter === key ? 'nb-chip-on' : ''}`}
             >
               {label}
             </button>
@@ -192,7 +184,7 @@ export function ProblemList({
 
         {/* Filtered count */}
         {filtered.length !== allProblems.length && (
-          <div className="text-xs text-gray-400 dark:text-gray-500 mb-2 shrink-0">
+          <div className="text-xs font-semibold text-[var(--faint)] mb-2 shrink-0">
             Showing {filtered.length} of {allProblems.length} problems
           </div>
         )}
@@ -243,40 +235,30 @@ export function ProblemList({
                 <button
                   key={p.id}
                   onClick={() => onSelectProblem(p)}
-                  className={`rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all text-center relative overflow-hidden py-2 px-1 ${
-                    isCurrent
-                      ? 'bg-green-600 text-white ring-2 ring-green-400 shadow-lg shadow-green-500/30'
-                      : status === 'solved'
-                        ? 'bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/40 dark:text-green-300 dark:hover:bg-green-900/60'
-                        : status === 'failed'
-                          ? 'bg-orange-50 text-orange-700 hover:bg-orange-100 dark:bg-orange-900/40 dark:text-orange-300 dark:hover:bg-orange-900/60'
-                          : 'bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-white/10 dark:text-gray-300 dark:hover:bg-white/20'
+                  className={`nb-tile flex flex-col items-center justify-center gap-0.5 text-center relative overflow-hidden py-2 px-1 ${
+                    isCurrent ? 'nb-tile-current' : status === 'solved' ? 'nb-tile-ok' : status === 'failed' ? 'nb-tile-bad' : ''
                   }`}
                 >
                   <div className="flex items-baseline gap-0.5 leading-tight">
-                    <span className={`text-sm font-extrabold ${
-                      isCurrent ? 'text-white' : status === 'solved' ? 'text-green-600 dark:text-green-400' : status === 'failed' ? 'text-orange-600 dark:text-orange-400' : 'text-gray-800 dark:text-gray-200'
-                    }`}>
+                    <span className="text-sm font-extrabold">
                       {genrePrefix}{globalIndex}
                     </span>
                   </div>
-                  <span className={`text-xs font-bold font-mono ${
-                    isCurrent ? 'text-green-200' : status === 'solved' ? 'text-green-500/70 dark:text-green-400/70' : getStipulationTextColorClasses(p.stipulation, p.genre)
-                  }`}>
+                  <span className={`text-xs font-bold font-mono ${isCurrent || status ? 'opacity-70' : getStipulationTextColorClasses(p.stipulation, p.genre)}`}>
                     {p.stipulation}
                   </span>
 
                   {status === 'solved' && (
-                    <span className="absolute top-0.5 right-1 text-green-500 dark:text-green-400 text-xs font-bold">&#10003;</span>
+                    <span className="absolute top-0.5 right-1 text-xs font-extrabold">&#10003;</span>
                   )}
                   {status === 'failed' && !isCurrent && (
-                    <span className="absolute top-0.5 right-1 text-orange-500 dark:text-orange-400 text-xs font-bold">&#10007;</span>
+                    <span className="absolute top-0.5 right-1 text-xs font-extrabold">&#10007;</span>
                   )}
                   {bookmarks.includes(String(p.id)) && (
-                    <span className="absolute top-0.5 left-1 text-yellow-500 text-[10px]">{'\u2605'}</span>
+                    <span className="absolute top-0.5 left-1 text-[var(--acid)] text-[10px]">{'\u2605'}</span>
                   )}
                   {isCurrent && (
-                    <span className="absolute top-0.5 right-1 text-green-200 text-xs">&#9654;</span>
+                    <span className="absolute top-0.5 right-1 text-xs">&#9654;</span>
                   )}
                 </button>
               );
@@ -291,14 +273,14 @@ export function ProblemList({
             <button
               onClick={() => setPage(0)}
               disabled={page === 0}
-              className="w-10 h-10 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 transition-colors text-gray-500 dark:text-gray-300"
+              className="nb-page w-10 h-10 text-sm disabled:opacity-30"
             >
               &laquo;
             </button>
             <button
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}
-              className="w-10 h-10 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 transition-colors text-gray-500 dark:text-gray-300"
+              className="nb-page w-10 h-10 text-sm disabled:opacity-30"
             >
               &lsaquo;
             </button>
@@ -320,16 +302,12 @@ export function ProblemList({
                 }, [])
                 .map((item, idx) =>
                   item === 'ellipsis' ? (
-                    <span key={`e${idx}`} className="w-8 text-center text-sm text-gray-400 dark:text-gray-500">&hellip;</span>
+                    <span key={`e${idx}`} className="w-8 text-center text-sm text-[var(--faint)]">&hellip;</span>
                   ) : (
                     <button
                       key={item}
                       onClick={() => setPage(item)}
-                      className={`w-10 h-10 text-sm rounded-lg transition-colors ${
-                        page === item
-                          ? 'bg-green-700 text-white dark:bg-green-600 dark:text-white font-bold'
-                          : 'hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400'
-                      }`}
+                      className={`nb-page w-10 h-10 text-sm ${page === item ? 'nb-page-on' : ''}`}
                     >
                       {item + 1}
                     </button>
@@ -340,14 +318,14 @@ export function ProblemList({
             <button
               onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
               disabled={page === totalPages - 1}
-              className="w-10 h-10 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 transition-colors text-gray-500 dark:text-gray-300"
+              className="nb-page w-10 h-10 text-sm disabled:opacity-30"
             >
               &rsaquo;
             </button>
             <button
               onClick={() => setPage(totalPages - 1)}
               disabled={page === totalPages - 1}
-              className="w-10 h-10 text-sm rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-30 transition-colors text-gray-500 dark:text-gray-300"
+              className="nb-page w-10 h-10 text-sm disabled:opacity-30"
             >
               &raquo;
             </button>

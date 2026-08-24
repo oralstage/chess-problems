@@ -46,11 +46,32 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   let problemId: number;
 
-  if (cachedRow) {
+  // A daily_cache row outlives the filter that picked it, so a problem later
+  // recognised as fairy would keep being served here — and posted to X by
+  // scripts/generate-daily-post.mjs. Verify the cached pick still passes the
+  // filter, and treat it as a miss if it doesn't.
+  const cachedIsUsable = cachedRow
+    ? await context.env.DB.prepare(
+        // Only the fairy check, not the piece-count one: that is a policy about
+        // which problems to pick from tomorrow, not a statement that yesterday's
+        // was invalid. Re-deciding a cached day would rewrite the archive and
+        // desync it from what was already posted.
+        'SELECT 1 FROM problems WHERE id = ? AND is_fairy = 0'
+      ).bind(cachedRow.problem_id).first() !== null
+    : false;
+
+  if (cachedRow && cachedIsUsable) {
     problemId = cachedRow.problem_id;
   } else {
     // ── 3. Full calculation ──
-    const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'", "keywords NOT LIKE '%Shortmate%'"];
+    // piece_count <= 10: the daily is the site's front door, and most people meet
+    // it as a thumbnail on X with no context at all. What they judge in those two
+    // seconds is how crowded the board is, not the move count — and half of every
+    // #2 in the collection carries 17 pieces or more, which reads as a game
+    // position to analyse rather than a puzzle to try. Ten leaves the board
+    // visibly empty (16% of its squares), keeps 37,414 problems to draw from —
+    // a century of dailies — and lands on a miniature about seven times in ten.
+    const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'", "piece_count <= 10", "keywords NOT LIKE '%Shortmate%'"];
     const bindings: (string | number)[] = [];
     addFairyExclusion(conditions, bindings);
     const where = conditions.join(' AND ');
@@ -79,10 +100,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     problemId = idRow.id;
 
-    // Store in daily_cache for future requests
+    // Store in daily_cache for future requests. REPLACE rather than IGNORE so
+    // a row rejected just above is corrected instead of being recomputed on
+    // every request from here on.
     context.waitUntil(
       context.env.STATS_DB.prepare(
-        'INSERT OR IGNORE INTO daily_cache (date, problem_id) VALUES (?, ?)'
+        'INSERT OR REPLACE INTO daily_cache (date, problem_id) VALUES (?, ?)'
       ).bind(dateKey, problemId).run()
     );
   }

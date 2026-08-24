@@ -64,10 +64,10 @@ function DualRangeSlider({
       </span>
       <div className="relative h-8 flex items-center">
         {/* Track background */}
-        <div className="absolute inset-x-0 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full" />
+        <div className="absolute inset-x-0 h-1.5 bg-[var(--surface-2)] border border-[var(--ink)] rounded-full" />
         {/* Active range */}
         <div
-          className="absolute h-1.5 bg-green-500 dark:bg-green-600 rounded-full"
+          className="absolute h-1.5 bg-[var(--ink)] rounded-full"
           style={{
             left: `${((valueLow - min) / (max - min)) * 100}%`,
             right: `${100 - ((valueHigh - min) / (max - min)) * 100}%`,
@@ -279,25 +279,25 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
     : allKeywords;
 
   return (
-    <div className="fixed inset-0 z-50 bg-white dark:bg-gray-950 flex flex-col overflow-hidden">
+    <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full min-h-0">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-800 shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--ink)] shrink-0">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">Filters</h2>
           <div className="flex items-center gap-2">
             {hasActiveFilters && (
               <button
                 onClick={resetAll}
-                className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                className="px-3 py-1 text-xs font-bold text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
               >
                 Reset all
               </button>
             )}
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+              className="nb-disc" aria-label="Close"
             >
-              <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
@@ -348,11 +348,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
                       <button
                         key={t.label}
                         onClick={() => toggleType(t)}
-                        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                          isSelected
-                            ? 'bg-green-600 text-white dark:bg-green-500'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-                        }`}
+                        className={`nb-chip px-3 py-1 text-xs ${isSelected ? 'nb-chip-on' : ''}`}
                       >
                         {t.label}
                       </button>
@@ -436,14 +432,14 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
               <div className="flex gap-2">
                 <button
                   onClick={() => update({ keywords: [...allKeywords] })}
-                  className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                  className="text-xs font-bold text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
                 >
                   Select all
                 </button>
                 {filters.keywords.length > 0 && (
                   <button
                     onClick={() => update({ keywords: [] })}
-                    className="text-xs text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
+                    className="text-xs font-bold text-[var(--muted)] hover:text-[var(--ink)] transition-colors"
                   >
                     Deselect all
                   </button>
@@ -456,7 +452,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
                 value={themeSearch}
                 onChange={e => setThemeSearch(e.target.value)}
                 placeholder="Search themes..."
-                className="w-full px-3 py-1.5 mb-2 rounded-lg text-sm bg-gray-50 border border-gray-200 text-gray-700 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-green-500"
+                className="nb-input w-full px-4 py-1.5 mb-2 text-sm focus:outline-none"
               />
             )}
             <div className="flex flex-wrap gap-1.5">
@@ -470,11 +466,12 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
                   <button
                     key={kw}
                     onClick={() => toggleKeyword(kw)}
-                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                      isSelected
-                        ? 'bg-green-600 text-white dark:bg-green-500'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
-                    }`}
+                    /* Outlined, every one of them. A row of chips like this IS
+                       the content — its job is to be countable at a glance —
+                       so it gets the uniform 2px edge, unlike a row of
+                       secondary controls where only the primary one is ringed.
+                       They were bare pills floating on the check. */
+                    className={`nb-chip px-2.5 py-1 text-xs ${isSelected ? 'nb-chip-on' : ''}`}
                   >
                     {kw}
                   </button>
@@ -485,10 +482,10 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-3 border-t border-gray-100 dark:border-gray-800 shrink-0">
+        <div className="px-4 py-3 border-t-2 border-[var(--ink)] shrink-0">
           <button
             onClick={onClose}
-            className="w-full py-2.5 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+            className="nb-btn nb-btn-key nb-shadow-room w-full py-2.5"
           >
             {hasActiveFilters ? `Done · ${matchCount.toLocaleString()} ${matchCount === 1 ? 'problem' : 'problems'}` : 'Done'}
           </button>
