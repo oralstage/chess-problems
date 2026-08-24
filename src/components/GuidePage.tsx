@@ -218,8 +218,9 @@ export function GuidePage({ onClose, focus, fromTutorial, onOpenCategory }: Guid
               just steps out with <span className={MOVE}>1&hellip;Kh7</span> or <span className={MOVE}>1&hellip;Kg7</span>.
             </p>
             <p className={P}>
-              And here is the rule that matters most in problems: <strong>the first move does
-              not have to be a check.</strong>
+              And here is the rule that matters most in problems: <strong>no move but the last
+              one has to be a check.</strong> The mate is a check, of course. Everything before
+              it is free to be quiet.
             </p>
             <p className={P}>
               That opens up a lot of candidate moves, and trying every one of them is hard work.
