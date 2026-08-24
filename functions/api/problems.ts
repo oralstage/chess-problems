@@ -78,17 +78,43 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const maxMoves = params.get('maxMoves');
   if (maxMoves && Number.isFinite(parseInt(maxMoves))) { conditions.push('move_count <= ?'); bindings.push(parseInt(maxMoves)); }
 
+  // Anything beyond the genre condition means user-chosen filters
+  const filtered = conditions.length > 1;
+
   // Exclude fairy problems (detected by keywords)
   addFairyExclusion(conditions, bindings);
 
   const where = conditions.join(' AND ');
 
-  // Get total count
-  const countResult = await context.env.DB.prepare(
-    `SELECT COUNT(*) as total FROM problems WHERE ${where}`
-  ).bind(...bindings).first<{ total: number }>();
+  // Total count. The unfiltered per-genre total is static between imports but
+  // costs a ~570k-row scan per request — after the /api/stats fix this was the
+  // largest remaining D1 read (see CLAUDE.md, D1 無料枠). Serve it from
+  // stats_cache; filtered combinations are rare enough to stay dynamic.
+  // Invalidated together with the stats keys (DELETE FROM stats_cache).
+  let total: number | null = null;
+  const countCacheKey = `v1:count:${genre}`;
+  if (!filtered) {
+    try {
+      const row = await context.env.STATS_DB.prepare(
+        'SELECT payload FROM stats_cache WHERE key = ?'
+      ).bind(countCacheKey).first<{ payload: string }>();
+      if (row) total = parseInt(row.payload);
+    } catch { /* table missing — compute below */ }
+  }
 
-  const total = countResult?.total ?? 0;
+  if (total === null || Number.isNaN(total)) {
+    const countResult = await context.env.DB.prepare(
+      `SELECT COUNT(*) as total FROM problems WHERE ${where}`
+    ).bind(...bindings).first<{ total: number }>();
+    total = countResult?.total ?? 0;
+    if (!filtered) {
+      context.waitUntil(
+        context.env.STATS_DB.prepare(
+          'INSERT OR REPLACE INTO stats_cache (key, payload, updated_at) VALUES (?, ?, ?)'
+        ).bind(countCacheKey, String(total), new Date().toISOString()).run().catch(() => {})
+      );
+    }
+  }
 
   // Get page of problems (without solution_text for list view)
   const offset = page * pageSize;

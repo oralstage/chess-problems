@@ -14,6 +14,14 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const params = url.searchParams;
 
+  // Edge-cache per full URL: the result only changes on import, and the
+  // unfiltered genre lists are full-genre scans (~400k rows read for direct)
+  // too expensive to repeat per request under the D1 daily read limit.
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString());
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
   const genre = params.get('genre');
   if (!genre || !['direct', 'help', 'self', 'study', 'retro'].includes(genre)) {
     return Response.json({ error: 'genre is required' }, { status: 400 });
@@ -67,7 +75,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     stipulation: r.stipulation as string,
   }));
 
-  return Response.json({ problems }, {
+  const response = Response.json({ problems }, {
     headers: { 'Cache-Control': 'public, max-age=86400' },
   });
+  context.waitUntil(cache.put(cacheKey, response.clone()));
+  return response;
 };
