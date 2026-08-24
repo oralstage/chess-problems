@@ -13,6 +13,10 @@ interface GenreTutorialProps {
    *  a direct mate, and "?" has to answer "how does this one work again?". */
   rated?: boolean;
   review?: boolean;
+  /** Opens the full guide at this genre's section. The dialog is the one place a
+   *  reader is already stuck on the rules, so it is where the longer explanation
+   *  has to be offered — the home page card only reaches whoever scrolls that far. */
+  onOpenGuide?: () => void;
   onClose: () => void;
 }
 
@@ -111,7 +115,7 @@ const TUTORIALS: Record<Genre, {
   },
 };
 
-export function GenreTutorial({ genre, rated, review, onClose }: GenreTutorialProps) {
+export function GenreTutorial({ genre, rated, review, onOpenGuide, onClose }: GenreTutorialProps) {
   const tutorial = TUTORIALS[genre];
   const mark = review ? 'Review Mode' : (rated && RATED_MARK[genre]) || tutorial.mark;
   const suffix = rated ? ' · Rated' : review ? ' · Review' : '';
@@ -187,12 +191,27 @@ export function GenreTutorial({ genre, rated, review, onClose }: GenreTutorialPr
           </div>
         )}
 
-        <button
-          onClick={onClose}
-          className="nb-btn nb-btn-key nb-shadow-room w-full py-2.5"
-        >
-          Start Solving
-        </button>
+        {/* Two ways out of the dialog, at the same size: the three steps above are
+            enough for some readers and not for others, and a link at footnote
+            weight underneath was not offering the second group anything they
+            would see. Start Solving keeps the acid — it is still what most
+            people press — and the guide takes the plain tile beside it. */}
+        <div className={onOpenGuide ? 'grid grid-cols-2 gap-2.5' : ''}>
+          {onOpenGuide && (
+            <button
+              onClick={onOpenGuide}
+              className="nb-btn nb-shadow-room w-full py-2.5"
+            >
+              How to solve
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="nb-btn nb-btn-key nb-shadow-room w-full py-2.5"
+          >
+            Start Solving
+          </button>
+        </div>
       </div>
     </div>
   );

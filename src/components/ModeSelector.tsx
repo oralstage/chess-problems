@@ -16,6 +16,7 @@ interface ModeSelectorProps {
   onSolveDaily: () => void;
   dailySolved: boolean;
   onShowChangelog?: () => void;
+  onShowGuide?: () => void;
   onStartRated?: (genre: RatedGenre, problemId?: number, fromCache?: boolean) => void;
   onStartReview?: () => void;
   reviewDueCount?: number;
@@ -95,7 +96,7 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
 ];
 
-export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onShowGuide, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -507,8 +508,27 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
           flag and the language of the label are what separate them. The
           Japanese one is a different book, not a translation — it comes at the
           two-mover from shogi — so it gets its own card rather than a link
-          tucked inside the English one. */}
+          tucked inside the English one.
+
+          Neither says "for beginners" any more. The guide card beside them is
+          where a beginner starts, and it is free and on the site; these are for
+          someone who has read that and wants to go on studying. Labelled as
+          beginners' books they were competing with the card next to them for
+          the same reader, and losing — a stranger will not buy a book to learn
+          something the page offers to explain. */}
       <div className="grid grid-cols-3 gap-2.5 px-4">
+        {/* First, and the only one of the three that stays on the site: the rules
+            with a worked example per genre. This is the card that carries "For
+            beginners" — a beginner's first stop should be the free page that
+            explains the rules, not a book. The two beside it took that label
+            while nothing else on the page offered an explanation; now they say
+            what they actually are, the next step after this one. */}
+        {onShowGuide && (
+          <button type="button" onClick={onShowGuide} className={CARD} style={{ backgroundColor: 'var(--card-self)' }}>
+            <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Guide" /></span>
+            <span className={CARD_TITLE}>For beginners</span>
+          </button>
+        )}
         <a
           href="https://www.amazon.com/dp/B0GV27N3RM"
           target="_blank"
@@ -517,7 +537,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
           style={{ backgroundColor: 'var(--card-self)' }}
         >
           <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Book" /></span>
-          <span className={CARD_TITLE}>For beginners</span>
+          <span className={CARD_TITLE}>Go deeper</span>
         </a>
         <a
           href="https://www.amazon.co.jp/dp/B0GV2B3FQD"
@@ -527,7 +547,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
           style={{ backgroundColor: 'var(--card-self)' }}
         >
           <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Book JP" /></span>
-          <span className={CARD_TITLE}>はじめての方へ</span>
+          <span className={CARD_TITLE}>さらに詳しく</span>
         </a>
       </div>
 

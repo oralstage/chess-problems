@@ -21,6 +21,7 @@ import { RatingSyncModal } from './components/RatingSyncModal';
 import { SearchPage } from './components/SearchPage';
 import { BookmarksPage } from './components/BookmarksPage';
 import { ChangelogPage } from './components/ChangelogPage';
+import { GuidePage } from './components/GuidePage';
 import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
@@ -217,6 +218,14 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<import('./services/api').SearchResult[] | null>(null);
   const [showBookmarksPage, setShowBookmarksPage] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  /* The rules guide, and which genre's section to land on. Opened from the home
+     page card with no focus, and from a "?" dialog with the genre it was showing. */
+  const [guideFocus, setGuideFocus] = useState<Genre | null>(null);
+  const [showGuide, setShowGuide] = useState(false);
+  const openGuide = useCallback((focus?: Genre) => {
+    setGuideFocus(focus ?? null);
+    setShowGuide(true);
+  }, []);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
     direct: [], help: [], self: [], study: [], retro: [],
   });
@@ -1766,6 +1775,29 @@ export default function App() {
     }
   }, [loadGenre, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, exitSpecialModes, categoryFromGenreProblem, setCurrentCategory]);
 
+  /* Open one problem by its YACPDB id, whatever genre it turns out to be. Used
+     by the hamburger's Go to ID and by the guide's worked examples — both hand
+     over a bare number and expect to land on that board. */
+  const openProblemById = useCallback(async (id: number) => {
+    try {
+      const full = await fetchProblem(id);
+      const p = metaToChessProblem(full, full.solutionText);
+      const genre = p.genre as Genre;
+      const cat = categoryFromGenreProblem(genre, p.moveCount);
+      exitSpecialModes();
+      setCurrentGenre(genre);
+      setCurrentCategory(cat);
+      setView('solving');
+      loadAndStartProblem(p);
+      cacheProblem(p);
+      setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
+      updateHash(cat, p.id);
+      loadGenre(genre);
+    } catch {
+      // Problem not found — ignore silently
+    }
+  }, [categoryFromGenreProblem, exitSpecialModes, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash, loadGenre, setCurrentCategory]);
+
   const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
     // react-chessboard passes the chosen piece (e.g. 'wN') after its
     // promotion dialog. Only attach promotion data when the source is a pawn;
@@ -2162,6 +2194,7 @@ export default function App() {
                 onSolveDaily={handleSolveDaily}
                 dailySolved={dailySolved}
                 onShowChangelog={() => setShowChangelog(true)}
+                onShowGuide={() => openGuide()}
                 onStartRated={handleStartRated}
                 onStartReview={handleStartReview}
                 reviewDueCount={reviewQueue.dueCount}
@@ -2594,7 +2627,7 @@ export default function App() {
       </div>
 
       {showTutorial && currentGenre && !isRatedMode && !isReviewMode && (
-        <GenreTutorial genre={currentGenre} onClose={closeTutorial} />
+        <GenreTutorial genre={currentGenre} onOpenGuide={() => openGuide(currentGenre)} onClose={closeTutorial} />
       )}
 
       {/* Review Mode tutorial */}
@@ -2602,12 +2635,13 @@ export default function App() {
         <GenreTutorial
           genre={(problem.problem.genre as Genre) || 'direct'}
           review
+          onOpenGuide={() => openGuide((problem.problem?.genre as Genre) || 'direct')}
           onClose={() => setShowTutorial(false)}
         />
       )}
 
       {showTutorial && isRatedMode && (
-        <GenreTutorial genre={ratedGenre} rated onClose={() => setShowTutorial(false)} />
+        <GenreTutorial genre={ratedGenre} rated onOpenGuide={() => openGuide(ratedGenre)} onClose={() => setShowTutorial(false)} />
       )}
 
       <HamburgerMenu
@@ -2621,25 +2655,7 @@ export default function App() {
           setShowHamburgerMenu(false);
           setShowHistory(true);
         }}
-        onGoToId={async (id: number) => {
-          try {
-            const full = await fetchProblem(id);
-            const p = metaToChessProblem(full, full.solutionText);
-            const genre = p.genre as Genre;
-            const cat = categoryFromGenreProblem(genre, p.moveCount);
-            exitSpecialModes();
-            setCurrentGenre(genre);
-            setCurrentCategory(cat);
-            setView('solving');
-            loadAndStartProblem(p);
-            cacheProblem(p);
-            setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
-            updateHash(cat, p.id);
-            loadGenre(genre);
-          } catch {
-            // Problem not found — ignore silently
-          }
-        }}
+        onGoToId={openProblemById}
         onOpenBookmarks={() => {
           setShowHamburgerMenu(false);
           setShowBookmarksPage(true);
@@ -2756,6 +2772,20 @@ export default function App() {
 
       {showChangelog && (
         <ChangelogPage onClose={() => setShowChangelog(false)} />
+      )}
+
+      {showGuide && (
+        /* Leaving the guide closes the "?" dialog underneath it as well, so the
+           reader lands on the board. Dropping them back on the dialog they came
+           through would make it rules, guide, rules, board — two screens to
+           dismiss for someone who has finished reading and wants to play. The
+           three steps are one press of "?" away if they want them again. */
+        <GuidePage
+          focus={guideFocus ?? undefined}
+          fromTutorial={guideFocus !== null}
+          onOpenCategory={cat => { setShowGuide(false); setShowTutorial(false); selectMode(cat); }}
+          onClose={() => { setShowGuide(false); setShowTutorial(false); }}
+        />
       )}
 
       {showBookmarksPage && (

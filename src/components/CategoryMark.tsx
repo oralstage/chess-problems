@@ -283,6 +283,26 @@ function markBody(name: string) {
         </svg>
       );
 
+    /* The rules guide. A fingerpost, not a book: the two cards beside it on the
+       home page ARE books, and at 44px a third book is a third book whatever the
+       spine is doing. It also says the right thing — this is the card that points
+       you at the genres rather than one you sit down and read.
+
+       The two boards point opposite ways and sit at slightly different angles,
+       because a fingerpost with both arms parallel reads as a flag on a stick. */
+    case 'Guide':
+      return (
+        <svg {...box}>
+          <path d="M22 7v31" strokeWidth={3} />
+          <g transform="rotate(-3 22 16)">
+            <path d="M9 11h20l6.5 5.5L29 22H9z" fill={GREEN} />
+          </g>
+          <g transform="rotate(2.5 22 28)">
+            <path d="M35 23H15l-6.5 5.5L15 34h20z" fill={CREAM} />
+          </g>
+        </svg>
+      );
+
     default:
       return null;
   }
