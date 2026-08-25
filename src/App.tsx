@@ -40,8 +40,21 @@ import {
   saveRatedProblem as saveRatedProblemSlot,
   clearRatedProblems,
 } from './utils/ratedDifficulty';
-import type { AppView, Genre, Category, ProblemProgress, ChessProblem, PrintMode } from './types';
+import type { AppView, Genre, Category, ProblemProgress, ChessProblem, PrintMode, SolutionNode } from './types';
 import { CATEGORY_DEFS } from './types';
+
+// Deepest line in a solution tree, in plies. A threat node counts double: it is
+// the attacker's follow-up, so an opponent ply sits implicitly in front of it
+// (computePositions inserts one during playback for the same reason).
+function solutionTreeDepth(nodes: SolutionNode[] | undefined): number {
+  if (!nodes || nodes.length === 0) return 0;
+  let max = 0;
+  for (const n of nodes) {
+    const d = (n.isThreat ? 2 : 1) + solutionTreeDepth(n.children);
+    if (d > max) max = d;
+  }
+  return max;
+}
 
 /** Rows read when opening a category cold, to find the first unsolved problem
  *  without waiting for the genre index. Wide enough that a visitor who has
@@ -2591,6 +2604,32 @@ export default function App() {
                   This is a known flawed problem ("shortmate"): mate is possible in fewer moves than the stipulation.
                 </p>
               )}
+
+              {/* YACPDB sometimes records only the first move(s) of a solution.
+                  Solving what exists still counts, but say so and hand the
+                  reader straight to the engine for the rest. */}
+              {(problem.status === 'correct' || problem.status === 'viewing') && (() => {
+                const p = problem.problem;
+                if (p.moveCount <= 0) return null; // studies have no fixed length
+                const expected = p.genre === 'direct' ? p.moveCount * 2 - 1
+                  : (p.genre === 'help' || p.genre === 'self') ? p.moveCount * 2
+                  : null; // retro: mixed conventions, skip
+                if (expected == null) return null;
+                const depth = solutionTreeDepth(p.solutionTree);
+                if (depth === 0 || depth >= expected - 1) return null;
+                return (
+                  <div className="nb-plate nb-shadow-room p-3 space-y-2">
+                    <p className="text-xs font-semibold text-[var(--ink)]">
+                      YACPDB has only part of the solution for this problem — the recorded line ends early.
+                    </p>
+                    {!analysisActive && (
+                      <button onClick={handleAnalyze} className="nb-btn nb-btn-key py-1.5 px-3 text-sm font-bold">
+                        Show continuation →
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               {(problem.status === 'correct' || problem.status === 'viewing') && (
                 <ThemeTags keywords={problem.problem.keywords} />
