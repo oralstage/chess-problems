@@ -98,9 +98,9 @@ const TUTORIALS: Record<Genre, {
       'There is no move count \u2014 it ends when the outcome is decided.',
     ],
     general: [
-      'Win studies end when a decisive advantage is reached (e.g. queening a pawn).',
-      'Draw studies end when a theoretical draw is achieved.',
-      'To keep playing past that, use the Lichess links. "Analysis \u2197" opens the analysis board. "Play \u2197" opens the board editor \u2014 click "CONTINUE FROM HERE", then choose "Play against the computer".',
+      'The badge next to the problem number is the goal. "Win": reach a decisive advantage (e.g. queening a pawn) \u2014 often from a position that looks anything but winning.',
+      '"Draw": the position looks lost \u2014 find the one resource that saves the half point (a theoretical draw).',
+      'To keep playing past the end, press "Play vs engine" and finish the game against the computer right here.',
     ],
   },
   retro: {
