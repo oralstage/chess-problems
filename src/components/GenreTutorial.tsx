@@ -91,16 +91,14 @@ const TUTORIALS: Record<Genre, {
   study: {
     title: 'Study',
     mark: 'Studies',
-    aim: 'White is trying to win, or to save a position that looks lost. Black is trying to stop it.',
+    aim: 'In a Win study, White goes for a decisive advantage (e.g. queening a pawn). In a Draw study, White saves a position that looks lost.',
     steps: [
-      'You play White first. The answer is the one line that gets there.',
+      'You play White first. The answer is the one line that gets there \u2014 the decisive advantage in a Win, the escape in a Draw.',
       'Black answers by itself, defending as well as it possibly can.',
       'There is no move count \u2014 it ends when the outcome is decided.',
     ],
     general: [
-      'The badge next to the problem number is the goal. "Win": reach a decisive advantage (e.g. queening a pawn) \u2014 often from a position that looks anything but winning.',
-      '"Draw": the position looks lost \u2014 find the one resource that saves the half point (a theoretical draw).',
-      'To keep playing past the end, press "Play vs engine" and finish the game against the computer right here.',
+      'Once the goal is reached, the problem is solved. To keep playing from there, press "Play vs engine" and finish the game against the computer right here.',
     ],
   },
   retro: {
