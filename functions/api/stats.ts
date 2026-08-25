@@ -18,7 +18,7 @@ import { addFairyExclusion } from './fairy-filter';
  * After importing new problems: bump CACHE_VERSION below (invalidates both
  * edge and table entries) or DELETE FROM stats_cache on both stats DBs.
  */
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2; // bumped 2026-08-25: incremental YACPDB import (+12,061 problems)
 
 const VALID_GENRES = ['direct', 'help', 'self', 'study', 'retro'];
 
