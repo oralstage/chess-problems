@@ -522,6 +522,19 @@ export default function App() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisActive, setAnalysisActive] = useState(false);
   const analysisActiveRef = useRef(false);
+
+  // Play-vs-engine mode: continue the current position against Stockfish.
+  // Lives outside useProblem — it never touches solve state or ratings.
+  const [enginePlay, setEnginePlay] = useState<{
+    fen: string;
+    playerColor: 'w' | 'b';
+    thinking: boolean;
+    result: string | null;
+    lastMove: { from: string; to: string } | null;
+    plies: number;
+  } | null>(null);
+  // Bumped on exit/problem change so an in-flight engine reply is discarded.
+  const enginePlayTokenRef = useRef(0);
   const [analysisArrow, setAnalysisArrow] = useState<[string, string] | null>(null);
   const [genreData, setGenreData] = useState<Record<Genre, ChessProblem[]>>({
     direct: [], help: [], self: [], study: [], retro: [],
@@ -1079,8 +1092,97 @@ export default function App() {
     setAnalysisResult(null);
     setAnalysisArrow(null);
     setAnalyzing(false);
+    enginePlayTokenRef.current++;
+    setEnginePlay(null);
   }, [problem.problem?.id]);
 
+
+  // ── Play-vs-engine mode ──────────────────────────────
+  const engineGameResult = (chess: Chess, playerColor: 'w' | 'b'): string | null => {
+    if (chess.isCheckmate()) return chess.turn() === playerColor ? 'Checkmate — the engine wins.' : 'Checkmate — you win!';
+    if (chess.isStalemate()) return 'Stalemate — draw.';
+    if (chess.isInsufficientMaterial()) return 'Draw — insufficient material.';
+    if (chess.isDraw()) return 'Draw.';
+    return null;
+  };
+
+  const requestEngineMove = useCallback(async (fen: string) => {
+    const token = enginePlayTokenRef.current;
+    setEnginePlay(ep => (ep ? { ...ep, thinking: true } : ep));
+    // Depth 12 keeps replies fast on the lite build while still being far
+    // stronger than needed to punish mistakes in these positions.
+    const res = await stockfishRef.current.analyze(fen, 12);
+    if (enginePlayTokenRef.current !== token) return; // mode exited meanwhile
+    setEnginePlay(ep => {
+      if (!ep || ep.fen !== fen) return ep;
+      if (!res) return { ...ep, thinking: false, result: 'Engine unavailable on this device.' };
+      const chess = new Chess(fen);
+      const from = res.bestMove.slice(0, 2);
+      const to = res.bestMove.slice(2, 4);
+      const promotion = res.bestMove.length > 4 ? res.bestMove[4] : undefined;
+      try {
+        chess.move({ from, to, promotion });
+      } catch {
+        return { ...ep, thinking: false, result: 'Engine unavailable on this device.' };
+      }
+      return {
+        ...ep,
+        fen: chess.fen(),
+        lastMove: { from, to },
+        thinking: false,
+        plies: ep.plies + 1,
+        result: engineGameResult(chess, ep.playerColor),
+      };
+    });
+  }, []);
+
+  const startEnginePlay = useCallback(() => {
+    // Play mode owns the engine — shut down any running analysis first.
+    analysisActiveRef.current = false;
+    stockfishRef.current.stop();
+    setAnalysisActive(false);
+    setAnalysisResult(null);
+    setAnalysisArrow(null);
+    setAnalyzing(false);
+
+    const fen = problem.fen;
+    const playerColor: 'w' | 'b' = 'w'; // entry points are white-solver genres
+    enginePlayTokenRef.current++;
+    setEnginePlay({ fen, playerColor, thinking: false, result: null, lastMove: null, plies: 0 });
+    const turn = (fen.split(' ')[1] || 'w') as 'w' | 'b';
+    if (turn !== playerColor) requestEngineMove(fen);
+  }, [problem.fen, requestEngineMove]);
+
+  const exitEnginePlay = useCallback(() => {
+    enginePlayTokenRef.current++;
+    stockfishRef.current.stop();
+    setEnginePlay(null);
+  }, []);
+
+  const handleEnginePlayDrop = useCallback((source: string, target: string, piece: string): boolean => {
+    if (!enginePlay || enginePlay.thinking || enginePlay.result) return false;
+    const chess = new Chess(enginePlay.fen);
+    if (chess.turn() !== enginePlay.playerColor) return false;
+    const promotion = getPromotionForMove(enginePlay.fen, source, target, piece);
+    let move;
+    try {
+      move = chess.move({ from: source, to: target, promotion });
+    } catch {
+      return false;
+    }
+    if (!move) return false;
+    const newFen = chess.fen();
+    const result = engineGameResult(chess, enginePlay.playerColor);
+    setEnginePlay({
+      ...enginePlay,
+      fen: newFen,
+      lastMove: { from: source, to: target },
+      plies: enginePlay.plies + 1,
+      result,
+    });
+    if (!result) requestEngineMove(newFen);
+    return true;
+  }, [enginePlay, requestEngineMove]);
 
   const handleAnalyze = useCallback(() => {
     if (analysisActive) {
@@ -2337,7 +2439,7 @@ export default function App() {
                 >
                   i
                 </button>
-                {(problem.status === 'correct' || problem.status === 'viewing') && solveStats && (solveStats.totalAttempts > 0 || (solveStats.movesByNumber && solveStats.movesByNumber.length > 0)) && (
+                {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && solveStats && (solveStats.totalAttempts > 0 || (solveStats.movesByNumber && solveStats.movesByNumber.length > 0)) && (
                   <button
                     onClick={() => setShowSolveStats(true)}
                     className="relative w-6 h-6 rounded-full border border-gray-400 dark:border-gray-500 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors flex items-center justify-center shrink-0 ml-1"
@@ -2420,23 +2522,39 @@ export default function App() {
               <div className="flex justify-center -mx-1">
                 <Board
                   key={`${problem.problem?.id ?? 'loading'}:${problem.initialFen}`}
-                  fen={problem.fen}
-                  onPieceDrop={handlePieceDrop}
-                  lastMove={problem.lastMove}
-                  disabled={problem.waitingForAutoPlay}
+                  fen={enginePlay ? enginePlay.fen : problem.fen}
+                  onPieceDrop={enginePlay ? handleEnginePlayDrop : handlePieceDrop}
+                  lastMove={enginePlay ? enginePlay.lastMove : problem.lastMove}
+                  disabled={enginePlay ? (enginePlay.thinking || !!enginePlay.result) : problem.waitingForAutoPlay}
                   orientation="white"
                   width={boardWidth}
-                  feedbackSquare={problem.feedbackSquare}
-                  feedbackType={problem.feedbackType}
-                  hintSquares={problem.hintSquares}
-                  arrows={boardArrows}
-                  allowAnyColor={currentGenre === 'retro'}
+                  feedbackSquare={enginePlay ? null : problem.feedbackSquare}
+                  feedbackType={enginePlay ? null : problem.feedbackType}
+                  hintSquares={enginePlay ? null : problem.hintSquares}
+                  arrows={enginePlay ? [] : boardArrows}
+                  allowAnyColor={!enginePlay && currentGenre === 'retro'}
                   printMode={printMode}
                 />
               </div>
 
+              {enginePlay && (
+                <div className="nb-plate nb-shadow-room p-3 mt-2 space-y-2 text-center">
+                  <p className="text-sm font-bold text-[var(--ink)]">
+                    {enginePlay.result
+                      ?? (enginePlay.thinking
+                        ? 'Engine is thinking…'
+                        : enginePlay.plies === 0
+                          ? 'Your move — you are playing White against the engine.'
+                          : 'Your move.')}
+                  </p>
+                  <button onClick={exitEnginePlay} className="nb-btn py-1.5 px-3 text-sm font-bold">
+                    Back to solution
+                  </button>
+                </div>
+              )}
+
               {/* Playback navigation arrows - directly below the board (hide if no moves computed) */}
-              {problem.playback && problem.playback.positions.length > 1 && (problem.status === 'correct' || problem.status === 'viewing') && (
+              {problem.playback && problem.playback.positions.length > 1 && !enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (
                 <div className="flex items-center justify-center">
                   <button
                     onClick={problem.playbackFirst}
@@ -2522,7 +2640,7 @@ export default function App() {
                 </div>
               )}
 
-              <FeedbackPanel
+              {!enginePlay && <FeedbackPanel
                 status={problem.status}
                 feedback={problem.feedback}
                 moveHistory={problem.moveHistory}
@@ -2570,7 +2688,7 @@ export default function App() {
                 onPrevDaily={isDaily && canGoPrevDaily ? handlePrevDaily : undefined}
                 onNextDaily={isDaily && !isToday ? handleNextDaily : undefined}
                 lichessAnalysisUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/analysis/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
-                lichessPlayUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/editor/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
+                onPlayEngine={currentGenre === 'study' && problem.problem ? startEnginePlay : undefined}
                 ratingDelta={isRatedMode ? lastRatingDelta : undefined}
                 playerRating={isRatedMode ? playerRating.rating : undefined}
                 playerRd={isRatedMode ? playerRating.rd : undefined}
@@ -2583,9 +2701,9 @@ export default function App() {
                 classicBoard={printMode !== 'off'}
                 ratedDifficulty={isRatedMode ? ratedDifficulty : undefined}
                 onChangeDifficulty={isRatedMode ? handleChangeDifficulty : undefined}
-              />
+              />}
 
-              {(problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {
+              {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {
                 const st = problem.problem.solutionText;
                 const start = st.replace(/^\{[^}]*\}\s*/, '').trimStart();
                 const isBlack = /\{[^}]*[Bb]lack to move/i.test(st)
@@ -2599,7 +2717,7 @@ export default function App() {
                 );
               })()}
 
-              {(problem.status === 'correct' || problem.status === 'viewing') && problem.problem.keywords?.includes('Shortmate') && (
+              {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && problem.problem.keywords?.includes('Shortmate') && (
                 <p className="text-xs font-semibold text-[var(--ink)] dark:text-[var(--ink)]">
                   This is a known flawed problem ("shortmate"): mate is possible in fewer moves than the stipulation.
                 </p>
@@ -2608,7 +2726,7 @@ export default function App() {
               {/* YACPDB sometimes records only the first move(s) of a solution.
                   Solving what exists still counts, but say so and hand the
                   reader straight to the engine for the rest. */}
-              {(problem.status === 'correct' || problem.status === 'viewing') && (() => {
+              {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (() => {
                 const p = problem.problem;
                 if (p.moveCount <= 0) return null; // studies have no fixed length
                 const expected = p.genre === 'direct' ? p.moveCount * 2 - 1
@@ -2622,21 +2740,29 @@ export default function App() {
                     <p className="text-xs font-semibold text-[var(--ink)]">
                       YACPDB has only part of the solution for this problem — the recorded line ends early.
                     </p>
-                    {/* The person who pressed this never pressed "Analyze", so
-                        this button must be its own stop — not hand off to the
-                        Analyze/Stop button they aren't looking at. */}
-                    <button onClick={handleAnalyze} className="nb-btn nb-btn-key py-1.5 px-3 text-sm font-bold">
-                      {analyzing ? '...' : analysisActive ? 'Stop' : 'Show continuation →'}
-                    </button>
+                    {/* Direct mates: play the missing continuation against the
+                        engine. Other genres (cooperative/self-mating goals make
+                        adversarial engine play meaningless) keep the analysis
+                        toggle — which must be its own stop: the person who
+                        pressed it never pressed "Analyze". */}
+                    {p.genre === 'direct' ? (
+                      <button onClick={startEnginePlay} className="nb-btn nb-btn-key py-1.5 px-3 text-sm font-bold">
+                        Play the continuation →
+                      </button>
+                    ) : (
+                      <button onClick={handleAnalyze} className="nb-btn nb-btn-key py-1.5 px-3 text-sm font-bold">
+                        {analyzing ? '...' : analysisActive ? 'Stop' : 'Show continuation →'}
+                      </button>
+                    )}
                   </div>
                 );
               })()}
 
-              {(problem.status === 'correct' || problem.status === 'viewing') && (
+              {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (
                 <ThemeTags keywords={problem.problem.keywords} />
               )}
 
-              {(problem.status === 'correct' || problem.status === 'viewing') && (
+              {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (
                 <SolutionTree
                   fullNodes={activeTwinId && problem.problem.twins
                     ? (problem.problem.twins.find(t => t.id === activeTwinId)?.fullSolutionTree || problem.problem.fullSolutionTree)

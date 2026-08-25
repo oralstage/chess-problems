@@ -23,7 +23,7 @@ interface FeedbackPanelProps {
   refutationText?: string | null;
   analysisActive?: boolean;
   lichessAnalysisUrl?: string;
-  lichessPlayUrl?: string;
+  onPlayEngine?: () => void;
   onGoHome?: () => void;
   onMoreProblems?: () => void;
   onPrevDaily?: () => void;
@@ -64,7 +64,7 @@ export function FeedbackPanel({
   refutationText,
   analysisActive,
   lichessAnalysisUrl,
-  lichessPlayUrl,
+  onPlayEngine,
   onGoHome,
   onMoreProblems,
   onPrevDaily,
@@ -166,11 +166,10 @@ export function FeedbackPanel({
                 Analysis ↗
               </a>
             )}
-            {lichessPlayUrl && (
-              <a href={lichessPlayUrl} target="_blank" rel="noopener noreferrer"
-                className="nb-btn px-2.5 py-1.5 text-xs">
-                Play ↗
-              </a>
+            {onPlayEngine && (
+              <button onClick={onPlayEngine} className="nb-btn px-2.5 py-1.5 text-xs">
+                Play vs engine
+              </button>
             )}
             {stockfishLoading && (
               <span className="text-xs text-gray-400">Loading Stockfish...</span>
@@ -337,11 +336,10 @@ export function FeedbackPanel({
                 Analysis ↗
               </a>
             )}
-            {lichessPlayUrl && (
-              <a href={lichessPlayUrl} target="_blank" rel="noopener noreferrer"
-                className="nb-btn px-2.5 py-1.5 text-xs">
-                Play ↗
-              </a>
+            {onPlayEngine && (
+              <button onClick={onPlayEngine} className="nb-btn px-2.5 py-1.5 text-xs">
+                Play vs engine
+              </button>
             )}
             {stockfishLoading && (
               <span className="text-xs text-gray-400">Loading Stockfish...</span>
