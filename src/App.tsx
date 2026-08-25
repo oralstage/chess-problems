@@ -1251,7 +1251,10 @@ export default function App() {
     const token = enginePlayTokenRef.current;
     let cancelled = false;
     setEnginePlay(cur => (cur ? { ...cur, hint: { text: 'Thinking…', arrow: null } } : cur));
-    stockfishRef.current.analyze(fen, 14).then(res => {
+    // Studies are built around ideas shallow searches miss (trapped pieces,
+    // fortresses); their few-piece positions also search fast, so buy depth
+    // there. Mate hunting in direct continuations is already exact at 14.
+    stockfishRef.current.analyze(fen, currentGenre === 'study' ? 18 : 14).then(res => {
       if (cancelled || enginePlayTokenRef.current !== token) return;
       setEnginePlay(cur => {
         if (!cur || !cur.hintActive || cur.positions[cur.viewIndex].fen !== fen) return cur;
@@ -1273,7 +1276,7 @@ export default function App() {
       });
     }).catch(() => {});
     return () => { cancelled = true; };
-  }, [epHintActive, epThinking, epViewFen]);
+  }, [epHintActive, epThinking, epViewFen, currentGenre]);
 
   const handleEnginePlayDrop = useCallback((source: string, target: string, piece: string): boolean => {
     if (!enginePlay || enginePlay.thinking) return false;
