@@ -1111,7 +1111,13 @@ export default function App() {
     setEnginePlay(ep => (ep ? { ...ep, thinking: true } : ep));
     // Depth 12 keeps replies fast on the lite build while still being far
     // stronger than needed to punish mistakes in these positions.
+    const started = Date.now();
     const res = await stockfishRef.current.analyze(fen, 12);
+    // In simple positions the search returns near-instantly, and a reply that
+    // lands the same moment the player's piece does feels wrong (same reason
+    // the solver's auto-play pauses). Hold the move back to a human beat.
+    const remaining = 700 - (Date.now() - started);
+    if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
     if (enginePlayTokenRef.current !== token) return; // mode exited meanwhile
     setEnginePlay(ep => {
       if (!ep || ep.fen !== fen) return ep;
