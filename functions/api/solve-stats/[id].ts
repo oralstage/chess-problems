@@ -51,6 +51,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       totalAttempts: 0,
       correctCount: 0,
       uniqueSolvers: 0,
+      players: 0,
+      firstTrySolved: 0,
       accuracyRate: 0,
       avgTimeSpent: null,
       hintUsedCount: 0,
@@ -61,6 +63,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       headers: { 'Cache-Control': 'public, max-age=300' },
     });
   }
+
+  // Per-player outcome, decided by each player's FIRST recorded attempt.
+  // A later retry (typically after seeing the solution) must not launder
+  // the stat, so only the earliest event per session counts.
+  const firstTry = await context.env.STATS_DB.prepare(
+    `SELECT COUNT(*) as players, SUM(correct) as first_try_solved
+     FROM solve_events
+     WHERE id IN (SELECT MIN(id) FROM solve_events WHERE ${filter} GROUP BY session_id)`
+  ).bind(id).first<{ players: number; first_try_solved: number }>();
 
   // Common first moves (all attempts)
   const firstMoves = await context.env.STATS_DB.prepare(
@@ -130,6 +141,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     totalAttempts: summary.total,
     correctCount: summary.correct_count || 0,
     uniqueSolvers: summary.unique_solvers || 0,
+    players: firstTry?.players || 0,
+    firstTrySolved: firstTry?.first_try_solved || 0,
     accuracyRate: summary.total > 0 ? (summary.correct_count || 0) / summary.total : 0,
     avgTimeSpent: summary.avg_time ? Math.round(summary.avg_time) : null,
     hintUsedCount: summary.hint_used_count || 0,

@@ -2096,11 +2096,11 @@ export default function App() {
   }, [problem.status, problem.problem, setProgress, setTimestamps, problem.moveHistory]);
 
   // Fetch a live problem rating only when it is needed: rated/review modes, or
-  // Info on a direct mate. Only direct mates are in problem_ratings at all, so
-  // asking for any other genre is a guaranteed 404.
+  // Info on a rated-pool genre. direct/help/self all have problem_ratings rows;
+  // study and retro have no pool, so asking for them is a guaranteed 404.
   useEffect(() => {
     const shouldFetch = isRatedMode || isReviewMode || showProblemInfo;
-    if (shouldFetch && problem.problem?.genre === 'direct' && lastProblemRating == null) {
+    if (shouldFetch && problem.problem && RATED_GENRES.includes(problem.problem.genre as RatedGenre) && lastProblemRating == null) {
       let cancelled = false;
       fetchProblemRating(problem.problem.id).then(res => {
         if (!cancelled) setLastProblemRating(res.rating);
@@ -2810,16 +2810,19 @@ export default function App() {
       {showProblemInfo && problem.problem && (() => {
         const p = problem.problem!;
         const pc = pieceCount(p.fen);
-        // Only direct mates have ratings. The other genres never enter rated
-        // mode, so nothing ever rates them -- printing the formula's guess
-        // would be inventing a number.
+        // direct falls back to the client-side initial formula (it matches how
+        // the direct pool was seeded). help/self pools were seeded with a
+        // different formula, so for them only the fetched rating is shown;
+        // study/retro have no pool at all.
         const infoRating = p.genre === 'direct'
           ? Math.round((lastProblemRating ?? getProblemInitialRating(
               p.difficultyScore,
               p.moveCount,
               p.pieceCount,
             ).rating) / 50) * 50
-          : null;
+          : (RATED_GENRES.includes(p.genre as RatedGenre) && lastProblemRating != null
+              ? Math.round(lastProblemRating / 50) * 50
+              : null);
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center">
             <div className="absolute inset-0 bg-black/40" onClick={() => setShowProblemInfo(false)} />
@@ -2876,24 +2879,28 @@ export default function App() {
                     #{p.id}
                   </a>
                 </div>
-                {(infoRating != null || (solveStats && solveStats.totalAttempts > 0)) && (
-                  <div className="pt-2 mt-1 border-t-2 border-[var(--ink)]">
-                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--faint)] mb-1.5">On this site</div>
+                {(infoRating != null || (solveStats?.players ?? 0) > 0) && (
+                  <div className="pt-2 mt-1 border-t-2 border-[var(--ink)] space-y-2">
+                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--faint)]">On this site</div>
                     {infoRating != null && (
                       <div>
                         <span className="text-[var(--faint)] font-semibold">Rating: </span>
                         <span className="text-[var(--ink)] font-semibold">~{infoRating}</span>
                       </div>
                     )}
-                    {solveStats && solveStats.totalAttempts > 0 && (
-                      <div>
-                        <span className="text-[var(--faint)] font-semibold">Attempts: </span>
-                        <span className="text-[var(--ink)]">{solveStats.totalAttempts}</span>
-                        <span className="text-[var(--faint)] font-semibold"> · Solved: </span>
-                        <span className="text-[var(--ink)]">
-                          {solveStats.correctCount} ({Math.round((solveStats.correctCount / solveStats.totalAttempts) * 100)}%)
-                        </span>
-                      </div>
+                    {(solveStats?.players ?? 0) > 0 && (
+                      <>
+                        <div>
+                          <span className="text-[var(--faint)] font-semibold">Players: </span>
+                          <span className="text-[var(--ink)]">{solveStats!.players}</span>
+                        </div>
+                        <div>
+                          <span className="text-[var(--faint)] font-semibold">Solved first try: </span>
+                          <span className="text-[var(--ink)]">
+                            {solveStats!.firstTrySolved ?? 0} ({Math.round(((solveStats!.firstTrySolved ?? 0) / solveStats!.players!) * 100)}%)
+                          </span>
+                        </div>
+                      </>
                     )}
                   </div>
                 )}

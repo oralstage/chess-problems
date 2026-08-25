@@ -416,6 +416,10 @@ export interface SolveStats {
   totalAttempts: number;
   correctCount: number;
   uniqueSolvers: number;
+  /** Unique players who finished an attempt (first recorded event per session) */
+  players?: number;
+  /** Players whose FIRST attempt was correct — retries don't count */
+  firstTrySolved?: number;
   accuracyRate: number;
   avgTimeSpent: number | null;
   hintUsedCount: number;
