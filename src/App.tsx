@@ -2622,11 +2622,12 @@ export default function App() {
                     <p className="text-xs font-semibold text-[var(--ink)]">
                       YACPDB has only part of the solution for this problem — the recorded line ends early.
                     </p>
-                    {!analysisActive && (
-                      <button onClick={handleAnalyze} className="nb-btn nb-btn-key py-1.5 px-3 text-sm font-bold">
-                        Show continuation →
-                      </button>
-                    )}
+                    {/* The person who pressed this never pressed "Analyze", so
+                        this button must be its own stop — not hand off to the
+                        Analyze/Stop button they aren't looking at. */}
+                    <button onClick={handleAnalyze} className="nb-btn nb-btn-key py-1.5 px-3 text-sm font-bold">
+                      {analyzing ? '...' : analysisActive ? 'Stop' : 'Show continuation →'}
+                    </button>
                   </div>
                 );
               })()}
