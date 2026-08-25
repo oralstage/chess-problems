@@ -537,6 +537,9 @@ export default function App() {
     thinking: boolean;
     /** Verdict on the FINAL position, if the game there is over. */
     result: string | null;
+    /** Engine-on mode: keep showing the best move for whatever position is
+     *  on the board, until switched off. */
+    hintActive: boolean;
     hint: { text: string; arrow: [string, string] | null } | null;
   } | null>(null);
   // Bumped on exit/problem change so an in-flight engine reply is discarded.
@@ -1195,6 +1198,7 @@ export default function App() {
       viewIndex: 0,
       thinking: false,
       result: null,
+      hintActive: false,
       hint: null,
     });
     const turn = (fen.split(' ')[1] || 'w') as 'w' | 'b';
@@ -1220,25 +1224,47 @@ export default function App() {
     });
   }, []);
 
-  // Ask the engine what it would play in the position on the board, without
-  // playing it. Works on any viewed position, including after the game ends.
-  const hintEnginePlay = useCallback(async () => {
-    const ep = enginePlay;
-    if (!ep || ep.thinking) return;
-    const fen = ep.positions[ep.viewIndex].fen;
-    const viewIndex = ep.viewIndex;
-    if (new Chess(fen).isGameOver()) return;
-    const token = enginePlayTokenRef.current;
-    setEnginePlay(cur => (cur && cur.viewIndex === viewIndex ? { ...cur, hint: { text: 'Thinking…', arrow: null as unknown as [string, string] } } : cur));
-    const res = await stockfishRef.current.analyze(fen, 14);
-    if (enginePlayTokenRef.current !== token) return;
-    setEnginePlay(cur => {
-      if (!cur || cur.viewIndex !== viewIndex || cur.positions[cur.viewIndex].fen !== fen) return cur;
-      if (!res) return { ...cur, hint: null };
-      const text = `Best here: ${res.bestMoveSan}${res.mateIn != null ? ` (mate in ${Math.abs(res.mateIn)})` : ''}`;
-      return { ...cur, hint: { text, arrow: [res.bestMove.slice(0, 2), res.bestMove.slice(2, 4)] } };
+  // Engine-on toggle: while on, whatever position is shown gets its best move
+  // (the effect below); off clears the hint and aborts the hint search.
+  const toggleEngineHint = useCallback(() => {
+    setEnginePlay(ep => {
+      if (!ep) return ep;
+      if (ep.hintActive && !ep.thinking) stockfishRef.current.stop();
+      return { ...ep, hintActive: !ep.hintActive, hint: null };
     });
-  }, [enginePlay]);
+  }, []);
+
+  // While engine-on, follow the board: any position change (move played, list
+  // click, prev/next) gets a fresh "best here". Deferred while the engine's
+  // REPLY is in flight — a hint search would abort it mid-thought and the
+  // reply would come out weak. It fires right after, when thinking clears.
+  const epHintActive = enginePlay?.hintActive ?? false;
+  const epThinking = enginePlay?.thinking ?? false;
+  const epViewFen = enginePlay ? enginePlay.positions[enginePlay.viewIndex].fen : null;
+  useEffect(() => {
+    if (!epHintActive || epThinking || !epViewFen) return;
+    const fen = epViewFen;
+    if (new Chess(fen).isGameOver()) {
+      setEnginePlay(cur => (cur && cur.hint !== null ? { ...cur, hint: null } : cur));
+      return;
+    }
+    const token = enginePlayTokenRef.current;
+    let cancelled = false;
+    setEnginePlay(cur => (cur ? { ...cur, hint: { text: 'Thinking…', arrow: null } } : cur));
+    stockfishRef.current.analyze(fen, 14).then(res => {
+      if (cancelled || enginePlayTokenRef.current !== token) return;
+      setEnginePlay(cur => {
+        if (!cur || !cur.hintActive || cur.positions[cur.viewIndex].fen !== fen) return cur;
+        if (!res) return { ...cur, hint: null };
+        // Feed the correctness marker too, so a move matching this hint is
+        // judged even if the silent prefetch hadn't finished.
+        engineBestByFenRef.current.set(fen, res.bestMove);
+        const text = `Best here: ${res.bestMoveSan}${res.mateIn != null ? ` (mate in ${Math.abs(res.mateIn)})` : ''}`;
+        return { ...cur, hint: { text, arrow: [res.bestMove.slice(0, 2), res.bestMove.slice(2, 4)] } };
+      });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [epHintActive, epThinking, epViewFen]);
 
   const handleEnginePlayDrop = useCallback((source: string, target: string, piece: string): boolean => {
     if (!enginePlay || enginePlay.thinking) return false;
@@ -2691,11 +2717,10 @@ export default function App() {
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" /></svg>
                       </button>
                       <button
-                        onClick={hintEnginePlay}
-                        disabled={enginePlay.thinking}
-                        className="nb-btn py-1.5 px-3 text-sm font-bold"
+                        onClick={toggleEngineHint}
+                        className={`nb-btn py-1.5 px-3 text-sm font-bold ${enginePlay.hintActive ? 'bg-[var(--ink)] text-[var(--surface)]' : ''}`}
                       >
-                        Best move?
+                        {enginePlay.hintActive ? 'Stop engine' : 'Best move?'}
                       </button>
                       <button onClick={exitEnginePlay} className="nb-btn py-1.5 px-3 text-sm font-bold">
                         Back to solution
