@@ -167,7 +167,7 @@ export function FeedbackPanel({
               </a>
             )}
             {onPlayEngine && (
-              <button onClick={onPlayEngine} className="nb-btn px-2.5 py-1.5 text-xs">
+              <button onClick={onPlayEngine} className="nb-btn nb-btn-key px-4 py-2 text-sm">
                 Play vs engine
               </button>
             )}
@@ -337,7 +337,7 @@ export function FeedbackPanel({
               </a>
             )}
             {onPlayEngine && (
-              <button onClick={onPlayEngine} className="nb-btn px-2.5 py-1.5 text-xs">
+              <button onClick={onPlayEngine} className="nb-btn nb-btn-key px-4 py-2 text-sm">
                 Play vs engine
               </button>
             )}

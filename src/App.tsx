@@ -1259,7 +1259,16 @@ export default function App() {
         // Feed the correctness marker too, so a move matching this hint is
         // judged even if the silent prefetch hadn't finished.
         engineBestByFenRef.current.set(fen, res.bestMove);
-        const text = `Best here: ${res.bestMoveSan}${res.mateIn != null ? ` (mate in ${Math.abs(res.mateIn)})` : ''}`;
+        // Score from the player's (White's) side, so a slip is visible as the
+        // number falling — "mate in 2" turning into "0.0" says the win became
+        // a draw. Stockfish reports from the side to move; flip when black.
+        const stm = fen.split(' ')[1] || 'w';
+        const mate = res.mateIn != null ? (stm === 'w' ? res.mateIn : -res.mateIn) : null;
+        const evalWhite = stm === 'w' ? res.eval : -res.eval;
+        const score = mate != null
+          ? (mate > 0 ? `mate in ${mate}` : `engine mates in ${-mate}`)
+          : `${evalWhite >= 0 ? '+' : ''}${evalWhite.toFixed(1)}`;
+        const text = `Best here: ${res.bestMoveSan} (${score})`;
         return { ...cur, hint: { text, arrow: [res.bestMove.slice(0, 2), res.bestMove.slice(2, 4)] } };
       });
     }).catch(() => {});
@@ -2663,17 +2672,24 @@ export default function App() {
 
               {enginePlay && (() => {
                 const atEnd = enginePlay.viewIndex === enginePlay.positions.length - 1;
+                // Viewing an earlier position needs no caption — the board and
+                // the highlighted move say it; playing from there just works.
                 const message = !atEnd
-                  ? 'Play a move here to continue from this position.'
+                  ? null
                   : enginePlay.result
                     ?? (enginePlay.thinking
                       ? 'Engine is thinking…'
                       : enginePlay.positions.length === 1
                         ? 'Your move — you are playing White against the engine.'
                         : 'Your move.');
+                const messageClass = atEnd && enginePlay.result
+                  ? (enginePlay.result.includes('you win') ? 'text-[var(--acid)]'
+                    : enginePlay.result.includes('engine wins') ? 'text-[var(--bad)]'
+                    : 'text-[var(--ink)]')
+                  : 'text-[var(--ink)]';
                 return (
                   <div className="nb-plate nb-shadow-room p-3 mt-2 space-y-2 text-center">
-                    <p className="text-sm font-bold text-[var(--ink)]">{message}</p>
+                    {message && <p className={`text-sm font-bold ${messageClass}`}>{message}</p>}
                     {enginePlay.hint && (
                       <p className="text-sm font-semibold text-[var(--acid)]">{enginePlay.hint.text}</p>
                     )}
@@ -2969,7 +2985,13 @@ export default function App() {
       </div>
 
       {showTutorial && currentGenre && !isRatedMode && !isReviewMode && (
-        <GenreTutorial genre={currentGenre} onOpenGuide={() => openGuide(currentGenre)} onClose={closeTutorial} />
+        <GenreTutorial
+          genre={currentGenre}
+          // The guide only has direct/help/self sections — no link to a page
+          // that cannot answer for study and retro.
+          onOpenGuide={['direct', 'help', 'self'].includes(currentGenre) ? () => openGuide(currentGenre) : undefined}
+          onClose={closeTutorial}
+        />
       )}
 
       {/* Review Mode tutorial */}
@@ -2977,7 +2999,9 @@ export default function App() {
         <GenreTutorial
           genre={(problem.problem.genre as Genre) || 'direct'}
           review
-          onOpenGuide={() => openGuide((problem.problem?.genre as Genre) || 'direct')}
+          onOpenGuide={['direct', 'help', 'self'].includes(problem.problem.genre)
+            ? () => openGuide((problem.problem?.genre as Genre) || 'direct')
+            : undefined}
           onClose={() => setShowTutorial(false)}
         />
       )}
