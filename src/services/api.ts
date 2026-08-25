@@ -6,7 +6,15 @@
 import type { ChessProblem } from '../types';
 
 const API_BASE = '/api';
-const CACHE_NAME = 'chess-problems-genre-v1';
+// Bump the version suffix after every data import: entries have no expiry, so
+// returning browsers would otherwise keep stale problem lists and solutions
+// forever. Old versions are deleted below so storage doesn't accumulate.
+const CACHE_NAME = 'chess-problems-genre-v2';
+try {
+  if (typeof caches !== 'undefined') {
+    caches.delete('chess-problems-genre-v1').catch(() => {});
+  }
+} catch { /* Cache API unavailable */ }
 
 /** Cached fetch: check Cache API first, fallback to network and store result */
 async function cachedFetch(url: string): Promise<Response> {
