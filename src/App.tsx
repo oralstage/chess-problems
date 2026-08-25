@@ -526,15 +526,24 @@ export default function App() {
   // Play-vs-engine mode: continue the current position against Stockfish.
   // Lives outside useProblem — it never touches solve state or ratings.
   const [enginePlay, setEnginePlay] = useState<{
-    fen: string;
     playerColor: 'w' | 'b';
+    /** Every position of the game, ply by ply; [0] is the start. A position's
+     *  feedback marks the move that produced it: green when the player's move
+     *  was the engine's best (or mates), red when the engine's move mated. */
+    positions: { fen: string; lastMove: { from: string; to: string } | null; san: string | null; feedback: { square: string; type: 'correct' | 'incorrect' } | null }[];
+    /** Which position is on the board. Stepping back and moving resumes
+     *  the game from there (later moves are discarded). */
+    viewIndex: number;
     thinking: boolean;
+    /** Verdict on the FINAL position, if the game there is over. */
     result: string | null;
-    lastMove: { from: string; to: string } | null;
-    plies: number;
+    hint: { text: string; arrow: [string, string] | null } | null;
   } | null>(null);
   // Bumped on exit/problem change so an in-flight engine reply is discarded.
   const enginePlayTokenRef = useRef(0);
+  // Best move per position (UCI), prefetched while the player thinks, so a
+  // move matching the engine's choice can be marked correct instantly.
+  const engineBestByFenRef = useRef<Map<string, string>>(new Map());
   const [analysisArrow, setAnalysisArrow] = useState<[string, string] | null>(null);
   const [genreData, setGenreData] = useState<Record<Genre, ChessProblem[]>>({
     direct: [], help: [], self: [], study: [], retro: [],
@@ -1106,6 +1115,19 @@ export default function App() {
     return null;
   };
 
+  // While the player thinks, ask the engine (idle anyway) what IT would play
+  // in the player's position. A later drop matching this gets a green check
+  // with no extra wait. Interrupted prefetches store a partial-depth best —
+  // occasionally missing a mark is fine, blocking the game is not.
+  const prefetchBestMove = useCallback((fen: string) => {
+    const token = enginePlayTokenRef.current;
+    stockfishRef.current.analyze(fen, 12).then(res => {
+      if (res && enginePlayTokenRef.current === token) {
+        engineBestByFenRef.current.set(fen, res.bestMove);
+      }
+    }).catch(() => {});
+  }, []);
+
   const requestEngineMove = useCallback(async (fen: string) => {
     const token = enginePlayTokenRef.current;
     setEnginePlay(ep => (ep ? { ...ep, thinking: true } : ep));
@@ -1120,27 +1142,39 @@ export default function App() {
     if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
     if (enginePlayTokenRef.current !== token) return; // mode exited meanwhile
     setEnginePlay(ep => {
-      if (!ep || ep.fen !== fen) return ep;
+      if (!ep) return ep;
+      const last = ep.positions[ep.positions.length - 1];
+      if (last.fen !== fen) return ep; // game moved on (takeback) — stale reply
       if (!res) return { ...ep, thinking: false, result: 'Engine unavailable on this device.' };
       const chess = new Chess(fen);
       const from = res.bestMove.slice(0, 2);
       const to = res.bestMove.slice(2, 4);
       const promotion = res.bestMove.length > 4 ? res.bestMove[4] : undefined;
+      let mv;
       try {
-        chess.move({ from, to, promotion });
+        mv = chess.move({ from, to, promotion });
       } catch {
         return { ...ep, thinking: false, result: 'Engine unavailable on this device.' };
       }
+      const result = engineGameResult(chess, ep.playerColor);
+      const newFen = chess.fen();
+      const positions = [...ep.positions, {
+        fen: newFen,
+        lastMove: { from, to },
+        san: mv.san,
+        feedback: chess.isCheckmate() ? { square: to, type: 'incorrect' as const } : null,
+      }];
+      if (!result) prefetchBestMove(newFen);
       return {
         ...ep,
-        fen: chess.fen(),
-        lastMove: { from, to },
+        positions,
+        viewIndex: positions.length - 1,
         thinking: false,
-        plies: ep.plies + 1,
-        result: engineGameResult(chess, ep.playerColor),
+        result,
+        hint: null,
       };
     });
-  }, []);
+  }, [prefetchBestMove]);
 
   const startEnginePlay = useCallback(() => {
     // Play mode owns the engine — shut down any running analysis first.
@@ -1154,10 +1188,19 @@ export default function App() {
     const fen = problem.fen;
     const playerColor: 'w' | 'b' = 'w'; // entry points are white-solver genres
     enginePlayTokenRef.current++;
-    setEnginePlay({ fen, playerColor, thinking: false, result: null, lastMove: null, plies: 0 });
+    engineBestByFenRef.current = new Map();
+    setEnginePlay({
+      playerColor,
+      positions: [{ fen, lastMove: null, san: null, feedback: null }],
+      viewIndex: 0,
+      thinking: false,
+      result: null,
+      hint: null,
+    });
     const turn = (fen.split(' ')[1] || 'w') as 'w' | 'b';
     if (turn !== playerColor) requestEngineMove(fen);
-  }, [problem.fen, requestEngineMove]);
+    else prefetchBestMove(fen);
+  }, [problem.fen, requestEngineMove, prefetchBestMove]);
 
   const exitEnginePlay = useCallback(() => {
     enginePlayTokenRef.current++;
@@ -1165,11 +1208,46 @@ export default function App() {
     setEnginePlay(null);
   }, []);
 
+  // Step through the played moves. Viewing an earlier position and moving
+  // there resumes the game from that point (the takeback for people who want
+  // to keep playing); viewing plus Hint answers "what was best here?".
+  const navEnginePlay = useCallback((delta: number) => {
+    setEnginePlay(ep => {
+      if (!ep) return ep;
+      const idx = Math.max(0, Math.min(ep.positions.length - 1, ep.viewIndex + delta));
+      if (idx === ep.viewIndex) return ep;
+      return { ...ep, viewIndex: idx, hint: null };
+    });
+  }, []);
+
+  // Ask the engine what it would play in the position on the board, without
+  // playing it. Works on any viewed position, including after the game ends.
+  const hintEnginePlay = useCallback(async () => {
+    const ep = enginePlay;
+    if (!ep || ep.thinking) return;
+    const fen = ep.positions[ep.viewIndex].fen;
+    const viewIndex = ep.viewIndex;
+    if (new Chess(fen).isGameOver()) return;
+    const token = enginePlayTokenRef.current;
+    setEnginePlay(cur => (cur && cur.viewIndex === viewIndex ? { ...cur, hint: { text: 'Thinking…', arrow: null as unknown as [string, string] } } : cur));
+    const res = await stockfishRef.current.analyze(fen, 14);
+    if (enginePlayTokenRef.current !== token) return;
+    setEnginePlay(cur => {
+      if (!cur || cur.viewIndex !== viewIndex || cur.positions[cur.viewIndex].fen !== fen) return cur;
+      if (!res) return { ...cur, hint: null };
+      const text = `Best here: ${res.bestMoveSan}${res.mateIn != null ? ` (mate in ${Math.abs(res.mateIn)})` : ''}`;
+      return { ...cur, hint: { text, arrow: [res.bestMove.slice(0, 2), res.bestMove.slice(2, 4)] } };
+    });
+  }, [enginePlay]);
+
   const handleEnginePlayDrop = useCallback((source: string, target: string, piece: string): boolean => {
-    if (!enginePlay || enginePlay.thinking || enginePlay.result) return false;
-    const chess = new Chess(enginePlay.fen);
+    if (!enginePlay || enginePlay.thinking) return false;
+    const atEnd = enginePlay.viewIndex === enginePlay.positions.length - 1;
+    if (atEnd && enginePlay.result) return false; // game over — step back to branch
+    const viewFen = enginePlay.positions[enginePlay.viewIndex].fen;
+    const chess = new Chess(viewFen);
     if (chess.turn() !== enginePlay.playerColor) return false;
-    const promotion = getPromotionForMove(enginePlay.fen, source, target, piece);
+    const promotion = getPromotionForMove(viewFen, source, target, piece);
     let move;
     try {
       move = chess.move({ from: source, to: target, promotion });
@@ -1177,16 +1255,30 @@ export default function App() {
       return false;
     }
     if (!move) return false;
-    const newFen = chess.fen();
     const result = engineGameResult(chess, enginePlay.playerColor);
+    // Green check when the move mates, or matches the prefetched engine best
+    // ("after the key, the engine's best is normally the right move").
+    const best = engineBestByFenRef.current.get(viewFen);
+    const matchesBest = !!best
+      && best.slice(0, 2) === source
+      && best.slice(2, 4) === target
+      && (best.length <= 4 || !promotion || best[4] === promotion);
+    const feedback = chess.isCheckmate() || matchesBest
+      ? { square: target, type: 'correct' as const }
+      : null;
+    // Moving from an earlier position discards the moves after it.
+    const positions = [
+      ...enginePlay.positions.slice(0, enginePlay.viewIndex + 1),
+      { fen: chess.fen(), lastMove: { from: source, to: target }, san: move.san, feedback },
+    ];
     setEnginePlay({
       ...enginePlay,
-      fen: newFen,
-      lastMove: { from: source, to: target },
-      plies: enginePlay.plies + 1,
+      positions,
+      viewIndex: positions.length - 1,
       result,
+      hint: null,
     });
-    if (!result) requestEngineMove(newFen);
+    if (!result) requestEngineMove(chess.fen());
     return true;
   }, [enginePlay, requestEngineMove]);
 
@@ -2528,36 +2620,90 @@ export default function App() {
               <div className="flex justify-center -mx-1">
                 <Board
                   key={`${problem.problem?.id ?? 'loading'}:${problem.initialFen}`}
-                  fen={enginePlay ? enginePlay.fen : problem.fen}
+                  fen={enginePlay ? enginePlay.positions[enginePlay.viewIndex].fen : problem.fen}
                   onPieceDrop={enginePlay ? handleEnginePlayDrop : handlePieceDrop}
-                  lastMove={enginePlay ? enginePlay.lastMove : problem.lastMove}
-                  disabled={enginePlay ? (enginePlay.thinking || !!enginePlay.result) : problem.waitingForAutoPlay}
+                  lastMove={enginePlay ? enginePlay.positions[enginePlay.viewIndex].lastMove : problem.lastMove}
+                  disabled={enginePlay ? enginePlay.thinking : problem.waitingForAutoPlay}
                   orientation="white"
                   width={boardWidth}
-                  feedbackSquare={enginePlay ? null : problem.feedbackSquare}
-                  feedbackType={enginePlay ? null : problem.feedbackType}
+                  feedbackSquare={enginePlay ? (enginePlay.positions[enginePlay.viewIndex].feedback?.square ?? null) : problem.feedbackSquare}
+                  feedbackType={enginePlay ? (enginePlay.positions[enginePlay.viewIndex].feedback?.type ?? null) : problem.feedbackType}
                   hintSquares={enginePlay ? null : problem.hintSquares}
-                  arrows={enginePlay ? [] : boardArrows}
+                  arrows={enginePlay ? (enginePlay.hint?.arrow ? [enginePlay.hint.arrow] : []) : boardArrows}
                   allowAnyColor={!enginePlay && currentGenre === 'retro'}
                   printMode={printMode}
                 />
               </div>
 
-              {enginePlay && (
-                <div className="nb-plate nb-shadow-room p-3 mt-2 space-y-2 text-center">
-                  <p className="text-sm font-bold text-[var(--ink)]">
-                    {enginePlay.result
-                      ?? (enginePlay.thinking
-                        ? 'Engine is thinking…'
-                        : enginePlay.plies === 0
-                          ? 'Your move — you are playing White against the engine.'
-                          : 'Your move.')}
-                  </p>
-                  <button onClick={exitEnginePlay} className="nb-btn py-1.5 px-3 text-sm font-bold">
-                    Back to solution
-                  </button>
-                </div>
-              )}
+              {enginePlay && (() => {
+                const atEnd = enginePlay.viewIndex === enginePlay.positions.length - 1;
+                const message = !atEnd
+                  ? 'Play a move here to continue from this position.'
+                  : enginePlay.result
+                    ?? (enginePlay.thinking
+                      ? 'Engine is thinking…'
+                      : enginePlay.positions.length === 1
+                        ? 'Your move — you are playing White against the engine.'
+                        : 'Your move.');
+                return (
+                  <div className="nb-plate nb-shadow-room p-3 mt-2 space-y-2 text-center">
+                    <p className="text-sm font-bold text-[var(--ink)]">{message}</p>
+                    {enginePlay.hint && (
+                      <p className="text-sm font-semibold text-[var(--acid)]">{enginePlay.hint.text}</p>
+                    )}
+                    {enginePlay.positions.length > 1 && (
+                      <div className="text-sm text-[var(--ink)] leading-relaxed">
+                        {enginePlay.positions.map((pos, i) => {
+                          if (i === 0 || !pos.san) return null;
+                          const startColor = (enginePlay.positions[0].fen.split(' ')[1] || 'w') as 'w' | 'b';
+                          const plyColor = ((i - 1) % 2 === 0) === (startColor === 'w') ? 'w' : 'b';
+                          const moveNo = Math.floor(((startColor === 'w' ? 0 : 1) + i - 1) / 2) + 1;
+                          return (
+                            <span key={i}>
+                              {plyColor === 'w' && <span className="text-[var(--faint)] text-xs">{moveNo}.</span>}
+                              {plyColor === 'b' && i === 1 && <span className="text-[var(--faint)] text-xs">{moveNo}…</span>}
+                              <button
+                                onClick={() => setEnginePlay(ep => (ep ? { ...ep, viewIndex: i, hint: null } : ep))}
+                                className={`px-1 rounded font-mono ${i === enginePlay.viewIndex ? 'bg-[var(--ink)] text-[var(--surface)] font-bold' : 'hover:underline'}`}
+                              >
+                                {pos.san}
+                              </button>{' '}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
+                      <button
+                        onClick={() => navEnginePlay(-1)}
+                        disabled={enginePlay.viewIndex === 0}
+                        className="nb-icon w-9 h-9"
+                        title="Previous position"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M12.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L8.414 10l4.293 4.293a1 1 0 010 1.414z" /></svg>
+                      </button>
+                      <button
+                        onClick={() => navEnginePlay(1)}
+                        disabled={enginePlay.viewIndex >= enginePlay.positions.length - 1}
+                        className="nb-icon w-9 h-9"
+                        title="Next position"
+                      >
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M7.293 4.293a1 1 0 011.414 0l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L11.586 10 7.293 5.707a1 1 0 010-1.414z" /></svg>
+                      </button>
+                      <button
+                        onClick={hintEnginePlay}
+                        disabled={enginePlay.thinking}
+                        className="nb-btn py-1.5 px-3 text-sm font-bold"
+                      >
+                        Best move?
+                      </button>
+                      <button onClick={exitEnginePlay} className="nb-btn py-1.5 px-3 text-sm font-bold">
+                        Back to solution
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Playback navigation arrows - directly below the board (hide if no moves computed) */}
               {problem.playback && problem.playback.positions.length > 1 && !enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (
@@ -2693,7 +2839,6 @@ export default function App() {
                 analysisActive={analysisActive}
                 onPrevDaily={isDaily && canGoPrevDaily ? handlePrevDaily : undefined}
                 onNextDaily={isDaily && !isToday ? handleNextDaily : undefined}
-                lichessAnalysisUrl={currentGenre === 'study' && problem.problem ? `https://lichess.org/analysis/${problem.problem.fen.replace(/ /g, '_')}` : undefined}
                 onPlayEngine={currentGenre === 'study' && problem.problem ? startEnginePlay : undefined}
                 ratingDelta={isRatedMode ? lastRatingDelta : undefined}
                 playerRating={isRatedMode ? playerRating.rating : undefined}
