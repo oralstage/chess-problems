@@ -2844,13 +2844,6 @@ export default function App() {
                   <span className="text-[var(--ink)]">{p.sourceName}{p.sourceYear ? `, ${p.sourceYear}` : ''}</span>
                 </div>
                 <div>
-                  <span className="text-[var(--faint)] font-semibold">YACPDB: </span>
-                  <a href={`https://www.yacpdb.org/#${p.id}`} target="_blank" rel="noopener noreferrer"
-                    className="text-[var(--ink)] font-bold underline decoration-2 underline-offset-2">
-                    #{p.id}
-                  </a>
-                </div>
-                <div>
                   <span className="text-[var(--faint)] font-semibold">Stipulation: </span>
                   <span className="text-[var(--ink)] font-mono">{p.stipulation}</span>
                 </div>
@@ -2858,12 +2851,6 @@ export default function App() {
                   <span className="text-[var(--faint)] font-semibold">Pieces: </span>
                   <span className="text-[var(--ink)]">{pc}</span>
                 </div>
-                {infoRating != null && (
-                  <div>
-                    <span className="text-[var(--faint)] font-semibold">Problem rating: </span>
-                    <span className="text-[var(--ink)] font-semibold">~{infoRating}</span>
-                  </div>
-                )}
                 {p.award && (
                   <div>
                     <span className="text-[var(--faint)] font-semibold">Award: </span>
@@ -2880,6 +2867,34 @@ export default function App() {
                         </span>
                       ))}
                     </div>
+                  </div>
+                )}
+                <div>
+                  <span className="text-[var(--faint)] font-semibold">YACPDB: </span>
+                  <a href={`https://www.yacpdb.org/#${p.id}`} target="_blank" rel="noopener noreferrer"
+                    className="text-[var(--ink)] font-bold underline decoration-2 underline-offset-2">
+                    #{p.id}
+                  </a>
+                </div>
+                {(infoRating != null || (solveStats && solveStats.totalAttempts > 0)) && (
+                  <div className="pt-2 mt-1 border-t-2 border-[var(--ink)]">
+                    <div className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--faint)] mb-1.5">On this site</div>
+                    {infoRating != null && (
+                      <div>
+                        <span className="text-[var(--faint)] font-semibold">Rating: </span>
+                        <span className="text-[var(--ink)] font-semibold">~{infoRating}</span>
+                      </div>
+                    )}
+                    {solveStats && solveStats.totalAttempts > 0 && (
+                      <div>
+                        <span className="text-[var(--faint)] font-semibold">Attempts: </span>
+                        <span className="text-[var(--ink)]">{solveStats.totalAttempts}</span>
+                        <span className="text-[var(--faint)] font-semibold"> · Solved: </span>
+                        <span className="text-[var(--ink)]">
+                          {solveStats.correctCount} ({Math.round((solveStats.correctCount / solveStats.totalAttempts) * 100)}%)
+                        </span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
