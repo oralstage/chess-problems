@@ -120,12 +120,13 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           <div className={SUB}>Two black pieces trip over each other on one square</div>
 
           <p className={P}>
-            A rook moves along ranks and files, a bishop along diagonals. When
-            both need to pass through the same square, they get in each other's
-            way: whichever one lands there cuts the other's line. A{' '}
-            <em>Grimshaw</em> (after Walter Grimshaw, 19th-century English
-            composer) is a position built so that Black has to make that choice
-            — and each version of it loses to a different mate.
+            A Grimshaw is this situation:{' '}
+            <strong>two black pieces — typically a rook and a bishop — can each
+            defend by moving to the same square, but whichever one goes there
+            blocks the other one's line</strong>. Every defense creates a new
+            weakness, and the composer has arranged a different mate to punish
+            each. (Named after Walter Grimshaw, a 19th-century English
+            composer.)
           </p>
 
           <Diagram
@@ -155,8 +156,10 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
             <span className={MOVE}>2.Rd4#</span> — the rook check on d4 works
             because the bishop now backs it up along the long diagonal, g7
             through e5 to d4. That diagonal is Black's only hope: put something
-            on e5 and the threat is parried. Both the rook and the bishop can
-            reach e5. That square is the trap.
+            on e5 and the threat is parried.{' '}
+            <strong>Both the black rook and the black bishop can reach e5 — and
+            e5 is exactly where their two lines cross.</strong> That square is
+            the trap.
           </p>
 
           <Diagram
@@ -173,9 +176,9 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           />
 
           <p className={P}>
-            <span className={MOVE}>1...Re5</span> blocks the threat — but the
-            rook is now standing in its own bishop's diagonal (h2–e5–d6). The
-            bishop no longer guards d6, so{' '}
+            <span className={MOVE}>1...Re5</span> blocks the threat — but{' '}
+            <strong>the rook is now standing in its own bishop's diagonal</strong>{' '}
+            (h2–e5–d6). The bishop no longer guards d6, so{' '}
             <span className={MOVE}>2.Nd6#</span>. Note the rook still guards
             c5, so this is the only mate.
           </p>
@@ -189,11 +192,12 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
 
           <p className={P}>
             <span className={MOVE}>1...Be5</span> blocks the same diagonal —
-            but now the bishop is standing in its own rook's fifth rank
+            but now <strong>the bishop is standing in its own rook's rank</strong>{' '}
             (h5–e5–c5). The rook no longer guards c5, so{' '}
             <span className={MOVE}>2.Nc5#</span> — and this time d6 is still
-            covered by the bishop. One square, two interferences, two different
-            mates: that is a Grimshaw.
+            covered by the bishop.{' '}
+            <strong>One square, two interferences, two different mates — that
+            is a Grimshaw.</strong>
           </p>
 
           <Diagram
@@ -204,10 +208,10 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           />
 
           <p className={P}>
-            When a problem carries the Grimshaw tag, look for the crossing
-            point: the square where a black rook's line and a black bishop's
-            diagonal intersect. The defenses that land there are the story of
-            the problem.
+            When a problem carries the Grimshaw tag, look for{' '}
+            <strong>the square where a black rook's line and a black bishop's
+            diagonal cross</strong>. The defenses that land there are the story
+            of the problem.
           </p>
           </>}
 
