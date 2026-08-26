@@ -101,25 +101,26 @@ export async function fetchAllProblems(
   // Report first page immediately
   onProgress?.(allProblems, data.total, false);
 
-  // Fetch remaining pages (cached). Transient 5xx happen under D1 load for
-  // these heavy 5000-row queries — retry with backoff, because a single
-  // failed page used to silently truncate the whole genre (empty theme
-  // cloud, wrong filter counts).
-  let page = 1;
+  // Fetch remaining pages (cached) by keyset cursor — OFFSET pagination made
+  // the server scan offset+limit rows per page, turning a full genre load
+  // quadratic. The cursor pages ride an index and cost ~pageSize rows each.
+  // Retry with backoff: transient 5xx used to silently truncate the whole
+  // genre (empty theme cloud, wrong filter counts).
   while (allProblems.length < data.total) {
+    const last = allProblems[allProblems.length - 1];
     let pageRes: Response | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
-      pageRes = await cachedFetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&page=${page}&sortBy=difficulty&sortOrder=asc`);
+      pageRes = await cachedFetch(`${API_BASE}/problems?genre=${genre}&pageSize=${PAGE_SIZE}&afterScore=${last.difficultyScore}&afterId=${last.id}`);
       if (pageRes.ok) break;
       await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
     }
     if (!pageRes || !pageRes.ok) break;
     const pageData: { problems: ProblemMeta[]; total: number } = await pageRes.json();
+    if (pageData.problems.length === 0) break; // defensive: cursor exhausted
     allProblems.push(...pageData.problems);
     const done = allProblems.length >= data.total || pageData.problems.length < PAGE_SIZE;
     onProgress?.(allProblems, data.total, done);
     if (done) break;
-    page++;
   }
 
   return allProblems;

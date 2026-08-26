@@ -19,6 +19,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'author param required (min 2 chars)' }, { status: 400 });
   }
 
+  // Edge-cache per URL: the LIKE scan reads the whole table (~580k rows) and
+  // cannot use an index, so at least repeats of the same search are free.
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString());
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
   const conditions: string[] = [];
   const bindings: (string | number)[] = [];
 
@@ -55,5 +62,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     award: row.award as string,
   }));
 
-  return Response.json({ results, total: results.length });
+  const response = Response.json({ results, total: results.length }, {
+    headers: { 'Cache-Control': 'public, max-age=86400' },
+  });
+  context.waitUntil(cache.put(cacheKey, response.clone()));
+  return response;
 };

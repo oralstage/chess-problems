@@ -89,3 +89,8 @@ CREATE TABLE IF NOT EXISTS stats_cache (
   payload TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+-- Composite index for the per-problem solve-stats queries. The single-column
+-- problem_id index exists, but the planner picked (excluded, dev) and scanned
+-- the whole table for every solve-stats call.
+CREATE INDEX IF NOT EXISTS idx_solve_problem_full ON solve_events(problem_id, excluded, dev);

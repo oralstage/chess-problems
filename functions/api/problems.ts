@@ -24,6 +24,14 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const params = url.searchParams;
 
+  // Edge-cache per full URL: problem data only changes on import, and the
+  // paginated background loads re-request identical URLs from every browser
+  // whose Cache API copy is cold.
+  const cache = caches.default;
+  const cacheKey = new Request(url.toString());
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
   const genre = params.get('genre');
   if (!genre || !['direct', 'help', 'self', 'study', 'retro'].includes(genre)) {
     return Response.json({ error: 'genre is required (direct|help|self|study|retro)' }, { status: 400 });
@@ -72,14 +80,22 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const maxYear = params.get('maxYear');
   if (maxYear && Number.isFinite(parseInt(maxYear))) { conditions.push('source_year <= ?'); bindings.push(parseInt(maxYear)); }
 
-  // Move count range
-  const minMoves = params.get('minMoves');
-  if (minMoves && Number.isFinite(parseInt(minMoves))) { conditions.push('move_count >= ?'); bindings.push(parseInt(minMoves)); }
-  const maxMoves = params.get('maxMoves');
-  if (maxMoves && Number.isFinite(parseInt(maxMoves))) { conditions.push('move_count <= ?'); bindings.push(parseInt(maxMoves)); }
+  // Anything beyond the genre condition (so far) means user-chosen filters
+  // the count cache can't cover: stipulations, keywords, pieces, years.
+  const hasUncacheableFilters = conditions.length > 1;
 
-  // Anything beyond the genre condition means user-chosen filters
-  const filtered = conditions.length > 1;
+  // Move count range. Tracked separately: category lists (#3, #4+, h#2…)
+  // always carry a move range, so counts for genre+moves-only must still be
+  // servable from stats_cache or every category page view pays a full scan.
+  const minMoves = params.get('minMoves');
+  const minMovesN = minMoves && Number.isFinite(parseInt(minMoves)) ? parseInt(minMoves) : null;
+  if (minMovesN != null) { conditions.push('move_count >= ?'); bindings.push(minMovesN); }
+  const maxMoves = params.get('maxMoves');
+  const maxMovesN = maxMoves && Number.isFinite(parseInt(maxMoves)) ? parseInt(maxMoves) : null;
+  if (maxMovesN != null) { conditions.push('move_count <= ?'); bindings.push(maxMovesN); }
+
+  const filtered = hasUncacheableFilters;
+  const hasMoves = minMovesN != null || maxMovesN != null;
 
   // Exclude fairy problems (detected by keywords)
   addFairyExclusion(conditions, bindings);
@@ -92,7 +108,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // stats_cache; filtered combinations are rare enough to stay dynamic.
   // Invalidated together with the stats keys (DELETE FROM stats_cache).
   let total: number | null = null;
-  const countCacheKey = `v1:count:${genre}`;
+  const countCacheKey = hasMoves
+    ? `v1:count:${genre}:m${minMovesN ?? 0}-${maxMovesN ?? 0}`
+    : `v1:count:${genre}`;
   if (!filtered) {
     try {
       const row = await context.env.STATS_DB.prepare(
@@ -116,16 +134,38 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     }
   }
 
-  // Get page of problems (without solution_text for list view)
-  const offset = page * pageSize;
-  const nullHandling = sortBy === 'source_year' ? 'NULLS LAST' : '';
-  const rows = await context.env.DB.prepare(
-    `SELECT id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award
-     FROM problems
-     WHERE ${where}
-     ORDER BY ${sortBy} ${sortOrder} ${nullHandling}
-     LIMIT ? OFFSET ?`
-  ).bind(...bindings, pageSize, offset).all();
+  // Get page of problems (without solution_text for list view).
+  // Keyset mode (afterScore+afterId): OFFSET scans offset+limit rows, which
+  // makes a full-genre background load quadratic (~16M rows read for direct).
+  // The cursor walk rides idx_genre_difficulty and reads ~pageSize rows per
+  // page instead. Order matches the OFFSET path (difficulty ascending).
+  const afterScoreP = params.get('afterScore');
+  const afterIdP = params.get('afterId');
+  const useKeyset = afterScoreP != null && afterIdP != null
+    && Number.isFinite(parseFloat(afterScoreP)) && Number.isFinite(parseInt(afterIdP));
+
+  let rows;
+  if (useKeyset) {
+    const afterScore = parseFloat(afterScoreP!);
+    const afterId = parseInt(afterIdP!);
+    rows = await context.env.DB.prepare(
+      `SELECT id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award
+       FROM problems
+       WHERE ${where} AND (difficulty_score > ? OR (difficulty_score = ? AND id > ?))
+       ORDER BY difficulty_score ASC, id ASC
+       LIMIT ?`
+    ).bind(...bindings, afterScore, afterScore, afterId, pageSize).all();
+  } else {
+    const offset = page * pageSize;
+    const nullHandling = sortBy === 'source_year' ? 'NULLS LAST' : '';
+    rows = await context.env.DB.prepare(
+      `SELECT id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award
+       FROM problems
+       WHERE ${where}
+       ORDER BY ${sortBy} ${sortOrder} ${nullHandling}, id ASC
+       LIMIT ? OFFSET ?`
+    ).bind(...bindings, pageSize, offset).all();
+  }
 
   // Parse JSON fields
   const problems = rows.results.map((r: Record<string, unknown>) => ({
@@ -144,5 +184,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     award: r.award,
   }));
 
-  return Response.json({ problems, total, page, pageSize });
+  const response = Response.json({ problems, total, page, pageSize }, {
+    headers: { 'Cache-Control': 'public, max-age=86400' },
+  });
+  context.waitUntil(cache.put(cacheKey, response.clone()));
+  return response;
 };
