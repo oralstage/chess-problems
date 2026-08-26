@@ -2,6 +2,8 @@ import type { ChessProblem } from '../types';
 import { getStipulationColorClasses } from '../utils/stipulationColor';
 
 interface ProblemCardProps {
+  /** Multi-solution helpmates announce their count, like print does. */
+  solutionsTotal?: number;
   problem: ChessProblem;
   problemNumber?: number;
   genrePrefix?: string;
@@ -26,7 +28,7 @@ function stipulationDisplay(stip: string): string {
   return stip;
 }
 
-export function ProblemCard({ problem, problemNumber, genrePrefix }: ProblemCardProps) {
+export function ProblemCard({ problem, problemNumber, genrePrefix, solutionsTotal }: ProblemCardProps) {
   const stipColor = getStipulationColorClasses(problem.stipulation, problem.genre);
 
   return (
@@ -43,6 +45,11 @@ export function ProblemCard({ problem, problemNumber, genrePrefix }: ProblemCard
         <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
           {pieceCounts(problem.fen)}
         </span>
+        {solutionsTotal != null && solutionsTotal > 1 && (
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {solutionsTotal} solutions
+          </span>
+        )}
       </div>
 
       <div className="text-gray-600 dark:text-gray-400">

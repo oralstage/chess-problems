@@ -2597,6 +2597,7 @@ export default function App() {
                   )}
                   <ProblemCard
                     problem={problem.problem}
+                    solutionsTotal={problem.totalSolutions}
                     problemNumber={problem.problem!.id}
                     /* From the problem itself, not from currentGenre: Review Mode
                        and Rated pools serve problems the current genre does not
@@ -2985,6 +2986,10 @@ export default function App() {
                 classicBoard={printMode !== 'off'}
                 ratedDifficulty={isRatedMode ? ratedDifficulty : undefined}
                 onChangeDifficulty={isRatedMode ? handleChangeDifficulty : undefined}
+                solutionsTotal={problem.totalSolutions}
+                solutionsFound={problem.foundSolutionCount}
+                difficultyLocked={isRatedMode && problem.totalSolutions > 1 && problem.status === 'solving'
+                  && (problem.moveHistory.length > 0 || problem.foundSolutionCount > 0)}
               />}
 
               {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {
@@ -3321,6 +3326,11 @@ export default function App() {
                 <div>
                   <span className="text-[var(--faint)] font-semibold">Stipulation: </span>
                   <span className="text-[var(--ink)] font-mono">{p.stipulation}</span>
+                  {/* Counted here from YACPDB's solution text — the count is
+                      part of the stipulation in print ("h#2, 3 solutions"). */}
+                  {problem.totalSolutions > 1 && (
+                    <span className="text-[var(--ink)]"> · {problem.totalSolutions} solutions</span>
+                  )}
                 </div>
                 <div>
                   <span className="text-[var(--faint)] font-semibold">Pieces: </span>

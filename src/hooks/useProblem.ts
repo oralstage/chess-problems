@@ -39,6 +39,12 @@ interface ProblemState {
   refutationArrow: [string, string] | null;
   // How many white moves remain for mate (for direct mate tracking)
   movesRemaining: number;
+  /** Multi-solution helpmates: how many solutions the diagram has (1 for
+   *  everything else), which root lines are already completed, and which
+   *  root the line currently on the board belongs to. */
+  totalSolutions: number;
+  foundSolutions: number[];
+  currentRootIndex: number | null;
   playback: {
     positions: PlaybackPosition[];
     mainLine: SolutionNode[];
@@ -56,7 +62,19 @@ interface ProblemState {
   activeTree: SolutionNode[];
 }
 
+/** How many separate solutions a tree carries. Only helpmates run the
+ *  find-them-all flow: their multiple roots are genuine alternative solutions
+ *  (published as "2 solutions"), where extra roots elsewhere are cooks or
+ *  parser noise. Capped so a mangled tree can't demand twenty. */
+function countSolutions(genre: string, roots: SolutionNode[]): number {
+  if (genre !== 'help') return 1;
+  return roots.length >= 2 && roots.length <= 8 ? roots.length : 1;
+}
+
 // Timing constants
+/** How long a completed solution stays on the board before the diagram
+ *  returns for the next one. Long enough to see the mate that was played. */
+const SOLUTION_RESET_HOLD = 1300;
 const AUTO_PLAY_DELAY = 250;
 // How long the finished position is held on its own when the LAST move of a
 // problem is auto-played rather than made by the solver — a selfmate always
@@ -417,6 +435,9 @@ export function useProblem(stockfish?: StockfishApi) {
     refutationText: null,
     refutationArrow: null,
     movesRemaining: 0,
+    totalSolutions: 1,
+    foundSolutions: [],
+    currentRootIndex: null,
     playback: null,
     activeTree: [],
   });
@@ -542,6 +563,9 @@ export function useProblem(stockfish?: StockfishApi) {
       refutationText: null,
       refutationArrow: null,
       movesRemaining: problem.moveCount,
+      totalSolutions: countSolutions(problem.genre, problem.solutionTree),
+      foundSolutions: [],
+      currentRootIndex: null,
       playback: null,
       activeTree: problem.solutionTree,
     });
@@ -586,6 +610,10 @@ export function useProblem(stockfish?: StockfishApi) {
         refutationText: null,
         refutationArrow: null,
         movesRemaining: prev.problem.moveCount,
+        // Twins stay single-solution: each twin's own tree is the unit played.
+        totalSolutions: 1,
+        foundSolutions: [],
+        currentRootIndex: null,
         playback: null,
         activeTree: twinTree,
       };
@@ -747,6 +775,65 @@ export function useProblem(stockfish?: StockfishApi) {
     // turn IS the puzzle, and the "apparent" mate by the wrong side (e.g.
     // R138281's 1.Qb1#? — it's really Black to move) must stay incorrect.
     const retroWrongSide = problem.genre === 'retro' && movedColor !== currentTurn;
+
+    // Multi-solution helpmate: a mate finishes ONE solution, not the problem.
+    // Handled here because most helpmate lines end through this shortcut.
+    if (isCheckmate && state.totalSolutions > 1 && !retroWrongSide) {
+      // Attribute the line to its root. The root is remembered from the first
+      // move; a first-move mate is matched directly; an unmatched mate (data
+      // truncated) gets a synthetic negative id so it still counts once.
+      let rootIdx = state.currentRootIndex;
+      if (rootIdx === null) {
+        const rootMatch = matchMoveToTree(state.fen, from, to, move.san, move.promotion,
+          currentNodes.filter(n => n.color === movedColor));
+        rootIdx = rootMatch ? activeTree.indexOf(rootMatch) : -1;
+        if (rootIdx === -1) rootIdx = -(state.foundSolutions.length + 1);
+      }
+      const newFound = state.foundSolutions.includes(rootIdx)
+        ? state.foundSolutions
+        : [...state.foundSolutions, rootIdx];
+
+      if (newFound.length < state.totalSolutions) {
+        emitMoveCorrect();
+        const remaining = state.totalSolutions - newFound.length;
+        setState(prev => ({
+          ...prev,
+          fen: newFen,
+          moveHistory: newHistory,
+          feedback: '',
+          lastMove: { from, to },
+          feedbackSquare: to,
+          feedbackType: 'correct',
+          waitingForAutoPlay: true,
+          hintSquares: null,
+          foundSolutions: newFound,
+        }));
+        if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+        autoPlayTimerRef.current = setTimeout(() => {
+          setState(prev => {
+            if (!prev.problem || prev.status !== 'solving') return prev;
+            return {
+              ...prev,
+              fen: prev.initialFen,
+              moveHistory: [],
+              currentNodes: prev.activeTree.filter((_, i) => !newFound.includes(i)),
+              currentRootIndex: null,
+              feedback: remaining === 1 ? 'One more to find!' : `${remaining} more to find!`,
+              lastMove: null,
+              feedbackSquare: null,
+              feedbackType: null,
+              waitingForAutoPlay: false,
+              movesRemaining: prev.problem.moveCount,
+            };
+          });
+        }, SOLUTION_RESET_HOLD);
+        return true;
+      }
+      // Last solution — fall through to the normal solved handling below,
+      // with the completed set recorded for the panel.
+      setState(prev => ({ ...prev, foundSolutions: newFound }));
+    }
+
     if (isCheckmate && problem.genre !== 'self' && !retroWrongSide) {
       // User delivered checkmate — solved! (direct/study/help)
       emitMoveCorrect();
@@ -813,6 +900,52 @@ export function useProblem(stockfish?: StockfishApi) {
         isSolved = matchingNode.children.length === 0;
       }
 
+      if (isSolved && state.totalSolutions > 1) {
+        // A solution line ended without a mate on the board (truncated data).
+        // Same accounting as the checkmate path above.
+        const rootIdxHere = activeTree.indexOf(matchingNode);
+        const rootIdx = state.currentRootIndex ?? (rootIdxHere >= 0 ? rootIdxHere : -(state.foundSolutions.length + 1));
+        const newFound = state.foundSolutions.includes(rootIdx)
+          ? state.foundSolutions
+          : [...state.foundSolutions, rootIdx];
+        if (newFound.length < state.totalSolutions) {
+          const remaining = state.totalSolutions - newFound.length;
+          setState(prev => ({
+            ...prev,
+            fen: newFen,
+            moveHistory: newHistory,
+            feedback: '',
+            lastMove: { from, to },
+            feedbackSquare: to,
+            feedbackType: 'correct',
+            waitingForAutoPlay: true,
+            hintSquares: null,
+            foundSolutions: newFound,
+          }));
+          if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+          autoPlayTimerRef.current = setTimeout(() => {
+            setState(prev => {
+              if (!prev.problem || prev.status !== 'solving') return prev;
+              return {
+                ...prev,
+                fen: prev.initialFen,
+                moveHistory: [],
+                currentNodes: prev.activeTree.filter((_, i) => !newFound.includes(i)),
+                currentRootIndex: null,
+                feedback: remaining === 1 ? 'One more to find!' : `${remaining} more to find!`,
+                lastMove: null,
+                feedbackSquare: null,
+                feedbackType: null,
+                waitingForAutoPlay: false,
+                movesRemaining: prev.problem.moveCount,
+              };
+            });
+          }, SOLUTION_RESET_HOLD);
+          return true;
+        }
+        setState(prev => ({ ...prev, foundSolutions: newFound }));
+      }
+
       if (isSolved) {
         const pb = startPlayback(state.initialFen, activeTree, true, newHistory);
         setState(prev => ({
@@ -833,9 +966,12 @@ export function useProblem(stockfish?: StockfishApi) {
 
       const isHelpStyleInner = problem.genre === 'help' || (problem.genre === 'retro' && state.userColor === 'b');
       if (isHelpStyleInner) {
-        // Help / retro-helpmate: user plays both sides, no auto-play
+        // Help / retro-helpmate: user plays both sides, no auto-play.
+        // A root-level match pins which solution this line belongs to.
+        const rootIdxHere = activeTree.indexOf(matchingNode);
         setState(prev => ({
           ...prev,
+          currentRootIndex: prev.currentRootIndex ?? (rootIdxHere >= 0 ? rootIdxHere : null),
           fen: newFen,
           moveHistory: newHistory,
           currentNodes: matchingNode.children,
@@ -1004,6 +1140,21 @@ export function useProblem(stockfish?: StockfishApi) {
           ? { ...prev, feedbackSquare: null, feedbackType: null } : prev);
       }, CORRECT_FLASH);
       return true;
+    }
+
+    // Replaying a solution that is already found: not a mistake — the move IS
+    // correct — but it doesn't count twice. Snap back with a note.
+    if (state.totalSolutions > 1 && state.currentRootIndex === null) {
+      const foundRoots = state.foundSolutions.filter(i => i >= 0).map(i => activeTree[i]).filter(Boolean);
+      const replayed = matchMoveToTree(state.fen, from, to, move.san, move.promotion,
+        foundRoots.filter(n => n.color === movedColor));
+      if (replayed) {
+        setState(prev => ({
+          ...prev,
+          feedback: 'Already found — look for a different solution.',
+        }));
+        return false;
+      }
     }
 
     // Wrong move
@@ -1246,6 +1397,8 @@ export function useProblem(stockfish?: StockfishApi) {
 
   return {
     problem: state.problem,
+    totalSolutions: state.totalSolutions,
+    foundSolutionCount: state.foundSolutions.length,
     fen: effectiveFen,
     initialFen: state.initialFen,
     moveHistory: state.moveHistory,

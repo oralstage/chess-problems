@@ -46,10 +46,17 @@ interface FeedbackPanelProps {
   classicBoard?: boolean;
   ratedDifficulty?: RatedDifficulty;
   onChangeDifficulty?: (d: RatedDifficulty) => void;
+  /** Multi-solution helpmates: how many solutions exist / are found. */
+  solutionsTotal?: number;
+  solutionsFound?: number;
+  /** Rated multi-solution problem underway: the pool can't be changed
+   *  mid-match, or switching would be a free escape from the hard half. */
+  difficultyLocked?: boolean;
 }
 
 export function FeedbackPanel({
   status,
+  feedback,
   moveHistory,
   waitingForAutoPlay,
   hintActive,
@@ -87,6 +94,9 @@ export function FeedbackPanel({
   classicBoard,
   ratedDifficulty,
   onChangeDifficulty,
+  solutionsTotal,
+  solutionsFound = 0,
+  difficultyLocked,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
@@ -102,6 +112,20 @@ export function FeedbackPanel({
               </span>
             </span>
           ))}
+        </div>
+      )}
+
+      {/* Multi-solution helpmates: the count is part of the stipulation
+          ("h#2, 3 solutions" in print), so it shows before any move. */}
+      {solutionsTotal != null && solutionsTotal > 1 && status === 'solving' && (
+        <div className="nb-panel flex items-center gap-2 py-1.5 px-3 text-sm">
+          <span className="font-bold text-[var(--ink)] shrink-0">
+            {solutionsTotal} solutions
+          </span>
+          <span className="text-[var(--muted)]">
+            — found {solutionsFound}/{solutionsTotal}.{' '}
+            {feedback || 'All of them make the solve.'}
+          </span>
         </div>
       )}
 
@@ -128,7 +152,9 @@ export function FeedbackPanel({
             <select
               value={ratedDifficulty}
               onChange={(e) => onChangeDifficulty(e.target.value as RatedDifficulty)}
-              className="nb-input ml-auto text-xs px-2.5 py-1 focus:outline-none"
+              disabled={difficultyLocked}
+              title={difficultyLocked ? 'Finish this problem (or give up) first' : undefined}
+              className="nb-input ml-auto text-xs px-2.5 py-1 focus:outline-none disabled:opacity-50"
               aria-label="Difficulty"
             >
               {RATED_DIFFICULTIES.map(d => {
