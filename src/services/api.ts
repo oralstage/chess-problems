@@ -184,11 +184,14 @@ export async function fetchProblemBatch(ids: number[]): Promise<(ProblemMeta & {
 export interface ProblemStub {
   id: number;
   stipulation: string;
+  sourceYear?: number | null;
 }
 
 /** Fetch lightweight ID+stipulation list for a genre (cached, very fast) */
 export async function fetchProblemIndex(genre: string, filters?: Record<string, string>): Promise<ProblemStub[]> {
-  const params = new URLSearchParams({ genre, sortBy: 'difficulty', sortOrder: 'asc' });
+  // v=2: the index gained sourceYear — the version busts the edge cache and
+  // every browser's Cache API copy of the year-less shape.
+  const params = new URLSearchParams({ genre, sortBy: 'difficulty', sortOrder: 'asc', v: '2' });
   if (filters) {
     for (const [k, v] of Object.entries(filters)) {
       if (v) params.set(k, v);

@@ -584,19 +584,43 @@ export default function App() {
       setGenreLoaded(prev => ({ ...prev, [genre]: true }));
       setGenreLoading(null);
 
-      // 2. Load full data in background for filtering/navigation (don't await)
-      fetchAllProblems(genre).then(metas => {
-        const problems: ChessProblem[] = metas.map(m => metaToChessProblem(m));
-        problems.sort((a, b) => a.difficultyScore - b.difficultyScore);
-        setGenreData(prev => ({ ...prev, [genre]: problems }));
-      }).catch(() => {});
-
+      // Full data is NOT loaded here. The index (with years) covers the list,
+      // year sort, and navigation; the ~80-request full load only serves the
+      // piece/theme filters, so it runs on demand — see ensureGenreData.
       return stubs;
     } catch {
       setGenreLoading(null);
       return [];
     }
   }, [genreLoaded, genreIndex]);
+
+  // On-demand full-data load (fen/keywords/pieces for the filter page).
+  // Single-flight per genre so the filter page and the persisted-filter
+  // effect don't race two 80-request walks.
+  const genreDataLoadingRef = useRef<Partial<Record<Genre, Promise<void>>>>({});
+  const ensureGenreData = useCallback((genre: Genre) => {
+    if (genreData[genre].length > 0) return;
+    if (genreDataLoadingRef.current[genre]) return;
+    genreDataLoadingRef.current[genre] = fetchAllProblems(genre).then(metas => {
+      const problems: ChessProblem[] = metas.map(m => metaToChessProblem(m));
+      problems.sort((a, b) => a.difficultyScore - b.difficultyScore);
+      setGenreData(prev => ({ ...prev, [genre]: problems }));
+    }).catch(() => {
+      delete genreDataLoadingRef.current[genre]; // allow a retry next time
+    });
+  }, [genreData]);
+
+  // Triggers: the filter page is open, or filters that need full data
+  // (themes/pieces) are already active — e.g. persisted from a previous
+  // session. Year filters and year sort run on the index alone.
+  useEffect(() => {
+    if (!currentGenre) return;
+    const needsFullData = showFilterPage
+      || filters.keywords.length > 0
+      || filters.minPieces > 0
+      || filters.maxPieces > 0;
+    if (needsFullData) ensureGenreData(currentGenre);
+  }, [currentGenre, showFilterPage, filters.keywords.length, filters.minPieces, filters.maxPieces, ensureGenreData]);
 
   // Ensure a problem has solutionTree (fetch solutionText from API if needed)
   const ensureSolution = useCallback(async (p: ChessProblem): Promise<ChessProblem> => {
@@ -1352,7 +1376,7 @@ export default function App() {
           fen: '',
           authors: [],
           sourceName: '',
-          sourceYear: null,
+          sourceYear: s.sourceYear ?? null,
           stipulation: s.stipulation,
           moveCount,
           genre: genre,
@@ -1469,7 +1493,10 @@ export default function App() {
     }
     if (filters.sortBy === 'year') {
       const dir = filters.sortOrder === 'desc' ? -1 : 1;
-      result = [...result].sort((a, b) => dir * ((a.sourceYear || 9999) - (b.sourceYear || 9999)));
+      // Unknown years sink to the end in BOTH directions — "Newest first"
+      // used to open with the year-less problems posing as newest.
+      const nullYear = filters.sortOrder === 'desc' ? 0 : 9999;
+      result = [...result].sort((a, b) => dir * ((a.sourceYear || nullYear) - (b.sourceYear || nullYear)));
     } else if (filters.sortOrder === 'desc') {
       result = [...result].slice().reverse();
     }

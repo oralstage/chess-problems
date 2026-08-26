@@ -483,6 +483,14 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
 
         {/* Footer */}
         <div className="px-4 py-3 border-t-2 border-[var(--ink)] shrink-0">
+          {/* Full data (fen/keywords for piece & theme matching) loads on
+              demand when this page opens; until it lands, piece/theme counts
+              undercount, so say the number is still settling. */}
+          {allProblems.length > 0 && !allProblems[0].fen && (
+            <p className="text-xs text-[var(--faint)] text-center mb-1.5">
+              Loading full problem data — counts may still change…
+            </p>
+          )}
           <button
             onClick={onClose}
             className="nb-btn nb-btn-key nb-shadow-room w-full py-2.5"
