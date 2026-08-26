@@ -185,6 +185,11 @@ function useWindowWidth() {
 export default function App() {
   useTheme();
   const [view, setView] = useState<AppView>('mode-select');
+  // Home is tall enough to scroll; the solving view barely is. Without a reset
+  // the browser clamps the carried-over offset to the solving view's max
+  // scroll, so every problem opened from home starts pinned to the bottom
+  // (header tucked under the phone's URL bar).
+  useEffect(() => { window.scrollTo(0, 0); }, [view]);
   const [isDaily, setIsDaily] = useState(false);
   const [dailyDate, setDailyDate] = useState<string | null>(null); // YYYY-MM-DD
   const [currentGenre, setCurrentGenre] = useState<Genre | null>(null);
