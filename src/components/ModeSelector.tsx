@@ -566,15 +566,16 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         {/* Theme walkthroughs — what a problem's tags mean, shown on a real example. */}
         {onShowThemes && (
           <button type="button" onClick={onShowThemes} className={CARD} style={{ backgroundColor: 'var(--card-self)' }}>
-            {/* Its own drawing, not CategoryMark "Tag": that shape reads as the
-                gift tag on the "For you" heading. A rook's line and a bishop's
-                diagonal crossing on a board — a theme, drawn. */}
+            {/* A lightbulb: the page's own definition is "a theme is the idea a
+                problem is built around". (Not CategoryMark "Tag" — that shape
+                reads as the gift tag on the "For you" heading — and not a
+                crossing-lines board, which was one theme's drawing, not the
+                concept's.) */}
             <span className="block w-14 h-14 mx-auto" aria-hidden="true">
-              <svg viewBox="0 0 56 56" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
-                <rect x="7" y="7" width="42" height="42" rx="5" fill="var(--surface)" />
-                <path d="M7 28h42" />
-                <path d="M11 48 45 10" />
-                <circle cx="27.5" cy="28" r="5" fill="var(--acid)" />
+              <svg viewBox="0 0 56 56" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
+                <path d="M28 7a14 14 0 0 1 8 25.5c-2 1.5-2.5 3-2.5 5h-11c0-2-.5-3.5-2.5-5A14 14 0 0 1 28 7z" fill="var(--acid)" />
+                <path d="M23.5 42.5h9M25 47h6" />
+                <path d="M24 20l4 5 4-5" fill="none" />
               </svg>
             </span>
             <span className={CARD_TITLE}>Themes</span>
