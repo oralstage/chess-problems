@@ -296,7 +296,7 @@ export function FeedbackPanel({
               reach while solving, where Next/Random would otherwise sit. */}
           {!classicBoard && onGoHome && onMoreProblems && (
             <div className="ml-auto">
-              <button onClick={onMoreProblems} className="nb-btn px-3 py-1.5 text-xs">
+              <button onClick={onMoreProblems} className="nb-btn nb-btn-key px-3 py-1.5 text-xs">
                 {moreCategoryLabel || 'Back'} →
               </button>
             </div>
