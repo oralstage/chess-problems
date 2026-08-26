@@ -182,12 +182,14 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
     return { min: Math.max(2, min), max: Math.min(32, max) };
   }, [allProblems, genreStats]);
 
-  // Year range — prefer stats from API, clamp to reasonable bounds
+  // Year range — prefer stats from API. No floor on the minimum: the oldest
+  // entries are genuine (Bonus Socius 1266, shatranj-era 842), and a 1800
+  // clamp made them unreachable by the year filter.
   const yearRange = useMemo(() => {
     const currentYear = new Date().getFullYear();
     if (genreStats?.yearRange && genreStats.yearRange.max > 0) {
       return {
-        min: Math.max(1800, genreStats.yearRange.min),
+        min: genreStats.yearRange.min,
         max: Math.min(currentYear, genreStats.yearRange.max),
       };
     }
