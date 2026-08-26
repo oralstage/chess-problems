@@ -21,7 +21,7 @@ export function pieceAt(fen: string, square: string): string | null {
   return null;
 }
 
-export function moveFreely(fen: string, from: string, to: string): string {
+export function moveFreely(fen: string, from: string, to: string, replaceWith?: string): string {
   if (from === to) return fen;
   const placement = fen.split(' ')[0];
   const rows = placement.split('/').map(row => {
@@ -39,7 +39,7 @@ export function moveFreely(fen: string, from: string, to: string): string {
   const piece = rows[f.r]?.[f.c];
   if (!piece) return fen;
   rows[f.r][f.c] = '';
-  rows[t.r][t.c] = piece;
+  rows[t.r][t.c] = replaceWith ?? piece;
 
   const newPlacement = rows.map(cells => {
     let out = '';

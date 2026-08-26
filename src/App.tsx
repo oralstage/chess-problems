@@ -34,7 +34,7 @@ import type { Glicko2Rating } from './utils/glicko2';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import { matchesAwardFilter, type AwardFilter } from './utils/award';
-import { moveFreely } from './utils/freeBoard';
+import { moveFreely, pieceAt } from './utils/freeBoard';
 import {
   type RatedDifficulty,
   RATED_DIFFICULTY_OFFSET,
@@ -200,8 +200,17 @@ export default function App() {
      championship hands out, not the answer sheet. */
   const [analysisFen, setAnalysisFen] = useState<string | null>(null);
   const analysisStartFenRef = useRef<string>('');
-  const handleFreeDrop = useCallback((source: string, target: string): boolean => {
-    setAnalysisFen(prev => (prev ? moveFreely(prev, source, target) : prev));
+  const handleFreeDrop = useCallback((source: string, target: string, piece?: string): boolean => {
+    setAnalysisFen(prev => {
+      if (!prev) return prev;
+      // A pawn reaching its last rank comes with the picker's choice ('wQ',
+      // 'bN', ...); anything else arrives as a placeholder and moves as-is.
+      const mover = pieceAt(prev, source);
+      const isPromo = ((mover === 'P' && target[1] === '8') || (mover === 'p' && target[1] === '1'))
+        && !!piece && /^[wb][QRBN]$/.test(piece);
+      const replaceWith = isPromo ? (piece![0] === 'w' ? piece![1] : piece![1].toLowerCase()) : undefined;
+      return moveFreely(prev, source, target, replaceWith);
+    });
     return true;
   }, []);
   // Home is tall enough to scroll; the solving view barely is. Without a reset

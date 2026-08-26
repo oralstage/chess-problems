@@ -65,7 +65,11 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
   }, [feedbackSquare, feedbackType, orientation, boardWidth]);
 
   const isPromotionMove = useCallback((from: string, to: string): boolean => {
-    if (freeMove) return false; // a pawn carried to the last rank just sits there
+    if (freeMove) {
+      // chess.js can't parse free positions; read the pawn straight off the FEN.
+      const piece = pieceAt(fen, from);
+      return (piece === 'P' && to[1] === '8') || (piece === 'p' && to[1] === '1');
+    }
     try {
       const chess = new Chess(fen);
       const piece = chess.get(from as never);
@@ -163,7 +167,13 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     // be unreachable by the rules, so chess.js never parses it here.
     if (freeMove) {
       if (selectedSquare) {
-        if (square !== selectedSquare) onPieceDrop(selectedSquare, square, 'wP');
+        if (square !== selectedSquare) {
+          if (isPromotionMove(selectedSquare, square)) {
+            setPromotionMove({ from: selectedSquare, to: square });
+          } else {
+            onPieceDrop(selectedSquare, square, 'wP');
+          }
+        }
         setSelectedSquare(null);
       } else {
         setSelectedSquare(pieceAt(fen, square) ? square : null);
