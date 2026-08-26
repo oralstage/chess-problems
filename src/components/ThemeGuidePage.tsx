@@ -211,14 +211,6 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           </p>
           </>}
 
-          {/* No "solve this theme" button: it silently pinned the theme filter
-              on the category, and the reader would still be inside it weeks
-              later without knowing why every problem looked alike. */}
-          <div className="mt-5">
-            <button onClick={() => onOpenProblem(EX.id)} className="nb-btn nb-btn-key px-4 py-2 text-sm font-bold">
-              Open this problem →
-            </button>
-          </div>
         </div>
       </div>
     </div>
