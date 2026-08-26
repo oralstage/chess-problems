@@ -249,8 +249,7 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
             <strong>White throws a piece onto it and offers it to the rook and
             the bishop at once. Whichever one captures blocks the other's
             line</strong>, so Black is only choosing which mate to allow.
-            (Named after Antonín Novotný, who showed the idea in 1854. Shogi
-            players know the shape: it is a focal-point sacrifice.)
+            (Named after Antonín Novotný, who showed the idea in 1854.)
           </p>
 
           <Diagram
