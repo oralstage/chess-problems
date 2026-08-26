@@ -18,6 +18,10 @@
  *       Convert all targets from cache into scripts/.update/update-data-*.sql:
  *       UPSERTs (ON CONFLICT(id) DO UPDATE, is_fairy untouched) for valid
  *       entries, UPDATE ... SET is_fairy = 1 for ones that turned fairy.
+ *       Also writes update-solutions-*.sql with the same rows' solution texts —
+ *       those go to the chess-problems-solutions DB (solution_text was split
+ *       out of `problems` on 2026-08-26; when running `check`, compare
+ *       solution_text against the solutions DB, the problems column is blank).
  *
  * The conversion logic must stay byte-identical to import-to-d1.ts — verify
  * with `check` against rows already in D1 before importing.
@@ -337,12 +341,15 @@ function sqlValue(v: string | number, unquoted = false): string {
   return `'${escapeSQL(v)}'`;
 }
 
-const COLS = ['fen', 'authors', 'source_name', 'source_year', 'stipulation', 'move_count', 'genre', 'difficulty', 'difficulty_score', 'piece_count', 'solution_text', 'keywords', 'award'];
+// solution_text is NOT here: since the 2026-08-26 split it lives in the
+// chess-problems-solutions DB and is written by the update-solutions files.
+const COLS = ['fen', 'authors', 'source_name', 'source_year', 'stipulation', 'move_count', 'genre', 'difficulty', 'difficulty_score', 'piece_count', 'keywords', 'award'];
 
 function generateSql() {
   const { targets } = JSON.parse(fs.readFileSync(path.join(UPDATE_DIR, 'refetched.json'), 'utf-8')) as { targets: number[] };
 
   const upserts: string[] = [];
+  const solutionUpserts: string[] = [];
   const fairyIds: number[] = [];
   const skips: Record<string, number> = {};
   const genreCounts: Record<string, number> = {};
@@ -371,6 +378,9 @@ function generateSql() {
     upserts.push(
       `INSERT INTO problems (id,${COLS.join(',')}) VALUES (${result.id},${vals}) ON CONFLICT(id) DO UPDATE SET ${updates};`
     );
+    solutionUpserts.push(
+      `INSERT OR REPLACE INTO solutions (id, solution_text) VALUES (${result.id},${sqlValue(result.columns.solution_text)});`
+    );
     genreCounts[result.genre] = (genreCounts[result.genre] || 0) + 1;
   }
 
@@ -379,6 +389,13 @@ function generateSql() {
   for (let i = 0; i < fileCount; i++) {
     const slice = upserts.slice(i * PER_FILE, (i + 1) * PER_FILE);
     fs.writeFileSync(path.join(UPDATE_DIR, `update-data-${i}.sql`), slice.join('\n') + '\n');
+  }
+  // Same rows' solution texts, for the solutions DB (execute against
+  // chess-problems-solutions, NOT chess-problems-db).
+  const solFileCount = Math.ceil(solutionUpserts.length / PER_FILE) || 1;
+  for (let i = 0; i < solFileCount; i++) {
+    const slice = solutionUpserts.slice(i * PER_FILE, (i + 1) * PER_FILE);
+    fs.writeFileSync(path.join(UPDATE_DIR, `update-solutions-${i}.sql`), slice.join('\n') + '\n');
   }
 
   // Entries that turned fairy since import: hide them the same way the
@@ -394,7 +411,8 @@ function generateSql() {
   console.log(`Upserts: ${upserts.length}  (${Object.entries(genreCounts).map(([g, c]) => `${g}=${c}`).join(' ')})`);
   console.log(`Fairy (flagged, not upserted): ${fairyIds.length}`);
   console.log(`Skipped: ${JSON.stringify(skips)}`);
-  console.log(`Wrote ${fileCount} update-data files${fairyIds.length ? ' + update-fairy.sql' : ''} in ${UPDATE_DIR}`);
+  console.log(`Wrote ${fileCount} update-data + ${solFileCount} update-solutions files${fairyIds.length ? ' + update-fairy.sql' : ''} in ${UPDATE_DIR}`);
+  console.log('update-data-*.sql → chess-problems-db / update-solutions-*.sql → chess-problems-solutions');
 }
 
 function check(ids: number[]) {

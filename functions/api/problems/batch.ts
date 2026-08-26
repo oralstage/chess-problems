@@ -30,6 +30,18 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
      WHERE id IN (${placeholders})`
   ).bind(...ids).all();
 
+  // Solutions live in their own DB (500MB per-database cap); the old column
+  // is the fallback until the migration blanks it.
+  const solById = new Map<number, string>();
+  try {
+    const sols = await context.env.SOLUTIONS_DB.prepare(
+      `SELECT id, solution_text FROM solutions WHERE id IN (${placeholders})`
+    ).bind(...ids).all();
+    for (const r of sols.results as { id: number; solution_text: string }[]) {
+      solById.set(r.id, r.solution_text);
+    }
+  } catch { /* solutions DB unavailable — fall back to the column */ }
+
   const problems = rows.results.map((row: Record<string, unknown>) => ({
     id: row.id,
     fen: row.fen,
@@ -44,7 +56,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     pieceCount: row.piece_count,
     keywords: JSON.parse(row.keywords as string),
     award: row.award || '',
-    solutionText: row.solution_text,
+    solutionText: solById.get(row.id as number) || row.solution_text,
   }));
 
   return Response.json({ problems }, {

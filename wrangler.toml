@@ -11,3 +11,8 @@ database_id = "3c2462f4-e342-48a8-807a-f40616066b02"
 binding = "STATS_DB"
 database_name = "chess-problems-stats"
 database_id = "00228378-19f2-4074-ba76-be8b5ebe0281"
+
+[[d1_databases]]
+binding = "SOLUTIONS_DB"
+database_name = "chess-problems-solutions"
+database_id = "9dc7d5e4-35b8-489f-8b2d-ac6d82530535"

@@ -7,6 +7,12 @@
  * Reads all cached YACPDB entries from scripts/.cache/,
  * filters for valid orthodox problems (#1-#5, study, retro),
  * and outputs a SQL file for D1 bulk import.
+ *
+ * ⚠️ PRE-SPLIT LEGACY (2026-08-26): solution_text now lives in the separate
+ * chess-problems-solutions DB and problems.solution_text is kept blank.
+ * Running this as-is would re-fill the column and blow the 500MB cap.
+ * For incremental updates use update-from-yacpdb.ts; for a full reload this
+ * script must first be reworked to emit solutions-DB files like that one does.
  */
 import * as fs from 'fs';
 import * as path from 'path';

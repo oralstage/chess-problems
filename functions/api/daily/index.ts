@@ -121,6 +121,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'Daily problem not found' }, { status: 404 });
   }
 
+  // Solutions live in their own DB; the old column is the fallback.
+  let dailySolution = row.solution_text as string;
+  try {
+    const sol = await context.env.SOLUTIONS_DB.prepare(
+      'SELECT solution_text FROM solutions WHERE id = ?'
+    ).bind(problemId).first<{ solution_text: string }>();
+    if (sol && sol.solution_text) dailySolution = sol.solution_text;
+  } catch { /* fall back */ }
+
   const problem = {
     id: row.id,
     fen: row.fen,
@@ -135,7 +144,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     pieceCount: row.piece_count,
     keywords: JSON.parse(row.keywords as string),
     award: row.award || '',
-    solutionText: row.solution_text,
+    solutionText: dailySolution,
   };
 
   const response = Response.json(problem, {

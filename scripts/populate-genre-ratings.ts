@@ -39,6 +39,14 @@ function query(sql: string): Row[] {
   return JSON.parse(out.slice(start))[0].results as Row[];
 }
 
+function querySolutions(sql: string): { id: number; solution_text: string }[] {
+  const out = execFileSync('npx', [
+    'wrangler', 'd1', 'execute', 'chess-problems-solutions', '--remote', '--command', sql, '--json',
+  ], { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  const start = out.indexOf('[');
+  return JSON.parse(out.slice(start))[0].results as { id: number; solution_text: string }[];
+}
+
 const genre = process.argv[2];
 if (!genre || !['help', 'self', 'study', 'retro'].includes(genre)) {
   console.error('usage: populate-genre-ratings.ts <help|self|study|retro>');
@@ -65,25 +73,37 @@ const rows: Row[] = [];
 let lastId = 0;
 for (;;) {
   // Keyset pagination: OFFSET over a table this size costs ~0.5s per page in D1.
+  // solution_text moved to the solutions DB (2026-08-26 split), so the page
+  // comes from problems and the text checks run below in JS against the
+  // solutions rows for the same ids.
   const page = query(
-    // Mate-in-1 needs a filter the longer stipulations don't: YACPDB's #1 set is
-    // over half construction records that list a dozen alternative keys, plus
-    // stipulation-swapping twins. Those are not solving problems, and at 600-ish
-    // they would be the first thing a new player ever sees. Helpmates are the
-    // exception — several keys there are genuine alternative solutions.
-    `SELECT id, move_count, piece_count, difficulty_score, length(solution_text) AS sol_len FROM problems
+    `SELECT id, move_count, piece_count, difficulty_score FROM problems
      WHERE genre = '${genre}' AND is_fairy = 0 AND id > ${lastId}
-       AND (move_count > 1 OR (
-         TRIM(solution_text) NOT LIKE 'a)%'
-         AND instr(solution_text, '#') > 0
-         AND ((length(solution_text) - length(replace(solution_text, '1.', ''))) / 2)
-             - ((length(solution_text) - length(replace(solution_text, '1...', ''))) / 4)
-             ${genre === 'help' ? '>= 1' : '= 1'}
-       ))
      ORDER BY id LIMIT ${PAGE}`
   );
   if (page.length === 0) break;
-  rows.push(...page);
+  const texts = new Map<number, string>();
+  for (let i = 0; i < page.length; i += 500) {
+    const chunk = page.slice(i, i + 500).map(r => r.id);
+    for (const sr of querySolutions(`SELECT id, solution_text FROM solutions WHERE id IN (${chunk.join(',')})`)) {
+      texts.set(sr.id, sr.solution_text);
+    }
+  }
+  const count = (t: string, needle: string) => t.split(needle).length - 1;
+  for (const r of page) {
+    const t = texts.get(r.id) ?? '';
+    // Mate-in-1 needs a filter the longer stipulations don't: YACPDB's #1 set
+    // is over half construction records that list a dozen alternative keys,
+    // plus stipulation-swapping twins. Helpmates are the exception — several
+    // keys there are genuine alternative solutions.
+    const keyish = count(t, '1.') - count(t, '1...');
+    const keep = r.move_count > 1 || (
+      !t.trimStart().startsWith('a)')
+      && t.includes('#')
+      && (genre === 'help' ? keyish >= 1 : keyish === 1)
+    );
+    if (keep) rows.push({ ...r, sol_len: t.length });
+  }
   lastId = page[page.length - 1].id;
   process.stdout.write(`\r  read ${rows.length}`);
 }

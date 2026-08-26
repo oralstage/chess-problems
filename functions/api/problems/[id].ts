@@ -17,6 +17,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'Problem not found' }, { status: 404 });
   }
 
+  // Solutions live in their own database (the problems DB hit the 500MB
+  // per-database cap). The old column is the fallback until the migration
+  // finishes blanking it.
+  let solutionText = row.solution_text as string;
+  try {
+    const sol = await context.env.SOLUTIONS_DB.prepare(
+      'SELECT solution_text FROM solutions WHERE id = ?'
+    ).bind(id).first<{ solution_text: string }>();
+    if (sol && sol.solution_text) solutionText = sol.solution_text;
+  } catch { /* solutions DB unavailable — fall back to the column */ }
+
   const problem = {
     id: row.id,
     fen: row.fen,
@@ -29,7 +40,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     difficulty: row.difficulty,
     difficultyScore: row.difficulty_score,
     pieceCount: row.piece_count,
-    solutionText: row.solution_text,
+    solutionText,
     keywords: JSON.parse(row.keywords as string),
     award: row.award,
   };

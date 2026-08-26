@@ -112,6 +112,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       ).bind(...bindings).first<Record<string, unknown>>();
 
       if (row) {
+        // Solutions live in their own DB; the old column is the fallback.
+        try {
+          const sol = await context.env.SOLUTIONS_DB.prepare(
+            'SELECT solution_text FROM solutions WHERE id = ?'
+          ).bind(row.id).first<{ solution_text: string }>();
+          if (sol && sol.solution_text) row.solution_text = sol.solution_text;
+        } catch { /* fall back */ }
         return Response.json(buildProblem(row, rated.rating));
       }
     }
