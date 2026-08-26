@@ -2914,7 +2914,7 @@ export default function App() {
                 onRandomProblem={(isDaily || isRatedMode || isReviewMode || isWcsc) ? undefined : handleRandomProblem}
                 onGoHome={isWcsc ? goBack : undefined}
                 onMoreProblems={isWcsc ? () => setShowWcscPage(true) : undefined}
-                moreCategoryLabel={isWcsc ? 'Back to event' : undefined}
+                moreCategoryLabel={isWcsc ? 'Back to special page' : undefined}
                 onShowHint={() => { hintUsedRef.current = true; problem.showHint(); }}
                 onHideHint={problem.hideHint}
                 onAnalyze={handleAnalyze}

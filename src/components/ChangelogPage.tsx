@@ -4,6 +4,48 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-08-26',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'WCSC 2026: solve the problems from this year’s World Chess Solving Championship, round by round with the event’s own time limits.',
+          'Themes: a guide that explains Grimshaw and Novotny on prize-winning examples — solutions stay hidden until you ask.',
+          'Award filter: show only award-winning problems, or only unawarded ones.',
+        ],
+      },
+      {
+        title: 'Improved',
+        items: [
+          'Opening a category is much faster.',
+          'The problem list shows years on cards, names its sort orders plainly, and can jump straight to any page.',
+          'The year filter follows the category you are in, and reaches back to the oldest problems.',
+          'On phones, the top of the page no longer hides under the browser’s address bar.',
+        ],
+      },
+    ],
+  },
+  {
+    date: '2026-08-25',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'About 12,000 problems added from YACPDB, and corrections to 18,000 existing ones.',
+          'When YACPDB’s solution ends early, the site says so — and you can play the continuation against the engine, with a move list and hints. Studies got a Play vs engine button too.',
+          'Problem info now separates YACPDB’s facts from this site’s numbers, and shows how many players tried a problem and how many solved it on the first try.',
+        ],
+      },
+      {
+        title: 'Improved',
+        items: [
+          'Author search is much faster.',
+          'Helpmate and selfmate ratings appear in problem info.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-08-23',
     sections: [
       {

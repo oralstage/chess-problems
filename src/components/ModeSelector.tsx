@@ -437,13 +437,13 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         </div>
       )}
 
-      {/* ── Events: the current featured page (WCSC for now). When there is
+      {/* ── Special: the current featured page (WCSC for now). When there is
           more than one, this section grows into an archive of past features. ── */}
       {onShowWcsc && (
         <>
           <div className="px-4 mb-2">
             <div className="nb-section-head">
-              <h2>Events</h2>
+              <h2>Special</h2>
               <span className="nb-heading-object" style={{ width: '3.2rem', height: '3rem', transform: 'translateY(-50%) rotate(7deg)' }} aria-hidden="true">
                 <svg viewBox="0 0 44 44" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
                   <path d="M14 7h16v10a8 8 0 0 1-16 0z" fill="var(--acid)" />
