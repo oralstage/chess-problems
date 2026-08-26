@@ -89,10 +89,18 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // servable from stats_cache or every category page view pays a full scan.
   const minMoves = params.get('minMoves');
   const minMovesN = minMoves && Number.isFinite(parseInt(minMoves)) ? parseInt(minMoves) : null;
-  if (minMovesN != null) { conditions.push('move_count >= ?'); bindings.push(minMovesN); }
   const maxMoves = params.get('maxMoves');
   const maxMovesN = maxMoves && Number.isFinite(parseInt(maxMoves)) ? parseInt(maxMoves) : null;
-  if (maxMovesN != null) { conditions.push('move_count <= ?'); bindings.push(maxMovesN); }
+  if (minMovesN != null && minMovesN === maxMovesN) {
+    // Equality instead of a closed range: with idx_genre_moves_diff the
+    // difficulty order then comes straight off the index (a range forces a
+    // temp b-tree sort over the whole category — the seconds-long first
+    // open of #2/#3).
+    conditions.push('move_count = ?'); bindings.push(minMovesN);
+  } else {
+    if (minMovesN != null) { conditions.push('move_count >= ?'); bindings.push(minMovesN); }
+    if (maxMovesN != null) { conditions.push('move_count <= ?'); bindings.push(maxMovesN); }
+  }
 
   const filtered = hasUncacheableFilters;
   const hasMoves = minMovesN != null || maxMovesN != null;

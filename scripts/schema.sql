@@ -17,8 +17,11 @@ CREATE TABLE IF NOT EXISTS problems (
 );
 
 -- Indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_genre ON problems(genre);
+-- idx_genre / idx_stipulation / idx_problems_fairy were dropped 2026-08-26:
+-- redundant prefixes of the composite indexes below, and the DB was at the
+-- 500MB free-tier ceiling.
 CREATE INDEX IF NOT EXISTS idx_genre_difficulty ON problems(genre, difficulty_score);
 CREATE INDEX IF NOT EXISTS idx_genre_year ON problems(genre, source_year);
-CREATE INDEX IF NOT EXISTS idx_stipulation ON problems(stipulation);
+-- Category quick-start: genre + exact move_count in difficulty order.
+CREATE INDEX IF NOT EXISTS idx_genre_moves_diff ON problems(genre, move_count, difficulty_score);
 CREATE INDEX IF NOT EXISTS idx_genre_stip ON problems(genre, stipulation);
