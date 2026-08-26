@@ -512,6 +512,25 @@ export default function App() {
   const stockfishRef = useRef(stockfish);
   stockfishRef.current = stockfish;
   const problem = useProblem(stockfish);
+
+  /* Finding one solution of several is a win worth announcing: the quiet
+     board reset alone read as "nothing happened". Same toast the rated mode
+     uses for "Mate in N". */
+  const prevFoundRef = useRef(0);
+  useEffect(() => {
+    const found = problem.foundSolutionCount;
+    if (found > prevFoundRef.current && problem.status === 'solving' && problem.problem && problem.totalSolutions > 1) {
+      setStipulationToast({
+        label: `Solution ${found}/${problem.totalSolutions} found!`,
+        stipulation: problem.problem.stipulation,
+        genre: problem.problem.genre,
+      });
+      setTimeout(() => setStipulationToast(null), 2200);
+    }
+    prevFoundRef.current = found;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem.foundSolutionCount, problem.status]);
+
   const solveStats = useSolveStats(problem.problem?.id ?? null);
 
   // A twin other than the diagram the problem arrives with. Everything we
@@ -3329,7 +3348,7 @@ export default function App() {
                   {/* Counted here from YACPDB's solution text — the count is
                       part of the stipulation in print ("h#2, 3 solutions"). */}
                   {problem.totalSolutions > 1 && (
-                    <span className="text-[var(--ink)]"> · {problem.totalSolutions} solutions</span>
+                    <span className="text-[var(--ink)] font-mono"> · {problem.totalSolutions} solutions</span>
                   )}
                 </div>
                 <div>

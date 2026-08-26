@@ -42,14 +42,14 @@ export function ProblemCard({ problem, problemNumber, genrePrefix, solutionsTota
         <span className={`rounded-full font-extrabold font-mono px-2.5 py-0.5 text-sm border-2 border-[var(--ink)] ${stipColor}`}>
           {stipulationDisplay(problem.stipulation)}
         </span>
-        <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
-          {pieceCounts(problem.fen)}
-        </span>
         {solutionsTotal != null && solutionsTotal > 1 && (
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className="nb-chip px-2.5 py-0.5 text-sm font-bold">
             {solutionsTotal} solutions
           </span>
         )}
+        <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">
+          {pieceCounts(problem.fen)}
+        </span>
       </div>
 
       <div className="text-gray-600 dark:text-gray-400">
