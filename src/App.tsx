@@ -173,6 +173,7 @@ function migrateFilters(raw: unknown): GlobalFilters {
   if (obj.sortOrder !== 'asc' && obj.sortOrder !== 'desc') obj.sortOrder = 'asc';
   const validStatuses: StatusFilter[] = ['all', 'unsolved', 'solved', 'failed', 'bookmarked'];
   if (!validStatuses.includes(obj.statusFilter as StatusFilter)) obj.statusFilter = 'all';
+  if (!['all', 'awarded', 'none'].includes(obj.awardFilter as string)) obj.awardFilter = 'all';
   return { ...defaults, ...obj } as GlobalFilters;
 }
 
@@ -189,6 +190,10 @@ function useWindowWidth() {
 export default function App() {
   useTheme();
   const [view, setView] = useState<AppView>('mode-select');
+  /* Problem opened from the WCSC page: the feedback panel swaps Next/Random
+     for Home + "Back to WCSC", because Next would walk off into neighbouring
+     YACPDB ids and strand the reader outside the event. */
+  const [isWcsc, setIsWcsc] = useState(false);
   // Home is tall enough to scroll; the solving view barely is. Without a reset
   // the browser clamps the carried-over offset to the solving view's max
   // scroll, so every problem opened from home starts pinned to the bottom
@@ -330,6 +335,7 @@ export default function App() {
     setIsRatedMode(false);
     setIsReviewMode(false);
     setIsDaily(false);
+    setIsWcsc(false);
   }, []);
 
   // Per-genre filters (each genre has its own independent filter settings)
@@ -1961,6 +1967,7 @@ export default function App() {
     setIsDaily(false);
     setIsRatedMode(false);
     setIsReviewMode(false);
+    setIsWcsc(false);
     setPrintMode('off');
     setCurrentGenre(null);
     setCurrentCategory(null);
@@ -2052,13 +2059,14 @@ export default function App() {
   /* Open one problem by its YACPDB id, whatever genre it turns out to be. Used
      by the hamburger's Go to ID and by the guide's worked examples — both hand
      over a bare number and expect to land on that board. */
-  const openProblemById = useCallback(async (id: number) => {
+  const openProblemById = useCallback(async (id: number, opts?: { fromWcsc?: boolean }) => {
     try {
       const full = await fetchProblem(id);
       const p = metaToChessProblem(full, full.solutionText);
       const genre = p.genre as Genre;
       const cat = categoryFromGenreProblem(genre, p.moveCount);
       exitSpecialModes();
+      if (opts?.fromWcsc) setIsWcsc(true);
       setCurrentGenre(genre);
       setCurrentCategory(cat);
       setView('solving');
@@ -2214,6 +2222,9 @@ export default function App() {
   // Navigate to prev/next problem without marking solved
   const handleNavProblem = useCallback((direction: -1 | 1) => {
     if (!currentGenre || !problem.problem) return;
+    // The header arrows walk the ordinary filtered list, so the problem they
+    // land on is no longer the event's — drop the WCSC framing with it.
+    setIsWcsc(false);
     const problems = filteredProblems;
     if (problems.length === 0) {
       fetchRandomFromApi();
@@ -2873,7 +2884,7 @@ export default function App() {
                 solutionLoading={!problem.problem?.solutionText && (problem.problem?.solutionTree?.length ?? 0) === 0}
                 onReset={() => { problem.resetProblem(); setLastRatingDelta(null); analysisActiveRef.current = false; setAnalysisActive(false); setAnalysisResult(null); setAnalysisArrow(null); setAnalyzing(false); }}
                 onShowSolution={handleGiveUp}
-                onNextProblem={isDaily ? undefined : isReviewMode ? (problem.status !== 'solving' ? handleReviewNext : undefined) : isRatedMode ? (problem.status !== 'solving' ? (() => {
+                onNextProblem={(isDaily || isWcsc) ? undefined : isReviewMode ? (problem.status !== 'solving' ? handleReviewNext : undefined) : isRatedMode ? (problem.status !== 'solving' ? (() => {
                   // Show "Next" only if current problem IS the cached rated problem at current difficulty
                   const cached = loadRatedProblemSlot<{ id: number }>(ratedGenre, ratedDifficulty);
                   if (cached && cached.id === problem.problem?.id) return handleNextRatedProblem;
@@ -2900,7 +2911,10 @@ export default function App() {
                   }
                   handleStartRated();
                 } : undefined}
-                onRandomProblem={(isDaily || isRatedMode || isReviewMode) ? undefined : handleRandomProblem}
+                onRandomProblem={(isDaily || isRatedMode || isReviewMode || isWcsc) ? undefined : handleRandomProblem}
+                onGoHome={isWcsc ? goBack : undefined}
+                onMoreProblems={isWcsc ? () => setShowWcscPage(true) : undefined}
+                moreCategoryLabel={isWcsc ? 'Back to event' : undefined}
                 onShowHint={() => { hintUsedRef.current = true; problem.showHint(); }}
                 onHideHint={problem.hideHint}
                 onAnalyze={handleAnalyze}
@@ -3187,7 +3201,7 @@ export default function App() {
 
       {showWcscPage && (
         <WcscPage
-          onSelectProblem={id => { setShowWcscPage(false); openProblemById(id); }}
+          onSelectProblem={id => { setShowWcscPage(false); openProblemById(id, { fromWcsc: true }); }}
           onClose={() => setShowWcscPage(false)}
         />
       )}
@@ -3195,35 +3209,6 @@ export default function App() {
       {showThemeGuide && (
         <ThemeGuidePage
           onOpenProblem={id => { setShowThemeGuide(false); openProblemById(id); }}
-          onSolveTheme={async () => {
-            setShowThemeGuide(false);
-            // Pre-set the twomover slot's theme filter, then land on a problem
-            // that actually matches it. selectMode's quick-start ignores the
-            // keyword filter (keywords only exist in the full genre data), so
-            // the first problem is asked from the API with the keyword on.
-            setAllFilters(prev => ({
-              ...prev,
-              twomover: { ...migrateFilters(prev.twomover ?? defaultFilters), keywords: ['Active sacrifice'] },
-            }));
-            exitSpecialModes();
-            setCurrentGenre('direct');
-            setCurrentCategory('twomover');
-            setView('solving');
-            try {
-              const { problems: page } = await fetchProblemsPage('direct', 0, 50,
-                { minMoves: '2', maxMoves: '2', keywords: 'Active sacrifice' });
-              const prog = progress['direct'] || {};
-              const fresh = page.find(m => !prog[String(m.id)]) ?? page[0];
-              if (fresh) {
-                const quickProblem = metaToChessProblem(fresh);
-                updateHash('twomover', quickProblem.id);
-                loadAndStartProblem(quickProblem).then(() => cacheProblem(quickProblem));
-                loadGenre('direct');
-                return;
-              }
-            } catch { /* fall through to the plain category open */ }
-            selectMode('twomover', { skipSavedId: true });
-          }}
           onClose={() => setShowThemeGuide(false)}
         />
       )}

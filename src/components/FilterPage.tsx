@@ -371,20 +371,18 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
             );
           })()}
 
-          {/* Award — tiers read off the "1st Prize, ..." / "HM, ..." / "Comm., ..."
-              prefixes YACPDB uses. About 28% of problems carry one. */}
+          {/* Award — two toggles, both off = not filtering. No "Any" pill: it
+              read as ambiguous (any award? or any problem?). */}
           <section>
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Award</h3>
             <div className="flex flex-wrap gap-1.5">
               {([
-                { value: 'all', label: 'Any' },
-                { value: 'any', label: 'Award winners' },
-                { value: 'hm', label: 'HM or better' },
-                { value: 'prize', label: 'Prize winners' },
+                { value: 'awarded', label: 'Award winners' },
+                { value: 'none', label: 'No award' },
               ] as { value: AwardFilter; label: string }[]).map(opt => (
                 <button
                   key={opt.value}
-                  onClick={() => update({ awardFilter: opt.value })}
+                  onClick={() => update({ awardFilter: filters.awardFilter === opt.value ? 'all' : opt.value })}
                   className={`nb-chip px-3 py-1 text-xs ${filters.awardFilter === opt.value ? 'nb-chip-on' : ''}`}
                 >
                   {opt.label}

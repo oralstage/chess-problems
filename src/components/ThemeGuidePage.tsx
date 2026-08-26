@@ -10,8 +10,6 @@ interface ThemeGuidePageProps {
   onClose: () => void;
   /** Open the worked example on the real board. */
   onOpenProblem: (id: number) => void;
-  /** Enter a category with the theme's keyword filter applied. */
-  onSolveTheme: () => void;
 }
 
 const LAST_MOVE_FROM = { backgroundColor: 'rgba(255, 255, 0, 0.3)' };
@@ -95,7 +93,7 @@ const EX = {
   decline: '2n5/2N1B1b1/2N3BQ/4k3/1P6/8/5Pn1/K7 b - - 1 2',
 };
 
-export function ThemeGuidePage({ onClose, onOpenProblem, onSolveTheme }: ThemeGuidePageProps) {
+export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) {
   return (
     <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full min-h-0">
@@ -192,12 +190,12 @@ export function ThemeGuidePage({ onClose, onOpenProblem, onSolveTheme }: ThemeGu
             on the board.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-2 mt-5">
-            <button onClick={() => onOpenProblem(EX.id)} className="nb-btn px-4 py-2 text-sm font-bold">
+          {/* No "solve this theme" button: it silently pinned the theme filter
+              on the category, and the reader would still be inside it weeks
+              later without knowing why every problem looked alike. */}
+          <div className="mt-5">
+            <button onClick={() => onOpenProblem(EX.id)} className="nb-btn nb-btn-key px-4 py-2 text-sm font-bold">
               Open this problem →
-            </button>
-            <button onClick={onSolveTheme} className="nb-btn nb-btn-key px-4 py-2 text-sm font-bold">
-              Solve sacrifice twomovers →
             </button>
           </div>
         </div>

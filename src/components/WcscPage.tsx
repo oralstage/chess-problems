@@ -48,12 +48,12 @@ export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
         </div>
 
         <div className="flex-1 overflow-y-auto px-4 pb-8">
-          <p className="text-sm text-gray-600 dark:text-gray-400 mt-3 mb-1">
+          <p className="text-[15px] text-gray-600 dark:text-gray-400 mt-3 mb-1">
             The exact problems from this year's World Chess Solving Championship,
             round by round. At the event each round is solved against the clock —
             try giving yourself the same time.
           </p>
-          <p className="text-xs text-[var(--faint)] mb-2">
+          <p className="text-sm text-[var(--faint)] mb-2">
             Problem set: WFCC, wfcc.ch. Four of the 18 are not in YACPDB (three
             were composed for 2026 events), so they can't be solved here yet.
           </p>
@@ -61,8 +61,8 @@ export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
           {WCSC_2026_ROUNDS.map(round => (
             <div key={round.round} className="mt-4">
               <div className="flex items-baseline gap-2 mb-2">
-                <h3 className="font-bold text-gray-900 dark:text-white">Round {round.round} — {round.title}</h3>
-                <span className="nb-chip px-2 py-0.5 text-xs font-mono shrink-0">{round.minutes} min</span>
+                <h3 className="font-bold text-lg text-gray-900 dark:text-white">Round {round.round} — {round.title}</h3>
+                <span className="nb-chip px-2 py-0.5 text-sm font-mono shrink-0">{round.minutes} min</span>
               </div>
               {round.problems.map(p => {
                 const fen = p.yacpdbId !== null ? fenCache.get(p.yacpdbId) : undefined;
@@ -73,23 +73,23 @@ export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
                     disabled={p.yacpdbId === null}
                     className="nb-tile nb-shadow-room-sm w-full text-left px-3 py-2.5 mb-2 flex gap-3 items-center disabled:opacity-50"
                   >
-                    <div className="shrink-0 rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: 56, height: 56 }}>
+                    <div className="shrink-0 rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: 120, height: 120 }}>
                       {fen ? (
-                        <Chessboard position={fen} boardWidth={56} arePiecesDraggable={false} animationDuration={0}
+                        <Chessboard position={fen} boardWidth={120} arePiecesDraggable={false} animationDuration={0}
                           customBoardStyle={{ borderRadius: '0' }} customDarkSquareStyle={{ backgroundColor: '#779952' }} customLightSquareStyle={{ backgroundColor: '#edeed1' }} />
                       ) : (
                         <div className="w-full h-full bg-[var(--surface-2)] flex items-center justify-center">
-                          <span className="text-lg text-gray-300 dark:text-gray-600">♚</span>
+                          <span className="text-3xl text-gray-300 dark:text-gray-600">♚</span>
                         </div>
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{p.no}.</span>
-                        <span className="nb-chip px-2 py-0.5 text-xs font-mono">{p.stipulation}</span>
+                        <span className="font-mono font-bold text-base text-gray-700 dark:text-gray-200">{p.no}.</span>
+                        <span className="nb-chip px-2 py-0.5 text-sm font-mono">{p.stipulation}</span>
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">{p.author}</div>
-                      <div className="text-xs text-gray-400 dark:text-gray-500 truncate mt-0.5">
+                      <div className="text-[15px] text-gray-700 dark:text-gray-300 truncate mt-1">{p.author}</div>
+                      <div className="text-sm text-gray-400 dark:text-gray-500 truncate mt-0.5">
                         {p.yacpdbId === null ? 'Not in YACPDB yet' : p.source}
                       </div>
                     </div>

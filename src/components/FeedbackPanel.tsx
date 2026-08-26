@@ -292,6 +292,15 @@ export function FeedbackPanel({
               {refutationText}
             </span>
           )}
+          {/* Event problems (WCSC): the way back to the event list stays in
+              reach while solving, where Next/Random would otherwise sit. */}
+          {!classicBoard && onGoHome && onMoreProblems && (
+            <div className="ml-auto">
+              <button onClick={onMoreProblems} className="nb-btn px-3 py-1.5 text-xs">
+                {moreCategoryLabel || 'Back'} →
+              </button>
+            </div>
+          )}
           {!classicBoard && !onGoHome && (
             <div className="ml-auto flex items-center gap-1.5">
               {onNextProblem && (

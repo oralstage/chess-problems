@@ -452,7 +452,6 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
                 Solve this year's World Championship problems, round by round
               </span>
             </span>
-            <span className="text-[var(--faint)] font-extrabold" aria-hidden="true">→</span>
           </button>
         </div>
       )}
