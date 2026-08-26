@@ -4,25 +4,14 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
-    date: '2026-08-27',
-    sections: [
-      {
-        title: 'New',
-        items: [
-          'Analysis board: a free board for thinking, available while solving in every mode. Move any piece anywhere — both colours, no rules, nothing checked — like the pocket set solvers get at championships. Your answer still counts only on the green board.',
-          'Four more themes in the guide: Battery, Zugzwang, Plachutta, and Model & Ideal mate — each on a prize-winning example, solutions hidden until you ask.',
-        ],
-      },
-    ],
-  },
-  {
     date: '2026-08-26',
     sections: [
       {
         title: 'New',
         items: [
+          'Analysis board: a free board for thinking, available while solving in every mode. Move any piece anywhere — both colours, no rules, nothing checked — like the pocket set solvers get at championships. Your answer still counts only on the green board.',
           'WCSC 2026: solve the problems from this year’s World Chess Solving Championship, round by round with the event’s own time limits.',
-          'Themes: a guide that explains Grimshaw and Novotny on prize-winning examples — solutions stay hidden until you ask.',
+          'Themes: a guide to the classic ideas — Battery, Zugzwang, Grimshaw, Novotny, Plachutta, Model & Ideal mate — each explained on a prize-winning example, solutions hidden until you ask.',
           'Award filter: show only award-winning problems, or only unawarded ones.',
         ],
       },
