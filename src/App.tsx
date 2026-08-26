@@ -2597,7 +2597,7 @@ export default function App() {
                   >
                     {stipulationToast.label}
                     {stipulationToast.sub && (
-                      <div className="text-lg font-bold mt-1">{stipulationToast.sub}</div>
+                      <div className="mt-1">{stipulationToast.sub}</div>
                     )}
                   </div>
                 </div>
