@@ -246,9 +246,10 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           <p className={P}>
             The Grimshaw's aggressive sibling. Same crossing square — but this
             time{' '}
-            <strong>White throws a piece onto it and offers it to the rook and
-            the bishop at once. Whichever one captures blocks the other's
-            line</strong>, so Black is only choosing which mate to allow.
+            <strong>White throws a piece onto it and offers it to both black
+            pieces — typically the rook and the bishop — at once. Whichever
+            one captures blocks the other's line</strong>, so Black is only
+            choosing which mate to allow.
             (Named after Antonín Novotný, who showed the idea in 1854.)
           </p>
 
