@@ -10,6 +10,24 @@ import { addFairyExclusion } from './fairy-filter';
  * Returns:
  *   { results: [{ id, fen, authors, sourceName, sourceYear, stipulation, moveCount, genre, difficulty, difficultyScore, pieceCount, keywords, award }] }
  */
+// Same per-isolate limiter as solve-event. Every NOVEL search costs ~21k D1
+// rows (the author index scan), so a bot iterating names could walk through
+// the daily free-tier read budget; a human types a handful of searches a
+// minute at most. Best-effort — each isolate counts separately — but it turns
+// a trivial loop into a throttled one.
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + 60_000 });
+    return false;
+  }
+  entry.count++;
+  return entry.count > 10;
+}
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const author = url.searchParams.get('author')?.trim();
@@ -25,6 +43,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const cacheKey = new Request(url.toString());
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
+
+  // Only cache misses are limited: repeat searches cost nothing and stay free.
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown';
+  if (isRateLimited(ip)) {
+    return Response.json({ error: 'Rate limited' }, { status: 429 });
+  }
 
   // Split search terms by space and require all to match (AND).
   // Escape LIKE metacharacters so user input can't act as wildcards.
