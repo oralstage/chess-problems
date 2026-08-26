@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { Chessboard } from 'react-chessboard';
 import type { PromotionPieceOption } from 'react-chessboard/dist/chessboard/types';
 import { Chess } from 'chess.js';
+import { pieceAt } from '../utils/freeBoard';
 import type { PrintMode } from '../types';
 
 interface BoardProps {
@@ -16,6 +17,9 @@ interface BoardProps {
   hintSquares?: string[] | null; // [fromSquare, ...toSquares]
   arrows?: [string, string, string?][] | null;
   allowAnyColor?: boolean; // Allow moving pieces of either color (retro problems)
+  /** Analysis board: any piece to any square, no legality, no promotion —
+      the behaviour of a physical pocket set. */
+  freeMove?: boolean;
   printMode?: PrintMode; // Print / e-paper diagram style — see PRINT_MODE_CLASS
 }
 
@@ -28,8 +32,12 @@ const PRINT_MODE_CLASS: Record<PrintMode, string> = {
   bw: 'board-print-bw',          // hatched mono, for the thermal printer
 };
 
-export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, printMode = 'off' }: BoardProps) {
+export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, freeMove, printMode = 'off' }: BoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
+  // A selection made in one mode must not survive into the other: entering the
+  // analysis board with a piece still selected would turn the first tap into
+  // an unintended (and there, unchecked) move.
+  useEffect(() => { setSelectedSquare(null); }, [freeMove]);
   const [promotionMove, setPromotionMove] = useState<{ from: string; to: string } | null>(null);
   // A drag promotion is first applied by handlePromotionPieceSelect. The
   // chessboard library then calls onPieceDrop to finish its own dialog flow;
@@ -57,6 +65,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
   }, [feedbackSquare, feedbackType, orientation, boardWidth]);
 
   const isPromotionMove = useCallback((from: string, to: string): boolean => {
+    if (freeMove) return false; // a pawn carried to the last rank just sits there
     try {
       const chess = new Chess(fen);
       const piece = chess.get(from as never);
@@ -66,10 +75,10 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     } catch {
       return false;
     }
-  }, [fen]);
+  }, [fen, freeMove]);
 
   const legalMoves = useMemo(() => {
-    if (!selectedSquare) return [];
+    if (!selectedSquare || freeMove) return [];
     try {
       const chess = new Chess(fen);
       const piece = chess.get(selectedSquare as never);
@@ -83,7 +92,8 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     } catch {
       return [];
     }
-  }, [fen, selectedSquare, allowAnyColor]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fen, selectedSquare, allowAnyColor, freeMove]);
 
   const customSquareStyles = useMemo(() => {
     const styles: Record<string, React.CSSProperties> = {};
@@ -149,6 +159,18 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
   const handleSquareClick = useCallback((square: string) => {
     if (disabled) return;
 
+    // Free movement: tap any occupied square, tap any destination. The FEN can
+    // be unreachable by the rules, so chess.js never parses it here.
+    if (freeMove) {
+      if (selectedSquare) {
+        if (square !== selectedSquare) onPieceDrop(selectedSquare, square, 'wP');
+        setSelectedSquare(null);
+      } else {
+        setSelectedSquare(pieceAt(fen, square) ? square : null);
+      }
+      return;
+    }
+
     if (selectedSquare) {
       const isLegalTarget = legalMoves.some(m => m.to === square);
       if (isLegalTarget) {
@@ -181,7 +203,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     } catch {
       setSelectedSquare(null);
     }
-  }, [disabled, selectedSquare, legalMoves, fen, onPieceDrop, allowAnyColor, isPromotionMove]);
+  }, [disabled, selectedSquare, legalMoves, fen, onPieceDrop, allowAnyColor, isPromotionMove, freeMove]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string) => {
     setSelectedSquare(null);
@@ -232,7 +254,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
 
   const isDraggablePiece = useCallback(({ piece }: { piece: string }) => {
     if (disabled) return false;
-    if (allowAnyColor) return true;
+    if (freeMove || allowAnyColor) return true;
     // Default: only current turn's pieces
     try {
       const chess = new Chess(fen);
@@ -241,7 +263,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     } catch {
       return true;
     }
-  }, [disabled, allowAnyColor, fen]);
+  }, [disabled, allowAnyColor, freeMove, fen]);
 
   // Which way the 2x2 picker opens out from the promotion square. It is always
   // anchored with that square as one of its four cells, on the side that keeps
@@ -258,7 +280,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
 
   return (
     <div
-      className={`relative ${PRINT_MODE_CLASS[printMode]} ${promotionAnchor}`}
+      className={`relative ${freeMove ? 'board-analysis' : PRINT_MODE_CLASS[printMode]} ${promotionAnchor}`}
       style={{ touchAction: 'manipulation', ['--sq' as string]: `${boardWidth / 8}px` } as React.CSSProperties}
     >
       <Chessboard

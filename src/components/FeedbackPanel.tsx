@@ -17,6 +17,8 @@ interface FeedbackPanelProps {
   onShowHint: () => void;
   onHideHint?: () => void;
   onAnalyze?: () => void;
+  /** Opens the free-movement analysis board (solving state only). */
+  onAnalysisBoard?: () => void;
   analyzing?: boolean;
   analysisResult?: string | null;
   stockfishLoading?: boolean;
@@ -58,6 +60,7 @@ export function FeedbackPanel({
   onShowHint,
   onHideHint,
   onAnalyze,
+  onAnalysisBoard,
   analyzing,
   analysisResult,
   stockfishLoading,
@@ -157,13 +160,13 @@ export function FeedbackPanel({
                   analysisActive ? 'bg-[var(--ink)] text-[var(--surface)]' : ''
                 }`}
               >
-                {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
+                {analyzing ? '...' : analysisActive ? 'Stop' : 'Engine'}
               </button>
             )}
             {lichessAnalysisUrl && (
               <a href={lichessAnalysisUrl} target="_blank" rel="noopener noreferrer"
                 className="nb-btn px-2.5 py-1.5 text-xs">
-                Analysis ↗
+                Lichess ↗
               </a>
             )}
             {onPlayEngine && (
@@ -287,6 +290,15 @@ export function FeedbackPanel({
               Give Up
             </button>
           )}
+          {onAnalysisBoard && (
+            <button
+              onClick={onAnalysisBoard}
+              className="nb-btn px-3 py-1.5 text-xs"
+              style={{ backgroundColor: 'var(--card-help)' }}
+            >
+              Analysis board
+            </button>
+          )}
           {refutationText && (
             <span className="text-xs text-[var(--bad)] dark:text-[var(--bad)] font-medium">
               {refutationText}
@@ -336,13 +348,13 @@ export function FeedbackPanel({
                   analysisActive ? 'bg-[var(--ink)] text-[var(--surface)]' : ''
                 }`}
               >
-                {analyzing ? '...' : analysisActive ? 'Stop' : 'Analyze'}
+                {analyzing ? '...' : analysisActive ? 'Stop' : 'Engine'}
               </button>
             )}
             {lichessAnalysisUrl && (
               <a href={lichessAnalysisUrl} target="_blank" rel="noopener noreferrer"
                 className="nb-btn px-2.5 py-1.5 text-xs">
-                Analysis ↗
+                Lichess ↗
               </a>
             )}
             {onPlayEngine && (

@@ -775,3 +775,13 @@ body {
 
 /* cp-bounce: now using Web Animations API in App.tsx (CSS @keyframes didn't work on Safari) */
 
+
+/* Analysis board — the blue-grey "pocket set". Same override mechanism as the
+   print modes; while free movement is on, this class replaces the print class
+   entirely, so it wins regardless of what the printer menu says. */
+.board-analysis [data-square-color="black"] {
+  background-color: #9fb2c5 !important;
+}
+.board-analysis [data-square-color="white"] {
+  background-color: #e4eaf1 !important;
+}

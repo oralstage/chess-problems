@@ -34,6 +34,7 @@ import type { Glicko2Rating } from './utils/glicko2';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import { matchesAwardFilter, type AwardFilter } from './utils/award';
+import { moveFreely } from './utils/freeBoard';
 import {
   type RatedDifficulty,
   RATED_DIFFICULTY_OFFSET,
@@ -194,6 +195,15 @@ export default function App() {
      for Home + "Back to WCSC", because Next would walk off into neighbouring
      YACPDB ids and strand the reader outside the event. */
   const [isWcsc, setIsWcsc] = useState(false);
+  /* The free-movement analysis board (null = off). Lives outside useProblem:
+     nothing done on it counts as an answer — it is the pocket set a solving
+     championship hands out, not the answer sheet. */
+  const [analysisFen, setAnalysisFen] = useState<string | null>(null);
+  const analysisStartFenRef = useRef<string>('');
+  const handleFreeDrop = useCallback((source: string, target: string): boolean => {
+    setAnalysisFen(prev => (prev ? moveFreely(prev, source, target) : prev));
+    return true;
+  }, []);
   // Home is tall enough to scroll; the solving view barely is. Without a reset
   // the browser clamps the carried-over offset to the solving view's max
   // scroll, so every problem opened from home starts pinned to the bottom
@@ -1147,6 +1157,7 @@ export default function App() {
     setAnalyzing(false);
     enginePlayTokenRef.current++;
     setEnginePlay(null);
+    setAnalysisFen(null);
   }, [problem.problem?.id]);
 
 
@@ -2697,20 +2708,43 @@ export default function App() {
               <div className="flex justify-center -mx-1">
                 <Board
                   key={`${problem.problem?.id ?? 'loading'}:${problem.initialFen}`}
-                  fen={enginePlay ? enginePlay.positions[enginePlay.viewIndex].fen : problem.fen}
-                  onPieceDrop={enginePlay ? handleEnginePlayDrop : handlePieceDrop}
-                  lastMove={enginePlay ? enginePlay.positions[enginePlay.viewIndex].lastMove : problem.lastMove}
-                  disabled={enginePlay ? enginePlay.thinking : problem.waitingForAutoPlay}
+                  fen={enginePlay ? enginePlay.positions[enginePlay.viewIndex].fen : analysisFen ?? problem.fen}
+                  onPieceDrop={enginePlay ? handleEnginePlayDrop : analysisFen !== null ? handleFreeDrop : handlePieceDrop}
+                  lastMove={enginePlay ? enginePlay.positions[enginePlay.viewIndex].lastMove : analysisFen !== null ? null : problem.lastMove}
+                  disabled={enginePlay ? enginePlay.thinking : analysisFen !== null ? false : problem.waitingForAutoPlay}
                   orientation="white"
                   width={boardWidth}
-                  feedbackSquare={enginePlay ? (enginePlay.positions[enginePlay.viewIndex].feedback?.square ?? null) : problem.feedbackSquare}
-                  feedbackType={enginePlay ? (enginePlay.positions[enginePlay.viewIndex].feedback?.type ?? null) : problem.feedbackType}
-                  hintSquares={enginePlay ? null : problem.hintSquares}
-                  arrows={enginePlay ? (enginePlay.hint?.arrow ? [enginePlay.hint.arrow] : []) : boardArrows}
+                  feedbackSquare={enginePlay ? (enginePlay.positions[enginePlay.viewIndex].feedback?.square ?? null) : analysisFen !== null ? null : problem.feedbackSquare}
+                  feedbackType={enginePlay ? (enginePlay.positions[enginePlay.viewIndex].feedback?.type ?? null) : analysisFen !== null ? null : problem.feedbackType}
+                  hintSquares={enginePlay || analysisFen !== null ? null : problem.hintSquares}
+                  arrows={enginePlay ? (enginePlay.hint?.arrow ? [enginePlay.hint.arrow] : []) : analysisFen !== null ? [] : boardArrows}
                   allowAnyColor={!enginePlay && currentGenre === 'retro'}
+                  freeMove={!enginePlay && analysisFen !== null}
                   printMode={printMode}
                 />
               </div>
+
+              {!enginePlay && analysisFen !== null && (
+                <div className="nb-plate nb-shadow-room p-3 mt-2 text-center space-y-2">
+                  <p className="text-sm font-bold text-[var(--ink)]">
+                    Analysis board — move anything anywhere, nothing is checked
+                  </p>
+                  <div className="flex justify-center gap-2">
+                    <button
+                      onClick={() => setAnalysisFen(analysisStartFenRef.current)}
+                      className="nb-btn px-4 py-2 text-sm"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      onClick={() => setAnalysisFen(null)}
+                      className="nb-btn nb-btn-key px-4 py-2 text-sm"
+                    >
+                      Back to solving
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {enginePlay && (() => {
                 const atEnd = enginePlay.viewIndex === enginePlay.positions.length - 1;
@@ -2875,7 +2909,7 @@ export default function App() {
                 </div>
               )}
 
-              {!enginePlay && <FeedbackPanel
+              {!enginePlay && analysisFen === null && <FeedbackPanel
                 status={problem.status}
                 feedback={problem.feedback}
                 moveHistory={problem.moveHistory}
@@ -2915,6 +2949,10 @@ export default function App() {
                 onGoHome={isWcsc ? goBack : undefined}
                 onMoreProblems={isWcsc ? () => setShowWcscPage(true) : undefined}
                 moreCategoryLabel={isWcsc ? 'Back to special page' : undefined}
+                onAnalysisBoard={problem.status === 'solving' && problem.problem ? () => {
+                  analysisStartFenRef.current = problem.fen;
+                  setAnalysisFen(problem.fen);
+                } : undefined}
                 onShowHint={() => { hintUsedRef.current = true; problem.showHint(); }}
                 onHideHint={problem.hideHint}
                 onAnalyze={handleAnalyze}

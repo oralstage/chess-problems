@@ -196,6 +196,16 @@ export function GuidePage({ onClose, focus, fromTutorial, onOpenCategory }: Guid
         </div>
 
         <div ref={sheetRef} className="nb-sheet nb-shadow-room flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5">
+          {/* Solving championships hand every solver a pocket set; the Analysis
+              board button is this site's. One line here is its documentation. */}
+          <p className={P}>
+            A tip for every genre: the <strong>Analysis board</strong> button
+            under the board lets you move any piece anywhere &mdash; both
+            colours, no rules, nothing checked &mdash; like the pocket set
+            solvers get at championships. Your answer only counts on the green
+            board.
+          </p>
+
           {/* ── Direct mate ── */}
           <section id="guide-direct" className="scroll-mt-2">
             <h3 className={H2}>Direct mate (#)</h3>
