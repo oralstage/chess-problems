@@ -1694,29 +1694,12 @@ export default function App() {
       if (!genreOnly) return;
       const resolved = resolveHashSlug(genreOnly[1]);
       if (!resolved) return;
-      setCurrentGenre(resolved.genre);
-      setCurrentCategory(resolved.category);
-      setView('solving');
-      loadGenre(resolved.genre).then(async (stubs) => {
-        if (stubs.length === 0) return;
-        const genreProgress = progress[resolved.genre] || {};
-        let nextId: number | null = null;
-        for (const s of stubs) {
-          if (genreProgress[String(s.id)] !== 'solved' && genreProgress[String(s.id)] !== 'skipped') {
-            nextId = s.id;
-            break;
-          }
-        }
-        if (!nextId) nextId = stubs[0].id;
-        try {
-          const full = await fetchProblem(nextId);
-          const p = metaToChessProblem(full, full.solutionText);
-          loadAndStartProblem(p);
-          cacheProblem(p);
-          setCurrentProblemId(prev => ({ ...prev, [resolved.category]: p.id }));
-          history.replaceState(null, '', `#/${resolved.category}/yacpdb/${p.id}`);
-        } catch { /* fetch failed */ }
-      });
+      // Same road as tapping the category on the home screen. The old inline
+      // version waited for the FULL genre index (seconds on a fresh device)
+      // and then picked the first problem of the GENRE — a #1 in a #/twomover
+      // URL. selectMode quick-starts one problem in the right move range and
+      // loads the index behind it.
+      selectMode(resolved.category);
       return;
     }
 
