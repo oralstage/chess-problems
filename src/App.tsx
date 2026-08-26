@@ -20,6 +20,8 @@ import { HamburgerMenu } from './components/HamburgerMenu';
 import { RatingSyncModal } from './components/RatingSyncModal';
 import { SearchPage } from './components/SearchPage';
 import { BookmarksPage } from './components/BookmarksPage';
+import { WcscPage } from './components/WcscPage';
+import { ThemeGuidePage } from './components/ThemeGuidePage';
 import { ChangelogPage } from './components/ChangelogPage';
 import { GuidePage } from './components/GuidePage';
 import { HistoryPage } from './components/HistoryPage';
@@ -31,6 +33,7 @@ import { usePlayerRating } from './hooks/usePlayerRating';
 import type { Glicko2Rating } from './utils/glicko2';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
+import { matchesAwardFilter, type AwardFilter } from './utils/award';
 import {
   type RatedDifficulty,
   RATED_DIFFICULTY_OFFSET,
@@ -147,11 +150,12 @@ interface GlobalFilters {
   sortOrder: 'asc' | 'desc';
   stipulations: string[];
   statusFilter: StatusFilter;
+  awardFilter: AwardFilter;
 }
 
 /** Migrate old localStorage format */
 function migrateFilters(raw: unknown): GlobalFilters {
-  const defaults: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' };
+  const defaults: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all', awardFilter: 'all' };
   if (!raw || typeof raw !== 'object') return defaults;
   const obj = raw as Record<string, unknown>;
   // Migrate old single keyword
@@ -235,6 +239,8 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<import('./services/api').SearchResult[] | null>(null);
   const [showBookmarksPage, setShowBookmarksPage] = useState(false);
+  const [showWcscPage, setShowWcscPage] = useState(false);
+  const [showThemeGuide, setShowThemeGuide] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
   /* The rules guide, and which genre's section to land on. Opened from the home
      page card with no focus, and from a "?" dialog with the genre it was showing. */
@@ -327,7 +333,7 @@ export default function App() {
   }, []);
 
   // Per-genre filters (each genre has its own independent filter settings)
-  const defaultFilters: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' as StatusFilter };
+  const defaultFilters: GlobalFilters = { keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0, sortBy: 'difficulty', sortOrder: 'asc', stipulations: [], statusFilter: 'all' as StatusFilter, awardFilter: 'all' as AwardFilter };
   const [allFiltersRaw, setAllFilters] = useLocalStorage<Record<string, GlobalFilters>>('cp-filters-by-genre', {});
   // One-time migration from old global cp-filters
   useEffect(() => {
@@ -1481,6 +1487,7 @@ export default function App() {
       result = result.filter(p => lowerKws.some(lk => p.keywords?.some(pk => pk.toLowerCase() === lk)));
     }
     if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
+    if (filters.awardFilter !== 'all') result = result.filter(p => matchesAwardFilter(p.award, filters.awardFilter));
     // Status filter
     if (filters.statusFilter !== 'all' && currentGenre) {
       const genreProgress = progress[currentGenre] || {};
@@ -1519,6 +1526,7 @@ export default function App() {
     if (filters.maxMoves > 0) count++;
     if (filters.stipulations.length > 0) count++;
     if (filters.statusFilter !== 'all') count++;
+    if (filters.awardFilter !== 'all') count++;
     return count;
   }, [filters]);
 
@@ -2464,6 +2472,8 @@ export default function App() {
                 dailySolved={dailySolved}
                 onShowChangelog={() => setShowChangelog(true)}
                 onShowGuide={() => openGuide()}
+                onShowWcsc={() => setShowWcscPage(true)}
+                onShowThemes={() => setShowThemeGuide(true)}
                 onStartRated={handleStartRated}
                 onStartReview={handleStartReview}
                 reviewDueCount={reviewQueue.dueCount}
@@ -3172,6 +3182,49 @@ export default function App() {
           fromTutorial={guideFocus !== null}
           onOpenCategory={cat => { setShowGuide(false); setShowTutorial(false); selectMode(cat); }}
           onClose={() => { setShowGuide(false); setShowTutorial(false); }}
+        />
+      )}
+
+      {showWcscPage && (
+        <WcscPage
+          onSelectProblem={id => { setShowWcscPage(false); openProblemById(id); }}
+          onClose={() => setShowWcscPage(false)}
+        />
+      )}
+
+      {showThemeGuide && (
+        <ThemeGuidePage
+          onOpenProblem={id => { setShowThemeGuide(false); openProblemById(id); }}
+          onSolveTheme={async () => {
+            setShowThemeGuide(false);
+            // Pre-set the twomover slot's theme filter, then land on a problem
+            // that actually matches it. selectMode's quick-start ignores the
+            // keyword filter (keywords only exist in the full genre data), so
+            // the first problem is asked from the API with the keyword on.
+            setAllFilters(prev => ({
+              ...prev,
+              twomover: { ...migrateFilters(prev.twomover ?? defaultFilters), keywords: ['Active sacrifice'] },
+            }));
+            exitSpecialModes();
+            setCurrentGenre('direct');
+            setCurrentCategory('twomover');
+            setView('solving');
+            try {
+              const { problems: page } = await fetchProblemsPage('direct', 0, 50,
+                { minMoves: '2', maxMoves: '2', keywords: 'Active sacrifice' });
+              const prog = progress['direct'] || {};
+              const fresh = page.find(m => !prog[String(m.id)]) ?? page[0];
+              if (fresh) {
+                const quickProblem = metaToChessProblem(fresh);
+                updateHash('twomover', quickProblem.id);
+                loadAndStartProblem(quickProblem).then(() => cacheProblem(quickProblem));
+                loadGenre('direct');
+                return;
+              }
+            } catch { /* fall through to the plain category open */ }
+            selectMode('twomover', { skipSavedId: true });
+          }}
+          onClose={() => setShowThemeGuide(false)}
         />
       )}
 

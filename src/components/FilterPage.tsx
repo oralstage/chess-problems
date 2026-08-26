@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import type { ChessProblem } from '../types';
+import { matchesAwardFilter, type AwardFilter } from '../utils/award';
 
 interface GlobalFilters {
   keywords: string[];
@@ -13,6 +14,7 @@ interface GlobalFilters {
   sortOrder: 'asc' | 'desc';
   stipulations: string[];
   statusFilter: 'all' | 'unsolved' | 'solved' | 'failed' | 'bookmarked';
+  awardFilter: AwardFilter;
 }
 
 interface FilterPageProps {
@@ -252,12 +254,13 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
     onFiltersChange({
       keywords: [], minPieces: 0, maxPieces: 0, minYear: 0, maxYear: 0, minMoves: 0, maxMoves: 0,
       sortBy: filters.sortBy, sortOrder: filters.sortOrder, stipulations: [], statusFilter: filters.statusFilter,
+      awardFilter: 'all',
     });
   };
 
   const hasActiveFilters = filters.keywords.length > 0 || filters.minPieces > 0 || filters.maxPieces > 0
     || filters.minYear > 0 || filters.maxYear > 0
-    || filters.minMoves > 0 || filters.maxMoves > 0;
+    || filters.minMoves > 0 || filters.maxMoves > 0 || filters.awardFilter !== 'all';
 
   // Compute matching count in real-time
   const matchCount = useMemo(() => {
@@ -279,6 +282,7 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
       result = result.filter(p => lowerKws.some(lk => p.keywords?.some(pk => pk.toLowerCase() === lk)));
     }
     if (filters.stipulations.length > 0) result = result.filter(p => filters.stipulations.includes(p.stipulation));
+    if (filters.awardFilter !== 'all') result = result.filter(p => matchesAwardFilter(p.award, filters.awardFilter));
     return result.length;
   }, [allProblems, filters, categoryMoves]);
 
@@ -366,6 +370,28 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
               </section>
             );
           })()}
+
+          {/* Award — tiers read off the "1st Prize, ..." / "HM, ..." / "Comm., ..."
+              prefixes YACPDB uses. About 28% of problems carry one. */}
+          <section>
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Award</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {([
+                { value: 'all', label: 'Any' },
+                { value: 'any', label: 'Award winners' },
+                { value: 'hm', label: 'HM or better' },
+                { value: 'prize', label: 'Prize winners' },
+              ] as { value: AwardFilter; label: string }[]).map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => update({ awardFilter: opt.value })}
+                  className={`nb-chip px-3 py-1 text-xs ${filters.awardFilter === opt.value ? 'nb-chip-on' : ''}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </section>
 
           {/* Move count range — hidden for fixed-move categories (#1, #2, #3) */}
           {!hideMoveFilter && (

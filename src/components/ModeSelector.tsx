@@ -17,6 +17,8 @@ interface ModeSelectorProps {
   dailySolved: boolean;
   onShowChangelog?: () => void;
   onShowGuide?: () => void;
+  onShowWcsc?: () => void;
+  onShowThemes?: () => void;
   onStartRated?: (genre: RatedGenre, problemId?: number, fromCache?: boolean) => void;
   onStartReview?: () => void;
   reviewDueCount?: number;
@@ -96,7 +98,7 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
 ];
 
-export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onShowGuide, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onShowGuide, onShowWcsc, onShowThemes, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -435,6 +437,26 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         </div>
       )}
 
+      {/* ── Event: this year's solving championship, while it's news ── */}
+      {onShowWcsc && (
+        <div className="px-4 mb-6">
+          <button
+            type="button"
+            onClick={onShowWcsc}
+            className="nb-tile nb-shadow-room-sm w-full text-left px-4 py-3 flex items-center gap-3"
+          >
+            <span className="text-2xl" aria-hidden="true">🏆</span>
+            <span className="flex-1 min-w-0">
+              <span className="block font-extrabold text-[var(--ink)]">WCSC 2026</span>
+              <span className="block text-xs text-[var(--muted)]">
+                Solve this year's World Championship problems, round by round
+              </span>
+            </span>
+            <span className="text-[var(--faint)] font-extrabold" aria-hidden="true">→</span>
+          </button>
+        </div>
+      )}
+
       {/* ── Free Play ── */}
       <div className="px-4 mb-2">
         <div className="nb-section-head">
@@ -527,6 +549,13 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
           <button type="button" onClick={onShowGuide} className={CARD} style={{ backgroundColor: 'var(--card-self)' }}>
             <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Guide" /></span>
             <span className={CARD_TITLE}>For beginners</span>
+          </button>
+        )}
+        {/* Theme walkthroughs — what a problem's tags mean, shown on a real example. */}
+        {onShowThemes && (
+          <button type="button" onClick={onShowThemes} className={CARD} style={{ backgroundColor: 'var(--card-self)' }}>
+            <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Tag" /></span>
+            <span className={CARD_TITLE}>Themes</span>
           </button>
         )}
         <a
