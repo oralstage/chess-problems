@@ -182,28 +182,34 @@ export function FilterPage({ allProblems, filters, onFiltersChange, onClose, gen
     return { min: Math.max(2, min), max: Math.min(32, max) };
   }, [allProblems, genreStats]);
 
-  // Year range — prefer stats from API. No floor on the minimum: the oldest
-  // entries are genuine (Bonus Socius 1266, shatranj-era 842), and a 1800
-  // clamp made them unreachable by the year filter.
+  // Year range. Scoped to the CURRENT CATEGORY when the loaded list carries
+  // years (the index does now): genre-level stats said "direct starts at 842"
+  // inside the #2 category, whose oldest problem is centuries later — a
+  // selectable range with nothing in it. No floor on the minimum: the oldest
+  // entries are genuine (Bonus Socius 1266, shatranj-era 842).
   const yearRange = useMemo(() => {
     const currentYear = new Date().getFullYear();
+    let min = 9999, max = 0;
+    for (const p of allProblems) {
+      if (categoryMoves) {
+        if (p.moveCount < categoryMoves.min) continue;
+        if (categoryMoves.max > 0 && p.moveCount > categoryMoves.max) continue;
+      }
+      if (p.sourceYear && p.sourceYear > 0) {
+        const yc = Math.min(p.sourceYear, currentYear);
+        if (yc < min) min = yc;
+        if (yc > max) max = yc;
+      }
+    }
+    if (max > 0) return { min, max };
     if (genreStats?.yearRange && genreStats.yearRange.max > 0) {
       return {
         min: genreStats.yearRange.min,
         max: Math.min(currentYear, genreStats.yearRange.max),
       };
     }
-    let min = 9999, max = 0;
-    for (const p of allProblems) {
-      if (p.sourceYear && p.sourceYear > 0) {
-        const y = Math.max(p.sourceYear, 1800);
-        const yc = Math.min(y, currentYear);
-        if (yc < min) min = yc;
-        if (yc > max) max = yc;
-      }
-    }
-    return { min: min > max ? 1800 : min, max: max < min ? currentYear : max };
-  }, [allProblems, genreStats]);
+    return { min: 1800, max: currentYear };
+  }, [allProblems, categoryMoves, genreStats]);
 
   // Move count range — prefer stats from API, clamp max to 30 for usability
   // (ultra-long problems like #450, #530 exist but are extremely rare)
