@@ -527,7 +527,8 @@ export default function App() {
         stipulation: problem.problem.stipulation,
         genre: problem.problem.genre,
       });
-      setTimeout(() => setStipulationToast(null), 2200);
+      // Two lines take longer to read than the rated toast's one.
+      setTimeout(() => setStipulationToast(null), 3500);
     }
     prevFoundRef.current = found;
     // eslint-disable-next-line react-hooks/exhaustive-deps
