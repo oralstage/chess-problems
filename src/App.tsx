@@ -330,7 +330,7 @@ export default function App() {
   const [reviewProblemQueue, setReviewProblemQueue] = useState<number[]>([]);
   const [reviewQueueIndex, setReviewQueueIndex] = useState(0);
   const [reviewNextInterval, setReviewNextInterval] = useState<number | null>(null);
-  const [stipulationToast, setStipulationToast] = useState<{ label: string; stipulation: string; genre: Genre } | null>(null);
+  const [stipulationToast, setStipulationToast] = useState<{ label: string; sub?: string; stipulation: string; genre: Genre } | null>(null);
   const [fetchErrorToast, setFetchErrorToast] = useState<string | null>(null);
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
   /* In Rated Mode the twin buttons stay down until the problem is over.
@@ -520,8 +520,10 @@ export default function App() {
   useEffect(() => {
     const found = problem.foundSolutionCount;
     if (found > prevFoundRef.current && problem.status === 'solving' && problem.problem && problem.totalSolutions > 1) {
+      const remaining = problem.totalSolutions - found;
       setStipulationToast({
         label: `Solution ${found}/${problem.totalSolutions} found!`,
+        sub: remaining === 1 ? 'One more to find!' : `${remaining} more to find!`,
         stipulation: problem.problem.stipulation,
         genre: problem.problem.genre,
       });
@@ -2593,6 +2595,9 @@ export default function App() {
                     className={`text-[var(--ink)] text-3xl font-extrabold px-8 py-4 border-4 border-[var(--ink)] rounded-[var(--radius-nb)] shadow-[var(--hard)] animate-stipulation-toast ${getStipulationToastClasses(stipulationToast.stipulation, stipulationToast.genre)}`}
                   >
                     {stipulationToast.label}
+                    {stipulationToast.sub && (
+                      <div className="text-lg font-bold mt-1">{stipulationToast.sub}</div>
+                    )}
                   </div>
                 </div>
               )}
