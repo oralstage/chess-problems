@@ -462,12 +462,8 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
               style={{ backgroundColor: 'var(--acid)' }}
             >
               <span className="text-4xl" aria-hidden="true">🏆</span>
-              <span className="flex-1 min-w-0">
-                <span className="block font-extrabold text-lg text-[var(--ink)]">WCSC 2026</span>
-                <span className="block text-sm font-semibold text-[var(--ink)]">
-                  Solve this year's World Championship problems, round by round
-                </span>
-              </span>
+              {/* Just the name — no card on this page explains itself. */}
+              <span className="flex-1 min-w-0 font-extrabold text-lg text-[var(--ink)]">WCSC 2026</span>
             </button>
           </div>
         </>
@@ -570,7 +566,17 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         {/* Theme walkthroughs — what a problem's tags mean, shown on a real example. */}
         {onShowThemes && (
           <button type="button" onClick={onShowThemes} className={CARD} style={{ backgroundColor: 'var(--card-self)' }}>
-            <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Tag" /></span>
+            {/* Its own drawing, not CategoryMark "Tag": that shape reads as the
+                gift tag on the "For you" heading. A rook's line and a bishop's
+                diagonal crossing on a board — a theme, drawn. */}
+            <span className="block w-14 h-14 mx-auto" aria-hidden="true">
+              <svg viewBox="0 0 56 56" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
+                <rect x="7" y="7" width="42" height="42" rx="5" fill="var(--surface)" />
+                <path d="M7 28h42" />
+                <path d="M11 48 45 10" />
+                <circle cx="27.5" cy="28" r="5" fill="var(--acid)" />
+              </svg>
+            </span>
             <span className={CARD_TITLE}>Themes</span>
           </button>
         )}

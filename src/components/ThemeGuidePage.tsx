@@ -152,27 +152,39 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
 
           {revealed && <>
           <p className={P}>
-            The key is <span className={MOVE}>1.Bg7!</span>, threatening{' '}
-            <span className={MOVE}>2.Rd4#</span> — the rook check on d4 works
-            because the bishop now backs it up along the long diagonal, g7
-            through e5 to d4. That diagonal is Black's only hope: put something
-            on e5 and the threat is parried.{' '}
-            <strong>Both the black rook and the black bishop can reach e5 — and
-            e5 is exactly where their two lines cross.</strong> That square is
-            the trap.
+            Before any moves, find the actors:{' '}
+            <strong>the black rook on h5 and the black bishop on h2</strong>.
+            The rook slides along the fifth rank, the bishop along the
+            h2–d6 diagonal — and{' '}
+            <strong>those two lines cross on e5</strong>. Keep an eye on that
+            square.
           </p>
 
           <Diagram
-            fen={EX.afterKey}
-            move={{ from: 'b2', to: 'g7' }}
+            fen={EX.diagram}
             marks={{
               h5: { backgroundColor: 'rgba(59, 130, 246, 0.4)' },
               h2: { backgroundColor: 'rgba(59, 130, 246, 0.4)' },
               e5: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
             }}
+            caption={<>The rook and bishop (blue) — their lines cross on e5 (amber)</>}
+          />
+
+          <p className={P}>
+            The key is <span className={MOVE}>1.Bg7!</span>, threatening{' '}
+            <span className={MOVE}>2.Rd4#</span> — the rook check on d4 works
+            because the bishop now backs it up along the long diagonal, g7
+            through e5 to d4. That diagonal is Black's only hope:{' '}
+            <strong>the threat can only be met by putting something on e5</strong>{' '}
+            — the very square where the rook's and bishop's lines cross.
+          </p>
+
+          <Diagram
+            fen={EX.afterKey}
+            move={{ from: 'b2', to: 'g7' }}
+            marks={{ e5: { backgroundColor: 'rgba(255, 176, 32, 0.55)' } }}
             caption={<><span className="font-extrabold text-[var(--ink)]">1.Bg7!</span>
-              <span className="mx-1.5 text-[var(--faint)]">·</span>Threat 2.Rd4#
-              <span className="mx-1.5 text-[var(--faint)]">·</span>The rook and bishop (blue) meet on e5 (amber)</>}
+              <span className="mx-1.5 text-[var(--faint)]">·</span>Threat 2.Rd4# — only e5 (amber) can block the diagonal</>}
           />
 
           <p className={P}>
