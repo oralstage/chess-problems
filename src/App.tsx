@@ -2421,7 +2421,10 @@ export default function App() {
       : [];
 
   return (
-    <div className={`min-h-screen ${view === 'solving' ? 'nb-fine' : ''}`}>
+    // min-h-dvh, not min-h-screen: iOS's 100vh is the URL-bar-collapsed
+    // height, which keeps the page scrollable by exactly the bar's height
+    // and lets Safari park it with the header tucked under the bar.
+    <div className={`min-h-dvh ${view === 'solving' ? 'nb-fine' : ''}`}>
       <div className={view === 'solving'
         ? 'nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-14 overflow-hidden'
         : 'max-w-2xl mx-auto'}>
