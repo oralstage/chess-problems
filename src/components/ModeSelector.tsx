@@ -437,23 +437,40 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         </div>
       )}
 
-      {/* ── Event: this year's solving championship, while it's news ── */}
+      {/* ── Events: the current featured page (WCSC for now). When there is
+          more than one, this section grows into an archive of past features. ── */}
       {onShowWcsc && (
-        <div className="px-4 mb-6">
-          <button
-            type="button"
-            onClick={onShowWcsc}
-            className="nb-tile nb-shadow-room-sm w-full text-left px-4 py-3 flex items-center gap-3"
-          >
-            <span className="text-2xl" aria-hidden="true">🏆</span>
-            <span className="flex-1 min-w-0">
-              <span className="block font-extrabold text-[var(--ink)]">WCSC 2026</span>
-              <span className="block text-xs text-[var(--muted)]">
-                Solve this year's World Championship problems, round by round
+        <>
+          <div className="px-4 mb-2">
+            <div className="nb-section-head">
+              <h2>Events</h2>
+              <span className="nb-heading-object" style={{ width: '3.2rem', height: '3rem', transform: 'translateY(-50%) rotate(7deg)' }} aria-hidden="true">
+                <svg viewBox="0 0 44 44" fill="none" stroke="var(--ink)" strokeWidth="3" strokeLinejoin="round">
+                  <path d="M14 7h16v10a8 8 0 0 1-16 0z" fill="var(--acid)" />
+                  <path d="M14 10h-4a5 5 0 0 0 5 7M30 10h4a5 5 0 0 1-5 7" />
+                  <path d="M19 31h6v4h-6zM15 35h14v4H15z" fill="var(--surface)" />
+                  <path d="M22 25v6" />
+                </svg>
               </span>
-            </span>
-          </button>
-        </div>
+            </div>
+          </div>
+          <div className="px-4 mb-6">
+            <button
+              type="button"
+              onClick={onShowWcsc}
+              className="nb-tile nb-shadow-room-sm w-full text-left px-4 py-4 flex items-center gap-4"
+              style={{ backgroundColor: 'var(--acid)' }}
+            >
+              <span className="text-4xl" aria-hidden="true">🏆</span>
+              <span className="flex-1 min-w-0">
+                <span className="block font-extrabold text-lg text-[var(--ink)]">WCSC 2026</span>
+                <span className="block text-sm font-semibold text-[var(--ink)]">
+                  Solve this year's World Championship problems, round by round
+                </span>
+              </span>
+            </button>
+          </div>
+        </>
       )}
 
       {/* ── Free Play ── */}

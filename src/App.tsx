@@ -2559,7 +2559,7 @@ export default function App() {
               )}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1 flex-1 min-w-0">
-                  {!isRatedMode && (
+                  {!isRatedMode && !isWcsc && (
                   <button
                     onClick={isDaily ? handlePrevDaily : () => handleNavProblem(-1)}
                     disabled={isDaily ? !canGoPrevDaily : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) <= 0)}
@@ -2583,7 +2583,7 @@ export default function App() {
                        describe, and the prefix would name the wrong one. */
                     genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[problem.problem.genre || currentGenre || 'direct'] || 'D'}
                   />
-                  {!isRatedMode && (
+                  {!isRatedMode && !isWcsc && (
                   <button
                     onClick={isDaily ? handleNextDaily : () => handleNavProblem(1)}
                     disabled={isDaily ? isToday : (!currentGenre || !problem.problem || filteredProblems.findIndex(p => p.id === problem.problem!.id) >= filteredProblems.length - 1)}

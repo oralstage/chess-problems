@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 
-/* Theme walkthroughs. One theme so far (Sacrifice); the plan is to add the
-   frequent ones in order of how many problems carry the tag. Every claim on
-   this page is anchored to a concrete problem and its published solution —
-   no generated analysis. */
+/* Theme walkthroughs. One theme so far (Grimshaw); the plan is to add the
+   ones whose tags don't explain themselves (Zugzwang, Model mate, Novotny...).
+   Every claim on this page is anchored to a concrete problem and its published
+   solution — no generated analysis. */
 
 interface ThemeGuidePageProps {
   onClose: () => void;
@@ -18,7 +18,7 @@ const TICK = 20;
 
 /* Same measured board as GuidePage's — a fixed width overflows either the
    phone column or the desktop one. */
-function Board({ fen, move }: { fen: string; move?: { from: string; to: string } }) {
+function Board({ fen, move, marks }: { fen: string; move?: { from: string; to: string }; marks?: Record<string, React.CSSProperties> }) {
   const slotRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(260);
 
@@ -43,7 +43,7 @@ function Board({ fen, move }: { fen: string; move?: { from: string; to: string }
           customBoardStyle={{ borderRadius: '0' }}
           customDarkSquareStyle={{ backgroundColor: 'var(--board-d)' }}
           customLightSquareStyle={{ backgroundColor: 'var(--board-l)' }}
-          customSquareStyles={move ? { [move.from]: LAST_MOVE_FROM, [move.to]: CORRECT_TO } : undefined}
+          customSquareStyles={{ ...(marks || {}), ...(move ? { [move.from]: LAST_MOVE_FROM, [move.to]: CORRECT_TO } : {}) }}
         />
         {move && (
           <div
@@ -66,10 +66,10 @@ function Board({ fen, move }: { fen: string; move?: { from: string; to: string }
   );
 }
 
-function Diagram({ fen, move, caption }: { fen: string; move?: { from: string; to: string }; caption: React.ReactNode }) {
+function Diagram({ fen, move, marks, caption }: { fen: string; move?: { from: string; to: string }; marks?: Record<string, React.CSSProperties>; caption: React.ReactNode }) {
   return (
     <figure className="my-5 mx-auto w-full max-w-[280px]">
-      <Board fen={fen} move={move} />
+      <Board fen={fen} move={move} marks={marks} />
       <figcaption className="mt-2 text-center text-xs font-semibold leading-snug text-[var(--muted)]">
         {caption}
       </figcaption>
@@ -82,18 +82,21 @@ const SUB = 'text-sm font-extrabold text-[var(--muted)] mb-3';
 const P = 'text-sm leading-relaxed text-[var(--ink)] mb-3';
 const MOVE = 'font-extrabold';
 
-/* Herman Jonsson, Sporten 1893, 1st Prize (YACPDB 11667).
+/* Fredrik Storm, Dagbladet (Oslo) 1956, 1st Prize (YACPDB 683282).
    Positions below are the diagram, the position after the key, and the two
-   mates — each verified against the published solution with chess.js. */
+   Grimshaw mates - each verified against the published solution with chess.js. */
 const EX = {
-  id: 11667,
-  diagram: '2n5/2N1B1b1/6B1/N7/1P1k4/8/5PnQ/K7 w - - 0 1',
-  afterKey: '2n5/2N1B1b1/6BQ/N7/1P1k4/8/5Pn1/K7 b - - 1 1',
-  accept: '2n5/2N5/5BBb/N7/1P1k4/8/5Pn1/K7 b - - 0 2',
-  decline: '2n5/2N1B1b1/2N3BQ/4k3/1P6/8/5Pn1/K7 b - - 1 2',
+  id: 683282,
+  diagram: '5R2/1N6/8/7r/4k3/3R4/1B2K2b/8 w - - 0 1',
+  afterKey: '5R2/1N4B1/8/7r/4k3/3R4/4K2b/8 b - - 1 1',
+  rookBlock: '5R2/6B1/3N4/4r3/4k3/3R4/4K2b/8 b - - 2 2',
+  bishopBlock: '5R2/6B1/8/2N1b2r/4k3/3R4/4K3/8 b - - 2 2',
 };
 
 export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) {
+  /* The walkthrough is one long spoiler. It stays folded until asked for, so
+     the diagram can be studied as a problem first. */
+  const [revealed, setRevealed] = useState(false);
   return (
     <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full min-h-0">
@@ -110,85 +113,103 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-3 mb-4">
             A theme is the idea a problem is built around. Knowing the common
             ones changes how you solve: instead of trying every move, you look
-            for the idea. One theme so far — more are coming, most frequent
-            first.
+            for the idea. One theme so far — more are coming.
           </p>
 
-          <h2 className={H2}>Sacrifice</h2>
-          <div className={SUB}>The key offers a piece — taking it is the trap</div>
+          <h2 className={H2}>Grimshaw</h2>
+          <div className={SUB}>Two black pieces trip over each other on one square</div>
 
           <p className={P}>
-            In over-the-board chess you keep your queen safe. In a chess problem
-            the key move often does the opposite: it puts White's strongest
-            piece somewhere Black can simply capture it. That is a{' '}
-            <em>sacrifice key</em>. It works because the capture itself is a
-            mistake — it pulls the capturing piece away from a square it was
-            defending, blocks a square the king needed, or opens a line.
-          </p>
-          <p className={P}>
-            When you solve, this is the practical lesson: the moves that look
-            safest are rarely the key. A move that hangs the queen is always
-            worth a second look.
+            A rook moves along ranks and files, a bishop along diagonals. When
+            both need to pass through the same square, they get in each other's
+            way: whichever one lands there cuts the other's line. A{' '}
+            <em>Grimshaw</em> (after Walter Grimshaw, 19th-century English
+            composer) is a position built so that Black has to make that choice
+            — and each version of it loses to a different mate.
           </p>
 
           <Diagram
             fen={EX.diagram}
-            caption={<>Herman Jonsson, Sporten 1893, 1st Prize
+            caption={<>Fredrik Storm, Dagbladet (Oslo) 1956, 1st Prize
               <span className="mx-1.5 text-[var(--faint)]">·</span>
               <span className="font-extrabold text-[var(--ink)]">#2</span>
               <span className="mx-1.5 text-[var(--faint)]">·</span>White to move</>}
           />
 
+          {/* Everything below this line is spoilers, so it stays hidden until
+              asked for — solve on the board, or read the idea. */}
+          <div className="flex justify-center gap-2 flex-wrap -mt-2 mb-5">
+            <button onClick={() => onOpenProblem(EX.id)} className="nb-btn nb-btn-key px-4 py-1.5 text-sm font-bold">
+              Try it yourself →
+            </button>
+            {!revealed && (
+              <button onClick={() => setRevealed(true)} className="nb-btn px-4 py-1.5 text-sm font-bold">
+                Show the solution
+              </button>
+            )}
+          </div>
+
+          {revealed && <>
           <p className={P}>
-            The key is <span className={MOVE}>1.Qh6!</span> — the queen steps
-            straight into the g7-bishop's diagonal, where Black can take it.
-            The threat is <span className={MOVE}>2.Qxg7#</span>, and the bishop
-            on g7 is the only piece that can deal with it.
+            The key is <span className={MOVE}>1.Bg7!</span>, threatening{' '}
+            <span className={MOVE}>2.Rd4#</span> — the rook check on d4 works
+            because the bishop now backs it up along the long diagonal, g7
+            through e5 to d4. That diagonal is Black's only hope: put something
+            on e5 and the threat is parried. Both the rook and the bishop can
+            reach e5. That square is the trap.
           </p>
 
           <Diagram
             fen={EX.afterKey}
-            move={{ from: 'h2', to: 'h6' }}
-            caption={<><span className="font-extrabold text-[var(--ink)]">1.Qh6!</span>
-              <span className="mx-1.5 text-[var(--faint)]">·</span>The queen offers itself to the bishop</>}
+            move={{ from: 'b2', to: 'g7' }}
+            marks={{
+              h5: { backgroundColor: 'rgba(59, 130, 246, 0.4)' },
+              h2: { backgroundColor: 'rgba(59, 130, 246, 0.4)' },
+              e5: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
+            }}
+            caption={<><span className="font-extrabold text-[var(--ink)]">1.Bg7!</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>Threat 2.Rd4#
+              <span className="mx-1.5 text-[var(--faint)]">·</span>The rook and bishop (blue) meet on e5 (amber)</>}
           />
 
           <p className={P}>
-            Accept the gift and the trap closes:{' '}
-            <span className={MOVE}>1...Bxh6</span> wins the queen — but that
-            bishop was also the only guard of f6. Now{' '}
-            <span className={MOVE}>2.Bf6#</span>. The capture is not a defense;
-            it is exactly what the mate needed.
+            <span className={MOVE}>1...Re5</span> blocks the threat — but the
+            rook is now standing in its own bishop's diagonal (h2–e5–d6). The
+            bishop no longer guards d6, so{' '}
+            <span className={MOVE}>2.Nd6#</span>. Note the rook still guards
+            c5, so this is the only mate.
           </p>
 
           <Diagram
-            fen={EX.accept}
-            move={{ from: 'e7', to: 'f6' }}
-            caption={<><span className="font-extrabold text-[var(--ink)]">1...Bxh6 2.Bf6#</span>
-              <span className="mx-1.5 text-[var(--faint)]">·</span>Capturing abandoned f6</>}
+            fen={EX.rookBlock}
+            move={{ from: 'b7', to: 'd6' }}
+            caption={<><span className="font-extrabold text-[var(--ink)]">1...Re5 2.Nd6#</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>The rook cut its bishop's guard of d6</>}
           />
 
           <p className={P}>
-            Declining doesn't help either. The key even handed the black king
-            two escape squares — a generous key is another hallmark of the
-            classical style — but each flight walks into a knight mate:{' '}
-            <span className={MOVE}>1...Ke5 2.Nc6#</span> (and{' '}
-            <span className={MOVE}>1...Kc3 2.Nb5#</span>).
+            <span className={MOVE}>1...Be5</span> blocks the same diagonal —
+            but now the bishop is standing in its own rook's fifth rank
+            (h5–e5–c5). The rook no longer guards c5, so{' '}
+            <span className={MOVE}>2.Nc5#</span> — and this time d6 is still
+            covered by the bishop. One square, two interferences, two different
+            mates: that is a Grimshaw.
           </p>
 
           <Diagram
-            fen={EX.decline}
-            move={{ from: 'a5', to: 'c6' }}
-            caption={<><span className="font-extrabold text-[var(--ink)]">1...Ke5 2.Nc6#</span>
-              <span className="mx-1.5 text-[var(--faint)]">·</span>The flight was poisoned too</>}
+            fen={EX.bishopBlock}
+            move={{ from: 'b7', to: 'c5' }}
+            caption={<><span className="font-extrabold text-[var(--ink)]">1...Be5 2.Nc5#</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>The bishop cut its rook's guard of c5</>}
           />
 
           <p className={P}>
-            Composers prize keys like this because they give everything away at
-            once — material and freedom — and still mate. When a problem
-            carries a sacrifice tag, start your search with the un-safest moves
-            on the board.
+            When a problem carries the Grimshaw tag, look for the crossing
+            point: the square where a black rook's line and a black bishop's
+            diagonal intersect. The defenses that land there are the story of
+            the problem.
           </p>
+          </>}
 
           {/* No "solve this theme" button: it silently pinned the theme filter
               on the category, and the reader would still be inside it weeks
