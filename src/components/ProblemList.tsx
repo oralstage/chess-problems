@@ -41,6 +41,10 @@ export function ProblemList({
 
   const [showSortMenu, setShowSortMenu] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
+  // "Go to page" box: opened from the mobile current/total chip or the
+  // desktop "…" — 11k pages are not walkable by arrows alone.
+  const [jumpOpen, setJumpOpen] = useState(false);
+  const [jumpValue, setJumpValue] = useState('');
 
   // Close sort menu on outside click
   useEffect(() => {
@@ -114,7 +118,9 @@ export function ProblemList({
                 onClick={() => setShowSortMenu(prev => !prev)}
                 className="nb-btn flex items-center gap-1.5 px-3 py-1.5 text-xs"
               >
-                <span>{sortBy === 'year' ? 'Year' : 'Difficulty'}</span>
+                <span>{sortBy === 'year'
+                  ? (sortOrder === 'desc' ? 'Newest first' : 'Oldest first')
+                  : (sortOrder === 'desc' ? 'Hardest first' : 'Easiest first')}</span>
                 <svg className="w-3 h-3 opacity-60" fill="currentColor" viewBox="0 0 10 14">
                   <path d="M5 0L9 5H1L5 0Z" />
                   <path d="M5 14L1 9H9L5 14Z" />
@@ -122,31 +128,26 @@ export function ProblemList({
               </button>
               {showSortMenu && (
                 <div className="nb-plate absolute left-0 top-full mt-2 z-50 py-1.5 min-w-[180px] overflow-hidden">
-                  {([['difficulty', 'Difficulty'], ['year', 'Year']] as const).map(([value, label]) => (
-                    <div key={value}>
-                      <button
-                        onClick={() => { onSortChange(value, 'asc'); setShowSortMenu(false); }}
-                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 ${
-                          sortBy === value && sortOrder === 'asc'
-                            ? 'text-gray-900 dark:text-white font-medium'
-                            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-                        } hover:bg-gray-50 dark:hover:bg-gray-700`}
-                      >
-                        <span className="w-4 text-green-600 dark:text-green-400 text-xs">{sortBy === value && sortOrder === 'asc' ? '✓' : ''}</span>
-                        {label} ↑
-                      </button>
-                      <button
-                        onClick={() => { onSortChange(value, 'desc'); setShowSortMenu(false); }}
-                        className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 ${
-                          sortBy === value && sortOrder === 'desc'
-                            ? 'text-gray-900 dark:text-white font-medium'
-                            : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
-                        } hover:bg-gray-50 dark:hover:bg-gray-700`}
-                      >
-                        <span className="w-4 text-green-600 dark:text-green-400 text-xs">{sortBy === value && sortOrder === 'desc' ? '✓' : ''}</span>
-                        {label} ↓
-                      </button>
-                    </div>
+                  {/* Direction spelled out — "Difficulty ↑" made every reader
+                      guess which end page 1 is. "First" says it outright. */}
+                  {([
+                    ['difficulty', 'asc', 'Easiest first'],
+                    ['difficulty', 'desc', 'Hardest first'],
+                    ['year', 'desc', 'Newest first'],
+                    ['year', 'asc', 'Oldest first'],
+                  ] as const).map(([value, order, label]) => (
+                    <button
+                      key={`${value}-${order}`}
+                      onClick={() => { onSortChange(value, order); setShowSortMenu(false); }}
+                      className={`w-full text-left px-3 py-1.5 text-sm transition-colors flex items-center gap-2 ${
+                        sortBy === value && sortOrder === order
+                          ? 'text-gray-900 dark:text-white font-medium'
+                          : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'
+                      } hover:bg-gray-50 dark:hover:bg-gray-700`}
+                    >
+                      <span className="w-4 text-green-600 dark:text-green-400 text-xs">{sortBy === value && sortOrder === order ? '✓' : ''}</span>
+                      {label}
+                    </button>
                   ))}
                 </div>
               )}
@@ -246,6 +247,10 @@ export function ProblemList({
                   </div>
                   <span className={`text-xs font-bold font-mono ${isCurrent || status ? 'opacity-70' : getStipulationTextColorClasses(p.stipulation, p.genre)}`}>
                     {p.stipulation}
+                    {/* Year, when the full data has arrived — sorting by year
+                        was unreadable with no year in sight. Index stubs lack
+                        it, so early views simply show the stipulation alone. */}
+                    {p.sourceYear ? <span className="font-normal opacity-60"> · {p.sourceYear}</span> : null}
                   </span>
 
                   {status === 'solved' && (
@@ -285,35 +290,82 @@ export function ProblemList({
               &lsaquo;
             </button>
 
-            <div className="flex items-center justify-center w-56">
-              {Array.from({ length: totalPages }, (_, i) => i)
-                .filter(i => {
-                  if (i === 0 || i === totalPages - 1) return true;
-                  if (Math.abs(i - page) <= 2) return true;
-                  return false;
-                })
-                .reduce<(number | 'ellipsis')[]>((acc, i) => {
-                  const last = acc[acc.length - 1];
-                  if (typeof last === 'number' && i - last > 1) {
-                    acc.push('ellipsis');
-                  }
-                  acc.push(i);
-                  return acc;
-                }, [])
-                .map((item, idx) =>
-                  item === 'ellipsis' ? (
-                    <span key={`e${idx}`} className="w-8 text-center text-sm text-[var(--faint)]">&hellip;</span>
-                  ) : (
-                    <button
-                      key={item}
-                      onClick={() => setPage(item)}
-                      className={`nb-page w-10 h-10 text-sm ${page === item ? 'nb-page-on' : ''}`}
-                    >
-                      {item + 1}
-                    </button>
-                  )
-                )}
-            </div>
+            {jumpOpen ? (
+              // Jump box, shared by both layouts: type a page, Enter to go.
+              <form
+                className="flex items-center gap-1.5 mx-1"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const n = parseInt(jumpValue);
+                  if (Number.isFinite(n)) setPage(Math.min(totalPages - 1, Math.max(0, n - 1)));
+                  setJumpOpen(false);
+                  setJumpValue('');
+                }}
+              >
+                <input
+                  autoFocus
+                  inputMode="numeric"
+                  value={jumpValue}
+                  onChange={(e) => setJumpValue(e.target.value.replace(/\D/g, ''))}
+                  onBlur={() => { setJumpOpen(false); setJumpValue(''); }}
+                  placeholder={`1–${totalPages}`}
+                  className="nb-input w-24 h-10 px-2 text-center text-sm"
+                  aria-label="Go to page"
+                />
+                <button type="submit" className="nb-page h-10 px-3 text-sm" onMouseDown={(e) => e.preventDefault()}>
+                  Go
+                </button>
+              </form>
+            ) : (
+              <>
+                {/* Narrow screens: five-digit page numbers never fit as a
+                    button row — a tappable current/total chip opens the jump
+                    box instead. */}
+                <button
+                  onClick={() => setJumpOpen(true)}
+                  className="sm:hidden nb-page h-10 px-3 mx-1 text-sm font-bold"
+                  title="Go to page"
+                >
+                  {page + 1} / {totalPages}
+                </button>
+                <div className="hidden sm:flex items-center justify-center gap-0.5 mx-1">
+                  {Array.from({ length: totalPages }, (_, i) => i)
+                    .filter(i => {
+                      if (i === 0 || i === totalPages - 1) return true;
+                      if (Math.abs(i - page) <= 2) return true;
+                      return false;
+                    })
+                    .reduce<(number | 'ellipsis')[]>((acc, i) => {
+                      const last = acc[acc.length - 1];
+                      if (typeof last === 'number' && i - last > 1) {
+                        acc.push('ellipsis');
+                      }
+                      acc.push(i);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === 'ellipsis' ? (
+                        <button
+                          key={`e${idx}`}
+                          onClick={() => setJumpOpen(true)}
+                          className="nb-page h-10 px-2 text-sm text-[var(--faint)]"
+                          title="Go to page…"
+                        >
+                          &hellip;
+                        </button>
+                      ) : (
+                        <button
+                          key={item}
+                          onClick={() => setPage(item)}
+                          className={`nb-page h-10 min-w-10 px-1.5 text-sm ${page === item ? 'nb-page-on' : ''}`}
+                        >
+                          {item + 1}
+                        </button>
+                      )
+                    )}
+                </div>
+              </>
+            )}
 
             <button
               onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}

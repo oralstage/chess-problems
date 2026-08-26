@@ -30,13 +30,16 @@ export function SolveStatsModal({ stats, onClose }: { stats: SolveStats; onClose
         </div>
 
         <div className="space-y-2 text-sm">
+          {/* Same word as the info modal for the same number — and "Solved"
+              now counts solves, not attempts (it said "Solved: 8 times" when
+              8 included the give-ups). */}
           <div>
-            <span className="text-[var(--faint)] font-semibold">Solved: </span>
-            <span className="text-[var(--ink)] font-extrabold">{stats.totalAttempts} time{stats.totalAttempts !== 1 ? 's' : ''}</span>
+            <span className="text-[var(--faint)] font-semibold">Players: </span>
+            <span className="text-[var(--ink)] font-extrabold">{stats.players ?? stats.uniqueSolvers}</span>
           </div>
           <div>
-            <span className="text-[var(--faint)] font-semibold">Solvers: </span>
-            <span className="text-[var(--ink)] font-extrabold">{stats.uniqueSolvers}</span>
+            <span className="text-[var(--faint)] font-semibold">Solved: </span>
+            <span className="text-[var(--ink)] font-extrabold">{stats.correctCount} time{stats.correctCount !== 1 ? 's' : ''}</span>
           </div>
 
           {stats.movesByNumber && stats.movesByNumber.length > 0 && (() => {
