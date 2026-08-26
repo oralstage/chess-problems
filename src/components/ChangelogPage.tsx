@@ -14,15 +14,6 @@ const CHANGELOG = [
           'Award filter: show only award-winning problems, or only unawarded ones.',
         ],
       },
-      {
-        title: 'Improved',
-        items: [
-          'Opening a category is much faster.',
-          'The problem list shows years on cards, names its sort orders plainly, and can jump straight to any page.',
-          'The year filter follows the category you are in, and reaches back to the oldest problems.',
-          'On phones, the top of the page no longer hides under the browser’s address bar.',
-        ],
-      },
     ],
   },
   {
