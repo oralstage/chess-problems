@@ -2984,7 +2984,14 @@ export default function App() {
                 onGoHome={isWcsc ? goBack : undefined}
                 onMoreProblems={isWcsc ? () => setShowWcscPage(true) : undefined}
                 moreCategoryLabel={isWcsc ? 'Back to special page' : undefined}
-                onAnalysisBoard={problem.status === 'solving' && problem.problem ? () => {
+                onAnalysisBoard={problem.status === 'solving' && problem.problem
+                  // Only while nothing is confirmed: at a championship the first
+                  // move on the answer sheet is not known to be right, but here
+                  // a played move is — analysing a confirmed line on a free
+                  // board would be an aid the real event cannot give. The board
+                  // is available again whenever the line is empty (fresh
+                  // problem, after a wrong first move, between solutions).
+                  && problem.moveHistory.length === 0 ? () => {
                   analysisStartFenRef.current = problem.fen;
                   setAnalysisFen(problem.fen);
                 } : undefined}
