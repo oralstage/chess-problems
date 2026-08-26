@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from 'react';
+import { useEffect, useReducer, useRef } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { fetchProblemBatch } from '../services/api';
 import { WCSC_2026_ROUNDS, WCSC_2026_TITLE, WCSC_2026_SUBTITLE } from '../data/wcsc2026';
@@ -7,6 +7,11 @@ import { WCSC_2026_ROUNDS, WCSC_2026_TITLE, WCSC_2026_SUBTITLE } from '../data/w
    FEN cache that survives the page being closed and reopened. */
 const fenCache = new Map<number, string>();
 
+/* Where the reader was. The page unmounts when a problem is opened, so the
+   scroll position lives outside it and is restored on the way back —
+   "Back to special page" should land on the round being browsed, not the top. */
+let savedScrollTop = 0;
+
 interface WcscPageProps {
   onSelectProblem: (id: number) => void;
   onClose: () => void;
@@ -14,6 +19,11 @@ interface WcscPageProps {
 
 export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
   const [, forceUpdate] = useReducer(x => x + 1, 0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = savedScrollTop;
+  }, []);
 
   useEffect(() => {
     const missing = WCSC_2026_ROUNDS.flatMap(r => r.problems)
@@ -47,7 +57,11 @@ export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-8">
+        <div
+          ref={scrollRef}
+          onScroll={e => { savedScrollTop = e.currentTarget.scrollTop; }}
+          className="flex-1 overflow-y-auto px-4 pb-8"
+        >
           <p className="text-[15px] text-[var(--ink)] mt-3 mb-1">
             The exact problems from this year's World Chess Solving Championship,
             round by round. At the event each round is solved against the clock —
