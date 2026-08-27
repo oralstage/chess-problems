@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
+import { analyzeMateEconomy, mateMarks } from '../utils/themeInsight';
 
 /* Theme walkthroughs, easiest first: Battery and Zugzwang (the everyday
-   solving tools), then the crossing-square family (Grimshaw, Novotny,
-   Plachutta), then Model/Ideal mates. More get appended as they're written.
-   Every claim on this page is anchored to a concrete problem and its
-   published solution, with every diagrammed position verified by chess.js —
-   no generated analysis. */
+   solving tools), Switchback and Cross-check (one-move wit), the
+   crossing-square family (Grimshaw, Novotny, Plachutta), the phase themes
+   (Changed mates, Allumwandlung), then Model/Ideal mates. Every claim on
+   this page is anchored to a concrete problem and its published solution,
+   with every diagrammed position verified by chess.js — no generated
+   analysis. */
 
 interface ThemeGuidePageProps {
   onClose: () => void;
@@ -147,6 +149,52 @@ const MD = {
   mateFinal: '2N5/1B6/8/k2R4/8/1K6/8/8 b - - 5 3',
 };
 
+/* "Who guards what" in the ideal-mate diagram is computed, not hand-marked:
+   the same verifier the post-solve theme cards use — each field square wears
+   the symbol of its one guard, and the guard wears the matching badge. */
+const MD_MARKS = (() => {
+  const a = analyzeMateEconomy(MD.mateFinal);
+  return a ? mateMarks(a) : {};
+})();
+
+/* Miroslav Havel, Moravskoslezský deník 1922 (YACPDB 51411) — the bishop
+   leaves e1 with the key and mates from e1 two moves later. All positions
+   replayed with chess.js: 1.Bd2 Nxh7 2.Bg4+ Kh4 3.Be1#. */
+const SW = {
+  id: 51411,
+  diagram: '3b4/6RR/7p/5Bnk/8/8/8/4BK2 w - - 0 1',
+  afterKey: '3b4/6RR/7p/5Bnk/8/8/3B4/5K2 b - - 1 1',
+  mateFinal: '3b4/6Rn/7p/8/6Bk/8/8/4BK2 b - - 3 3',
+};
+
+/* Leo Valve, Szachy 1949 (YACPDB 26486) — 1...Rd3+ answered by 2.Nd2#, an
+   interposition that blocks one check and delivers a double check back.
+   Verified with chess.js: 1.Qg1 Rd3+ 2.Nd2#. */
+const CC = {
+  id: 26486,
+  diagram: '2R2B2/1p6/2b5/P3Rp2/2k5/1N2rP2/BPn1P3/3K1Q2 w - - 0 1',
+  mateFinal: '2R2B2/1p6/2b5/P3Rp2/2k5/3r1P2/BPnNP3/3K2Q1 b - - 3 2',
+};
+
+/* Vasyl Diachuk, StrateGems 2001 (YACPDB 209395) — try 1.Qg1? and key 1.Qg4!
+   both threaten 2.Qd4#, and 1...Ke5 gets a different mate in each phase.
+   Both mates replayed to checkmate with chess.js. */
+const CM = {
+  id: 209395,
+  diagram: '2N5/2pb3r/4p1QR/N2k1P2/8/P1P2K2/8/8 w - - 0 1',
+  tryMate: '2N5/2pb3r/4p2R/N1Q1kP2/8/P1P2K2/8/8 b - - 3 2',
+  keyMate: '2N5/2pb3r/4p2R/N3kP2/4Q3/P1P2K2/8/8 b - - 3 2',
+};
+
+/* Vitaly Kovalenko, Shakhmatnaya kompozitsiya 1998 (YACPDB 344258) — four
+   twins of one position, and the b7-pawn must promote to a different piece
+   in each. All four key lines replayed to checkmate with chess.js. */
+const AW = {
+  id: 344258,
+  diagram: 'K7/1P6/2k2B2/5Q2/8/8/8/8 w - - 0 1',
+  afterKeyA: 'KN6/8/2k2B2/5Q2/8/8/8/8 b - - 0 1',
+};
+
 export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) {
   /* The walkthrough is one long spoiler. It stays folded until asked for, so
      the diagram can be studied as a problem first. */
@@ -156,6 +204,10 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
   const [revealedBt, setRevealedBt] = useState(false);
   const [revealedZz, setRevealedZz] = useState(false);
   const [revealedMd, setRevealedMd] = useState(false);
+  const [revealedSw, setRevealedSw] = useState(false);
+  const [revealedCc, setRevealedCc] = useState(false);
+  const [revealedCm, setRevealedCm] = useState(false);
+  const [revealedAw, setRevealedAw] = useState(false);
   return (
     <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
       {/* Same skeleton as GuidePage: title on the ground, the reading matter
@@ -177,7 +229,7 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-3 mb-4">
             A theme is the idea a problem is built around. Knowing the common
             ones changes how you solve: instead of trying every move, you look
-            for the idea. Six themes so far — more are coming.
+            for the idea. Ten themes, easiest first.
           </p>
 
           <h2 className={H2}>Battery</h2>
@@ -328,8 +380,13 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           <Diagram
             fen={ZZ.afterKey}
             move={{ from: 'd2', to: 'c1' }}
+            marks={{
+              a5: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
+              b3: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
+              a3: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
+            }}
             caption={<><span className="font-extrabold text-[var(--ink)]">1.Bc1!</span>
-              <span className="mx-1.5 text-[var(--faint)]">·</span>A pure waiting move — now Black must hurt himself</>}
+              <span className="mx-1.5 text-[var(--faint)]">·</span>A pure waiting move — every square Black can move to (amber) loses</>}
           />
 
           <p className={P}>
@@ -351,6 +408,134 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
             <strong>When a twomover seems to have no good threat, stop looking
             for aggression</strong> — count Black's moves. If each one has an
             answer, the key is whichever quiet move keeps it that way.
+          </p>
+          </>}
+
+          <h2 className={`${H2} mt-8`}>Switchback</h2>
+          <div className={SUB}>A piece leaves its square — and comes back to mate from it</div>
+
+          <p className={P}>
+            A switchback is{' '}
+            <strong>a piece that leaves a square, does its work elsewhere, and
+            returns to exactly the square it started from</strong>. The return
+            is not a repetition: the position has changed in between, and the
+            second visit means something the first never could.
+          </p>
+
+          <Diagram
+            fen={SW.diagram}
+            caption={<>Miroslav Havel, Moravskoslezský deník 1922
+              <span className="mx-1.5 text-[var(--faint)]">·</span>
+              <span className="font-extrabold text-[var(--ink)]">#3</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>White to move</>}
+          />
+
+          <div className="flex justify-center gap-2 flex-wrap -mt-2 mb-5">
+            <button onClick={() => onOpenProblem(SW.id)} className="nb-btn nb-btn-key px-4 py-1.5 text-sm font-bold">
+              Try it yourself →
+            </button>
+            {!revealedSw && (
+              <button onClick={() => setRevealedSw(true)} className="nb-btn px-4 py-1.5 text-sm font-bold">
+                Show the solution
+              </button>
+            )}
+          </div>
+
+          {revealedSw && <>
+          <p className={P}>
+            The key is <span className={MOVE}>1.Bd2!</span> — the dark-squared
+            bishop steps off e1 and threatens{' '}
+            <span className={MOVE}>2.Rxh6+ Kxh6 3.Rh7#</span>. Black defends
+            with <span className={MOVE}>1...Nxh7</span>, removing a rook. Now{' '}
+            <span className={MOVE}>2.Bg4+</span> drives the king down,{' '}
+            <span className={MOVE}>2...Kh4</span> — and{' '}
+            <span className={MOVE}>3.Be1#</span>:{' '}
+            <strong>the bishop mates from e1, the very square it left on move
+            one</strong>. From e1 it hits h4 — but on move one there was no
+            king on h4 to hit. The journey out made the threat; the journey
+            home is the mate.
+          </p>
+
+          <Diagram
+            fen={SW.mateFinal}
+            move={{ from: 'd2', to: 'e1' }}
+            marks={{
+              e1: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
+              d2: { backgroundColor: 'rgba(59, 130, 246, 0.4)' },
+            }}
+            caption={<><span className="font-extrabold text-[var(--ink)]">3.Be1#</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>Out to d2 (blue), home to e1 (amber)</>}
+          />
+
+          <p className={P}>
+            Switchbacks read as wit:{' '}
+            <strong>the piece that seemed to abandon its post proves the post
+            was the point all along</strong>. When a key retreats or sidesteps
+            for no visible reason, ask whether it means to come back.
+          </p>
+          </>}
+
+          <h2 className={`${H2} mt-8`}>Cross-check</h2>
+          <div className={SUB}>Black checks — and the answer is a mating check</div>
+
+          <p className={P}>
+            A cross-check is{' '}
+            <strong>a check answered by a check</strong>: Black defends by
+            checking the white king, and White's reply deals with that check
+            and delivers one of its own — often mate on the spot. A key that
+            invites checks against its own king looks like a blunder, which is
+            exactly why composers prize the theme.
+          </p>
+
+          <Diagram
+            fen={CC.diagram}
+            caption={<>Leo Valve, Szachy 1949
+              <span className="mx-1.5 text-[var(--faint)]">·</span>
+              <span className="font-extrabold text-[var(--ink)]">#2</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>White to move</>}
+          />
+
+          <div className="flex justify-center gap-2 flex-wrap -mt-2 mb-5">
+            <button onClick={() => onOpenProblem(CC.id)} className="nb-btn nb-btn-key px-4 py-1.5 text-sm font-bold">
+              Try it yourself →
+            </button>
+            {!revealedCc && (
+              <button onClick={() => setRevealedCc(true)} className="nb-btn px-4 py-1.5 text-sm font-bold">
+                Show the solution
+              </button>
+            )}
+          </div>
+
+          {revealedCc && <>
+          <p className={P}>
+            The key <span className={MOVE}>1.Qg1!</span> threatens{' '}
+            <span className={MOVE}>2.Qg8#</span> and leaves e3 to the black
+            rook. The sharpest defence is{' '}
+            <span className={MOVE}>1...Rd3+</span> — a check to the white
+            king. The answer is <span className={MOVE}>2.Nd2#</span>:{' '}
+            <strong>one knight move blocks the rook's check, gives check
+            itself, and opens the a2-bishop's diagonal</strong> — a double
+            check, and mate.
+          </p>
+
+          <Diagram
+            fen={CC.mateFinal}
+            move={{ from: 'b3', to: 'd2' }}
+            marks={{
+              d2: { backgroundColor: 'rgba(59, 130, 246, 0.4)' },
+              a2: { backgroundColor: 'rgba(59, 130, 246, 0.4)' },
+              d3: { backgroundColor: 'rgba(110, 110, 110, 0.5)' },
+            }}
+            caption={<><span className="font-extrabold text-[var(--ink)]">1...Rd3+ 2.Nd2#</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>Knight and bishop check (blue); the rook is walled off (grey)</>}
+          />
+
+          <p className={P}>
+            A reply to a check has its hands full — it must save its own king
+            first — which makes a <em>mating</em> reply the hardest kind to
+            arrange. <strong>When a defence gives check in a problem tagged
+            cross-check, look for the interposition or discovery that turns
+            the tables in one move.</strong>
           </p>
           </>}
 
@@ -666,6 +851,138 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           />
           </>}
 
+          <h2 className={`${H2} mt-8`}>Changed mates</h2>
+          <div className={SUB}>Same defence, different mate in every phase</div>
+
+          <p className={P}>
+            A changed mate is{' '}
+            <strong>the same black defence answered by a different mate
+            depending on White's first move</strong>. A modern twomover is a
+            set of <em>phases</em> — the position before White moves (the set
+            play), the near-miss first moves (the tries), and the key — and
+            the composer arranges for the mates to change from phase to phase.
+            The solver is meant to compare worlds that never happen with the
+            one that does.
+          </p>
+
+          <Diagram
+            fen={CM.diagram}
+            caption={<>Vasyl Diachuk, StrateGems 2001
+              <span className="mx-1.5 text-[var(--faint)]">·</span>
+              <span className="font-extrabold text-[var(--ink)]">#2</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>White to move</>}
+          />
+
+          <div className="flex justify-center gap-2 flex-wrap -mt-2 mb-5">
+            <button onClick={() => onOpenProblem(CM.id)} className="nb-btn nb-btn-key px-4 py-1.5 text-sm font-bold">
+              Try it yourself →
+            </button>
+            {!revealedCm && (
+              <button onClick={() => setRevealedCm(true)} className="nb-btn px-4 py-1.5 text-sm font-bold">
+                Show the solution
+              </button>
+            )}
+          </div>
+
+          {revealedCm && <>
+          <p className={P}>
+            The natural <span className={MOVE}>1.Qg1?</span> threatens{' '}
+            <span className={MOVE}>2.Qd4#</span> and answers{' '}
+            <span className={MOVE}>1...Ke5</span> with{' '}
+            <span className={MOVE}>2.Qc5#</span> — but{' '}
+            <span className={MOVE}>1...c5!</span> refutes it. The key{' '}
+            <span className={MOVE}>1.Qg4!</span> carries the very same threat,
+            and now <strong>the same <span className={MOVE}>1...Ke5</span> is
+            mated by <span className={MOVE}>2.Qe4#</span> instead</strong>.
+          </p>
+
+          <Diagram
+            fen={CM.tryMate}
+            move={{ from: 'g1', to: 'c5' }}
+            marks={{ e5: { backgroundColor: 'rgba(255, 176, 32, 0.55)' } }}
+            caption={<><span className="font-extrabold text-[var(--ink)]">1.Qg1? Ke5 2.Qc5#</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>The mate in the try phase</>}
+          />
+
+          <Diagram
+            fen={CM.keyMate}
+            move={{ from: 'g4', to: 'e4' }}
+            marks={{ e5: { backgroundColor: 'rgba(255, 176, 32, 0.55)' } }}
+            caption={<><span className="font-extrabold text-[var(--ink)]">1.Qg4! Ke5 2.Qe4#</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>Same defence (amber), different mate</>}
+          />
+
+          <p className={P}>
+            <strong>The mate you found in the try is taken away and
+            replaced</strong> — that exchange is the problem's content. When a
+            twomover's tries look almost as good as the key, line their mates
+            up side by side; a defence with a different mate in each of three
+            phases is the celebrated <em>Zagoruiko</em> form.
+          </p>
+          </>}
+
+          <h2 className={`${H2} mt-8`}>Allumwandlung</h2>
+          <div className={SUB}>One pawn, all four promotions</div>
+
+          <p className={P}>
+            Allumwandlung — German for "total promotion", <em>AUW</em> on the
+            tags — means{' '}
+            <strong>all four promotions, queen, rook, bishop and knight,
+            appear in one problem</strong>. Usually one pawn promotes
+            differently in different variations. Here it is even purer: four
+            twin positions, and in each the same b7-pawn must choose a
+            different piece.
+          </p>
+
+          <Diagram
+            fen={AW.diagram}
+            caption={<>Vitaly Kovalenko, Shakhmatnaya kompozitsiya 1998
+              <span className="mx-1.5 text-[var(--faint)]">·</span>
+              <span className="font-extrabold text-[var(--ink)]">#2</span>, four twins
+              <span className="mx-1.5 text-[var(--faint)]">·</span>White to move</>}
+          />
+
+          <div className="flex justify-center gap-2 flex-wrap -mt-2 mb-5">
+            <button onClick={() => onOpenProblem(AW.id)} className="nb-btn nb-btn-key px-4 py-1.5 text-sm font-bold">
+              Try it yourself →
+            </button>
+            {!revealedAw && (
+              <button onClick={() => setRevealedAw(true)} className="nb-btn px-4 py-1.5 text-sm font-bold">
+                Show the solution
+              </button>
+            )}
+          </div>
+
+          {revealedAw && <>
+          <p className={P}>
+            In the diagram the key is{' '}
+            <span className={MOVE}>1.b8=N+!</span> (
+            <span className={MOVE}>1...Kb6 2.Bd8#</span>). Twin b) moves the
+            bishop to d8 — now only <span className={MOVE}>1.b8=R!</span>{' '}
+            works. Twin c) puts it on d3:{' '}
+            <span className={MOVE}>1.b8=B!</span> Twin d) shifts the queen to
+            e7: <span className={MOVE}>1.b8=Q!</span>{' '}
+            <strong>One small change to the position, and the pawn must wear a
+            different hat each time.</strong>
+          </p>
+
+          <Diagram
+            fen={AW.afterKeyA}
+            move={{ from: 'b7', to: 'b8' }}
+            caption={<><span className="font-extrabold text-[var(--ink)]">1.b8=N+!</span>
+              <span className="mx-1.5 text-[var(--faint)]">·</span>The first of the four promotions</>}
+          />
+
+          <p className={P}>
+            Underpromotion exists because{' '}
+            <strong>a queen is sometimes the wrong piece</strong> — she
+            stalemates, or she covers a square the position needs open. An AUW
+            problem manufactures a reason for every choice. When a promotion
+            is available and the queen fails, the tag is telling you the
+            composer already picked the piece for you — all four of them.
+          </p>
+          </>}
+
           <h2 className={`${H2} mt-8`}>Model mate &amp; Ideal mate</h2>
           <div className={SUB}>Economy made visible — every guard used exactly once</div>
 
@@ -710,20 +1027,15 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           <Diagram
             fen={MD.mateFinal}
             move={{ from: 'd7', to: 'd5' }}
-            marks={{
-              a4: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
-              b4: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
-              b5: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
-              a6: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
-              b6: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
-            }}
+            marks={MD_MARKS}
             caption={<><span className="font-extrabold text-[var(--ink)]">3.Rd5#</span>
-              <span className="mx-1.5 text-[var(--faint)]">·</span>Five squares around the king (amber) — five guards, each used once</>}
+              <span className="mx-1.5 text-[var(--faint)]">·</span>Each square wears the symbol of its one guard — and each guard wears the matching badge</>}
           />
 
           <p className={P}>
-            The rook checks along the rank and covers b5. The king covers a4
-            and b4. The bishop covers a6. The knight covers b6.{' '}
+            Follow the symbols: the rook checks along the rank and covers b5,
+            the king covers a4 and b4, the bishop covers a6, the knight
+            covers b6.{' '}
             <strong>Every square exactly once, every white piece pulling its
             weight</strong> — a model mate. And since Black has nothing but his
             king, it is an ideal mate too.

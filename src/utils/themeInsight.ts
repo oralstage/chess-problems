@@ -233,7 +233,7 @@ function glyphImage(idx: number): string {
 const FIELD_AMBER = 'rgba(255, 176, 32, 0.55)';
 const SELF_BLOCK: MarkStyle = { backgroundColor: 'rgba(110, 110, 110, 0.45)' };
 
-function mateMarks(a: MateEconomy): Record<string, MarkStyle> {
+export function mateMarks(a: MateEconomy): Record<string, MarkStyle> {
   const marks: Record<string, MarkStyle> = {};
   const glyphOf = new Map<string, number>();
   for (const { square, by } of a.coverage) {
