@@ -12,6 +12,8 @@ import { ProblemCard } from './components/ProblemCard';
 import { ThemeTags } from './components/ThemeTags';
 import { FeedbackPanel } from './components/FeedbackPanel';
 import { SolutionTree } from './components/SolutionTree';
+import { ThemeInsightCards } from './components/ThemeInsightCard';
+import { getThemeInsights } from './utils/themeInsight';
 import { GenreTutorial } from './components/GenreTutorial';
 // import { TermsPage } from './components/TermsPage';
 import { ProblemList } from './components/ProblemList';
@@ -64,6 +66,9 @@ function solutionTreeDepth(nodes: SolutionNode[] | undefined): number {
  *  without waiting for the genre index. Wide enough that a visitor who has
  *  solved the easiest problems in a category still gets a hit in one request. */
 const QUICK_START_PAGE_SIZE = 50;
+
+/* Flawless-solve toast praise. "Brilliant" borrows chess's own "!!". */
+const PRAISE_WORDS = ['Excellent!', 'Brilliant!', 'Perfect!', 'Well done!'];
 
 /**
  * Fix FEN for problems where the solution requires en passant but the FEN
@@ -557,25 +562,46 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.refutationText]);
 
-  /* "Solved!" the moment the problem is fully answered. Multi-solution
+  /* Toast the moment the problem is fully answered. Multi-solution
      helpmates announce intermediate finds above; the final solution flips
      status to 'correct' before that effect can fire, so this is the only
-     toast a finished solve gets. */
+     toast a finished solve gets. A flawless solve (the site's own "solved"
+     bar: no wrong move, no hint) earns real praise — random so it stays
+     alive, but never the same word twice in a row; anything less stays a
+     matter-of-fact "Solved!" so the praise keeps meaning something. */
   const prevStatusRef = useRef(problem.status);
+  const lastPraiseRef = useRef<string | null>(null);
   useEffect(() => {
     const was = prevStatusRef.current;
     prevStatusRef.current = problem.status;
     if (problem.status !== 'correct' || was === 'correct' || !problem.problem) return;
     const p = problem.problem;
     const total = problem.totalSolutions;
+    let label = 'Solved!';
+    if (problem.wrongMoveCount === 0 && !hintUsedRef.current) {
+      const pool = PRAISE_WORDS.filter(w => w !== lastPraiseRef.current);
+      label = pool[Math.floor(Math.random() * pool.length)];
+      lastPraiseRef.current = label;
+    }
     setStipulationToast({
-      label: 'Solved!',
+      label,
       sub: total > 1 ? `All ${total} solutions found!` : undefined,
       stipulation: p.stipulation, genre: p.genre, tone: 'good',
     });
     setTimeout(() => setStipulationToast(null), total > 1 ? 3500 : 2500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.status]);
+
+  /* Post-solve theme appreciation — computed on the position the solver
+     actually reached, so cards only appear when the claim verifies there. */
+  const themeInsights = useMemo(() => {
+    const p = problem.problem;
+    if (!p || (problem.status !== 'correct' && problem.status !== 'viewing')) return [];
+    const positions = problem.playback?.positions;
+    const finalFen = positions && positions.length > 1 ? positions[positions.length - 1].fen : null;
+    const keySan = p.solutionTree?.[0]?.moveSan || null;
+    return getThemeInsights(p, keySan, finalFen);
+  }, [problem.problem, problem.status, problem.playback]);
 
   const solveStats = useSolveStats(problem.problem?.id ?? null);
 
@@ -3129,6 +3155,10 @@ export default function App() {
 
               {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (
                 <ThemeTags keywords={problem.problem.keywords} />
+              )}
+
+              {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (
+                <ThemeInsightCards insights={themeInsights} />
               )}
 
               {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (
