@@ -271,14 +271,32 @@ export default function App() {
   const [showWcscPage, setShowWcscPage] = useState(false);
   const [showThemeGuide, setShowThemeGuide] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  /* Shareable URLs for the static pages — the event page, the guides and
+     What's new are overlay state, so their hash is written by hand on open
+     and put back on close. Closing restores whatever the address showed
+     before (a problem, home), so the solving URL survives a detour. */
+  const staticPrevHashRef = useRef<string>('#');
+  const openStaticPage = useCallback((route: string, open: () => void) => {
+    if (window.location.hash !== route) {
+      staticPrevHashRef.current = window.location.hash || '#';
+      history.pushState(null, '', route);
+    }
+    open();
+  }, []);
+  const closeStaticPage = useCallback((routePrefix: string, close: () => void) => {
+    close();
+    if (window.location.hash.startsWith(routePrefix)) {
+      history.pushState(null, '', staticPrevHashRef.current || '#');
+    }
+  }, []);
   /* The rules guide, and which genre's section to land on. Opened from the home
      page card with no focus, and from a "?" dialog with the genre it was showing. */
   const [guideFocus, setGuideFocus] = useState<Genre | null>(null);
   const [showGuide, setShowGuide] = useState(false);
   const openGuide = useCallback((focus?: Genre) => {
     setGuideFocus(focus ?? null);
-    setShowGuide(true);
-  }, []);
+    openStaticPage(focus ? `#/guide/${focus}` : '#/guide', () => setShowGuide(true));
+  }, [openStaticPage]);
   const [bookmarks, setBookmarks] = useLocalStorage<Record<Genre, string[]>>('cp-bookmarks', {
     direct: [], help: [], self: [], study: [], retro: [],
   });
@@ -1670,6 +1688,15 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const hash = window.location.hash;
+      // Static pages have their own routes — sync the overlays to the hash,
+      // so back/forward opens and closes them like real pages.
+      const guidePop = hash.match(/^#\/guide(?:\/(direct|help|self))?$/);
+      setShowWcscPage(hash === '#/wcsc2026');
+      setShowThemeGuide(hash === '#/themes');
+      setShowChangelog(hash === '#/whatsnew');
+      setShowGuide(!!guidePop);
+      if (guidePop) setGuideFocus((guidePop[1] as Genre) || null);
+      if (hash === '#/wcsc2026' || hash === '#/themes' || hash === '#/whatsnew' || guidePop) return;
       if (!hash || hash === '#') {
         // Back to home — same reason as goBack: clear before the next open.
         problem.clearProblem();
@@ -1787,6 +1814,17 @@ export default function App() {
     const hash = window.location.hash;
     if (hash === '#/terms') {
       setView('mode-select');
+      return;
+    }
+    // Shareable static pages: the event page, the guides, What's new.
+    if (hash === '#/wcsc2026') { setView('mode-select'); setShowWcscPage(true); return; }
+    if (hash === '#/themes') { setView('mode-select'); setShowThemeGuide(true); return; }
+    if (hash === '#/whatsnew') { setView('mode-select'); setShowChangelog(true); return; }
+    const guideHashMatch = hash.match(/^#\/guide(?:\/(direct|help|self))?$/);
+    if (guideHashMatch) {
+      setView('mode-select');
+      setGuideFocus((guideHashMatch[1] as Genre) || null);
+      setShowGuide(true);
       return;
     }
     // Rated mode hash: #/rated/{genre} or #/rated/{genre}/yacpdb/123
@@ -2593,10 +2631,10 @@ export default function App() {
                 dailyProblemRating={dailyProblemRating}
                 onSolveDaily={handleSolveDaily}
                 dailySolved={dailySolved}
-                onShowChangelog={() => setShowChangelog(true)}
+                onShowChangelog={() => openStaticPage('#/whatsnew', () => setShowChangelog(true))}
                 onShowGuide={() => openGuide()}
-                onShowWcsc={() => setShowWcscPage(true)}
-                onShowThemes={() => setShowThemeGuide(true)}
+                onShowWcsc={() => openStaticPage('#/wcsc2026', () => setShowWcscPage(true))}
+                onShowThemes={() => openStaticPage('#/themes', () => setShowThemeGuide(true))}
                 onStartRated={handleStartRated}
                 onStartReview={handleStartReview}
                 reviewDueCount={reviewQueue.dueCount}
@@ -3057,7 +3095,7 @@ export default function App() {
                 } : undefined}
                 onRandomProblem={(isDaily || isRatedMode || isReviewMode || isWcsc) ? undefined : handleRandomProblem}
                 onGoHome={isWcsc ? goBack : undefined}
-                onMoreProblems={isWcsc ? () => setShowWcscPage(true) : undefined}
+                onMoreProblems={isWcsc ? () => openStaticPage('#/wcsc2026', () => setShowWcscPage(true)) : undefined}
                 moreCategoryLabel={isWcsc ? 'Back to special page' : undefined}
                 onAnalysisBoard={problem.status === 'solving' && problem.problem
                   // Only while nothing is confirmed: at a championship the first
@@ -3346,7 +3384,7 @@ export default function App() {
       )}
 
       {showChangelog && (
-        <ChangelogPage onClose={() => setShowChangelog(false)} />
+        <ChangelogPage onClose={() => closeStaticPage('#/whatsnew', () => setShowChangelog(false))} />
       )}
 
       {showGuide && (
@@ -3359,21 +3397,21 @@ export default function App() {
           focus={guideFocus ?? undefined}
           fromTutorial={guideFocus !== null}
           onOpenCategory={cat => { setShowGuide(false); setShowTutorial(false); selectMode(cat); }}
-          onClose={() => { setShowGuide(false); setShowTutorial(false); }}
+          onClose={() => closeStaticPage('#/guide', () => { setShowGuide(false); setShowTutorial(false); })}
         />
       )}
 
       {showWcscPage && (
         <WcscPage
           onSelectProblem={id => { setShowWcscPage(false); openProblemById(id, { fromWcsc: true }); }}
-          onClose={() => setShowWcscPage(false)}
+          onClose={() => closeStaticPage('#/wcsc2026', () => setShowWcscPage(false))}
         />
       )}
 
       {showThemeGuide && (
         <ThemeGuidePage
           onOpenProblem={id => { setShowThemeGuide(false); openProblemById(id); }}
-          onClose={() => setShowThemeGuide(false)}
+          onClose={() => closeStaticPage('#/themes', () => setShowThemeGuide(false))}
         />
       )}
 

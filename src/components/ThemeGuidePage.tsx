@@ -158,17 +158,22 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
   const [revealedMd, setRevealedMd] = useState(false);
   return (
     <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
-      <div className="flex-1 flex flex-col max-w-2xl mx-auto w-full min-h-0">
-        <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--ink)] shrink-0">
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white">Themes</h2>
+      {/* Same skeleton as GuidePage: title on the ground, the reading matter
+          on a cream sheet — long text straight on the green ground was hard
+          to read. */}
+      <div className="flex-1 flex flex-col p-4 max-w-2xl mx-auto w-full min-h-0">
+        <div className="flex items-center justify-between mb-3 shrink-0">
+          <h2 className="nb-shadow-type text-2xl font-extrabold tracking-tight text-[var(--ink)]">
+            Themes
+          </h2>
           <button onClick={onClose} className="nb-disc" aria-label="Close">
-            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-10">
+        <div className="nb-sheet nb-shadow-room flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-10 sm:px-5">
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-3 mb-4">
             A theme is the idea a problem is built around. Knowing the common
             ones changes how you solve: instead of trying every move, you look
