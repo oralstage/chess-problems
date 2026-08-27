@@ -9,7 +9,7 @@ const CHANGELOG = [
       {
         title: 'New',
         items: [
-          'Theme spotlight: after you finish a problem, the classic idea inside it is explained on a marked-up diagram — model and ideal mates, zugzwang, Grimshaw, Novotny, battery, cross-check, switchback and Allumwandlung. Every card is verified on the actual position before it appears.',
+          'Theme spotlight: after you finish a problem, the classic idea inside it is explained on a marked-up diagram. Every card is verified on the actual position before it appears.',
         ],
       },
     ],
