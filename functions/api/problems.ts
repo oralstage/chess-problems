@@ -147,6 +147,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // makes a full-genre background load quadratic (~16M rows read for direct).
   // The cursor walk rides idx_genre_difficulty and reads ~pageSize rows per
   // page instead. Order matches the OFFSET path (difficulty ascending).
+  // Must stay a row-value comparison: the expanded form
+  // (ds > ? OR (ds = ? AND id > ?)) defeats the index seek with bound params
+  // (planner can't prove the two ?s are equal, falls back to genre=? scan).
   const afterScoreP = params.get('afterScore');
   const afterIdP = params.get('afterId');
   const useKeyset = afterScoreP != null && afterIdP != null
@@ -159,10 +162,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     rows = await context.env.DB.prepare(
       `SELECT id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award
        FROM problems
-       WHERE ${where} AND (difficulty_score > ? OR (difficulty_score = ? AND id > ?))
+       WHERE ${where} AND (difficulty_score, id) > (?, ?)
        ORDER BY difficulty_score ASC, id ASC
        LIMIT ?`
-    ).bind(...bindings, afterScore, afterScore, afterId, pageSize).all();
+    ).bind(...bindings, afterScore, afterId, pageSize).all();
   } else {
     const offset = page * pageSize;
     const nullHandling = sortBy === 'source_year' ? 'NULLS LAST' : '';
