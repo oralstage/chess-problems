@@ -379,6 +379,10 @@ interface CrossCheckHit {
       squares of their checking lines. */
   counterCheckers: { square: string; type: string; line: string[] }[];
   checkedKing: string;
+  /** When the reply interposes: the silenced checker and its ray up to (not
+      past) the blocker — painting through to the king would hide the fact
+      that the block is what stops it. */
+  blocked: { checker: string; line: string[] } | null;
 }
 
 interface TreeScan {
@@ -474,6 +478,19 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
           const checkedSide = replyChess.turn();
           const kingSq = findKing(replyChess, checkedSide);
           if (!kingSq) continue;
+          // Did the reply interpose on the first check's line?
+          const kingBefore = findKing(chess, chess.turn());
+          const replyTo = (ch.moveUci || '').slice(2, 4);
+          let blocked: { checker: string; line: string[] } | null = null;
+          if (kingBefore) {
+            for (const fc of chess.attackers(kingBefore as Square, node.color)) {
+              if (betweenSquares(fc, kingBefore).includes(replyTo)
+                && replyChess.get(fc as Square)?.color === node.color) {
+                blocked = { checker: fc, line: [fc, ...betweenSquares(fc, replyTo)] };
+                break;
+              }
+            }
+          }
           const counterCheckers = replyChess
             .attackers(kingSq as Square, checkedSide === 'w' ? 'b' : 'w')
             .map(sq => ({
@@ -486,9 +503,10 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
             firstSan: sanWithSuffix(node.moveSan, chess),
             replySan: sanWithSuffix(ch.moveSan, replyChess),
             replyFrom: (ch.moveUci || '').slice(0, 2),
-            replyTo: (ch.moveUci || '').slice(2, 4),
+            replyTo,
             counterCheckers,
             checkedKing: kingSq,
+            blocked,
           };
           break;
         }
@@ -821,19 +839,29 @@ export function getThemeInsights(
     const cc = scan.crossCheck;
     const checkedSide = cc.fen.split(' ')[1] === 'w' ? 'White' : 'Black';
     const marks: Record<string, MarkStyle> = {};
+    // Grey first, so the live check's colours win any overlap.
+    if (cc.blocked) for (const s of cc.blocked.line) marks[s] = { ...SELF_BLOCK };
     for (const c of cc.counterCheckers) {
       for (const s of c.line) marks[s] = { ...AMBER };
       marks[c.square] = { ...BLUE };
     }
-    const discovered = cc.counterCheckers.some(c => c.square !== cc.replyTo);
+    const others = cc.counterCheckers.filter(c => c.square !== cc.replyTo);
+    const moverChecks = cc.counterCheckers.some(c => c.square === cc.replyTo);
     const names = cc.counterCheckers.map(c => PIECE_NAME[c.type] || 'piece').join(' and ');
+    const otherNames = others.map(c => PIECE_NAME[c.type] || 'piece').join(' and ');
+    const mechanism = others.length === 0
+      ? `the ${names} (blue) itself now checks the ${checkedSide} king. `
+      : moverChecks
+        ? `the move gives check itself and opens the ${otherNames}'s line — both (blue) hit the `
+          + `${checkedSide} king along the amber squares. `
+        : `the move steps aside and the ${names} (blue) now check${others.length > 1 ? '' : 's'} `
+          + `the ${checkedSide} king along the amber squares. `;
     out.push({
       theme: 'Cross-check',
       title: 'Cross-check',
       text: `${cc.firstSan} is a check — but ${cc.replySan} answers it with a counter-check: `
-        + (discovered
-          ? `the move steps aside and the ${names} (blue) now checks the ${checkedSide} king along the amber squares. `
-          : `the ${names} (blue) itself now checks the ${checkedSide} king. `)
+        + mechanism
+        + (cc.blocked ? `The old check (grey) stops dead at the blocker. ` : '')
         + `Meeting check with check, the original attack loses its sting.`,
       fen: cc.fen,
       marks,
