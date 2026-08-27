@@ -692,6 +692,12 @@ body {
 .animate-stipulation-toast {
   animation: stipulation-toast 2.5s ease-in-out forwards;
 }
+/* Two-line toasts (solution found, thematic try) are held longer in JS —
+   without a matching duration the fixed 2.5s fade left them invisible for
+   their last second on screen. Percent keyframes stretch with the duration. */
+.animate-stipulation-toast-slow {
+  animation: stipulation-toast 3.5s ease-in-out forwards;
+}
 
 /* Print diagram modes (printer icon in Header), grouped by target device.
 

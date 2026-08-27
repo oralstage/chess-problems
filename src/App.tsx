@@ -330,7 +330,7 @@ export default function App() {
   const [reviewProblemQueue, setReviewProblemQueue] = useState<number[]>([]);
   const [reviewQueueIndex, setReviewQueueIndex] = useState(0);
   const [reviewNextInterval, setReviewNextInterval] = useState<number | null>(null);
-  const [stipulationToast, setStipulationToast] = useState<{ label: string; sub?: string; stipulation: string; genre: Genre } | null>(null);
+  const [stipulationToast, setStipulationToast] = useState<{ label: string; sub?: string; stipulation: string; genre: Genre; tone?: 'good' | 'bad' } | null>(null);
   const [fetchErrorToast, setFetchErrorToast] = useState<string | null>(null);
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
   /* In Rated Mode the twin buttons stay down until the problem is over.
@@ -533,6 +533,49 @@ export default function App() {
     prevFoundRef.current = found;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.foundSolutionCount, problem.status]);
+
+  /* Thematic-try toast. refutationText appears at the exact moment the
+     refutation move is played on the board (its only producer is
+     flashTryRefutation), so the sequence reads: your move, the refutation
+     lands, a beat, then the toast names what just happened. The persistent
+     line under the board keeps the text after the toast is gone. */
+  useEffect(() => {
+    const text = problem.refutationText;
+    if (!text || !problem.problem) return;
+    const p = problem.problem;
+    // "Thematic try! 1.Qh1? is refuted by 1...e4!" — label / sub split
+    const prefix = 'Thematic try! ';
+    const sub = text.startsWith(prefix) ? text.slice(prefix.length) : text;
+    const timer = setTimeout(() => {
+      setStipulationToast({
+        label: 'Thematic try!', sub,
+        stipulation: p.stipulation, genre: p.genre, tone: 'bad',
+      });
+      setTimeout(() => setStipulationToast(null), 3500);
+    }, 700);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem.refutationText]);
+
+  /* "Solved!" the moment the problem is fully answered. Multi-solution
+     helpmates announce intermediate finds above; the final solution flips
+     status to 'correct' before that effect can fire, so this is the only
+     toast a finished solve gets. */
+  const prevStatusRef = useRef(problem.status);
+  useEffect(() => {
+    const was = prevStatusRef.current;
+    prevStatusRef.current = problem.status;
+    if (problem.status !== 'correct' || was === 'correct' || !problem.problem) return;
+    const p = problem.problem;
+    const total = problem.totalSolutions;
+    setStipulationToast({
+      label: 'Solved!',
+      sub: total > 1 ? `All ${total} solutions found!` : undefined,
+      stipulation: p.stipulation, genre: p.genre, tone: 'good',
+    });
+    setTimeout(() => setStipulationToast(null), total > 1 ? 3500 : 2500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem.status]);
 
   const solveStats = useSolveStats(problem.problem?.id ?? null);
 
@@ -2593,11 +2636,16 @@ export default function App() {
                       ink type on the colour — rather than the white-on-flat-fill
                       pill it used to be, which belonged to the old look. */}
                   <div
-                    className={`text-[var(--ink)] text-3xl font-extrabold px-8 py-4 border-4 border-[var(--ink)] rounded-[var(--radius-nb)] shadow-[var(--hard)] animate-stipulation-toast ${getStipulationToastClasses(stipulationToast.stipulation, stipulationToast.genre)}`}
+                    className={`text-[var(--ink)] text-3xl font-extrabold px-8 py-4 border-4 border-[var(--ink)] rounded-[var(--radius-nb)] shadow-[var(--hard)] ${stipulationToast.sub ? 'animate-stipulation-toast-slow' : 'animate-stipulation-toast'} max-w-[92vw] text-center ${
+                      stipulationToast.tone === 'good' ? 'bg-[var(--ok-bg)]'
+                        : stipulationToast.tone === 'bad' ? 'bg-[var(--bad-bg)]'
+                          : getStipulationToastClasses(stipulationToast.stipulation, stipulationToast.genre)}`}
                   >
                     {stipulationToast.label}
                     {stipulationToast.sub && (
-                      <div className="mt-1">{stipulationToast.sub}</div>
+                      // The try toast's sub is a whole refutation line — at the
+                      // label's size it runs off phone screens.
+                      <div className={stipulationToast.tone === 'bad' ? 'mt-1 text-xl' : 'mt-1'}>{stipulationToast.sub}</div>
                     )}
                   </div>
                 </div>
@@ -3374,7 +3422,10 @@ export default function App() {
                     <span className="text-[var(--acid)] dark:text-[var(--acid)]">{p.award}</span>
                   </div>
                 )}
-                {p.keywords.length > 0 && (
+                {/* Theme names ("Zugzwang", "Grimshaw"…) all but name the key
+                    idea, so like ProblemCard they stay hidden until the solve
+                    is decided — in every mode, rated or not. */}
+                {p.keywords.length > 0 && problem.status !== 'solving' && (
                   <div>
                     <span className="text-[var(--faint)] font-semibold block mb-1">Themes:</span>
                     <div className="flex flex-wrap gap-1">
