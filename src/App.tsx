@@ -335,7 +335,7 @@ export default function App() {
   const [reviewProblemQueue, setReviewProblemQueue] = useState<number[]>([]);
   const [reviewQueueIndex, setReviewQueueIndex] = useState(0);
   const [reviewNextInterval, setReviewNextInterval] = useState<number | null>(null);
-  const [stipulationToast, setStipulationToast] = useState<{ label: string; sub?: string; stipulation: string; genre: Genre; tone?: 'good' | 'bad' } | null>(null);
+  const [stipulationToast, setStipulationToast] = useState<{ label: string; sub?: string; stipulation: string; genre: Genre; tone?: 'good' | 'bad'; subSmall?: boolean } | null>(null);
   const [fetchErrorToast, setFetchErrorToast] = useState<string | null>(null);
   const [activeTwinId, setActiveTwinId] = useState<string | null>(null);
   /* In Rated Mode the twin buttons stay down until the problem is over.
@@ -553,7 +553,7 @@ export default function App() {
     const sub = text.startsWith(prefix) ? text.slice(prefix.length) : text;
     const timer = setTimeout(() => {
       setStipulationToast({
-        label: 'Thematic try!', sub,
+        label: 'Thematic try!', sub, subSmall: true,
         stipulation: p.stipulation, genre: p.genre, tone: 'bad',
       });
       setTimeout(() => setStipulationToast(null), 3500);
@@ -583,9 +583,13 @@ export default function App() {
       label = pool[Math.floor(Math.random() * pool.length)];
       lastPraiseRef.current = label;
     }
+    // The spotlight cards live below the fold, especially on phones — the
+    // toast's second line is the one moment everyone looks at the screen.
+    const spotlightNote = themeInsights.length > 0 ? 'Theme spotlight below ↓' : undefined;
     setStipulationToast({
       label,
-      sub: total > 1 ? `All ${total} solutions found!` : undefined,
+      sub: total > 1 ? `All ${total} solutions found!` : spotlightNote,
+      subSmall: total <= 1 && !!spotlightNote,
       stipulation: p.stipulation, genre: p.genre, tone: 'good',
     });
     setTimeout(() => setStipulationToast(null), total > 1 ? 3500 : 2500);
@@ -2666,9 +2670,9 @@ export default function App() {
                   >
                     {stipulationToast.label}
                     {stipulationToast.sub && (
-                      // The try toast's sub is a whole refutation line — at the
-                      // label's size it runs off phone screens.
-                      <div className={stipulationToast.tone === 'bad' ? 'mt-1 text-xl' : 'mt-1'}>{stipulationToast.sub}</div>
+                      // Long sub lines (refutations, notices) at the label's
+                      // size would run off phone screens.
+                      <div className={stipulationToast.subSmall ? 'mt-1 text-xl' : 'mt-1'}>{stipulationToast.sub}</div>
                     )}
                   </div>
                 </div>

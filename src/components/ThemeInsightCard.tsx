@@ -101,17 +101,36 @@ export function ThemeInsightCards({ insights }: { insights: ThemeInsight[] }) {
   return (
     <>
       {insights.map(ins => (
-        <div key={ins.theme} className="nb-plate nb-shadow-room p-3 space-y-2">
-          <div className="text-xs font-extrabold tracking-widest uppercase text-[var(--muted)]">
+        /* Open by default, but collapsible — the solution and its variations
+           live below these cards, and a long spotlight should not force a
+           scroll marathon on someone heading for the tries. */
+        <details key={ins.theme} open className="nb-plate nb-shadow-room p-3">
+          <summary className="text-xs font-extrabold tracking-widest uppercase text-[var(--muted)] cursor-pointer select-none">
             Theme spotlight · {ins.title}
+          </summary>
+          <div className="space-y-2 mt-2">
+            <p className="text-sm leading-relaxed text-[var(--ink)]">{ins.text}</p>
+            {ins.fen && !ins.boards && (
+              <div className="mx-auto w-full max-w-[260px] pt-1">
+                <MiniBoard fen={ins.fen} marks={ins.marks} arrows={ins.arrows} />
+              </div>
+            )}
+            {ins.boards && (
+              <div className="grid grid-cols-1 min-[480px]:grid-cols-2 gap-3 pt-1">
+                {ins.boards.map(b => (
+                  <figure key={b.caption} className="mx-auto w-full max-w-[240px]">
+                    <MiniBoard fen={b.fen} marks={b.marks} />
+                    {/* Clear the board's hard shadow (offset below the card)
+                        before the caption starts. */}
+                    <figcaption className="mt-3 text-center text-[11px] font-semibold leading-snug text-[var(--muted)]">
+                      {b.caption}
+                    </figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
           </div>
-          <p className="text-sm leading-relaxed text-[var(--ink)]">{ins.text}</p>
-          {ins.fen && (
-            <div className="mx-auto w-full max-w-[260px] pt-1">
-              <MiniBoard fen={ins.fen} marks={ins.marks} arrows={ins.arrows} />
-            </div>
-          )}
-        </div>
+        </details>
       ))}
     </>
   );

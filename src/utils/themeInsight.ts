@@ -26,6 +26,8 @@ export interface ThemeInsight {
   marks?: Record<string, MarkStyle>;
   /** Move arrows drawn over the mini board (from-square → to-square). */
   arrows?: { from: string; to: string }[];
+  /** Several captioned boards instead of the single `fen` (changed mates). */
+  boards?: { fen: string; marks?: Record<string, MarkStyle>; caption: string }[];
 }
 
 /** One step of the line the solver saw — App passes playback positions. */
@@ -83,6 +85,14 @@ function findKing(chess: Chess, color: 'w' | 'b'): string | null {
 
 function safeChess(fen: string): Chess | null {
   try { return new Chess(fen); } catch { return null; }
+}
+
+/** The same position with the other side to move (en-passant cleared). */
+function withTurn(fen: string, turn: 'w' | 'b'): string {
+  const parts = fen.split(' ');
+  parts[1] = turn;
+  parts[3] = '-';
+  return parts.join(' ');
 }
 
 /** Play one solution node on a clone; null when the node has no playable UCI. */
@@ -375,6 +385,18 @@ interface TreeScan {
   novotny: CrossingHit | null;
   grimshaw: CrossingHit | null;
   crossCheck: CrossCheckHit | null;
+  selfblock: { square: string; defSan: string; mateSan: string; fen: string } | null;
+  pinMate: {
+    fen: string;
+    pinned: string;
+    pinnedType: string;
+    pinner: string;
+    pinnerType: string;
+    checkerType: string;
+    line: string[];
+    defends: 'capture' | 'block';
+    selfPin: boolean;
+  } | null;
 }
 
 /** SAN with a check/mate suffix computed from the replayed position — the
@@ -394,11 +416,11 @@ function sanWithSuffix(san: string, chessAfter: Chess): string {
  * skipped (their positions miss the opponent's move).
  */
 function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
-  const result: TreeScan = { novotny: null, grimshaw: null, crossCheck: null };
+  const result: TreeScan = { novotny: null, grimshaw: null, crossCheck: null, selfblock: null, pinMate: null };
   const base = safeChess(initialFen);
   if (!base) return result;
 
-  const visit = (fen: string, node: SolutionNode, depth: number) => {
+  const visit = (fen: string, node: SolutionNode, depth: number, prev: SolutionNode | null) => {
     if (depth > 12 || node.isThreat) return;
     const chess = safeChess(fen);
     if (!chess || !execNode(chess, node)) return;
@@ -473,10 +495,78 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
       }
     }
 
-    for (const ch of node.children) visit(afterFen, ch, depth + 1);
+    // Mate positions carry two more verifiable stories.
+    if (chess.isCheckmate()) {
+      const mated = chess.turn();
+      const att = mated === 'w' ? 'b' : 'w';
+      const kingSq = findKing(chess, mated);
+
+      // Self-block: the defence just filled the king's own flight square, and
+      // the mate stands only because of it (lift the blocker → no mate).
+      if (!result.selfblock && kingSq && prev && prev.color === mated) {
+        const s = (prev.moveUci || '').slice(2, 4);
+        const blocker = /^[a-h][1-8]$/.test(s) ? chess.get(s as Square) : null;
+        if (blocker && blocker.color === mated && blocker.type !== 'k'
+          && adjacentSquares(kingSq).includes(s)) {
+          const lifted = new Chess(afterFen);
+          lifted.remove(s as Square);
+          let escapes = false;
+          try { escapes = !lifted.isCheckmate(); } catch { escapes = false; }
+          if (escapes) {
+            result.selfblock = {
+              square: s,
+              defSan: prev.moveSan,
+              mateSan: node.moveSan.replace(/[+#]+$/, '') + '#',
+              fen: afterFen,
+            };
+          }
+        }
+      }
+
+      // Pin mate: a defender that could capture the checker or block the
+      // check, held in place by a pin.
+      if (!result.pinMate && kingSq) {
+        const checkers = chess.attackers(kingSq as Square, att);
+        if (checkers.length === 1) {
+          const cSq = checkers[0];
+          const between = betweenSquares(cSq, kingSq);
+          const defenders: { square: string; type: string }[] = [];
+          for (const row of chess.board()) {
+            for (const cell of row) {
+              if (cell && cell.color === mated && cell.type !== 'k') defenders.push({ square: cell.square, type: cell.type });
+            }
+          }
+          for (const d of defenders) {
+            const canCapture = chess.attackers(cSq as Square, mated).includes(d.square as Square);
+            const canBlock = between.some(b => chess.attackers(b as Square, mated).includes(d.square as Square));
+            if (!canCapture && !canBlock) continue;
+            const lifted = new Chess(afterFen);
+            lifted.remove(d.square as Square);
+            const pinner = lifted.attackers(kingSq as Square, att)
+              .find(a => !checkers.includes(a) && betweenSquares(a, kingSq).includes(d.square));
+            if (pinner) {
+              result.pinMate = {
+                fen: afterFen,
+                pinned: d.square,
+                pinnedType: d.type,
+                pinner,
+                pinnerType: chess.get(pinner as Square)?.type || '',
+                checkerType: chess.get(cSq as Square)?.type || '',
+                line: betweenSquares(pinner, kingSq),
+                defends: canCapture ? 'capture' : 'block',
+                selfPin: !!prev && prev.color === mated && (prev.moveUci || '').slice(2, 4) === d.square,
+              };
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    for (const ch of node.children) visit(afterFen, ch, depth + 1, node);
   };
 
-  for (const root of roots) visit(initialFen, root, 0);
+  for (const root of roots) visit(initialFen, root, 0, null);
   return result;
 }
 
@@ -531,10 +621,156 @@ function detectAuw(roots: SolutionNode[], initialFen: string | null): ThemeInsig
   };
 }
 
+/* ── Flight-giving keys ─────────────────────────────────────────────────── */
+
+/**
+ * Compare the defending king's legal moves before and after the key. The
+ * keyword's claim (gives one, gives two, gives and takes) is checked against
+ * the computed sets before anything is said.
+ */
+function detectFlightKey(
+  initialFen: string,
+  roots: SolutionNode[],
+  has: (...names: string[]) => boolean,
+): ThemeInsight | null {
+  const key = roots[0];
+  if (!key) return null;
+  const attacker = key.color;
+  const defender = attacker === 'w' ? 'b' : 'w';
+  const before = safeChess(withTurn(initialFen, defender));
+  if (!before || before.isCheck()) return null;
+  const after = safeChess(initialFen);
+  if (!after || !execNode(after, key) || after.isCheck()) return null;
+  const kingMoves = (c: Chess) => new Set(
+    c.moves({ verbose: true }).filter(m => m.piece === 'k' && m.color === defender).map(m => m.to));
+  const given = [...kingMoves(after)].filter(s => !kingMoves(before).has(s));
+  const taken = [...kingMoves(before)].filter(s => !kingMoves(after).has(s));
+  const marks: Record<string, MarkStyle> = {};
+  for (const s of given) marks[s] = { backgroundColor: FIELD_AMBER };
+  const keySan = key.moveSan;
+  const side = defender === 'w' ? 'White' : 'Black';
+  const intro = `An ordinary key tightens the net around the king — this one does the opposite `
+    + `and wins anyway. `;
+  const outro = ` A key that offers the king freedom is far harder to find than one that takes it.`;
+  let text: string | null = null;
+  if (has('Flight giving and taking key') && given.length >= 1 && taken.length >= 1) {
+    for (const s of taken) marks[s] = { ...SELF_BLOCK };
+    text = intro + `${keySan}! opens a new door for the ${side} king (amber) while closing another (grey) — `
+      + `the net shifts rather than tightens.` + outro;
+  } else if (has('2 flights giving key') && given.length >= 2) {
+    text = intro + `${keySan}! hands the ${side} king two new escape squares (amber) and still mates.` + outro;
+  } else if (has('Flight giving key') && given.length >= 1) {
+    text = intro + `${keySan}! hands the ${side} king `
+      + `${given.length > 1 ? given.length + ' new escape squares' : 'a new escape square'} (amber) `
+      + `and still mates.` + outro;
+  }
+  if (!text) return null;
+  return { theme: 'Flight-giving key', title: 'Flight-giving key', text, fen: after.fen(), marks };
+}
+
+/* ── Changed mates (phase comparison) ───────────────────────────────────── */
+
+/**
+ * Compare set play, tries and the key phase: the same defence answered by a
+ * different mate. Every quoted defence→mate pair is replayed to a verified
+ * checkmate first, which also confines the card to positions where the mate
+ * follows the defence immediately (so the "2." in the text is honest).
+ */
+function detectChangedMates(
+  initialFen: string,
+  fullRoots: SolutionNode[],
+  keyRoot: SolutionNode,
+  zagoruikoTagged: boolean,
+): ThemeInsight | null {
+  const attacker = keyRoot.color;
+  const defender = attacker === 'w' ? 'b' : 'w';
+  interface Phase { label: string; short: string; pre: SolutionNode | null; defs: SolutionNode[] }
+  const phases: Phase[] = [];
+  const setDefs = fullRoots.filter(n => n.color === defender && !n.isTry && !n.isThreat);
+  if (setDefs.length > 0) phases.push({ label: 'in the set play', short: 'set play', pre: null, defs: setDefs });
+  for (const t of fullRoots.filter(n => n.isTry && n.color === attacker)) {
+    phases.push({
+      label: `after the try ${t.moveSan}?`, short: `after ${t.moveSan}?`, pre: t,
+      defs: t.children.filter(c => c.color === defender && !c.isThreat),
+    });
+  }
+  phases.push({
+    label: `after the key ${keyRoot.moveSan}!`, short: `after ${keyRoot.moveSan}!`, pre: keyRoot,
+    defs: keyRoot.children.filter(c => c.color === defender && !c.isThreat),
+  });
+
+  interface MateRec { defSan: string; defTo: string; mateSan: string; mateTo: string; fen: string }
+  const maps = phases.map(ph => {
+    const mates = new Map<string, MateRec>();
+    for (const d of ph.defs) {
+      const mate = d.children.find(c => c.color === attacker);
+      if (!mate) continue;
+      const c = safeChess(ph.pre ? initialFen : withTurn(initialFen, defender));
+      if (!c) continue;
+      if (ph.pre && !execNode(c, ph.pre)) continue;
+      if (!execNode(c, d) || !execNode(c, mate) || !c.isCheckmate()) continue;
+      mates.set(d.moveUci || d.moveSan, {
+        defSan: d.moveSan,
+        defTo: (d.moveUci || '').slice(2, 4),
+        mateSan: mate.moveSan.replace(/[+#]+$/, '') + '#',
+        mateTo: (mate.moveUci || '').slice(2, 4),
+        fen: c.fen(),
+      });
+    }
+    return { label: ph.label, short: ph.short, mates };
+  }).filter(ph => ph.mates.size > 0);
+  if (maps.length < 2) return null;
+
+  const keyPhase = maps[maps.length - 1];
+  interface Change { old: MateRec; oldLabel: string; oldShort: string; now: MateRec; distinct: Set<string> }
+  const changes: Change[] = [];
+  for (const [uci, cur] of keyPhase.mates) {
+    const distinct = new Set([cur.mateSan]);
+    let first: { rec: MateRec; label: string; short: string } | null = null;
+    for (const other of maps.slice(0, -1)) {
+      const prev = other.mates.get(uci);
+      if (prev && prev.mateSan !== cur.mateSan) {
+        distinct.add(prev.mateSan);
+        if (!first) first = { rec: prev, label: other.label, short: other.short };
+      }
+    }
+    if (first) changes.push({ old: first.rec, oldLabel: first.label, oldShort: first.short, now: cur, distinct });
+  }
+  if (changes.length === 0) return null;
+
+  const examples = changes.slice(0, 2)
+    .map(c => `1...${c.now.defSan} was met by 2.${c.old.mateSan} ${c.oldLabel}, but ${keyPhase.label} it is 2.${c.now.mateSan}`)
+    .join('; ');
+  const threePhase = changes.some(c => c.distinct.size >= 3);
+  // The picture: the same defence in both phases, one mate on each board.
+  const ex = changes[0];
+  const boardMarks = (rec: MateRec): Record<string, MarkStyle> => {
+    const m: Record<string, MarkStyle> = {};
+    if (/^[a-h][1-8]$/.test(rec.defTo)) m[rec.defTo] = { backgroundColor: FIELD_AMBER };
+    if (/^[a-h][1-8]$/.test(rec.mateTo)) m[rec.mateTo] = { ...BLUE };
+    return m;
+  };
+  return {
+    theme: 'Changed mates',
+    title: 'Changed mates',
+    text: `The mates change between phases — the mark of the modern two-mover: ${examples}. `
+      + `${changes.length === 1 ? 'One defence gets' : changes.length + ' defences get'} a new mate after the key`
+      + `${threePhase && zagoruikoTagged ? ' — and one changes across three phases, the Zagoruiko form' : ''}. `
+      + `Below, the same defence (amber) on both boards — and the two different mates (blue).`,
+    boards: [
+      { fen: ex.old.fen, marks: boardMarks(ex.old), caption: `${ex.oldShort} — 1...${ex.old.defSan} 2.${ex.old.mateSan}` },
+      { fen: ex.now.fen, marks: boardMarks(ex.now), caption: `${keyPhase.short} — 1...${ex.now.defSan} 2.${ex.now.mateSan}` },
+    ],
+  };
+}
+
 /* ── Assembly ───────────────────────────────────────────────────────────── */
 
+/** More than three cards stops being a spotlight; order below is priority. */
+const MAX_CARDS = 3;
+
 export function getThemeInsights(
-  p: { keywords?: string[]; solutionText?: string; genre: string; solutionTree?: SolutionNode[] },
+  p: { keywords?: string[]; solutionText?: string; genre: string; solutionTree?: SolutionNode[]; fullSolutionTree?: SolutionNode[] },
   initialFen: string | null,
   positions: LinePosition[] | null,
 ): ThemeInsight[] {
@@ -546,10 +782,11 @@ export function getThemeInsights(
   const finalFen = line ? line[line.length - 1].fen : null;
 
   // Crossing squares first — the sharper Novotny suppresses Grimshaw.
-  const wantsTreeScan = has('Novotny', 'Grimshaw', 'Cross-check', 'Cross-checks');
-  const scan = wantsTreeScan && initialFen && roots.length > 0
+  const wantsTreeScan = has('Novotny', 'Grimshaw', 'Cross-check', 'Cross-checks',
+    'Selfblock', 'Pin mate', 'Pin mates', 'Selfpinning', 'Half-pin');
+  const scan: TreeScan = wantsTreeScan && initialFen && roots.length > 0
     ? findCrossings(initialFen, roots)
-    : { novotny: null, grimshaw: null, crossCheck: null };
+    : { novotny: null, grimshaw: null, crossCheck: null, selfblock: null, pinMate: null };
   if (has('Novotny', 'Grimshaw')) {
     const { novotny, grimshaw } = scan;
     if (has('Novotny') && novotny) {
@@ -692,16 +929,61 @@ export function getThemeInsights(
     out.push({
       theme: 'Zugzwang',
       title: 'Zugzwang',
-      text: `The key ${keySan}! is a waiting move: it threatens nothing, and if Black could pass, `
-        + `White would have no mate at all. But chess has no pass — Black must move, and `
+      text: `The key ${keySan}! threatens nothing — if Black could pass, White would have no mate at all. `
+        + `But chess has no pass: Black must move, and `
         + (zzFen
           ? `every square a Black man can move to (amber — all ${zzCount} moves) walks straight into mate. `
           : `every move breaks something in the defence. `)
-        + `The obligation to move is the whole weapon — that is zugzwang.`,
+        + `A key like this is called a waiting move, and the trap it sets — lost only by the duty `
+        + `to move — is zugzwang.`,
       fen: zzFen,
       marks: zzMarks,
     });
   }
 
-  return out;
+  if (has('Changed mates', 'Mutate', 'Zagoruiko') && initialFen && roots[0]) {
+    const card = detectChangedMates(initialFen, p.fullSolutionTree || [], roots[0], has('Zagoruiko'));
+    if (card) out.push(card);
+  }
+
+  if (has('Flight giving key', '2 flights giving key', 'Flight giving and taking key')
+    && initialFen && roots.length > 0) {
+    const card = detectFlightKey(initialFen, roots, has);
+    if (card) out.push(card);
+  }
+
+  if (has('Selfblock') && scan.selfblock) {
+    const sb = scan.selfblock;
+    out.push({
+      theme: 'Self-block',
+      title: 'Self-block',
+      text: `${sb.defSan} looks like a defence — but it parks a Black man on ${sb.square} (amber), `
+        + `the king's own flight square. ${sb.mateSan} works only because of that self-block: `
+        + `lift the blocker off ${sb.square} and the king walks out through it.`,
+      fen: sb.fen,
+      marks: { [sb.square]: { backgroundColor: FIELD_AMBER } },
+    });
+  }
+
+  if (has('Pin mate', 'Pin mates', 'Selfpinning', 'Half-pin') && scan.pinMate) {
+    const pm = scan.pinMate;
+    const marks: Record<string, MarkStyle> = {};
+    for (const s of pm.line) marks[s] = { backgroundColor: FIELD_AMBER };
+    marks[pm.pinner] = { ...BLUE };
+    out.push({
+      theme: 'Pin mate',
+      title: 'Pin mate',
+      text: `The ${PIECE_NAME[pm.pinnedType] || 'piece'} could `
+        + (pm.defends === 'capture'
+          ? `simply take the mating ${PIECE_NAME[pm.checkerType] || 'piece'}`
+          : 'block the check')
+        + ` — but it cannot move: the ${PIECE_NAME[pm.pinnerType] || 'piece'} (blue) pins it to the king `
+        + `along the amber line${pm.selfPin ? ' — a pin Black walked into with the defence itself' : ''}. `
+        + `The mate stands only because of the pin.`,
+      fen: pm.fen,
+      marks,
+    });
+  }
+
+  return out.slice(0, MAX_CARDS);
 }
