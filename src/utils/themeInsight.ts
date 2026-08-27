@@ -98,15 +98,15 @@ function withTurn(fen: string, turn: 'w' | 'b'): string {
 }
 
 /** Play one solution node on a clone; null when the node has no playable UCI. */
-function execNode(chess: Chess, node: SolutionNode): boolean {
+function execNode(chess: Chess, node: SolutionNode): { from: string; to: string } | null {
   const uci = node.moveUci || '';
   try {
-    if (uci.startsWith('san:')) return !!chess.move(uci.slice(4));
+    if (uci.startsWith('san:')) return chess.move(uci.slice(4));
     if (/^[a-h][1-8][a-h][1-8][qrbn]?$/.test(uci)) {
-      return !!chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || undefined });
+      return chess.move({ from: uci.slice(0, 2), to: uci.slice(2, 4), promotion: uci[4] || undefined });
     }
-  } catch { return false; }
-  return false;
+  } catch { return null; }
+  return null;
 }
 
 /* ── Model / Ideal mate ──────────────────────────────────────────────── */
@@ -434,13 +434,17 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
   const base = safeChess(initialFen);
   if (!base) return result;
 
-  const visit = (fen: string, node: SolutionNode, depth: number, prev: SolutionNode | null) => {
+  const visit = (fen: string, node: SolutionNode, depth: number, prev: SolutionNode | null, prevTo: string | null) => {
     if (depth > 12 || node.isThreat) return;
     const chess = safeChess(fen);
-    if (!chess || !execNode(chess, node)) return;
+    if (!chess) return;
+    const nodeMv = execNode(chess, node);
+    if (!nodeMv) return;
     const afterFen = chess.fen();
 
-    const to = (node.moveUci || '').slice(2, 4);
+    // Squares from the replayed move — moveUci is empty of coordinates when
+    // the source solution was recorded in short notation.
+    const to = nodeMv.to;
     const replies = node.children.filter(ch => ch.color !== node.color && !ch.isThreat
       && /^[a-h][1-8][a-h][1-8]/.test(ch.moveUci || ''));
 
@@ -483,14 +487,16 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
       for (const ch of node.children) {
         if (ch.color === node.color || ch.isThreat) continue;
         const replyChess = safeChess(afterFen);
-        if (!replyChess || !execNode(replyChess, ch)) continue;
+        if (!replyChess) continue;
+        const replyMv = execNode(replyChess, ch);
+        if (!replyMv) continue;
         if (replyChess.isCheck()) {
           const checkedSide = replyChess.turn();
           const kingSq = findKing(replyChess, checkedSide);
           if (!kingSq) continue;
           // Did the reply interpose on the first check's line?
           const kingBefore = findKing(chess, chess.turn());
-          const replyTo = (ch.moveUci || '').slice(2, 4);
+          const replyTo = replyMv.to;
           let blocked: { checker: string; checkerType: string } | null = null;
           if (kingBefore) {
             for (const fc of chess.attackers(kingBefore as Square, node.color)) {
@@ -529,9 +535,9 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
 
       // Self-block: the defence just filled the king's own flight square, and
       // the mate stands only because of it (lift the blocker → no mate).
-      if (!result.selfblock && kingSq && prev && prev.color === mated) {
-        const s = (prev.moveUci || '').slice(2, 4);
-        const blocker = /^[a-h][1-8]$/.test(s) ? chess.get(s as Square) : null;
+      if (!result.selfblock && kingSq && prev && prev.color === mated && prevTo) {
+        const s = prevTo;
+        const blocker = chess.get(s as Square) || null;
         if (blocker && blocker.color === mated && blocker.type !== 'k'
           && adjacentSquares(kingSq).includes(s)) {
           const lifted = new Chess(afterFen);
@@ -580,7 +586,7 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
                 checkerType: chess.get(cSq as Square)?.type || '',
                 line: betweenSquares(pinner, kingSq),
                 defends: canCapture ? 'capture' : 'block',
-                selfPin: !!prev && prev.color === mated && (prev.moveUci || '').slice(2, 4) === d.square,
+                selfPin: !!prev && prev.color === mated && prevTo === d.square,
               };
               break;
             }
@@ -589,10 +595,10 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
       }
     }
 
-    for (const ch of node.children) visit(afterFen, ch, depth + 1, node);
+    for (const ch of node.children) visit(afterFen, ch, depth + 1, node, nodeMv.to);
   };
 
-  for (const root of roots) visit(initialFen, root, 0, null);
+  for (const root of roots) visit(initialFen, root, 0, null, null);
   return result;
 }
 
@@ -734,12 +740,18 @@ function detectChangedMates(
       const c = safeChess(ph.pre ? initialFen : withTurn(initialFen, defender));
       if (!c) continue;
       if (ph.pre && !execNode(c, ph.pre)) continue;
-      if (!execNode(c, d) || !execNode(c, mate) || !c.isCheckmate()) continue;
+      // Squares come from the replayed moves, not from moveUci — a solution
+      // recorded in short notation has no coordinates in its uci field, and
+      // the marks silently vanished.
+      const dMv = execNode(c, d);
+      if (!dMv) continue;
+      const mMv = execNode(c, mate);
+      if (!mMv || !c.isCheckmate()) continue;
       mates.set(d.moveUci || d.moveSan, {
         defSan: d.moveSan,
-        defTo: (d.moveUci || '').slice(2, 4),
+        defTo: dMv.to,
         mateSan: mate.moveSan.replace(/[+#]+$/, '') + '#',
-        mateTo: (mate.moveUci || '').slice(2, 4),
+        mateTo: mMv.to,
         fen: c.fen(),
       });
     }
@@ -764,9 +776,6 @@ function detectChangedMates(
   }
   if (changes.length === 0) return null;
 
-  const examples = changes.slice(0, 2)
-    .map(c => `1...${c.now.defSan} was met by 2.${c.old.mateSan} ${c.oldLabel}, but ${keyPhase.label} it is 2.${c.now.mateSan}`)
-    .join('; ');
   const threePhase = changes.some(c => c.distinct.size >= 3);
   // The picture: the same defence in both phases, one mate on each board.
   const ex = changes[0];
@@ -776,13 +785,29 @@ function detectChangedMates(
     if (/^[a-h][1-8]$/.test(rec.mateTo)) m[rec.mateTo] = { ...BLUE };
     return m;
   };
+  // Definition first, then the try/key pair laid out like a table with a
+  // one-line punch — "the mark of the modern two-mover" explained nothing.
+  const sideDef = attacker === 'w' ? 'Black' : 'White';
+  const def1 = plyLabel(ex.now.defSan, 1, defender);
+  const isSet = ex.oldShort === 'set play';
+  const NUM = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+  const countLine = changes.length === 1
+    ? 'It is the only defence whose mate changes.'
+    : `${NUM[changes.length] || changes.length} defences change their mate between the phases.`;
   return {
     theme: 'Changed mates',
     title: 'Changed mates',
-    text: `The mates change between phases — the mark of the modern two-mover: ${examples}. `
-      + `${changes.length === 1 ? 'One defence gets' : changes.length + ' defences get'} a new mate after the key`
-      + `${threePhase && zagoruikoTagged ? ' — and one changes across three phases, the Zagoruiko form' : ''}. `
-      + `Below, the same defence (amber) on both boards — and the two different mates (blue).`,
+    text: `A changed mate: the same ${sideDef} defence gets one mate `
+      + `${isSet ? 'in the set play' : 'after the try'}, and a different mate after the key. `
+      + `${isSet ? 'In the set play' : `After the try ${ex.oldShort.replace(/^after /, '')}`}, `
+      + `${def1} (amber) is mated by ${plyLabel(ex.old.mateSan, 2, attacker)} — after the key `
+      + `${keyPhase.short.replace(/^after /, '')}, the same ${def1} is mated by `
+      + `${plyLabel(ex.now.mateSan, 2, attacker)} instead (the two mates in blue). `
+      + `Same defence, different mate. `
+      + countLine
+      + (threePhase && zagoruikoTagged
+        ? ' One has three different mates across three phases — a pattern named after the composer Zagoruiko.'
+        : ''),
     boards: [
       { fen: ex.old.fen, marks: boardMarks(ex.old), caption: `${ex.oldShort} — 1...${ex.old.defSan} 2.${ex.old.mateSan}` },
       { fen: ex.now.fen, marks: boardMarks(ex.now), caption: `${keyPhase.short} — 1...${ex.now.defSan} 2.${ex.now.mateSan}` },
