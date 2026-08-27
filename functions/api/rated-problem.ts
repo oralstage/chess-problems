@@ -68,25 +68,52 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   const ranges = [50, 100, 150, 200, 250, 300, 400];
 
+  // Random pick via a pivot seek, not ORDER BY RANDOM(): RANDOM() has to read
+  // every row in the rating band (~60k for a mid-rating player) on every
+  // request, which alone would burn through the D1 daily read quota at a few
+  // dozen fetches. Instead: draw a uniform pivot inside the band, index-seek
+  // up from it, and wrap around below the pivot when it lands near the top.
+  // Randomness moves into the pivot; reads drop to <= 2x CANDIDATES rows. The
+  // slight density bias (problems in sparse rating regions are picked a bit
+  // more often) is harmless for matchmaking.
+  const CANDIDATES = 50;
+
   for (const range of ranges) {
     const minRating = rating - range;
     const maxRating = rating + range;
+    const pivot = minRating + Math.random() * (maxRating - minRating);
 
-    // Find a problem from problem_ratings within range
     // genre has to be filtered here, not just on the problems table below: the
     // three pools share this table, and direct alone is ~75% of it, so an
     // unfiltered pick would hand back mostly wrong-genre candidates and 404.
-    const ratedRow = await context.env.STATS_DB.prepare(
+    const pool = (await context.env.STATS_DB.prepare(
       `SELECT problem_id, rating FROM problem_ratings
        WHERE dev = ? AND genre = ? AND rating >= ? AND rating <= ? ${excludeClause}
-       ORDER BY RANDOM()
-       LIMIT 5`
-    ).bind(dev, genre, minRating, maxRating).all<{ problem_id: number; rating: number }>();
+       ORDER BY rating ASC
+       LIMIT ?`
+    ).bind(dev, genre, pivot, maxRating, CANDIDATES).all<{ problem_id: number; rating: number }>()).results;
 
-    if (ratedRow.results.length === 0) continue;
+    if (pool.length < CANDIDATES) {
+      const below = await context.env.STATS_DB.prepare(
+        `SELECT problem_id, rating FROM problem_ratings
+         WHERE dev = ? AND genre = ? AND rating >= ? AND rating < ? ${excludeClause}
+         ORDER BY rating DESC
+         LIMIT ?`
+      ).bind(dev, genre, minRating, pivot, CANDIDATES - pool.length).all<{ problem_id: number; rating: number }>();
+      pool.push(...below.results);
+    }
+
+    if (pool.length === 0) continue;
+
+    // Fisher-Yates shuffle so the handful we verify below is a fair draw
+    // from the candidate window.
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
 
     // Fetch problem data from main DB
-    for (const rated of ratedRow.results) {
+    for (const rated of pool.slice(0, 5)) {
       // move_count >= 1: mate-in-1 is the entry rung for players who cannot yet
       // solve a #2. Only sound ones are reachable — the task/record problems that
       // list a dozen alternative keys, and the twins, were removed from
