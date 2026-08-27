@@ -893,6 +893,7 @@ export function getThemeInsights(
     let zzFen: string | undefined;
     let zzMarks: Record<string, MarkStyle> | undefined;
     let zzCount = 0;
+    let zzMoves: string[] = [];
     if (initialFen && roots[0]) {
       const afterKey = safeChess(initialFen);
       if (afterKey && execNode(afterKey, roots[0]) && !afterKey.isCheck()) {
@@ -923,6 +924,7 @@ export function getThemeInsights(
           zzMarks = {};
           for (const reply of replies) zzMarks[reply.to] = { backgroundColor: FIELD_AMBER };
           zzCount = replies.length;
+          zzMoves = replies.map(r => r.san);
         }
       }
     }
@@ -932,7 +934,13 @@ export function getThemeInsights(
       text: `The key ${keySan}! threatens nothing — if Black could pass, White would have no mate at all. `
         + `But chess has no pass: Black must move, and `
         + (zzFen
-          ? `every square a Black man can move to (amber — all ${zzCount} moves) walks straight into mate. `
+          // Named moves whenever the list stays readable: amber squares next
+          // to the king were being read as king moves, and "1...b3" says
+          // plainly that it is the pawn's square, not the king's.
+          ? (zzCount <= 4
+            ? `every one of Black's ${zzCount} legal moves — ${zzMoves.map(s => '1...' + s).join(', ')} (amber) — `
+              + `walks straight into mate. `
+            : `every one of Black's ${zzCount} legal moves (amber) walks straight into mate. `)
           : `every move breaks something in the defence. `)
         + `A key like this is called a waiting move, and the trap it sets — lost only by the duty `
         + `to move — is zugzwang.`,
