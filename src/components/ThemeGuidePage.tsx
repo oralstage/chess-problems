@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { analyzeMateEconomy, mateMarks } from '../utils/themeInsight';
+import { Arrow } from './ThemeInsightCard';
 
 /* Theme walkthroughs, easiest first: Battery and Zugzwang (the everyday
    solving tools), Switchback and Cross-check (one-move wit), the
@@ -22,7 +23,9 @@ const TICK = 20;
 
 /* Same measured board as GuidePage's — a fixed width overflows either the
    phone column or the desktop one. */
-function Board({ fen, move, marks }: { fen: string; move?: { from: string; to: string }; marks?: Record<string, React.CSSProperties> }) {
+interface GuideArrow { from: string; to: string }
+
+function Board({ fen, move, marks, arrows }: { fen: string; move?: { from: string; to: string }; marks?: Record<string, React.CSSProperties>; arrows?: GuideArrow[] }) {
   const slotRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(260);
 
@@ -49,6 +52,22 @@ function Board({ fen, move, marks }: { fen: string; move?: { from: string; to: s
           customLightSquareStyle={{ backgroundColor: 'var(--board-l)' }}
           customSquareStyles={{ ...(marks || {}), ...(move ? { [move.from]: LAST_MOVE_FROM, [move.to]: CORRECT_TO } : {}) }}
         />
+        {arrows && arrows.length > 0 && (
+          <svg
+            className="absolute inset-0 pointer-events-none"
+            style={{ zIndex: 40 }}
+            viewBox="0 0 100 100"
+          >
+            {arrows.map((a, i) => (
+              <Arrow
+                key={i}
+                from={a.from}
+                to={a.to}
+                nudge={arrows.some(b => b.from === a.to && b.to === a.from) ? 2.1 : 0}
+              />
+            ))}
+          </svg>
+        )}
         {move && (
           <div
             className="absolute pointer-events-none"
@@ -70,10 +89,10 @@ function Board({ fen, move, marks }: { fen: string; move?: { from: string; to: s
   );
 }
 
-function Diagram({ fen, move, marks, caption }: { fen: string; move?: { from: string; to: string }; marks?: Record<string, React.CSSProperties>; caption: React.ReactNode }) {
+function Diagram({ fen, move, marks, arrows, caption }: { fen: string; move?: { from: string; to: string }; marks?: Record<string, React.CSSProperties>; arrows?: GuideArrow[]; caption: React.ReactNode }) {
   return (
     <figure className="my-5 mx-auto w-full max-w-[280px]">
-      <Board fen={fen} move={move} marks={marks} />
+      <Board fen={fen} move={move} marks={marks} arrows={arrows} />
       <figcaption className="mt-2 text-center text-xs font-semibold leading-snug text-[var(--muted)]">
         {caption}
       </figcaption>
@@ -229,7 +248,8 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-3 mb-4">
             A theme is the idea a problem is built around. Knowing the common
             ones changes how you solve: instead of trying every move, you look
-            for the idea. Ten themes, easiest first.
+            for the idea. Ten themes, from the everyday tools to the pure
+            aesthetics.
           </p>
 
           <h2 className={H2}>Battery</h2>
@@ -458,11 +478,11 @@ export function ThemeGuidePage({ onClose, onOpenProblem }: ThemeGuidePageProps) 
 
           <Diagram
             fen={SW.mateFinal}
-            move={{ from: 'd2', to: 'e1' }}
             marks={{
               e1: { backgroundColor: 'rgba(255, 176, 32, 0.55)' },
               d2: { backgroundColor: 'rgba(59, 130, 246, 0.4)' },
             }}
+            arrows={[{ from: 'e1', to: 'd2' }, { from: 'd2', to: 'e1' }]}
             caption={<><span className="font-extrabold text-[var(--ink)]">3.Be1#</span>
               <span className="mx-1.5 text-[var(--faint)]">·</span>Out to d2 (blue), home to e1 (amber)</>}
           />

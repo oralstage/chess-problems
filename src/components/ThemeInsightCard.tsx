@@ -21,7 +21,7 @@ function center(sq: string): [number, number] {
     `nudge` shifts the whole arrow sideways (to the right of its direction of
     travel) — used only when the reverse arrow is also drawn, so an out-and-
     back pair sits side by side instead of stacking on one line. */
-function Arrow({ from, to, nudge = 0, blocked = false }: { from: string; to: string; nudge?: number; blocked?: boolean }) {
+export function Arrow({ from, to, nudge = 0, blocked = false }: { from: string; to: string; nudge?: number; blocked?: boolean }) {
   const [x1, y1] = center(from);
   const [x2, y2] = center(to);
   const dx = x2 - x1, dy = y2 - y1;
