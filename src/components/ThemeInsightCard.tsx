@@ -21,7 +21,7 @@ function center(sq: string): [number, number] {
     `nudge` shifts the whole arrow sideways (to the right of its direction of
     travel) — used only when the reverse arrow is also drawn, so an out-and-
     back pair sits side by side instead of stacking on one line. */
-function Arrow({ from, to, nudge = 0 }: { from: string; to: string; nudge?: number }) {
+function Arrow({ from, to, nudge = 0, blocked = false }: { from: string; to: string; nudge?: number; blocked?: boolean }) {
   const [x1, y1] = center(from);
   const [x2, y2] = center(to);
   const dx = x2 - x1, dy = y2 - y1;
@@ -30,10 +30,28 @@ function Arrow({ from, to, nudge = 0 }: { from: string; to: string; nudge?: numb
   const ux = dx / len, uy = dy / len;
   const px = -uy, py = ux; // unit perpendicular
   const ox = px * nudge, oy = py * nudge;
+  const sx = x1 + ux * 3.2 + ox, sy = y1 + uy * 3.2 + oy;
+  if (blocked) {
+    // A ray that dies at the edge of the blocker's square: no head, a stop
+    // bar across the line instead — an attack running into a wall. Starts
+    // near the checker's centre so even an adjacent block stays visible.
+    const bx = x1 + ux * 1.6 + ox, by = y1 + uy * 1.6 + oy;
+    const ex = x2 - ux * 6.45 + ox, ey = y2 - uy * 6.45 + oy;
+    const barW = 3.4;
+    return (
+      <g>
+        <line x1={bx} y1={by} x2={ex} y2={ey} stroke="white" strokeWidth={4.0} strokeLinecap="round" />
+        <line x1={ex - px * barW} y1={ey - py * barW} x2={ex + px * barW} y2={ey + py * barW}
+          stroke="white" strokeWidth={4.2} strokeLinecap="round" />
+        <line x1={bx} y1={by} x2={ex} y2={ey} stroke="#6e6e6e" strokeWidth={2.4} strokeLinecap="round" />
+        <line x1={ex - px * barW} y1={ey - py * barW} x2={ex + px * barW} y2={ey + py * barW}
+          stroke="#6e6e6e" strokeWidth={2.6} strokeLinecap="round" />
+      </g>
+    );
+  }
   const headLen = 4.6, headW = 2.5;
   const tipX = x2 - ux * 1.2 + ox, tipY = y2 - uy * 1.2 + oy;
   const baseX = tipX - ux * headLen, baseY = tipY - uy * headLen;
-  const sx = x1 + ux * 3.2 + ox, sy = y1 + uy * 3.2 + oy;
   const headPts = `${tipX},${tipY} ${baseX + px * headW},${baseY + py * headW} ${baseX - px * headW},${baseY - py * headW}`;
   return (
     <g>
@@ -86,6 +104,7 @@ function MiniBoard({ fen, marks, arrows }: {
                 key={i}
                 from={a.from}
                 to={a.to}
+                blocked={a.kind === 'blocked'}
                 nudge={arrows.some(b => b.from === a.to && b.to === a.from) ? 2.1 : 0}
               />
             ))}

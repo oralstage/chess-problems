@@ -1376,6 +1376,64 @@ export function useProblem(stockfish?: StockfishApi) {
     });
   }, []);
 
+  /**
+   * Swap the playback line for a variation the solver clicked in the solution
+   * tree: the move strip and the ◀▶ arrows then walk that line instead of the
+   * played one. No way "back" is needed — every line in the tree is a correct
+   * line, and clicking any other one (the main line included) switches again.
+   * A node that cannot be replayed truncates the line there.
+   */
+  const playbackShowLine = useCallback((path: SolutionNode[]) => {
+    setState(prev => {
+      if (!prev.playback) return prev;
+      const chess = new Chess(prev.initialFen);
+      const positions: PlaybackPosition[] = [{ fen: prev.initialFen, lastMove: null, san: '' }];
+      const line: SolutionNode[] = [];
+      const play = (node: SolutionNode): boolean => {
+        // Same turn-flip retry the solving path uses: retro trees carry moves
+        // by whichever side the solver deduced, not whichever chess.js expects.
+        let mv = tryExecuteNode(chess, node);
+        if (!mv && node.color !== chess.turn()) {
+          const flipped = new Chess(chess.fen().replace(/ [wb] /, ` ${node.color} `));
+          mv = tryExecuteNode(flipped, node);
+          if (mv) chess.load(flipped.fen());
+        }
+        if (!mv) return false;
+        positions.push({ fen: chess.fen(), lastMove: { from: mv.from, to: mv.to }, san: mv.san });
+        line.push(node);
+        return true;
+      };
+      let broke = false;
+      for (const node of path) {
+        if (!play(node)) { broke = true; break; }
+      }
+      // The board stops on the clicked move; the ▶ arrow has the rest.
+      const clickedIndex = line.length - 1;
+      // A clicked defence already decides the rest of the line — run it out to
+      // the mate so the whole line is there to step through.
+      let cur: SolutionNode | undefined = broke ? undefined : line[line.length - 1];
+      let guard = 0;
+      while (cur && guard++ < 20) {
+        const next: SolutionNode | undefined = cur.children.find(n => !n.isThreat && n.color === chess.turn())
+          || cur.children.find(n => !n.isThreat);
+        if (!next || !play(next)) break;
+        cur = next;
+      }
+      if (positions.length <= 1) return prev;
+      return {
+        ...prev, feedbackSquare: null, feedbackType: null,
+        playback: {
+          ...prev.playback,
+          positions,
+          mainLine: line,
+          mainLineLength: line.length,
+          moveIndex: clickedIndex,
+          exploring: false, exploreFen: '', exploreLastMove: null,
+        },
+      };
+    });
+  }, []);
+
   // Compute effective fen and lastMove
   const playback = state.playback;
   let effectiveFen = state.fen;
@@ -1429,6 +1487,7 @@ export function useProblem(stockfish?: StockfishApi) {
     playbackPrev,
     playbackNext,
     playbackLast,
+    playbackShowLine,
     startTwin,
     playbackExplore: useCallback((fen: string, lastMove: { from: string; to: string } | null) => {
       setState(prev => {

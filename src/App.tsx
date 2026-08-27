@@ -3177,6 +3177,7 @@ export default function App() {
                   onNext={problem.playbackNext}
                   onLast={problem.playbackLast}
                   onExplore={problem.playbackExplore}
+                  onShowLine={problem.playbackShowLine}
                   isCooked={problem.problem.keywords?.includes('Cooked')}
                   notes={solutionNotes}
                 />

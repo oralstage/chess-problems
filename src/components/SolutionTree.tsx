@@ -19,6 +19,9 @@ interface SolutionTreeProps {
   onNext: () => void;
   onLast: () => void;
   onExplore: (fen: string, lastMove: { from: string; to: string } | null) => void;
+  /** Swap the playback line to the clicked variation — the move strip and the
+      arrows then walk that line. Falls back to onExplore when absent. */
+  onShowLine?: (path: SolutionNode[]) => void;
   isCooked?: boolean;
   /** Prose comments from the source notation, shown above the moves. */
   notes?: string[];
@@ -273,7 +276,7 @@ function VariationLineView({ line, startMoveNum, onNodeClick, activeNode }: {
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, isCooked, notes }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, onShowLine, isCooked, notes }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -298,6 +301,13 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
   }, [playback?.exploring]);
 
   const handleNodeClick = useCallback((path: SolutionNode[]) => {
+    setActiveNode(path[path.length - 1] || null);
+    if (onShowLine) {
+      // The playback line itself switches to this variation, so the strip and
+      // the arrows keep walking the line the solver is actually reading.
+      onShowLine(path);
+      return;
+    }
     const chess = new Chess(initialFen);
     let lastMove: { from: string; to: string } | null = null;
     for (const node of path) {
@@ -305,9 +315,8 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
       if (!result) break;
       lastMove = result;
     }
-    setActiveNode(path[path.length - 1] || null);
     onExplore(chess.fen(), lastMove);
-  }, [initialFen, onExplore]);
+  }, [initialFen, onExplore, onShowLine]);
 
   const variations = useMemo(() => buildRootVariations(fullNodes), [fullNodes]);
   const hasAnyMarkers = variations.some(v => v.isKey || v.isTry);

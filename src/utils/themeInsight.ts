@@ -24,8 +24,10 @@ export interface ThemeInsight {
   /** Mini-board position; absent for text-only cards. */
   fen?: string;
   marks?: Record<string, MarkStyle>;
-  /** Move arrows drawn over the mini board (from-square → to-square). */
-  arrows?: { from: string; to: string }[];
+  /** Move arrows drawn over the mini board (from-square → to-square).
+      kind 'blocked' draws a grey ray ending in a stop bar at the edge of the
+      target square instead of an arrowhead — an attack running into a wall. */
+  arrows?: { from: string; to: string; kind?: 'blocked' }[];
   /** Several captioned boards instead of the single `fen` (changed mates). */
   boards?: { fen: string; marks?: Record<string, MarkStyle>; caption: string }[];
 }
@@ -340,16 +342,21 @@ function detectBattery(positions: LinePosition[]): ThemeInsight | null {
     const before = safeChess(beforeFen);
     if (!before || !before.get(mv.from as Square)) continue;
     const marks: Record<string, { backgroundColor: string }> = {};
+    // Rear and front in blue, the rest of the line AND the king in amber —
+    // the king square guarantees the amber the text points at exists even
+    // when the pieces stand head to tail with the king right there.
     for (const s of betweenSquares(rear, kingSq)) marks[s] = AMBER;
+    marks[kingSq] = AMBER;
     marks[rear] = BLUE;
     marks[mv.from] = BLUE;
     const mate = chess.isCheckmate();
+    const moverColor = (positions[i - 1].fen.split(' ')[1] || 'w') as 'w' | 'b';
     return {
       theme: 'Battery',
       title: 'Battery',
-      text: `A battery stands aimed at the king: the ${PIECE_NAME[rearPiece.type]} behind the `
-        + `${PIECE_NAME[frontPiece.type]} (blue), lined up along the amber squares. `
-        + `${sanWithSuffix(positions[i].san, chess)} steps off the line and the `
+      text: `A battery stands aimed straight at the king (amber): the ${PIECE_NAME[rearPiece.type]} `
+        + `behind the ${PIECE_NAME[frontPiece.type]} (blue). `
+        + `${plyLabel(sanWithSuffix(positions[i].san, chess), i - 1, moverColor)} steps off the line and the `
         + `${PIECE_NAME[rearPiece.type]}'s ${mate ? 'mate' : 'check'} fires the instant it opens — `
         + `the moving piece never gives the check itself.`,
       fen: beforeFen,
@@ -366,30 +373,27 @@ interface CrossingHit {
   rookFrom: string;
   bishopFrom: string;
   fen: string;
-  parentSan: string;
+  /** Numbered SAN of the move that set up the crossing ("2.Nc3"). */
+  parentLabel: string;
 }
 
 interface CrossCheckHit {
   fen: string;
-  firstSan: string;
-  replySan: string;
-  replyFrom: string;
+  /** Numbered SANs ("1...Rd3+", "2.Nd2#") — bare SANs read ambiguously. */
+  firstLabel: string;
+  replyLabel: string;
   replyTo: string;
-  /** Units checking the first checker's own king after the reply, with the
-      squares of their checking lines. */
-  counterCheckers: { square: string; type: string; line: string[] }[];
+  counterCheckers: { square: string; type: string }[];
   checkedKing: string;
-  /** When the reply interposes: the silenced checker and its ray up to (not
-      past) the blocker — painting through to the king would hide the fact
-      that the block is what stops it. */
-  blocked: { checker: string; line: string[] } | null;
+  /** When the reply interposes: the silenced checker (grey on the board). */
+  blocked: { checker: string; checkerType: string } | null;
 }
 
 interface TreeScan {
   novotny: CrossingHit | null;
   grimshaw: CrossingHit | null;
   crossCheck: CrossCheckHit | null;
-  selfblock: { square: string; defSan: string; mateSan: string; fen: string } | null;
+  selfblock: { square: string; defLabel: string; mateLabel: string; fen: string } | null;
   pinMate: {
     fen: string;
     pinned: string;
@@ -408,6 +412,12 @@ interface TreeScan {
 function sanWithSuffix(san: string, chessAfter: Chess): string {
   const bare = san.replace(/[+#]+$/, '');
   return bare + (chessAfter.isCheckmate() ? '#' : chessAfter.isCheck() ? '+' : '');
+}
+
+/** "1...Rd3+" / "2.Nd2#" from a ply index (0 = the first move of the root's
+    colour) — bare SANs in card texts read ambiguously. */
+function plyLabel(san: string, ply: number, color: 'w' | 'b'): string {
+  return `${Math.floor(ply / 2) + 1}${color === 'w' ? '.' : '...'}${san}`;
 }
 
 /**
@@ -442,7 +452,7 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
       if (rook && bishop) {
         result.novotny = {
           square: to, rookFrom: rook.moveUci.slice(0, 2), bishopFrom: bishop.moveUci.slice(0, 2),
-          fen: afterFen, parentSan: node.moveSan,
+          fen: afterFen, parentLabel: plyLabel(node.moveSan, depth, node.color),
         };
       }
     }
@@ -461,7 +471,7 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
         if (rook && bishop) {
           result.grimshaw = {
             square: t, rookFrom: rook.moveUci.slice(0, 2), bishopFrom: bishop.moveUci.slice(0, 2),
-            fen: afterFen, parentSan: node.moveSan,
+            fen: afterFen, parentLabel: plyLabel(node.moveSan, depth, node.color),
           };
           break;
         }
@@ -481,12 +491,12 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
           // Did the reply interpose on the first check's line?
           const kingBefore = findKing(chess, chess.turn());
           const replyTo = (ch.moveUci || '').slice(2, 4);
-          let blocked: { checker: string; line: string[] } | null = null;
+          let blocked: { checker: string; checkerType: string } | null = null;
           if (kingBefore) {
             for (const fc of chess.attackers(kingBefore as Square, node.color)) {
               if (betweenSquares(fc, kingBefore).includes(replyTo)
                 && replyChess.get(fc as Square)?.color === node.color) {
-                blocked = { checker: fc, line: [fc, ...betweenSquares(fc, replyTo)] };
+                blocked = { checker: fc, checkerType: chess.get(fc as Square)?.type || '' };
                 break;
               }
             }
@@ -496,13 +506,11 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
             .map(sq => ({
               square: sq,
               type: replyChess.get(sq as Square)?.type || '',
-              line: betweenSquares(sq, kingSq),
             }));
           result.crossCheck = {
             fen: replyChess.fen(),
-            firstSan: sanWithSuffix(node.moveSan, chess),
-            replySan: sanWithSuffix(ch.moveSan, replyChess),
-            replyFrom: (ch.moveUci || '').slice(0, 2),
+            firstLabel: plyLabel(sanWithSuffix(node.moveSan, chess), depth, node.color),
+            replyLabel: plyLabel(sanWithSuffix(ch.moveSan, replyChess), depth + 1, ch.color),
             replyTo,
             counterCheckers,
             checkedKing: kingSq,
@@ -533,8 +541,8 @@ function findCrossings(initialFen: string, roots: SolutionNode[]): TreeScan {
           if (escapes) {
             result.selfblock = {
               square: s,
-              defSan: prev.moveSan,
-              mateSan: node.moveSan.replace(/[+#]+$/, '') + '#',
+              defLabel: plyLabel(prev.moveSan, depth - 1, prev.color),
+              mateLabel: plyLabel(node.moveSan.replace(/[+#]+$/, '') + '#', depth, node.color),
               fen: afterFen,
             };
           }
@@ -665,7 +673,7 @@ function detectFlightKey(
   const taken = [...kingMoves(before)].filter(s => !kingMoves(after).has(s));
   const marks: Record<string, MarkStyle> = {};
   for (const s of given) marks[s] = { backgroundColor: FIELD_AMBER };
-  const keySan = key.moveSan;
+  const keySan = plyLabel(key.moveSan, 0, attacker);
   const side = defender === 'w' ? 'White' : 'Black';
   const intro = `An ordinary key tightens the net around the king — this one does the opposite `
     + `and wins anyway. `;
@@ -708,12 +716,12 @@ function detectChangedMates(
   if (setDefs.length > 0) phases.push({ label: 'in the set play', short: 'set play', pre: null, defs: setDefs });
   for (const t of fullRoots.filter(n => n.isTry && n.color === attacker)) {
     phases.push({
-      label: `after the try ${t.moveSan}?`, short: `after ${t.moveSan}?`, pre: t,
+      label: `after the try ${plyLabel(t.moveSan, 0, attacker)}?`, short: `after ${plyLabel(t.moveSan, 0, attacker)}?`, pre: t,
       defs: t.children.filter(c => c.color === defender && !c.isThreat),
     });
   }
   phases.push({
-    label: `after the key ${keyRoot.moveSan}!`, short: `after ${keyRoot.moveSan}!`, pre: keyRoot,
+    label: `after the key ${plyLabel(keyRoot.moveSan, 0, attacker)}!`, short: `after ${plyLabel(keyRoot.moveSan, 0, attacker)}!`, pre: keyRoot,
     defs: keyRoot.children.filter(c => c.color === defender && !c.isThreat),
   });
 
@@ -811,7 +819,7 @@ export function getThemeInsights(
       out.push({
         theme: 'Novotny',
         title: 'Novotny',
-        text: `${novotny.parentSan} plants a piece on ${novotny.square} (amber) — the crossing point of the `
+        text: `${novotny.parentLabel} plants a piece on ${novotny.square} (amber) — the crossing point of the `
           + `rook's and the bishop's lines (blue). Either piece can take it, but each capture blocks the `
           + `other's line, and each gets its own mate. A sacrifice offered to two pieces at once.`,
         fen: novotny.fen,
@@ -838,30 +846,41 @@ export function getThemeInsights(
   if (has('Cross-check', 'Cross-checks') && scan.crossCheck) {
     const cc = scan.crossCheck;
     const checkedSide = cc.fen.split(' ')[1] === 'w' ? 'White' : 'Black';
+    // Three roles, three treatments: grey = the silenced checker, blue = the
+    // answering side (the blocker and whoever now gives check). No line
+    // painting — it drowned the board and broke down on adjacent squares.
     const marks: Record<string, MarkStyle> = {};
-    // Grey first, so the live check's colours win any overlap.
-    if (cc.blocked) for (const s of cc.blocked.line) marks[s] = { ...SELF_BLOCK };
-    for (const c of cc.counterCheckers) {
-      for (const s of c.line) marks[s] = { ...AMBER };
-      marks[c.square] = { ...BLUE };
-    }
+    if (cc.blocked) marks[cc.blocked.checker] = { backgroundColor: 'rgba(110, 110, 110, 0.5)' };
+    marks[cc.replyTo] = { ...BLUE };
+    for (const c of cc.counterCheckers) marks[c.square] = { ...BLUE };
     const others = cc.counterCheckers.filter(c => c.square !== cc.replyTo);
     const moverChecks = cc.counterCheckers.some(c => c.square === cc.replyTo);
     const names = cc.counterCheckers.map(c => PIECE_NAME[c.type] || 'piece').join(' and ');
     const otherNames = others.map(c => PIECE_NAME[c.type] || 'piece').join(' and ');
-    const mechanism = others.length === 0
-      ? `the ${names} (blue) itself now checks the ${checkedSide} king. `
-      : moverChecks
-        ? `the move gives check itself and opens the ${otherNames}'s line — both (blue) hit the `
-          + `${checkedSide} king along the amber squares. `
-        : `the move steps aside and the ${names} (blue) now check${others.length > 1 ? '' : 's'} `
-          + `the ${checkedSide} king along the amber squares. `;
+    const blockedName = cc.blocked ? (PIECE_NAME[cc.blocked.checkerType] || 'piece') : '';
+    let mechanism: string;
+    if (cc.blocked) {
+      mechanism = moverChecks && others.length > 0
+        ? `the move blocks the ${blockedName} (grey) while giving check itself and opening the `
+          + `${otherNames}'s line — both (blue) hit the ${checkedSide} king. `
+        : moverChecks
+          ? `the move blocks the ${blockedName} (grey) and checks the ${checkedSide} king itself (blue). `
+          : `the move blocks the ${blockedName} (grey) and opens the ${names}'s (blue) check `
+            + `on the ${checkedSide} king. `;
+    } else {
+      mechanism = others.length === 0
+        ? `the ${names} (blue) itself now checks the ${checkedSide} king. `
+        : moverChecks
+          ? `the move gives check itself and opens the ${otherNames}'s line — both (blue) hit the `
+            + `${checkedSide} king. `
+          : `the move steps aside and the ${names} (blue) now check${others.length > 1 ? '' : 's'} `
+            + `the ${checkedSide} king. `;
+    }
     out.push({
       theme: 'Cross-check',
       title: 'Cross-check',
-      text: `${cc.firstSan} is a check — but ${cc.replySan} answers it with a counter-check: `
+      text: `${cc.firstLabel} is a check — but ${cc.replyLabel} answers it with a counter-check: `
         + mechanism
-        + (cc.blocked ? `The old check (grey) stops dead at the blocker. ` : '')
         + `Meeting check with check, the original attack loses its sting.`,
       fen: cc.fen,
       marks,
@@ -912,7 +931,7 @@ export function getThemeInsights(
 
   // The solution's own "{zugzwang}" annotation is the authority; the keyword
   // alone could refer to a variation we cannot point at.
-  const keySan = roots[0]?.moveSan || null;
+  const keySan = roots[0] ? plyLabel(roots[0].moveSan, 0, roots[0].color) : null;
   if (has('Zugzwang') && p.genre === 'direct'
     && /zugzwang/i.test(p.solutionText || '') && keySan) {
     // The picture, when it can be proven: after the key, every square Black
@@ -993,8 +1012,8 @@ export function getThemeInsights(
     out.push({
       theme: 'Self-block',
       title: 'Self-block',
-      text: `${sb.defSan} looks like a defence — but it parks a Black man on ${sb.square} (amber), `
-        + `the king's own flight square. ${sb.mateSan} works only because of that self-block: `
+      text: `${sb.defLabel} looks like a defence — but it parks a Black man on ${sb.square} (amber), `
+        + `the king's own flight square. ${sb.mateLabel} works only because of that self-block: `
         + `lift the blocker off ${sb.square} and the king walks out through it.`,
       fen: sb.fen,
       marks: { [sb.square]: { backgroundColor: FIELD_AMBER } },
