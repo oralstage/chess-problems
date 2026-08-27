@@ -597,11 +597,8 @@ export default function App() {
   const themeInsights = useMemo(() => {
     const p = problem.problem;
     if (!p || (problem.status !== 'correct' && problem.status !== 'viewing')) return [];
-    const positions = problem.playback?.positions;
-    const finalFen = positions && positions.length > 1 ? positions[positions.length - 1].fen : null;
-    const keySan = p.solutionTree?.[0]?.moveSan || null;
-    return getThemeInsights(p, keySan, finalFen);
-  }, [problem.problem, problem.status, problem.playback]);
+    return getThemeInsights(p, problem.initialFen || null, problem.playback?.positions || null);
+  }, [problem.problem, problem.status, problem.playback, problem.initialFen]);
 
   const solveStats = useSolveStats(problem.problem?.id ?? null);
 
