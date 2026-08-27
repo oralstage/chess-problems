@@ -65,7 +65,7 @@ function Arrow({ from, to, nudge = 0, blocked = false }: { from: string; to: str
 function MiniBoard({ fen, marks, arrows }: {
   fen: string;
   marks?: Record<string, React.CSSProperties>;
-  arrows?: { from: string; to: string }[];
+  arrows?: { from: string; to: string; kind?: 'blocked' }[];
 }) {
   const slotRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState(240);
