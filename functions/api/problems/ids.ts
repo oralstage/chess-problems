@@ -1,4 +1,5 @@
 import { addFairyExclusion } from '../fairy-filter';
+import { dataCacheKey, DATA_CACHE_CONTROL } from '../data-cache';
 
 /**
  * GET /api/problems/ids
@@ -14,11 +15,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const params = url.searchParams;
 
-  // Edge-cache per full URL: the result only changes on import, and the
-  // unfiltered genre lists are full-genre scans (~400k rows read for direct)
-  // too expensive to repeat per request under the D1 daily read limit.
+  // Edge-cache per full URL + DATA_VERSION: the result only changes on
+  // import, and the unfiltered genre lists are full-genre scans (~400k rows
+  // read for direct) too expensive to repeat per request under the D1 daily
+  // read limit.
   const cache = caches.default;
-  const cacheKey = new Request(url.toString());
+  const cacheKey = dataCacheKey(url);
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
@@ -77,7 +79,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }));
 
   const response = Response.json({ problems }, {
-    headers: { 'Cache-Control': 'public, max-age=86400' },
+    headers: { 'Cache-Control': DATA_CACHE_CONTROL },
   });
   context.waitUntil(cache.put(cacheKey, response.clone()));
   return response;

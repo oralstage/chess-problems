@@ -1,4 +1,5 @@
 import { addFairyExclusion } from './fairy-filter';
+import { dataCacheKey, DATA_CACHE_CONTROL } from './data-cache';
 
 /**
  * GET /api/search
@@ -40,7 +41,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // Edge-cache per URL: the LIKE scan reads the whole table (~580k rows) and
   // cannot use an index, so at least repeats of the same search are free.
   const cache = caches.default;
-  const cacheKey = new Request(url.toString());
+  const cacheKey = dataCacheKey(url);
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
@@ -97,7 +98,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   if (indexedIds != null) {
     if (indexedIds.length === 0) {
       const empty = Response.json({ results: [], total: 0 }, {
-        headers: { 'Cache-Control': 'public, max-age=86400' },
+        headers: { 'Cache-Control': DATA_CACHE_CONTROL },
       });
       context.waitUntil(cache.put(cacheKey, empty.clone()));
       return empty;
@@ -152,7 +153,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }));
 
   const response = Response.json({ results, total: results.length }, {
-    headers: { 'Cache-Control': 'public, max-age=86400' },
+    headers: { 'Cache-Control': DATA_CACHE_CONTROL },
   });
   context.waitUntil(cache.put(cacheKey, response.clone()));
   return response;

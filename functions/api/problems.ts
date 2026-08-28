@@ -1,4 +1,5 @@
 import { addFairyExclusion } from './fairy-filter';
+import { dataCacheKey, DATA_CACHE_CONTROL } from './data-cache';
 
 /**
  * GET /api/problems
@@ -28,7 +29,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // paginated background loads re-request identical URLs from every browser
   // whose Cache API copy is cold.
   const cache = caches.default;
-  const cacheKey = new Request(url.toString());
+  const cacheKey = dataCacheKey(url);
   const cached = await cache.match(cacheKey);
   if (cached) return cached;
 
@@ -196,7 +197,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }));
 
   const response = Response.json({ problems, total, page, pageSize }, {
-    headers: { 'Cache-Control': 'public, max-age=86400' },
+    headers: { 'Cache-Control': DATA_CACHE_CONTROL },
   });
   context.waitUntil(cache.put(cacheKey, response.clone()));
   return response;
