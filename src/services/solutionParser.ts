@@ -387,6 +387,22 @@ function parseSegments(solutionText: string): Segment[] {
       const before = whole.slice(0, offset);
       const open = (before.match(/\(/g) || []).length - (before.match(/\)/g) || []).length;
       if (open > 0) return flat + gap;
+      // Text that carries the same line of play forward -- its move number is
+      // higher than the one before the comment -- belongs on the line it is
+      // already on. Only a move that starts a fresh variation, where the
+      // number goes back, needs a line of its own. D394975 writes
+      // "3.Qf5-e6 + Kc4-c5{" / "  }4.Qe6-b6 +": splitting that stranded the
+      // rest of an s#5 and left it showing as a two-move fragment.
+      const prevNumber = [...before.matchAll(/(?<!\d)(\d+)\s*\./g)].pop();
+      const nextNumber = /^\s*(\d+)\s*\./.exec(whole.slice(offset + _m.length));
+      // Only a numbered move earns a line back. Anything else -- most often a
+      // second comment, as in D394911's "#{" / "}{ .. 2.Sd6? Be1! }" -- would
+      // be left alone on a line that then reads as blank, and a blank line
+      // resets the stack and drops the variations that follow it.
+      if (!nextNumber) return flat + gap;
+      if (prevNumber && Number(nextNumber[1]) > Number(prevNumber[1])) {
+        return flat + gap;
+      }
       // Indent the restored line to where the closing brace sat. Only the
       // leading whitespace of that line -- the rest of it is comment text
       // ("{cook\nGC}" would otherwise spill "GC" into the moves).
