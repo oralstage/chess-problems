@@ -1,4 +1,5 @@
 import { useMemo, useEffect, useReducer } from 'react';
+import { composerLine } from '../utils/composerName';
 import { Chessboard } from 'react-chessboard';
 import type { Genre, ChessProblem } from '../types';
 import { fetchProblemBatch, metaToChessProblem } from '../services/api';
@@ -111,7 +112,7 @@ export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProbl
                     </div>
                     {p ? (
                       <>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">{p.authors.join(', ')}</div>
+                        <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">{composerLine(p.authors)}</div>
                         <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{p.sourceName || ''}{p.sourceYear ? `, ${p.sourceYear}` : ''}</div>
                       </>
                     ) : (

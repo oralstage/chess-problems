@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { composerLine } from '../utils/composerName';
 import { Chessboard } from 'react-chessboard';
 import type { SearchResult } from '../services/api';
 import { searchByAuthor } from '../services/api';
@@ -215,7 +216,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
                           </span>
                         </div>
                         <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">
-                          {authors.join(', ')}
+                          {composerLine(authors)}
                         </div>
                         <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                           {r.sourceName || ''}

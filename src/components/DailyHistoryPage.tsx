@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { composerLine } from '../utils/composerName';
 import { Chessboard } from 'react-chessboard';
 import type { Genre, ChessProblem, ProblemProgress } from '../types';
 import { fetchDailyHistory, metaToChessProblem, type DailyHistoryEntry } from '../services/api';
@@ -97,7 +98,7 @@ export function DailyHistoryPage({ progress, onSelectProblem, onClose }: DailyHi
                         <span className="text-sm font-semibold text-green-700 dark:text-green-400">{formatDateLabel(entry.date)}</span>
                         <span className="nb-chip px-2 py-0.5 text-xs font-mono">{entry.stipulation}</span>
                       </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">{entry.authors.join(', ')}</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">{composerLine(entry.authors)}</div>
                       <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
                         {entry.sourceName || ''}{entry.sourceYear ? `, ${entry.sourceYear}` : ''}
                       </div>
