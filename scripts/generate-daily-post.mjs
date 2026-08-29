@@ -76,6 +76,33 @@ async function getProblemRating(problem) {
   }
 }
 
+/* YACPDB stores a composer as the sort key "Lastname, Firstname". That is a
+   sort key, not a display form — publications print "Firstname Lastname", and
+   the stored order also makes a single composer read as two people once the
+   comma sits between the halves. Generational suffixes travel with the given
+   name in the source ("Salai, Ladislav sr.") and have to land after the family
+   name instead. */
+const NAME_SUFFIX = /\s+(sr|jr)\.?$/i;
+
+function displayName(name) {
+  const comma = name.indexOf(',');
+  if (comma === -1) return name.trim();
+  const family = name.slice(0, comma).trim();
+  let given = name.slice(comma + 1).trim();
+  if (!family || !given) return name.trim();
+  const suffix = given.match(NAME_SUFFIX);
+  if (suffix) given = given.slice(0, suffix.index).trim();
+  return [given, family, suffix ? suffix[0].trim() : ''].filter(Boolean).join(' ');
+}
+
+/* Joint compositions join with "&" rather than a comma, so that the separator
+   between two composers never looks like the comma inside one name. */
+function composerNames(problem) {
+  return Array.isArray(problem.authors) && problem.authors.length
+    ? problem.authors.map(displayName).join(' & ')
+    : '';
+}
+
 /* The first two lines are the whole post. Everything the old opening carried —
    "Daily Chess Problem", the date, "White to play and mate in 2", the rating —
    is either already in the picture or already in the timestamp, so it spent the
@@ -85,7 +112,13 @@ async function getProblemRating(problem) {
    carries the task in the same breath. Line two is the thing a scrolling chess
    player has to un-learn: the mate puzzles they have met are check sequences
    almost without exception, so a quiet key is not merely unfamiliar to them, it
-   is outside the search. */
+   is outside the search.
+
+   The link sits above the credit rather than below it. A composer's name placed
+   directly under those two lines reads as the person being addressed, and no
+   amount of punctuation undoes that; moved below the link it lands in the
+   footer with the hashtags, where a name and a year read as a credit on their
+   own. */
 const MOVE_WORDS = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
 
 function moveWord(count) {
@@ -93,9 +126,7 @@ function moveWord(count) {
 }
 
 function postText(problem, link) {
-  const composer = Array.isArray(problem.authors) && problem.authors.length
-    ? problem.authors.join(', ')
-    : '';
+  const composer = composerNames(problem);
   const source = [problem.sourceName, problem.sourceYear].filter(Boolean).join(', ');
   const attribution = [composer, source].filter(Boolean).join(' — ');
 
@@ -103,9 +134,9 @@ function postText(problem, link) {
     `Checkmate me. In ${moveWord(problem.moveCount)}.`,
     'No need to start with a check.',
     '',
-    attribution,
-    '',
     link,
+    '',
+    attribution,
     '',
     '#ChessProblems #Chess',
   ].filter((line, index, lines) => line || lines[index - 1] !== '').join('\n');
@@ -126,7 +157,7 @@ async function renderBoard(problem, problemRating, pngPath) {
       fen: problem.fen,
       mateIn: `MATE IN ${problem.moveCount}`,
       rating: String(Math.round(problemRating.rating / 50) * 50),
-      attribution: [problem.authors?.join(', '), problem.sourceYear].filter(Boolean).join(', '),
+      attribution: [composerNames(problem), problem.sourceYear].filter(Boolean).join(', '),
     });
     const renderUrl = `http://127.0.0.1:${address.port}/?${query}`;
 
