@@ -818,7 +818,23 @@ function detectChangedMates(
 /* ── Assembly ───────────────────────────────────────────────────────────── */
 
 /** More than three cards stops being a spotlight; order below is priority. */
-const MAX_CARDS = 3;
+/**
+ * Where in the solution a card's board sits, read off the FEN it already
+ * carries — a full move counts two, and the side to move splits the pair.
+ * Sorting on this walks the reader through the problem (the key, then the
+ * defences, then the mate) instead of following the order the detections
+ * happen to be written in. A card with no board of its own is about the key,
+ * so it sits just after the diagram.
+ */
+function boardOrder(insight: ThemeInsight, initialFen: string | null): number {
+  const fen = insight.fen || insight.boards?.[0]?.fen || null;
+  const parts = (fen || initialFen || '').split(' ');
+  const turn = parts[1];
+  const fullmove = Number(parts[5]);
+  if (!turn || !Number.isFinite(fullmove)) return 0;
+  const order = fullmove * 2 + (turn === 'b' ? 1 : 0);
+  return fen ? order : order + 1;
+}
 
 /** Enough lines to cover an ordinary problem's variations without replaying a huge tree. */
 const MAX_REPLAY_LINES = 60;
@@ -1141,5 +1157,8 @@ export function getThemeInsights(
     });
   }
 
-  return out.slice(0, MAX_CARDS);
+  // Every card that verified is worth showing — they are collapsible, and a
+  // theme only earns a card when the tag is backed up on the board, so they do
+  // not pile up. Cards sharing a board keep the order they were found in.
+  return out.sort((a, b) => boardOrder(a, initialFen) - boardOrder(b, initialFen));
 }
