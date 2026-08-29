@@ -14,6 +14,7 @@ import { FeedbackPanel } from './components/FeedbackPanel';
 import { SolutionTree } from './components/SolutionTree';
 import { ThemeInsightCards } from './components/ThemeInsightCard';
 import { getThemeInsights } from './utils/themeInsight';
+import { composerLine } from './utils/composerName';
 import { GenreTutorial } from './components/GenreTutorial';
 // import { TermsPage } from './components/TermsPage';
 import { ProblemList } from './components/ProblemList';
@@ -3468,7 +3469,7 @@ export default function App() {
               <div className="space-y-2 text-sm">
                 <div>
                   <span className="text-[var(--faint)] font-semibold">Author: </span>
-                  <span className="text-[var(--ink)] font-medium">{p.authors.join(', ')}</span>
+                  <span className="text-[var(--ink)] font-medium">{composerLine(p.authors)}</span>
                 </div>
                 <div>
                   <span className="text-[var(--faint)] font-semibold">Source: </span>
