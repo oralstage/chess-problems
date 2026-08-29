@@ -37,6 +37,7 @@ import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import { matchesAwardFilter, type AwardFilter } from './utils/award';
 import { moveFreely, pieceAt } from './utils/freeBoard';
+import { isCookedProblem } from './utils/cookMarker';
 import {
   type RatedDifficulty,
   RATED_DIFFICULTY_OFFSET,
@@ -3216,7 +3217,7 @@ export default function App() {
                   onLast={problem.playbackLast}
                   onExplore={problem.playbackExplore}
                   onShowLine={problem.playbackShowLine}
-                  isCooked={problem.problem.keywords?.includes('Cooked')}
+                  isCooked={isCookedProblem(problem.problem.keywords, problem.problem.solutionText)}
                   notes={solutionNotes}
                 />
               )}
