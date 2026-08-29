@@ -371,7 +371,30 @@ function parseSegments(solutionText: string): Segment[] {
   const segments: Segment[] = [];
   // Collapse newlines inside {...} annotations so multi-line annotations don't
   // leak their content as separate lines (e.g. "{\n1.Kf8? Bb2!}" in D523450).
-  let collapsed = solutionText.replace(/\{[^}]*\}/g, m => m.replace(/\s*\n\s*/g, ' '));
+  // A comment that opens at the end of one line and closes at the start of the
+  // next leaves real moves after the closing brace; collapsing alone drags them
+  // onto the previous line, where the deeper indent buries them under the move
+  // above (D514's "2.Bc1-b2 #{" / "}1...f7-f5"). Give those their line back,
+  // indented to where the closing brace stood.
+  let collapsed = solutionText
+    .replace(/(\{[^}]*\})([ \t]*)(?=\S)/g,
+      (_m, annotation: string, gap: string, offset: number, whole: string) => {
+      const flat = annotation.replace(/\s*\n\s*/g, ' ');
+      if (!annotation.includes('\n')) return flat + gap;
+      // Inside a PGN variation it is the parentheses that nest the moves, not
+      // the line breaks, and restoring one changes which spans
+      // blankComplexParens removes (D275454 gained two accepted keys that way).
+      const before = whole.slice(0, offset);
+      const open = (before.match(/\(/g) || []).length - (before.match(/\)/g) || []).length;
+      if (open > 0) return flat + gap;
+      // Indent the restored line to where the closing brace sat. Only the
+      // leading whitespace of that line -- the rest of it is comment text
+      // ("{cook\nGC}" would otherwise spill "GC" into the moves).
+      const closingLine = annotation.slice(annotation.lastIndexOf('\n') + 1);
+      const indent = /^[ \t]*/.exec(closingLine)?.[0] ?? '';
+      return flat + '\n' + indent + gap;
+    })
+    .replace(/\{[^}]*\}/g, m => m.replace(/\s*\n\s*/g, ' '));
   // Then remove PGN-style multi-line/nested variation parens (see above).
   collapsed = blankComplexParens(collapsed);
   const rawLines = collapsed.split('\n');
