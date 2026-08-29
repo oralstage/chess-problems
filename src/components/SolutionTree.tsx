@@ -108,48 +108,74 @@ function executeWildcardMove(chess: Chess, san: string): { from: string; to: str
   return tryWithCurrentTurn();
 }
 
-// ── Flatten tree into compact variation lines ──
-
-interface VariationLine {
-  moves: { node: SolutionNode; path: SolutionNode[] }[];
-  isRefutation: boolean; // this line is the refutation of a try
-}
+// ── Variation tree shaping ──
 
 interface RootVariation {
   rootNode: SolutionNode;
   isKey: boolean;
   isTry: boolean;
-  lines: VariationLine[];       // successful continuations
-  refutation: VariationLine | null; // the defense that breaks the try
+  /** The defense that breaks a try — shown apart from the try's own lines. */
+  refutation: { node: SolutionNode; path: SolutionNode[] } | null;
+}
+
+/** Threats are "if the defender does nothing" lines, not variations of their own. */
+function branchChildren(node: SolutionNode): SolutionNode[] {
+  return node.children.filter(c => !c.isThreat);
+}
+
+interface MoveRef {
+  node: SolutionNode;
+  path: SolutionNode[];
 }
 
 /**
- * Collect all paths from a node to its leaves.
- * Each path is a sequence of nodes (excluding the root — it's tracked separately).
+ * Walk forward from `start` while the line does not branch.
+ * A straight continuation stays on one row; only a real fork opens new rows,
+ * so a defense is written once and its follow-ups hang beneath it.
+ * `omit` drops one child of the starting node (a try's refutation, which is
+ * displayed on its own line below).
  */
-function collectLines(node: SolutionNode, parentPath: SolutionNode[]): VariationLine[] {
-  const currentPath = [...parentPath, node];
-  const nonThreatChildren = node.children.filter(c => !c.isThreat);
+function collectRun(start: SolutionNode, startPath: SolutionNode[], omit?: SolutionNode): {
+  run: MoveRef[];
+  forks: SolutionNode[];
+  lastPath: SolutionNode[];
+} {
+  const run: MoveRef[] = [];
+  let node = start;
+  let path = startPath;
 
-  const lines: VariationLine[] = [];
+  for (;;) {
+    const isFirst = run.length === 0;
+    run.push({ node, path });
 
-  // If this is a leaf (ignoring threats), return a single line
-  if (nonThreatChildren.length === 0) {
-    // Don't include threat continuations — they represent "if defender does nothing" scenarios
-    lines.push({
-      moves: currentPath.map((n, i, arr) => ({ node: n, path: arr.slice(0, i + 1) })),
-      isRefutation: node.isKey && node.color !== currentPath[0]?.color, // refutation marker
-    });
-    return lines;
+    let kids = branchChildren(node);
+    if (isFirst && omit) kids = kids.filter(c => c !== omit);
+
+    if (kids.length !== 1) return { run, forks: kids, lastPath: path };
+
+    node = kids[0];
+    path = [...path, node];
   }
+}
 
-  // Recurse into children
-  for (const child of nonThreatChildren) {
-    const childLines = collectLines(child, currentPath);
-    lines.push(...childLines);
+/** Number of leaves below these nodes — how many distinct lines they hold. */
+function countLeaves(nodes: SolutionNode[]): number {
+  let total = 0;
+  for (const node of nodes) {
+    const kids = branchChildren(node);
+    total += kids.length === 0 ? 1 : countLeaves(kids);
   }
+  return total;
+}
 
-  return lines;
+/**
+ * Move number for the last node of `path`: white moves carry the count, and
+ * the black move that follows shares it. When black opens the solution
+ * (helpmates, retros) its move is 1 and the white reply starts at 2.
+ */
+function moveNumber(path: SolutionNode[]): number {
+  const whites = path.filter(n => n.color === 'w').length;
+  return path[0]?.color === 'b' ? whites + 1 : whites;
 }
 
 function buildRootVariations(fullNodes: SolutionNode[]): RootVariation[] {
@@ -164,42 +190,24 @@ function buildRootVariations(fullNodes: SolutionNode[]): RootVariation[] {
     if (rootNode.isKey && !rootNode.isTry && variations.length > 0) {
       const prev = variations[variations.length - 1];
       if (prev.isTry && rootNode.color !== prev.rootNode.color) {
-        // This is a refutation — attach to the previous try
-        // Include the try's root node in the path so the board replays correctly
-        const refLine: VariationLine = {
-          moves: [{ node: rootNode, path: [prev.rootNode, rootNode] }],
-          isRefutation: true,
-        };
-        prev.refutation = refLine;
+        // This is a refutation — attach to the previous try.
+        // Include the try's root node in the path so the board replays correctly.
+        prev.refutation = { node: rootNode, path: [prev.rootNode, rootNode] };
         continue;
       }
     }
 
-    const allLines = collectLines(rootNode, []);
-
     if (rootNode.isTry) {
-      // For tries: find the refutation line among children
-      let refutation: VariationLine | null = null;
-      const successLines: VariationLine[] = [];
-
-      const nonThreatChildren = rootNode.children.filter(c => !c.isThreat);
-      const refutingChild = nonThreatChildren.find(c => c.isKey);
-
-      if (refutingChild) {
-        for (const line of allLines) {
-          if (line.moves.length > 1 && line.moves[1].node === refutingChild) {
-            refutation = { ...line, isRefutation: true };
-          } else {
-            successLines.push(line);
-          }
-        }
-      } else {
-        successLines.push(...allLines);
-      }
-
-      variations.push({ rootNode, isKey: false, isTry: true, lines: successLines, refutation });
+      // For tries: the refuting defense sits among the children, marked as key.
+      const refutingChild = branchChildren(rootNode).find(c => c.isKey);
+      variations.push({
+        rootNode,
+        isKey: false,
+        isTry: true,
+        refutation: refutingChild ? { node: refutingChild, path: [rootNode, refutingChild] } : null,
+      });
     } else {
-      variations.push({ rootNode, isKey: rootNode.isKey, isTry: false, lines: allLines, refutation: null });
+      variations.push({ rootNode, isKey: rootNode.isKey, isTry: false, refutation: null });
     }
   }
 
@@ -239,40 +247,52 @@ function MoveButton({ node, path, onNodeClick, isActive }: {
   );
 }
 
-// ── Compact variation line display ──
+// ── Variation display: straight runs on one row, forks on indented rows ──
 
-function VariationLineView({ line, startMoveNum, onNodeClick, activeNode }: {
-  line: VariationLine;
-  startMoveNum: number;
+function BranchView({ node, path, marker, omit, onNodeClick, activeNode, indent = false }: {
+  node: SolutionNode;
+  path: SolutionNode[];
+  /** "!" on a key, "?" on a try — drawn right after the opening move. */
+  marker?: string;
+  omit?: SolutionNode;
   onNodeClick: (path: SolutionNode[]) => void;
   activeNode?: SolutionNode | null;
+  indent?: boolean;
 }) {
-  // Skip the root move (index 0), show from defense onwards
-  const movesAfterRoot = line.moves.slice(1);
-  if (movesAfterRoot.length === 0) return null;
+  const { run, forks, lastPath } = collectRun(node, path, omit);
 
   return (
-    <span className="inline">
-      {movesAfterRoot.map((m, i) => {
-        // Track move numbers by counting pairs of moves
-        const isWhiteMove = m.node.color === 'w';
-        const prevColors = movesAfterRoot.slice(0, i).map(x => x.node.color);
-        // Move number = startMoveNum + number of white moves seen so far (including current if white)
-        const whitesSoFar = prevColors.filter(c => c === 'w').length;
-        const moveNum = startMoveNum + whitesSoFar + (isWhiteMove ? 1 : 0);
-        const showNum = isWhiteMove;
-        const isBlackFirst = i === 0 && m.node.color === 'b';
-
-        return (
-          <span key={i}>
-            {showNum && <span className="text-gray-400 text-xs mr-0.5">{moveNum}.</span>}
-            {isBlackFirst && <span className="text-gray-400 text-xs mr-0.5">{startMoveNum}...</span>}
-            <MoveButton node={m.node} path={m.path} onNodeClick={onNodeClick} isActive={activeNode === m.node} />
-            {' '}
-          </span>
-        );
-      })}
-    </span>
+    <div className={indent ? 'ml-6' : ''}>
+      <div className="flex items-baseline gap-1 flex-wrap leading-relaxed">
+        {run.map((m, i) => {
+          const isWhite = m.node.color === 'w';
+          // White moves always carry their number. A black move needs one when
+          // it opens the row, and when it answers the key or try that opens the
+          // variation — so a defense reads the same whether or not it branches.
+          const showNum = isWhite || i === 0 || (i === 1 && !indent);
+          const num = moveNumber(m.path);
+          return (
+            <span key={i} className="inline">
+              {showNum && (
+                <span className="text-gray-400 text-xs mr-0.5">{isWhite ? `${num}.` : `${num}...`}</span>
+              )}
+              <MoveButton node={m.node} path={m.path} onNodeClick={onNodeClick} isActive={activeNode === m.node} />
+              {i === 0 && marker && <span className="text-[var(--bad)] font-bold text-xs ml-0.5">{marker}</span>}
+            </span>
+          );
+        })}
+      </div>
+      {forks.map((child, i) => (
+        <BranchView
+          key={i}
+          node={child}
+          path={[...lastPath, child]}
+          onNodeClick={onNodeClick}
+          activeNode={activeNode}
+          indent
+        />
+      ))}
+    </div>
   );
 }
 
@@ -396,50 +416,34 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
           </summary>
           <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-1">
             {plainSolutions.map((v, vi) => (
-              <div key={vi} className="leading-relaxed">
-                <div className="flex items-baseline gap-1 flex-wrap">
-                  <span className="text-gray-400 text-xs">
-                    {v.rootNode.color === 'b' ? '1...' : '1.'}
-                  </span>
-                  <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} isActive={activeNode === v.rootNode} />
-                  {v.lines.length === 1 && (
-                    <VariationLineView line={v.lines[0]} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
-                  )}
-                </div>
-                {v.lines.length > 1 && v.lines.map((line, li) => (
-                  <div key={li} className="flex items-baseline gap-1 flex-wrap ml-6">
-                    <VariationLineView line={line} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
-                  </div>
-                ))}
-              </div>
+              <BranchView
+                key={vi}
+                node={v.rootNode}
+                path={[v.rootNode]}
+                onNodeClick={handleNodeClick}
+                activeNode={activeNode}
+              />
             ))}
           </div>
         </details>
       )}
 
       {/* Key variations (all defenses after the key move) */}
-      {keyVariations.length > 0 && keyVariations.some(v => v.lines.length > 1) && (
+      {keyVariations.length > 0 && keyVariations.some(v => countLeaves([v.rootNode]) > 1) && (
         <details className="text-xs" open>
           <summary className="cursor-pointer text-sm font-bold text-[var(--ink)] underline decoration-2 underline-offset-2">
             Key variations
           </summary>
           <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-1">
             {keyVariations.map((v, vi) => (
-              <div key={vi} className="leading-relaxed">
-                <div className="flex items-baseline gap-1">
-                  <span className="text-gray-400 text-xs">1.</span>
-                  <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} isActive={activeNode === v.rootNode} />
-                  <span className="text-[var(--bad)] font-bold text-xs">!</span>
-                  {v.lines.length === 1 && (
-                    <VariationLineView line={v.lines[0]} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
-                  )}
-                </div>
-                {v.lines.length > 1 && v.lines.map((line, li) => (
-                  <div key={li} className="flex items-baseline gap-1 flex-wrap ml-6">
-                    <VariationLineView line={line} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
-                  </div>
-                ))}
-              </div>
+              <BranchView
+                key={vi}
+                node={v.rootNode}
+                path={[v.rootNode]}
+                marker="!"
+                onNodeClick={handleNodeClick}
+                activeNode={activeNode}
+              />
             ))}
           </div>
         </details>
@@ -454,42 +458,28 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
           <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-2">
             {tryVariations.map((v, vi) => (
               <div key={vi}>
-                {/* Try with continuations — each defense on its own indented line */}
-                <div className="leading-relaxed">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-gray-400 text-xs">1.</span>
-                    <MoveButton node={v.rootNode} path={[v.rootNode]} onNodeClick={handleNodeClick} isActive={activeNode === v.rootNode} />
-                    <span className="text-[var(--bad)] font-bold text-xs">?</span>
-                    {v.lines.length === 1 && (
-                      <VariationLineView line={v.lines[0]} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
-                    )}
-                  </div>
-                  {v.lines.length > 1 && v.lines.map((line, li) => (
-                    <div key={li} className="flex items-baseline gap-1 flex-wrap ml-6">
-                      <VariationLineView line={line} startMoveNum={1} onNodeClick={handleNodeClick} activeNode={activeNode} />
-                    </div>
-                  ))}
-                </div>
+                {/* The try's own lines, with the refuting defense held back */}
+                <BranchView
+                  node={v.rootNode}
+                  path={[v.rootNode]}
+                  marker="?"
+                  omit={v.refutation?.node}
+                  onNodeClick={handleNodeClick}
+                  activeNode={activeNode}
+                />
                 {/* Refutation on separate line — applies to the whole try, not just the last variation */}
-                {v.refutation && (() => {
-                  const refMoves = v.refutation.moves[0]?.node === v.rootNode ? v.refutation.moves.slice(1) : v.refutation.moves;
-                  return (
-                    <div className="flex items-baseline gap-1 ml-4 text-[var(--bad)] dark:text-[var(--bad)] leading-relaxed">
-                      <span className="text-xs font-medium">↳ but</span>
-                      {refMoves.map((m, i) => {
-                        const isBlack = m.node.color === 'b';
-                        const showNum = i === 0;
-                        return (
-                          <span key={i}>
-                            {showNum && <span className="text-gray-400 text-xs mr-0.5">{isBlack ? '1...' : '1.'}</span>}
-                            <MoveButton node={m.node} path={m.path} onNodeClick={handleNodeClick} isActive={activeNode === m.node} />
-                            {m.node.isKey && <span className="text-[var(--bad)] font-bold text-xs ml-0.5">!</span>}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
+                {v.refutation && (
+                  <div className="flex items-baseline gap-1 ml-4 text-[var(--bad)] dark:text-[var(--bad)]">
+                    <span className="text-xs font-medium shrink-0">↳ but</span>
+                    <BranchView
+                      node={v.refutation.node}
+                      path={v.refutation.path}
+                      marker={v.refutation.node.isKey ? '!' : undefined}
+                      onNodeClick={handleNodeClick}
+                      activeNode={activeNode}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
