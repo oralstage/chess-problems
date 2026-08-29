@@ -1233,8 +1233,17 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
   assignVirtualIndents(segments, firstMoveColor);
 
   const nodes: SolutionNode[] = [];
-  // Stack tracks: the last node at each indent level, and where to add children
-  const stack: { node: SolutionNode; indent: number; isThreatParent: boolean }[] = [];
+  // Stack tracks: the last node at each indent level, and where to add children.
+  // moveNum/isBlackNum belong to the segment that opened the entry, so a later
+  // segment can tell a genuine descendant from a sibling the source indented
+  // by a stray space.
+  const stack: {
+    node: SolutionNode;
+    indent: number;
+    isThreatParent: boolean;
+    moveNum: number | null;
+    isBlackNum: boolean;
+  }[] = [];
 
   let prevLineIndex = -1;
   let prevSegMoveNum: number | null = null;
@@ -1275,8 +1284,15 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
         // Key/try move at move 1 (e.g., "1.Bf6-d8 !") after set play: new root section
         stack.length = 0;
       } else {
-        // Pop stack based on indent
-        while (stack.length > 0 && stack[stack.length - 1].indent >= seg.indent) {
+        // Pop stack based on indent, and on the move itself: two moves with the
+        // same number for the same side answer the same position, so one can
+        // never be inside the other. Sources indent by hand and a defence
+        // written one space shallow than its neighbours used to swallow every
+        // defence that followed it (D40016).
+        const sameTurnAs = (e: { moveNum: number | null; isBlackNum: boolean }) =>
+          seg.moveNum !== null && e.moveNum === seg.moveNum && e.isBlackNum === seg.isBlackNum;
+        while (stack.length > 0
+          && (stack[stack.length - 1].indent >= seg.indent || sameTurnAs(stack[stack.length - 1]))) {
           stack.pop();
         }
       }
@@ -1314,7 +1330,15 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
         stack[stack.length - 1].node.children.push(node);
       }
 
-      stack.push({ node, indent: seg.indent + i, isThreatParent: i === 0 && (seg.isThreat || seg.hasThreatLabel) });
+      stack.push({
+        node,
+        indent: seg.indent + i,
+        isThreatParent: i === 0 && (seg.isThreat || seg.hasThreatLabel),
+        // Only the segment's opening move carries its number; the moves chained
+        // after it on the same line are a different turn each.
+        moveNum: i === 0 ? seg.moveNum : null,
+        isBlackNum: i === 0 ? seg.isBlackNum : false,
+      });
       currentColor = currentColor === 'w' ? 'b' : 'w';
     }
 
