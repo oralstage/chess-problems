@@ -1,5 +1,6 @@
 import type { ChessProblem } from '../types';
 import { getStipulationColorClasses } from '../utils/stipulationColor';
+import { composerLine } from '../utils/composerName';
 
 interface ProblemCardProps {
   /** Multi-solution helpmates announce their count, like print does. */
@@ -54,7 +55,7 @@ export function ProblemCard({ problem, problemNumber, genrePrefix, solutionsTota
 
       <div className="text-gray-600 dark:text-gray-400">
         <div className="text-lg font-extrabold text-[var(--ink)] leading-tight truncate">
-          {problem.authors.join(', ')}
+          {composerLine(problem.authors)}
         </div>
         <div className="text-sm font-semibold text-[var(--faint)] truncate">
           {problem.sourceName}

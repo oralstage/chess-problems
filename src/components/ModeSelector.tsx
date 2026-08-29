@@ -3,6 +3,7 @@ import { Chessboard } from 'react-chessboard';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
+import { composerLine } from '../utils/composerName';
 import type { RatedGenre } from '../services/api';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
@@ -335,7 +336,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
             >
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-extrabold text-[var(--ink)]">
-                  {dailyProblem.authors[0] || 'Unknown'}
+                  {composerLine(dailyProblem.authors) || 'Unknown'}
                 </span>
                 <span className="block truncate text-xs font-medium text-[var(--faint)]">
                   {[dailyProblem.sourceName, dailyProblem.sourceYear].filter(Boolean).join(', ')}
