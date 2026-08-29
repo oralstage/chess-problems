@@ -820,6 +820,79 @@ function detectChangedMates(
 /** More than three cards stops being a spotlight; order below is priority. */
 const MAX_CARDS = 3;
 
+/** Enough lines to cover an ordinary problem's variations without replaying a huge tree. */
+const MAX_REPLAY_LINES = 60;
+
+/**
+ * Every root-to-leaf line of the solution, replayed from the diagram.
+ *
+ * The line the solver actually saw comes first, so a theme that shows up there
+ * still gets the board they were looking at. The rest exist because a theme
+ * often lives in a variation the solver never played — a switchback that only
+ * happens after the second defence is still the switchback the problem is
+ * tagged for.
+ */
+function replayAllLines(
+  initialFen: string | null,
+  roots: SolutionNode[],
+  seen: LinePosition[] | null,
+): LinePosition[][] {
+  const out: LinePosition[][] = [];
+  if (seen && seen.length > 1) out.push(seen);
+  if (!initialFen) return out;
+
+  const emit = (path: SolutionNode[]) => {
+    if (out.length >= MAX_REPLAY_LINES) return;
+    const chess = safeChess(initialFen);
+    if (!chess) return;
+    const line: LinePosition[] = [{ fen: chess.fen(), lastMove: null, san: '' }];
+    for (const node of path) {
+      const mv = execNode(chess, node);
+      if (!mv) return; // notation we cannot play — the line tells us nothing
+      line.push({ fen: chess.fen(), lastMove: mv, san: node.moveSan });
+    }
+    if (line.length > 1) out.push(line);
+  };
+
+  const walk = (node: SolutionNode, prefix: SolutionNode[]) => {
+    if (out.length >= MAX_REPLAY_LINES) return;
+    const path = [...prefix, node];
+    // Threats are "if the defender does nothing" — they are not lines a
+    // defence leads to, and playback leaves them out too.
+    const kids = node.children.filter(c => !c.isThreat);
+    if (kids.length === 0) { emit(path); return; }
+    for (const kid of kids) walk(kid, path);
+  };
+
+  for (const root of roots) walk(root, []);
+  return out;
+}
+
+/** First line where the detection holds — the solver's own line gets first refusal. */
+function firstCard(
+  lines: LinePosition[][],
+  detect: (line: LinePosition[]) => ThemeInsight | null,
+): ThemeInsight | null {
+  for (const line of lines) {
+    const card = detect(line);
+    if (card) return card;
+  }
+  return null;
+}
+
+/** First line whose final position is a mate of the shape asked for. */
+function firstMate(
+  lines: LinePosition[][],
+  wanted: (a: MateEconomy) => boolean,
+): { fen: string; economy: MateEconomy } | null {
+  for (const line of lines) {
+    const fen = line[line.length - 1].fen;
+    const economy = analyzeMateEconomy(fen);
+    if (economy && wanted(economy)) return { fen, economy };
+  }
+  return null;
+}
+
 export function getThemeInsights(
   p: { keywords?: string[]; solutionText?: string; genre: string; solutionTree?: SolutionNode[]; fullSolutionTree?: SolutionNode[] },
   initialFen: string | null,
@@ -830,7 +903,10 @@ export function getThemeInsights(
   const has = (...names: string[]) => names.some(n => kw.includes(n));
   const roots = p.solutionTree || [];
   const line = positions && positions.length > 1 ? positions : null;
-  const finalFen = line ? line[line.length - 1].fen : null;
+  // Detections that need the moves replayed get every variation, the solver's
+  // own line first — a theme that lives in a defence they never played is
+  // still the theme the problem is tagged for.
+  const lines = replayAllLines(initialFen, roots, line);
 
   // Crossing squares first — the sharper Novotny suppresses Grimshaw.
   const wantsTreeScan = has('Novotny', 'Grimshaw', 'Cross-check', 'Cross-checks',
@@ -863,8 +939,8 @@ export function getThemeInsights(
     }
   }
 
-  if (has('Battery', 'Battery play') && line) {
-    const card = detectBattery(line);
+  if (has('Battery', 'Battery play')) {
+    const card = firstCard(lines, detectBattery);
     if (card) out.push(card);
   }
 
@@ -912,8 +988,8 @@ export function getThemeInsights(
     });
   }
 
-  if (has('Switchback', 'Switchbacks') && line) {
-    const card = detectSwitchback(line);
+  if (has('Switchback', 'Switchbacks')) {
+    const card = firstCard(lines, detectSwitchback);
     if (card) out.push(card);
   }
 
@@ -922,35 +998,35 @@ export function getThemeInsights(
     if (card) out.push(card);
   }
 
-  if (has('Model mate', 'Model mates', 'Ideal mate', 'Ideal mates') && finalFen) {
-    const a = analyzeMateEconomy(finalFen);
-    if (a) {
+  if (has('Model mate', 'Model mates', 'Ideal mate', 'Ideal mates')) {
+    // Ideal is the stricter claim, so it searches the whole tree before model
+    // does — a problem tagged both should be shown the sharper one.
+    const ideal = has('Ideal mate', 'Ideal mates') ? firstMate(lines, a => a.ideal) : null;
+    const hit = ideal || (has('Model mate', 'Model mates') ? firstMate(lines, a => a.model) : null);
+    if (hit) {
+      const a = hit.economy;
       const sideName = a.matedColor === 'w' ? 'White' : 'Black';
       const other = a.matedColor === 'w' ? 'Black' : 'White';
       const blockNote = hasSelfBlock(a)
         ? ` Grey squares are blocked by ${sideName}'s own men — that counts too, exactly once.`
         : '';
-      if (has('Ideal mate', 'Ideal mates') && a.ideal) {
-        out.push({
-          theme: 'Ideal mate',
-          title: 'Ideal mate',
-          text: `Every square around the ${sideName} king (amber) is covered exactly once, `
-            + `and not a single piece of either side stands idle.${blockNote} `
-            + `The strictest mate a composer can build.`,
-          fen: finalFen,
-          marks: mateMarks(a),
-        });
-      } else if (has('Model mate', 'Model mates') && a.model) {
-        out.push({
-          theme: 'Model mate',
-          title: 'Model mate',
-          text: `Every square around the ${sideName} king (amber) is covered exactly once — `
-            + `no double duties, and every ${other} piece has work to do.${blockNote} `
-            + `Nothing wasted, nothing doubled.`,
-          fen: finalFen,
-          marks: mateMarks(a),
-        });
-      }
+      out.push(ideal ? {
+        theme: 'Ideal mate',
+        title: 'Ideal mate',
+        text: `Every square around the ${sideName} king (amber) is covered exactly once, `
+          + `and not a single piece of either side stands idle.${blockNote} `
+          + `The strictest mate a composer can build.`,
+        fen: hit.fen,
+        marks: mateMarks(a),
+      } : {
+        theme: 'Model mate',
+        title: 'Model mate',
+        text: `Every square around the ${sideName} king (amber) is covered exactly once — `
+          + `no double duties, and every ${other} piece has work to do.${blockNote} `
+          + `Nothing wasted, nothing doubled.`,
+        fen: hit.fen,
+        marks: mateMarks(a),
+      });
     }
   }
 
