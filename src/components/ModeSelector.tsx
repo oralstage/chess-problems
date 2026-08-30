@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
-import { pieceCounts } from '../utils/pieceCount';
+import { pieceCountParts } from '../utils/pieceCount';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
@@ -122,6 +122,8 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
     ro.observe(el);
     return () => ro.disconnect();
   }, [dailyProblem]);
+
+  const dailyPieces = pieceCountParts(dailyProblem?.fen ?? '');
 
   /* Resume this pool's own in-progress problem if it still has one, so leaving
      the page and coming back does not throw away the position the player was
@@ -333,16 +335,29 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
                 left corner, the material count beside it, the button at the right.
                 "#2" is read off the heading two lines above, which still says
                 "Mate in 2" in words, so the card stands the notation next to its
-                translation. No composer, in either state: printing the name here
-                and hiding it above the board would hide nothing, since everyone
-                who taps Solve has just read it. */}
+                translation.
+
+                The count is spelled out here and nowhere else. Tapping Solve opens
+                this same problem with "4+3" above the board, so the words the
+                reader just saw and the notation they are about to meet carry the
+                same two numbers in the same order — a pairing only the daily can
+                offer, since every other route into a problem starts from a list
+                that shows no words. Whoever wants the count for its real purpose,
+                checking they have set the men out correctly, can already read it
+                by then.
+
+                No composer, in either state: printing the name here and hiding it
+                above the board would hide nothing, since everyone who taps Solve
+                has just read it. */}
             <button
               type="button"
               onClick={onSolveDaily}
               className="flex w-full items-center gap-2.5 px-4 pt-2.5 pb-3 text-left"
             >
               <span className="font-mono text-sm font-bold text-[var(--ink)]">{dailyProblem.stipulation}</span>
-              <span className="font-mono text-xs text-[var(--faint)]">{pieceCounts(dailyProblem.fen)}</span>
+              <span className="text-xs font-medium text-[var(--faint)]">
+                White {dailyPieces.white} &middot; Black {dailyPieces.black}
+              </span>
               <span className="flex-1" />
               <span className="nb-btn nb-btn-key shrink-0 text-sm px-4 py-1">
                 {dailySolved ? 'Solved ✓' : 'Solve ›'}
