@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { pieceCounts } from '../utils/pieceCount';
 import { useTileGrid } from '../hooks/useTileGrid';
 import { Chessboard } from 'react-chessboard';
+import { LazyBoard } from './LazyBoard';
 import type { Genre, ChessProblem, ProblemProgress } from '../types';
 import { fetchDailyHistory, metaToChessProblem, type DailyHistoryEntry } from '../services/api';
 
@@ -86,7 +87,7 @@ export function DailyHistoryPage({ progress, onSelectProblem, onClose }: DailyHi
                     className="nb-tile nb-shadow-room-sm w-full p-2 flex flex-col items-center gap-1"
                   >
                     <span className="text-sm font-semibold text-green-700 dark:text-green-400">{formatDateLabel(entry.date)}</span>
-                    <div className="rounded-[6px] overflow-hidden relative border-2 border-[var(--ink)]" style={{ width: boardSize, height: boardSize }}>
+                    <LazyBoard size={boardSize} className="rounded-[6px] overflow-hidden relative border-2 border-[var(--ink)]">
                       <Chessboard
                         position={entry.problem.fen}
                         boardWidth={boardSize}
@@ -101,7 +102,7 @@ export function DailyHistoryPage({ progress, onSelectProblem, onClose }: DailyHi
                           {status === 'solved' ? '✓' : '✗'}
                         </span>
                       )}
-                    </div>
+                    </LazyBoard>
                     <div className="flex w-full items-baseline justify-between text-sm" style={{ maxWidth: boardSize }}>
                       <span className="font-bold text-[var(--ink)]">{entry.stipulation}</span>
                       <span className="text-[var(--muted)]">{pieceCounts(entry.problem.fen)}</span>

@@ -3,6 +3,7 @@ import { composerLine } from '../utils/composerName';
 import { pieceCounts } from '../utils/pieceCount';
 import { useTileGrid } from '../hooks/useTileGrid';
 import { Chessboard } from 'react-chessboard';
+import { LazyBoard } from './LazyBoard';
 import type { SearchResult } from '../services/api';
 import { searchByAuthor } from '../services/api';
 
@@ -206,7 +207,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
                           {GENRE_LABEL[r.genre] || r.genre}
                         </span>
                       </span>
-                      <div className="rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: boardSize, height: boardSize }}>
+                      <LazyBoard size={boardSize} className="rounded-[6px] overflow-hidden border-2 border-[var(--ink)]">
                         <Chessboard
                           position={r.fen}
                           boardWidth={boardSize}
@@ -216,7 +217,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
                           customDarkSquareStyle={{ backgroundColor: '#779952' }}
                           customLightSquareStyle={{ backgroundColor: '#edeed1' }}
                         />
-                      </div>
+                      </LazyBoard>
                       <div className="flex w-full items-baseline justify-between text-sm" style={{ maxWidth: boardSize }}>
                         <span className="font-bold text-[var(--ink)]">{r.stipulation}</span>
                         <span className="text-[var(--muted)]">{pieceCounts(r.fen)}</span>

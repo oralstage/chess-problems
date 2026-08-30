@@ -3,6 +3,7 @@ import { composerLine } from '../utils/composerName';
 import { pieceCounts } from '../utils/pieceCount';
 import { useTileGrid } from '../hooks/useTileGrid';
 import { Chessboard } from 'react-chessboard';
+import { LazyBoard } from './LazyBoard';
 import type { Genre, ChessProblem, ProblemProgress } from '../types';
 import { fetchProblemBatch, metaToChessProblem } from '../services/api';
 
@@ -206,7 +207,7 @@ export function HistoryPage({
                               {ratedIds.has(entry.id) ? 'Rated' : GENRE_LABELS[entry.genre]}
                             </span>
                           </span>
-                          <div className="relative rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: boardSize, height: boardSize }}>
+                          <LazyBoard size={boardSize} className="relative rounded-[6px] overflow-hidden border-2 border-[var(--ink)]">
                             {p ? (
                               <Chessboard position={p.fen} boardWidth={boardSize} arePiecesDraggable={false} animationDuration={0}
                                 customBoardStyle={{ borderRadius: '0' }} customDarkSquareStyle={{ backgroundColor: '#779952' }} customLightSquareStyle={{ backgroundColor: '#edeed1' }} />
@@ -218,7 +219,7 @@ export function HistoryPage({
                             <span className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center text-[8px] font-bold text-white rounded-bl ${entry.status === 'solved' ? 'bg-green-500' : 'bg-[var(--bad)]'}`}>
                               {entry.status === 'solved' ? '✓' : '✗'}
                             </span>
-                          </div>
+                          </LazyBoard>
                           <div className="flex w-full items-baseline justify-between text-sm" style={{ maxWidth: boardSize }}>
                             <span className="font-bold text-[var(--ink)]">{p ? p.stipulation : ''}</span>
                             <span className="text-[var(--muted)]">{p ? pieceCounts(p.fen) : ''}</span>

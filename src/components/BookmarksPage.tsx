@@ -2,6 +2,7 @@ import { useMemo, useEffect, useReducer } from 'react';
 import { pieceCounts } from '../utils/pieceCount';
 import { useTileGrid } from '../hooks/useTileGrid';
 import { Chessboard } from 'react-chessboard';
+import { LazyBoard } from './LazyBoard';
 import type { Genre, ChessProblem } from '../types';
 import { fetchProblemBatch, metaToChessProblem } from '../services/api';
 
@@ -104,7 +105,7 @@ export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProbl
                     <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{GENRE_PREFIX[genre] || ''}{id}</span>
                     <span className="text-[11px] text-gray-400 dark:text-gray-500">{GENRE_LABEL[genre] || genre}</span>
                   </span>
-                  <div className="rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: boardSize, height: boardSize }}>
+                  <LazyBoard size={boardSize} className="rounded-[6px] overflow-hidden border-2 border-[var(--ink)]">
                     {p ? (
                       <Chessboard position={p.fen} boardWidth={boardSize} arePiecesDraggable={false} animationDuration={0}
                         customBoardStyle={{ borderRadius: '0' }} customDarkSquareStyle={{ backgroundColor: '#779952' }} customLightSquareStyle={{ backgroundColor: '#edeed1' }} />
@@ -113,7 +114,7 @@ export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProbl
                         <span className="text-3xl text-gray-300 dark:text-gray-600">♚</span>
                       </div>
                     )}
-                  </div>
+                  </LazyBoard>
                   <div className="flex w-full items-baseline justify-between text-sm" style={{ maxWidth: boardSize }}>
                     <span className="font-bold text-[var(--ink)]">{p ? p.stipulation : ''}</span>
                     <span className="text-[var(--muted)]">{p ? pieceCounts(p.fen) : 'Loading...'}</span>
