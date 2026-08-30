@@ -303,8 +303,13 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
                   daily, so a difficulty they cannot act on only sets a bar to
                   fail at. */}
               <div className="mt-2.5 flex items-baseline justify-between gap-3">
+                {/* The notation stands next to its translation, the way the count
+                    below does. "#2" on its own under the board is a whole board
+                    away from the words that explain it, and the two never meet in
+                    one glance; here they are the same phrase. */}
                 <h2 id="daily-problem-heading" className="text-2xl font-extrabold tracking-tight text-[var(--ink)]">
                   Mate in {dailyProblem.moveCount}
+                  <span className="ml-1.5 font-mono text-sm font-bold text-[var(--faint)]">({dailyProblem.stipulation})</span>
                 </h2>
                 <p className="shrink-0 text-xs font-semibold text-[var(--muted)]">
                   {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
