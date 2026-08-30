@@ -21,6 +21,21 @@ import { addFairyExclusion } from '../fairy-filter';
 // so changing it re-counts the pool instead of reusing a stale total.
 const MAX_PIECES = 10;
 
+// How long a cached pool size may be trusted. The pool shrinks in ways the
+// import runbook does not cover the moment they happen: update-from-yacpdb
+// flips existing problems to is_fairy = 1 in step 5 while the cache is only
+// cleared in step 8 (a gap the runbook itself says may span days), and
+// rebuild-problems deletes an id range before re-inserting it, so the table is
+// genuinely short for the seconds each of its 27 files takes.
+//
+// A count taken inside one of those windows is too LOW, and a low total never
+// overshoots the OFFSET — so the recount-on-null guard below would never fire
+// again and the daily would keep drawing from a silently truncated pool until
+// someone cleared stats_cache by hand. An expiry bounds every such mistake,
+// high or low, to one week without anyone noticing it. Cost: one ~205k-row
+// count per week, against the eight the uncached version ran.
+const POOL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const dateParam = url.searchParams.get('date');
@@ -110,10 +125,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     let totalFromCache = false;
     try {
       const row = await context.env.STATS_DB.prepare(
-        'SELECT payload FROM stats_cache WHERE key = ?'
-      ).bind(poolCacheKey).first<{ payload: string }>();
+        'SELECT payload, updated_at FROM stats_cache WHERE key = ?'
+      ).bind(poolCacheKey).first<{ payload: string; updated_at: string }>();
       const n = row ? parseInt(row.payload) : NaN;
-      if (Number.isFinite(n) && n > 0) {
+      const age = row ? Date.now() - Date.parse(row.updated_at) : NaN;
+      if (Number.isFinite(n) && n > 0 && Number.isFinite(age) && age >= 0 && age < POOL_TTL_MS) {
         total = n;
         totalFromCache = true;
       }
