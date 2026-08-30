@@ -345,7 +345,8 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
                 The count is spelled out here and nowhere else. Tapping Solve opens
                 this same problem with "4+3" above the board, so the words the
                 reader just saw and the notation they are about to meet carry the
-                same two numbers in the same order — a pairing only the daily can
+                same two numbers, in the same order, joined by the same plus —
+                strike the words and what is left is the notation — a pairing only the daily can
                 offer, since every other route into a problem starts from a list
                 that shows no words. Whoever wants the count for its real purpose,
                 checking they have set the men out correctly, can already read it
@@ -361,7 +362,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
             >
               <span className="font-mono text-sm font-bold text-[var(--ink)]">{dailyProblem.stipulation}</span>
               <span className="text-xs font-medium text-[var(--faint)]">
-                White {dailyPieces.white} &middot; Black {dailyPieces.black}
+                White {dailyPieces.white} + Black {dailyPieces.black}
               </span>
               <span className="flex-1" />
               <span className="nb-btn nb-btn-key shrink-0 text-sm px-4 py-1">
