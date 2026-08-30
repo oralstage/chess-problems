@@ -82,8 +82,8 @@ export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
             try giving yourself the same time.
           </p>
           <p className="text-sm text-[var(--ink)] mb-2">
-            Problem set: WFCC, wfcc.ch. Four of the 18 are not in YACPDB (three
-            were composed for 2026 events), so they can't be solved here yet.
+            Problem set: WFCC, wfcc.ch. Two of the 18 are not in YACPDB — both
+            composed for 2026 events — so they can't be solved here yet.
           </p>
 
           {WCSC_2026_ROUNDS.map(round => (

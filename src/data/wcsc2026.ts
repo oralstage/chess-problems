@@ -4,8 +4,15 @@
  * problem set (wfcc.ch → WCCC 2026 Magdeburg: 49.WCSC). YACPDB ids were
  * matched by author + source + year + stipulation + piece count (the Loyd,
  * which YACPDB holds twice, was disambiguated by its diagram position).
- * `yacpdbId: null` marks the four problems YACPDB does not hold: three were
- * composed for 2026 events and may appear there later.
+ * `yacpdbId: null` marks the two problems YACPDB does not hold, both composed
+ * for 2026 events; they may appear there later.
+ *
+ * Two more had been marked null by a search that missed them. YACPDB files a
+ * problem composed for a competition under the event's own name, so Minski's
+ * study (no. 8) is there as "World Chess Solving Championship 2026" rather than
+ * under the source the sheet prints; and Janevski (no. 17) is entered in
+ * Macedonian Cyrillic as "Јаневски, Живко", which no Latin-script lookup finds.
+ * Both were then confirmed square by square against the official diagram.
  */
 export interface WcscProblem {
   no: number;
@@ -46,7 +53,7 @@ export const WCSC_2026_ROUNDS: WcscRound[] = [
     round: 3, title: 'Endgame studies', minutes: 100,
     problems: [
       { no: 7, author: 'Vladislav V. Tarasyuk', source: 'Peremoga-45 JT Sportiva Gazeta 1991, 2nd Pr.', stipulation: '+', yacpdbId: 682853 },
-      { no: 8, author: 'Martin Minski', source: 'Original for Polish Chess Federation 2026', stipulation: '+', yacpdbId: null },
+      { no: 8, author: 'Martin Minski', source: 'Original for Polish Chess Federation 2026', stipulation: '+', yacpdbId: 683286 },
       { no: 9, author: 'Nikolai G. Ryabinin & Valery Kirillov', source: 'Europa Rochade 1992-1993, Pr.', stipulation: '=', yacpdbId: 682854 },
     ],
   },
@@ -70,7 +77,7 @@ export const WCSC_2026_ROUNDS: WcscRound[] = [
     round: 6, title: 'Selfmates', minutes: 50,
     problems: [
       { no: 16, author: 'Constantin G. Pochtaryov & Yuri G. Fokin', source: 'Revista Română de Şah 1983, 1st HM.', stipulation: 's#2', yacpdbId: 88417 },
-      { no: 17, author: 'Zivko Janevski', source: 'Schach 1992, 1st-2nd HM.', stipulation: 's#3', yacpdbId: null },
+      { no: 17, author: 'Zivko Janevski', source: 'Schach 1992, 1st-2nd HM.', stipulation: 's#3', yacpdbId: 379084 },
       { no: 18, author: 'Mirko Degenkolbe & Nikolaj Zujev', source: 'Original for Schach 2026', stipulation: 's#5', yacpdbId: null },
     ],
   },
