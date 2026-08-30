@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
+import { pieceCounts } from '../utils/pieceCount';
 import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
@@ -329,24 +330,19 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
               </div>
             </button>
             {/* The line a magazine sets under a diagram: the stipulation at the
-                left corner, the button at the right. "#2" is read off the heading
-                two lines above it, which still says "Mate in 2" in words — the
-                card teaches the notation by standing the two next to each other.
-                The material count went: nothing on this card decodes "4+3", and
-                a front page for people who have never seen a problem is the last
-                place to put a token that only initiates can read. It stays on the
-                problem page, the lists and the WCSC set, which are for people
-                already solving.
-
-                No composer. Printing the name here and hiding it above the board
-                would hide nothing, since everyone who taps Solve has just read
-                it, and this card is not where that argument gets settled. */}
+                left corner, the material count beside it, the button at the right.
+                "#2" is read off the heading two lines above, which still says
+                "Mate in 2" in words, so the card stands the notation next to its
+                translation. No composer, in either state: printing the name here
+                and hiding it above the board would hide nothing, since everyone
+                who taps Solve has just read it. */}
             <button
               type="button"
               onClick={onSolveDaily}
-              className="flex w-full items-center gap-3 px-4 pt-2.5 pb-3 text-left"
+              className="flex w-full items-center gap-2.5 px-4 pt-2.5 pb-3 text-left"
             >
               <span className="font-mono text-sm font-bold text-[var(--ink)]">{dailyProblem.stipulation}</span>
+              <span className="font-mono text-xs text-[var(--faint)]">{pieceCounts(dailyProblem.fen)}</span>
               <span className="flex-1" />
               <span className="nb-btn nb-btn-key shrink-0 text-sm px-4 py-1">
                 {dailySolved ? 'Solved ✓' : 'Solve ›'}
