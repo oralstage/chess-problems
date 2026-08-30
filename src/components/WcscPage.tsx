@@ -2,7 +2,7 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { fetchProblemBatch } from '../services/api';
 import { WCSC_2026_ROUNDS, WCSC_2026_TITLE, WCSC_2026_SUBTITLE } from '../data/wcsc2026';
-import { pieceCounts } from '../utils/pieceCount';
+import { pieceCountParts } from '../utils/pieceCount';
 
 /* Same shape as the bookmarks list: one batch request fills a module-level
    FEN cache that survives the page being closed and reopened. */
@@ -106,8 +106,15 @@ export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
                       key={p.no}
                       onClick={() => { if (p.yacpdbId !== null) onSelectProblem(p.yacpdbId); }}
                       disabled={p.yacpdbId === null}
-                      className="nb-tile nb-shadow-room-sm w-full p-2 flex flex-col items-center gap-1.5 disabled:opacity-50"
+                      className="nb-tile nb-shadow-room-sm w-full p-2 flex flex-col items-center gap-1 disabled:opacity-50"
                     >
+                      {/* Number centred over the diagram, stipulation and material
+                          count in the two corners under it, none of them boxed —
+                          the sheet's own arrangement. The chip the rest of the site
+                          puts round a stipulation earns its keep in a mixed list;
+                          here every problem in a round shares one, and the round
+                          heading has already said which. */}
+                      <span className="text-sm font-bold text-[var(--ink)]">{p.no}.</span>
                       <div className="rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: boardSize, height: boardSize }}>
                         {fen ? (
                           <Chessboard position={fen} boardWidth={boardSize} arePiecesDraggable={false} animationDuration={0}
@@ -118,11 +125,10 @@ export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
                           </div>
                         )}
                       </div>
-                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
-                        <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{p.no}.</span>
-                        <span className="nb-chip px-1.5 py-0.5 text-xs font-mono">{p.stipulation}</span>
+                      <div className="flex w-full items-baseline justify-between text-sm" style={{ maxWidth: boardSize }}>
+                        <span className="font-bold text-[var(--ink)]">{p.stipulation}</span>
                         {fen && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">{pieceCounts(fen)}</span>
+                          <span className="text-[var(--muted)]">{pieceCountParts(fen).white} + {pieceCountParts(fen).black}</span>
                         )}
                       </div>
                       {p.yacpdbId === null && (
