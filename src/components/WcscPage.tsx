@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { fetchProblemBatch } from '../services/api';
 import { WCSC_2026_ROUNDS, WCSC_2026_TITLE, WCSC_2026_SUBTITLE } from '../data/wcsc2026';
@@ -31,6 +31,19 @@ interface WcscPageProps {
 export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
   const [, forceUpdate] = useReducer(x => x + 1, 0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  /* Three diagrams across, as the sheet prints them — two on a phone, where a
+     third would leave each board too small to read. The board takes a pixel
+     width, so it is measured off the column rather than left to CSS. */
+  const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    const onResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  const columns = viewportWidth < 640 ? 2 : 3;
+  const contentWidth = Math.min(viewportWidth, 672) - 32;
+  const boardSize = Math.floor((contentWidth - 8 * (columns - 1) - 16 * columns) / columns);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = savedScrollTop;
@@ -89,46 +102,46 @@ export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
                 <h3 className="font-bold text-lg text-gray-900 dark:text-white">Round {round.round} — {round.title}</h3>
                 <span className="nb-chip px-2 py-0.5 text-sm font-mono shrink-0">{round.minutes} min</span>
               </div>
-              {round.problems.map(p => {
-                const fen = p.yacpdbId !== null ? fenCache.get(p.yacpdbId) : undefined;
-                return (
-                  <button
-                    key={p.no}
-                    onClick={() => { if (p.yacpdbId !== null) onSelectProblem(p.yacpdbId); }}
-                    disabled={p.yacpdbId === null}
-                    className="nb-tile nb-shadow-room-sm w-full text-left px-3 py-2.5 mb-2 flex gap-3 items-center disabled:opacity-50"
-                  >
-                    <div className="shrink-0 rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: 120, height: 120 }}>
-                      {fen ? (
-                        <Chessboard position={fen} boardWidth={120} arePiecesDraggable={false} animationDuration={0}
-                          customBoardStyle={{ borderRadius: '0' }} customDarkSquareStyle={{ backgroundColor: '#779952' }} customLightSquareStyle={{ backgroundColor: '#edeed1' }} />
-                      ) : (
-                        <div className="w-full h-full bg-[var(--surface-2)] flex items-center justify-center">
-                          <span className="text-3xl text-gray-300 dark:text-gray-600">♚</span>
-                        </div>
-                      )}
-                    </div>
-                    {/* The championship's own problem sheet gives a number, a diagram,
-                        a stipulation and a piece count, and nothing else — the composers
-                        and sources are printed on the solutions handed out after the
-                        round. People come to this page to solve the set, not to read it,
-                        so it is laid out the way they would have received it. The credits
-                        stay in the data file, and arrive when a problem is decided. */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono font-bold text-base text-gray-700 dark:text-gray-200">{p.no}.</span>
-                        <span className="nb-chip px-2 py-0.5 text-sm font-mono">{p.stipulation}</span>
+              {/* The sheet's own arrangement: diagrams across the page, and under
+                  each one the number, the stipulation and the piece count. Nothing
+                  else — the composers and sources are printed on the solutions
+                  handed out after the round, and this page is for solving the set,
+                  not reading about it. The credits stay in wcsc2026.ts and arrive
+                  when a problem is decided, like everywhere else on the site. */}
+              <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+                {round.problems.map(p => {
+                  const fen = p.yacpdbId !== null ? fenCache.get(p.yacpdbId) : undefined;
+                  return (
+                    <button
+                      key={p.no}
+                      onClick={() => { if (p.yacpdbId !== null) onSelectProblem(p.yacpdbId); }}
+                      disabled={p.yacpdbId === null}
+                      className="nb-tile nb-shadow-room-sm w-full p-2 flex flex-col items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <div className="rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: boardSize, height: boardSize }}>
+                        {fen ? (
+                          <Chessboard position={fen} boardWidth={boardSize} arePiecesDraggable={false} animationDuration={0}
+                            customBoardStyle={{ borderRadius: '0' }} customDarkSquareStyle={{ backgroundColor: '#779952' }} customLightSquareStyle={{ backgroundColor: '#edeed1' }} />
+                        ) : (
+                          <div className="w-full h-full bg-[var(--surface-2)] flex items-center justify-center">
+                            <span className="text-3xl text-gray-300 dark:text-gray-600">♚</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                        <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{p.no}.</span>
+                        <span className="nb-chip px-1.5 py-0.5 text-xs font-mono">{p.stipulation}</span>
                         {fen && (
-                          <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">{pieceCounts(fen)}</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 font-mono">{pieceCounts(fen)}</span>
                         )}
                       </div>
                       {p.yacpdbId === null && (
-                        <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">Not in YACPDB yet</div>
+                        <div className="text-xs text-gray-600 dark:text-gray-300 text-center leading-tight">Not in YACPDB yet</div>
                       )}
-                    </div>
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ))}
         </div>
