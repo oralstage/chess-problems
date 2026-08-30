@@ -309,11 +309,13 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
                     one glance; here they are the same phrase. */}
                 <h2 id="daily-problem-heading" className="text-2xl font-extrabold tracking-tight text-[var(--ink)]">
                   Mate in {dailyProblem.moveCount}
-                  {/* Set at the heading's own size. Shrunk and greyed it read as a
-                      footnote to skip, and a notation nobody reads teaches nobody
-                      the notation. One weight lighter is enough to keep the words
-                      the heading and the symbol its equal, not its decoration. */}
-                  <span className="ml-2 font-mono text-2xl font-bold text-[var(--muted)]">({dailyProblem.stipulation})</span>
+                  {/* The heading's own size and the heading's own face: shrunk to a
+                      footnote it read as something to skip, and set in mono it read
+                      as a different object bolted on — mono glyphs are wide, so the
+                      three characters came out heavier than the four words they
+                      translate. Same face, same size, one weight lighter, and the
+                      two halves are one phrase. */}
+                  <span className="ml-2 text-2xl font-bold text-[var(--muted)]">({dailyProblem.stipulation})</span>
                 </h2>
                 <p className="shrink-0 text-xs font-semibold text-[var(--muted)]">
                   {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -365,10 +367,10 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
               className="flex w-full items-center gap-2.5 px-4 pt-2.5 pb-3 text-left"
             >
               <span className="font-mono text-sm font-bold text-[var(--ink)]">{dailyProblem.stipulation}</span>
-              {/* Not faint. Faint is the site's word for "you can skip this", and
-                  this line is here to be read by the one reader who does not know
-                  what 4+3 means. */}
-              <span className="text-xs font-medium text-[var(--muted)]">
+              {/* Not faint, and the same size as the "#2" it shares the line with.
+                  Faint is the site's word for "you can skip this", and this line is
+                  here for the one reader who does not know what 4+3 means. */}
+              <span className="text-sm font-medium text-[var(--muted)]">
                 White {dailyPieces.white} + Black {dailyPieces.black}
               </span>
               <span className="flex-1" />
