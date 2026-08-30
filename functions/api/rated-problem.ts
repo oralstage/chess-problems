@@ -122,10 +122,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       // a rotation, a piece lifted off first. They are worth meeting while
       // browsing, where a banner explains them, but here they are a problem the
       // player cannot solve and cannot leave without losing rating.
+      // Retractors are the same trap by another route: their first move is one
+      // taken back, not one played ("White retracts one move, then #1"), and a
+      // board that only goes forward cannot enter it. Filtered by keyword rather
+      // than pruned from problem_ratings so that re-seeding cannot bring them
+      // back — D507273 reached a player at 633 and cost 91 points.
       const conditions: string[] = [
         'id = ?', 'genre = ?', 'move_count >= 1',
         "keywords NOT LIKE '%Shortmate%'",
         "keywords NOT LIKE '%Joke problem%'",
+        "keywords NOT LIKE '%Retractor%'",
       ];
       const bindings: (string | number)[] = [rated.problem_id, genre];
       addFairyExclusion(conditions, bindings);
