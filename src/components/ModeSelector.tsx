@@ -334,11 +334,13 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
               onClick={onSolveDaily}
               className="flex w-full items-center gap-3 px-4 py-3 text-left"
             >
+              {/* Wraps rather than clips: this card is where the site presents the
+                  work, and a credit that ends in an ellipsis names the wrong person. */}
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-extrabold text-[var(--ink)]">
+                <span className="block break-words text-sm font-extrabold text-[var(--ink)]">
                   {composerLine(dailyProblem.authors) || 'Unknown'}
                 </span>
-                <span className="block truncate text-xs font-medium text-[var(--faint)]">
+                <span className="block break-words text-xs font-medium text-[var(--faint)]">
                   {[dailyProblem.sourceName, dailyProblem.sourceYear].filter(Boolean).join(', ')}
                 </span>
               </span>
