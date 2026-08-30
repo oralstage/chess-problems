@@ -8,6 +8,11 @@ interface ProblemCardProps {
   problem: ChessProblem;
   problemNumber?: number;
   genrePrefix?: string;
+  /** The composer, the source and the year are a clue to an experienced solver,
+      which is why solving tournaments hand out a diagram and a stipulation and
+      keep the rest for the solution sheet. Withheld here while the attempt is
+      running; the note standing in their place says they are coming. */
+  showCredits?: boolean;
 }
 
 function pieceCounts(fen: string): string {
@@ -29,7 +34,7 @@ function stipulationDisplay(stip: string): string {
   return stip;
 }
 
-export function ProblemCard({ problem, problemNumber, genrePrefix, solutionsTotal }: ProblemCardProps) {
+export function ProblemCard({ problem, problemNumber, genrePrefix, solutionsTotal, showCredits = true }: ProblemCardProps) {
   const stipColor = getStipulationColorClasses(problem.stipulation, problem.genre);
 
   return (
@@ -53,14 +58,26 @@ export function ProblemCard({ problem, problemNumber, genrePrefix, solutionsTota
         </span>
       </div>
 
-      <div className="text-gray-600 dark:text-gray-400">
-        <div className="text-lg font-extrabold text-[var(--ink)] leading-tight truncate">
-          {composerLine(problem.authors)}
-        </div>
-        <div className="text-sm font-semibold text-[var(--faint)] truncate">
-          {problem.sourceName}
-          {problem.sourceYear && `, ${problem.sourceYear}`}
-        </div>
+      {/* One box, one height, whichever half is showing. The credit arrives the
+          moment the solve is decided, and the board must not jump when it does. */}
+      <div className="text-gray-600 dark:text-gray-400 min-h-[2.75rem] flex flex-col justify-center">
+        {showCredits ? (
+          <>
+            {/* Not clipped. A name cut in half is a wrong name — the complaint
+                that started this was a Russian composer reduced to "Мар…". */}
+            <div className="text-lg font-extrabold text-[var(--ink)] leading-tight break-words">
+              {composerLine(problem.authors)}
+            </div>
+            <div className="text-sm font-semibold text-[var(--faint)] break-words">
+              {problem.sourceName}
+              {problem.sourceYear && `, ${problem.sourceYear}`}
+            </div>
+          </>
+        ) : (
+          <div className="text-sm font-semibold text-[var(--faint)]">
+            Composer and source &mdash; shown after the solve
+          </div>
+        )}
       </div>
 
     </div>
