@@ -288,9 +288,24 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         <section className="px-5 mb-12" aria-labelledby="daily-problem-heading">
           <div className="nb-card nb-shadow-nudge mx-auto overflow-hidden" style={{ maxWidth: 320 }}>
             <div className="px-4 py-3">
-              <p className="nb-label-key inline-block text-[11px] uppercase tracking-[0.16em] px-3 py-0.5">
-                Today&rsquo;s Problem
-              </p>
+              {/* The number goes above the diagram and the task line below it —
+                  the arrangement of the WCSC sheet and of every problem magazine.
+                  It sits on the label's line, opposite it, because it is the same
+                  kind of thing as the dateline under it: a label saying which problem
+                  this is, not part of what the solver has to do.
+
+                  It is also the only thing on this card that leads back to the
+                  composition now that the composer waits for the solve. Someone
+                  who photographs the card — which is exactly how this started —
+                  carries the id away with it. */}
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="nb-label-key inline-block text-[11px] uppercase tracking-[0.16em] px-3 py-0.5">
+                  Today&rsquo;s Problem
+                </p>
+                <span className="shrink-0 font-mono text-xs font-bold text-[var(--muted)] tabular-nums">
+                  D{dailyProblem.id}
+                </span>
+              </div>
               {/* The date sits on the heading's line rather than under it. It is
                   not a second fact about the problem, it is which day's problem
                   this is — a dateline — and a line of its own gave it the weight
