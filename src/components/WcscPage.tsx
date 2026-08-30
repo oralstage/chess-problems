@@ -7,6 +7,17 @@ import { WCSC_2026_ROUNDS, WCSC_2026_TITLE, WCSC_2026_SUBTITLE } from '../data/w
    FEN cache that survives the page being closed and reopened. */
 const fenCache = new Map<number, string>();
 
+/* "9 + 13" under the diagram, as the sheet prints it. */
+function pieceCounts(fen: string): string {
+  const board = fen.split(' ')[0];
+  let white = 0, black = 0;
+  for (const ch of board) {
+    if (ch >= 'A' && ch <= 'Z') white++;
+    else if (ch >= 'a' && ch <= 'z') black++;
+  }
+  return `${white}+${black}`;
+}
+
 /* Where the reader was. The page unmounts when a problem is opened, so the
    scroll position lives outside it and is restored on the way back —
    "Back to special page" should land on the round being browsed, not the top. */
@@ -97,15 +108,23 @@ export function WcscPage({ onSelectProblem, onClose }: WcscPageProps) {
                         </div>
                       )}
                     </div>
+                    {/* The championship's own problem sheet gives a number, a diagram,
+                        a stipulation and a piece count, and nothing else — the composers
+                        and sources are printed on the solutions handed out after the
+                        round. People come to this page to solve the set, not to read it,
+                        so it is laid out the way they would have received it. The credits
+                        stay in the data file, and arrive when a problem is decided. */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-mono font-bold text-base text-gray-700 dark:text-gray-200">{p.no}.</span>
                         <span className="nb-chip px-2 py-0.5 text-sm font-mono">{p.stipulation}</span>
+                        {fen && (
+                          <span className="text-sm text-gray-500 dark:text-gray-400 font-mono">{pieceCounts(fen)}</span>
+                        )}
                       </div>
-                      <div className="text-[15px] font-semibold text-[var(--ink)] truncate mt-1">{p.author}</div>
-                      <div className="text-sm text-gray-600 dark:text-gray-300 truncate mt-0.5">
-                        {p.yacpdbId === null ? 'Not in YACPDB yet' : p.source}
-                      </div>
+                      {p.yacpdbId === null && (
+                        <div className="text-sm text-gray-600 dark:text-gray-300 mt-1">Not in YACPDB yet</div>
+                      )}
                     </div>
                   </button>
                 );
