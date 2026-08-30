@@ -506,7 +506,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
             <button
               type="button"
               onClick={onShowWcsc}
-              className="nb-tile nb-shadow-room-sm w-full text-left px-4 py-4 flex items-center gap-4"
+              className="nb-tile nb-shadow-room-sm shadow-[4px_4px_0_var(--ink)] hover:shadow-[4px_4px_0_var(--ink)] w-full text-left px-4 py-4 flex items-center gap-4"
               style={{ backgroundColor: 'var(--acid)' }}
             >
               <span className="text-4xl" aria-hidden="true">🏆</span>
