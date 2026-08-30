@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { composerLine } from '../utils/composerName';
+import { pieceCounts } from '../utils/pieceCount';
+import { useTileGrid } from '../hooks/useTileGrid';
 import { Chessboard } from 'react-chessboard';
 import type { Genre, ChessProblem, ProblemProgress } from '../types';
 import { fetchDailyHistory, metaToChessProblem, type DailyHistoryEntry } from '../services/api';
@@ -30,6 +31,7 @@ function formatDateLabel(dateStr: string): string {
 export function DailyHistoryPage({ progress, onSelectProblem, onClose }: DailyHistoryPageProps) {
   const [entries, setEntries] = useState<(DailyHistoryEntry & { problem: ChessProblem })[]>([]);
   const [loading, setLoading] = useState(true);
+  const { columns, boardSize } = useTileGrid(768);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,25 +64,32 @@ export function DailyHistoryPage({ progress, onSelectProblem, onClose }: DailyHi
           </button>
         </div>
 
+        {/* The WCSC page's arrangement: diagrams across the page, and under each
+            one what a solving sheet carries — here the day it belongs to, the
+            stipulation, the material count. No composer: these are the days not
+            yet attempted, and naming one would hand over the clue the board stops
+            showing. Every daily is a #2, so the diagram is the only thing that
+            tells one tile from another, which is why it gets the room. */}
         <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
           {loading ? (
             <div className="text-center py-12 text-[var(--faint)]">Loading...</div>
           ) : entries.length === 0 ? (
             <div className="text-center py-12 text-[var(--faint)]">No daily problems available.</div>
           ) : (
-            <div className="space-y-0.5">
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
               {entries.map((entry) => {
                 const status = directProgress[String(entry.id)];
                 return (
                   <button
                     key={entry.date}
                     onClick={() => onSelectProblem('direct' as Genre, entry.problem, entry.date)}
-                    className="nb-tile nb-shadow-room-sm w-full text-left px-3 py-2.5 mb-2 flex gap-3"
+                    className="nb-tile nb-shadow-room-sm w-full p-2 flex flex-col items-center gap-1"
                   >
-                    <div className="shrink-0 rounded-[6px] overflow-hidden relative border-2 border-[var(--ink)]" style={{ width: 56, height: 56 }}>
+                    <span className="text-sm font-semibold text-green-700 dark:text-green-400">{formatDateLabel(entry.date)}</span>
+                    <div className="rounded-[6px] overflow-hidden relative border-2 border-[var(--ink)]" style={{ width: boardSize, height: boardSize }}>
                       <Chessboard
                         position={entry.problem.fen}
-                        boardWidth={56}
+                        boardWidth={boardSize}
                         arePiecesDraggable={false}
                         animationDuration={0}
                         customBoardStyle={{ borderRadius: '0' }}
@@ -93,15 +102,9 @@ export function DailyHistoryPage({ progress, onSelectProblem, onClose }: DailyHi
                         </span>
                       )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-green-700 dark:text-green-400">{formatDateLabel(entry.date)}</span>
-                        <span className="nb-chip px-2 py-0.5 text-xs font-mono">{entry.stipulation}</span>
-                      </div>
-                      <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">{composerLine(entry.authors)}</div>
-                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-                        {entry.sourceName || ''}{entry.sourceYear ? `, ${entry.sourceYear}` : ''}
-                      </div>
+                    <div className="flex w-full items-baseline justify-between text-sm" style={{ maxWidth: boardSize }}>
+                      <span className="font-bold text-[var(--ink)]">{entry.stipulation}</span>
+                      <span className="text-[var(--muted)]">{pieceCounts(entry.problem.fen)}</span>
                     </div>
                   </button>
                 );

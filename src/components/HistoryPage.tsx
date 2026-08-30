@@ -1,5 +1,7 @@
 import { useState, useMemo, useEffect, useReducer } from 'react';
 import { composerLine } from '../utils/composerName';
+import { pieceCounts } from '../utils/pieceCount';
+import { useTileGrid } from '../hooks/useTileGrid';
 import { Chessboard } from 'react-chessboard';
 import type { Genre, ChessProblem, ProblemProgress } from '../types';
 import { fetchProblemBatch, metaToChessProblem } from '../services/api';
@@ -60,6 +62,7 @@ export function HistoryPage({
   genreData, genreLoaded, progress, timestamps, onSelectProblem, onClose,
 }: HistoryPageProps) {
   const [filter, setFilter] = useState<HistoryFilter>('all');
+  const { columns, boardSize } = useTileGrid(768);
   const [cacheVersion, forceUpdate] = useReducer(x => x + 1, 0);
 
   // Load rated problem IDs from localStorage
@@ -186,7 +189,7 @@ export function HistoryPage({
               {grouped.map((group) => (
                 <div key={group.key}>
                   <div className="text-xs font-extrabold text-[var(--faint)] uppercase tracking-wider px-3 mb-1">{group.label}</div>
-                  <div className="space-y-0.5">
+                  <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
                     {group.entries.map((entry) => {
                       const p = entry.problem;
                       const prefix = GENRE_PREFIX[entry.genre] || '';
@@ -195,37 +198,36 @@ export function HistoryPage({
                           key={`${entry.genre}-${entry.id}`}
                           onClick={() => { if (p) onSelectProblem(entry.genre, p, ratedIds.has(entry.id)); }}
                           disabled={!p}
-                          className="nb-tile nb-shadow-room-sm w-full text-left px-3 py-2.5 mb-2 flex gap-3 disabled:opacity-60"
+                          className="nb-tile nb-shadow-room-sm w-full p-2 flex flex-col items-center gap-1 disabled:opacity-60"
                         >
-                          <div className="shrink-0 rounded-[6px] overflow-hidden relative border-2 border-[var(--ink)]" style={{ width: 56, height: 56 }}>
+                          <span className="flex items-baseline gap-1.5">
+                            <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{prefix}{entry.id}</span>
+                            <span className={`text-[11px] ${ratedIds.has(entry.id) ? 'text-[var(--ink)] font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
+                              {ratedIds.has(entry.id) ? 'Rated' : GENRE_LABELS[entry.genre]}
+                            </span>
+                          </span>
+                          <div className="relative rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: boardSize, height: boardSize }}>
                             {p ? (
-                              <Chessboard position={p.fen} boardWidth={56} arePiecesDraggable={false} animationDuration={0}
+                              <Chessboard position={p.fen} boardWidth={boardSize} arePiecesDraggable={false} animationDuration={0}
                                 customBoardStyle={{ borderRadius: '0' }} customDarkSquareStyle={{ backgroundColor: '#779952' }} customLightSquareStyle={{ backgroundColor: '#edeed1' }} />
                             ) : (
                               <div className="w-full h-full bg-[var(--surface-2)] flex items-center justify-center">
-                                <span className="text-lg text-gray-300 dark:text-gray-600">♚</span>
+                                <span className="text-3xl text-gray-300 dark:text-gray-600">♚</span>
                               </div>
                             )}
                             <span className={`absolute top-0 right-0 w-4 h-4 flex items-center justify-center text-[8px] font-bold text-white rounded-bl ${entry.status === 'solved' ? 'bg-green-500' : 'bg-[var(--bad)]'}`}>
                               {entry.status === 'solved' ? '✓' : '✗'}
                             </span>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{prefix}{entry.id}</span>
-                              {p && <span className="nb-chip px-2 py-0.5 text-xs font-mono">{p.stipulation}</span>}
-                              <span className={`text-xs ${ratedIds.has(entry.id) ? 'text-[var(--ink)] dark:text-[var(--ink)] font-medium' : 'text-gray-400 dark:text-gray-500'}`}>
-                                {ratedIds.has(entry.id) ? 'Rated' : GENRE_LABELS[entry.genre]}
-                              </span>
-                            </div>
-                            {p ? (
-                              <>
-                                <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">{composerLine(p.authors)}</div>
-                                <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{p.sourceName || ''}{p.sourceYear ? `, ${p.sourceYear}` : ''}</div>
-                              </>
-                            ) : (
-                              <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Loading...</div>
-                            )}
+                          <div className="flex w-full items-baseline justify-between text-sm" style={{ maxWidth: boardSize }}>
+                            <span className="font-bold text-[var(--ink)]">{p ? p.stipulation : ''}</span>
+                            <span className="text-[var(--muted)]">{p ? pieceCounts(p.fen) : ''}</span>
+                          </div>
+                          {/* The composer stays here, and only here of the three lists:
+                              everything in the history has been decided already, so
+                              the name is due. */}
+                          <div className="w-full text-center text-xs text-gray-600 dark:text-gray-400 break-words" style={{ maxWidth: boardSize }}>
+                            {p ? composerLine(p.authors) : 'Loading...'}
                           </div>
                         </button>
                       );

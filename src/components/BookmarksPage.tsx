@@ -1,5 +1,6 @@
 import { useMemo, useEffect, useReducer } from 'react';
-import { composerLine } from '../utils/composerName';
+import { pieceCounts } from '../utils/pieceCount';
+import { useTileGrid } from '../hooks/useTileGrid';
 import { Chessboard } from 'react-chessboard';
 import type { Genre, ChessProblem } from '../types';
 import { fetchProblemBatch, metaToChessProblem } from '../services/api';
@@ -26,6 +27,7 @@ interface BookmarkEntry {
 
 export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProblem, onClose }: BookmarksPageProps) {
   const [cacheVersion, forceUpdate] = useReducer(x => x + 1, 0);
+  const { columns, boardSize } = useTileGrid(672);
 
   const entries = useMemo(() => {
     const result: BookmarkEntry[] = [];
@@ -82,42 +84,39 @@ export function BookmarksPage({ genreData, genreLoaded, bookmarks, onSelectProbl
           </button>
         </div>
 
+        {/* Tiles, like the WCSC set: the diagram, and under it what a solving
+            sheet carries. No composer — a bookmark is a problem put aside to solve
+            later, so this list is read before the attempt, and naming one here
+            would hand over the clue the board stops showing. */}
         <div className="flex-1 overflow-y-auto">
           {entries.length === 0 ? (
             <div className="text-center py-12 text-[var(--faint)] text-sm">No bookmarked problems yet</div>
           ) : (
-            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
               {entries.map(({ id, problem: p, genre }) => (
                 <button
                   key={`${genre}-${id}`}
                   onClick={() => { if (p) onSelectProblem(genre, p); }}
                   disabled={!p}
-                  className="nb-tile nb-shadow-room-sm w-full text-left px-4 py-3 mb-2 flex gap-3 disabled:opacity-60"
+                  className="nb-tile nb-shadow-room-sm w-full p-2 flex flex-col items-center gap-1 disabled:opacity-60"
                 >
-                  <div className="shrink-0 rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: 56, height: 56 }}>
+                  <span className="flex items-baseline gap-1.5">
+                    <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{GENRE_PREFIX[genre] || ''}{id}</span>
+                    <span className="text-[11px] text-gray-400 dark:text-gray-500">{GENRE_LABEL[genre] || genre}</span>
+                  </span>
+                  <div className="rounded-[6px] overflow-hidden border-2 border-[var(--ink)]" style={{ width: boardSize, height: boardSize }}>
                     {p ? (
-                      <Chessboard position={p.fen} boardWidth={56} arePiecesDraggable={false} animationDuration={0}
+                      <Chessboard position={p.fen} boardWidth={boardSize} arePiecesDraggable={false} animationDuration={0}
                         customBoardStyle={{ borderRadius: '0' }} customDarkSquareStyle={{ backgroundColor: '#779952' }} customLightSquareStyle={{ backgroundColor: '#edeed1' }} />
                     ) : (
                       <div className="w-full h-full bg-[var(--surface-2)] flex items-center justify-center">
-                        <span className="text-lg text-gray-300 dark:text-gray-600">♚</span>
+                        <span className="text-3xl text-gray-300 dark:text-gray-600">♚</span>
                       </div>
                     )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">{GENRE_PREFIX[genre] || ''}{id}</span>
-                      {p && <span className="nb-chip px-2 py-0.5 text-xs font-mono">{p.stipulation}</span>}
-                      <span className="text-xs text-gray-400 dark:text-gray-500">{GENRE_LABEL[genre] || genre}</span>
-                    </div>
-                    {p ? (
-                      <>
-                        <div className="text-sm text-gray-600 dark:text-gray-400 truncate mt-0.5">{composerLine(p.authors)}</div>
-                        <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{p.sourceName || ''}{p.sourceYear ? `, ${p.sourceYear}` : ''}</div>
-                      </>
-                    ) : (
-                      <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">Loading...</div>
-                    )}
+                  <div className="flex w-full items-baseline justify-between text-sm" style={{ maxWidth: boardSize }}>
+                    <span className="font-bold text-[var(--ink)]">{p ? p.stipulation : ''}</span>
+                    <span className="text-[var(--muted)]">{p ? pieceCounts(p.fen) : 'Loading...'}</span>
                   </div>
                 </button>
               ))}
