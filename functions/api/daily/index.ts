@@ -13,8 +13,14 @@ import { addFairyExclusion } from '../fairy-filter';
  * Speed strategy (fastest to slowest):
  *   1. Worker Cache API  — edge memory, 0 D1 queries
  *   2. daily_cache table — 1 D1 query (id lookup only)
- *   3. Full calculation  — 2 D1 queries + INSERT into daily_cache (once per day)
+ *   3. Full calculation  — pool size from stats_cache (1 row) + one OFFSET
+ *      query + INSERT into daily_cache. Runs once per date, globally.
  */
+
+// Piece-count ceiling for the daily pool. Part of the stats_cache key below,
+// so changing it re-counts the pool instead of reusing a stale total.
+const MAX_PIECES = 10;
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const dateParam = url.searchParams.get('date');
@@ -71,15 +77,49 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     // position to analyse rather than a puzzle to try. Ten leaves the board
     // visibly empty (16% of its squares), keeps 37,414 problems to draw from —
     // a century of dailies — and lands on a miniature about seven times in ten.
-    const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'", "piece_count <= 10", "keywords NOT LIKE '%Shortmate%'"];
+    const conditions: string[] = ["genre = 'direct'", "stipulation = '#2'", `piece_count <= ${MAX_PIECES}`, "keywords NOT LIKE '%Shortmate%'"];
     const bindings: (string | number)[] = [];
     addFairyExclusion(conditions, bindings);
     const where = conditions.join(' AND ');
 
-    const countResult = await context.env.DB.prepare(
-      `SELECT COUNT(*) as cnt FROM problems WHERE ${where}`
-    ).bind(...bindings).first<{ cnt: number }>();
-    const total = countResult?.cnt || 0;
+    // The pool size is a ~205k-row scan that only changes on import, yet it was
+    // recomputed for every date missing from daily_cache — and the weekly X-post
+    // batch (scripts/generate-weekly-daily-posts.mjs) misses seven future dates
+    // in one go, so a quiet Sunday cost ~1.6M of the 5M/day read allowance.
+    // Serve it from stats_cache, the same table and pattern problems.ts uses for
+    // its genre counts, invalidated by the same DELETE FROM stats_cache. The
+    // threshold is part of the key so changing MAX_PIECES invalidates it too.
+    const poolCacheKey = `v1:count:daily-pool:p${MAX_PIECES}`;
+
+    const countPool = async (): Promise<number> => {
+      const countResult = await context.env.DB.prepare(
+        `SELECT COUNT(*) as cnt FROM problems WHERE ${where}`
+      ).bind(...bindings).first<{ cnt: number }>();
+      const n = countResult?.cnt || 0;
+      if (n > 0) {
+        context.waitUntil(
+          context.env.STATS_DB.prepare(
+            'INSERT OR REPLACE INTO stats_cache (key, payload, updated_at) VALUES (?, ?, ?)'
+          ).bind(poolCacheKey, String(n), new Date().toISOString()).run().catch(() => {})
+        );
+      }
+      return n;
+    };
+
+    let total: number | null = null;
+    let totalFromCache = false;
+    try {
+      const row = await context.env.STATS_DB.prepare(
+        'SELECT payload FROM stats_cache WHERE key = ?'
+      ).bind(poolCacheKey).first<{ payload: string }>();
+      const n = row ? parseInt(row.payload) : NaN;
+      if (Number.isFinite(n) && n > 0) {
+        total = n;
+        totalFromCache = true;
+      }
+    } catch { /* table missing — compute below */ }
+
+    if (total === null) total = await countPool();
     if (total === 0) {
       return Response.json({ error: 'No daily problems available' }, { status: 404 });
     }
@@ -88,11 +128,21 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const dayNum = y * 10000 + m * 100 + d;
     const GOLDEN = 2654435761;
     const hash = ((dayNum * GOLDEN) >>> 0) / 4294967296;
-    const idx = Math.floor(hash * total);
+    const offsetFor = (poolSize: number) => Math.floor(hash * poolSize);
 
-    const idRow = await context.env.DB.prepare(
-      `SELECT id FROM problems WHERE ${conditions.join(' AND ')} ORDER BY difficulty_score ASC LIMIT 1 OFFSET ?`
-    ).bind(...bindings, idx).first<{ id: number }>();
+    const pickAt = (offset: number) => context.env.DB.prepare(
+      `SELECT id FROM problems WHERE ${where} ORDER BY difficulty_score ASC LIMIT 1 OFFSET ?`
+    ).bind(...bindings, offset).first<{ id: number }>();
+
+    let idRow = await pickAt(offsetFor(total));
+
+    // A cached pool size that outlived a shrinking table would push the OFFSET
+    // past the last row and 404 the daily for a whole day. Recount once — which
+    // also refreshes the cache — before giving up.
+    if (!idRow && totalFromCache) {
+      const fresh = await countPool();
+      if (fresh > 0) idRow = await pickAt(offsetFor(fresh));
+    }
 
     if (!idRow) {
       return Response.json({ error: 'Daily problem not found' }, { status: 404 });
