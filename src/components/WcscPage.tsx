@@ -2,21 +2,11 @@ import { useEffect, useReducer, useRef, useState } from 'react';
 import { Chessboard } from 'react-chessboard';
 import { fetchProblemBatch } from '../services/api';
 import { WCSC_2026_ROUNDS, WCSC_2026_TITLE, WCSC_2026_SUBTITLE } from '../data/wcsc2026';
+import { pieceCounts } from '../utils/pieceCount';
 
 /* Same shape as the bookmarks list: one batch request fills a module-level
    FEN cache that survives the page being closed and reopened. */
 const fenCache = new Map<number, string>();
-
-/* "9 + 13" under the diagram, as the sheet prints it. */
-function pieceCounts(fen: string): string {
-  const board = fen.split(' ')[0];
-  let white = 0, black = 0;
-  for (const ch of board) {
-    if (ch >= 'A' && ch <= 'Z') white++;
-    else if (ch >= 'a' && ch <= 'z') black++;
-  }
-  return `${white}+${black}`;
-}
 
 /* Where the reader was. The page unmounts when a problem is opened, so the
    scroll position lives outside it and is restored on the way back —

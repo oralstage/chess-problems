@@ -944,6 +944,15 @@ export default function App() {
     return progress.direct?.[String(dailyProblem.id)] === 'solved';
   }, [dailyProblem, progress]);
 
+  /* The credit on the card follows the same rule as the credit above the board:
+     it waits for the attempt to be over, and giving up ends an attempt too. So
+     this is wider than dailySolved, which still speaks only for the button. */
+  const dailyDecided = useMemo(() => {
+    if (!dailyProblem) return false;
+    const state = progress.direct?.[String(dailyProblem.id)];
+    return state === 'solved' || state === 'failed';
+  }, [dailyProblem, progress]);
+
   const handleSolveDaily = useCallback(() => {
     if (!dailyProblem) return;
     trackEvent('daily_started', dailyProblem.id);
@@ -2638,6 +2647,7 @@ export default function App() {
                 dailyProblemRating={dailyProblemRating}
                 onSolveDaily={handleSolveDaily}
                 dailySolved={dailySolved}
+                dailyDecided={dailyDecided}
                 onShowChangelog={() => openStaticPage('#/whatsnew', () => setShowChangelog(true))}
                 onShowGuide={() => openGuide()}
                 onShowWcsc={() => openStaticPage('#/wcsc2026', () => setShowWcscPage(true))}

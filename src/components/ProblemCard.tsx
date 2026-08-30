@@ -1,6 +1,7 @@
 import type { ChessProblem } from '../types';
 import { getStipulationColorClasses } from '../utils/stipulationColor';
 import { composerLine } from '../utils/composerName';
+import { pieceCounts } from '../utils/pieceCount';
 
 interface ProblemCardProps {
   /** Multi-solution helpmates announce their count, like print does. */
@@ -13,16 +14,6 @@ interface ProblemCardProps {
       keep the rest for the solution sheet. Withheld here while the attempt is
       running; the note standing in their place says they are coming. */
   showCredits?: boolean;
-}
-
-function pieceCounts(fen: string): string {
-  const board = fen.split(' ')[0];
-  let white = 0, black = 0;
-  for (const ch of board) {
-    if (ch >= 'A' && ch <= 'Z') white++;
-    else if (ch >= 'a' && ch <= 'z') black++;
-  }
-  return `${white}+${black}`;
 }
 
 function stipulationDisplay(stip: string): string {

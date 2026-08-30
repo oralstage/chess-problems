@@ -4,6 +4,7 @@ import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
 import { composerLine } from '../utils/composerName';
+import { pieceCounts } from '../utils/pieceCount';
 import type { RatedGenre } from '../services/api';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
@@ -16,6 +17,8 @@ interface ModeSelectorProps {
   dailyProblemRating?: number | null;
   onSolveDaily: () => void;
   dailySolved: boolean;
+  /** Solved or given up — either way the attempt is over and the credit is due. */
+  dailyDecided: boolean;
   onShowChangelog?: () => void;
   onShowGuide?: () => void;
   onShowWcsc?: () => void;
@@ -99,7 +102,7 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
 ];
 
-export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onShowGuide, onShowWcsc, onShowThemes, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, dailyDecided, onShowChangelog, onShowGuide, onShowWcsc, onShowThemes, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -329,23 +332,41 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
                 />
               </div>
             </button>
+            {/* One line under the diagram, the way a magazine sets it: the
+                stipulation at the left corner, the material count beside it, and
+                nothing between them and the button but air. The heading above
+                still says "Mate in 2" for readers who have never met the
+                notation — this is the same fact in the printed form, and it is
+                what makes the card read as a diagram rather than a picture of a
+                chessboard.
+
+                The composer waits for the attempt to end here too. Printing the
+                name on the card and then withholding it above the board would
+                withhold nothing: everyone who taps Solve has just read it. When
+                it arrives it sits over the caption, wrapped and never clipped —
+                a credit that ends in an ellipsis names the wrong person. */}
             <button
               type="button"
               onClick={onSolveDaily}
-              className="flex w-full items-center gap-3 px-4 py-3 text-left"
+              className="block w-full px-4 pt-2.5 pb-3 text-left"
             >
-              {/* Wraps rather than clips: this card is where the site presents the
-                  work, and a credit that ends in an ellipsis names the wrong person. */}
-              <span className="min-w-0 flex-1">
-                <span className="block break-words text-sm font-extrabold text-[var(--ink)]">
-                  {composerLine(dailyProblem.authors) || 'Unknown'}
+              {dailyDecided && (
+                <span className="block mb-1.5">
+                  <span className="block break-words text-sm font-extrabold text-[var(--ink)]">
+                    {composerLine(dailyProblem.authors) || 'Unknown'}
+                  </span>
+                  <span className="block break-words text-xs font-medium text-[var(--faint)]">
+                    {[dailyProblem.sourceName, dailyProblem.sourceYear].filter(Boolean).join(', ')}
+                  </span>
                 </span>
-                <span className="block break-words text-xs font-medium text-[var(--faint)]">
-                  {[dailyProblem.sourceName, dailyProblem.sourceYear].filter(Boolean).join(', ')}
+              )}
+              <span className="flex items-center gap-2.5">
+                <span className="font-mono text-sm font-bold text-[var(--ink)]">{dailyProblem.stipulation}</span>
+                <span className="font-mono text-xs text-[var(--faint)]">{pieceCounts(dailyProblem.fen)}</span>
+                <span className="flex-1" />
+                <span className="nb-btn nb-btn-key shrink-0 text-sm px-4 py-1">
+                  {dailySolved ? 'Solved ✓' : 'Solve ›'}
                 </span>
-              </span>
-              <span className="nb-btn nb-btn-key shrink-0 text-sm px-4 py-1">
-                {dailySolved ? 'Solved ✓' : 'Solve ›'}
               </span>
             </button>
           </div>
