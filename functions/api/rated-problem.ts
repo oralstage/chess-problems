@@ -14,28 +14,8 @@
 const RATED_GENRES = ['direct', 'self', 'help'];
 
 import { addFairyExclusion } from './fairy-filter';
+import { UNPLAYABLE_IDS } from './unplayable-filter';
 
-/* Direct mate-in-1 whose recorded key cannot be played on this board at all.
-   Found by replaying all 200 of them through the site's own pipeline —
-   fixCastlingRights, parseSolution, filterKeyMoves, then chess.js — and keeping
-   the ones where no key move is legal in the diagram. They are not deleted and
-   not hidden: they stay in the lists, in search, and in the genres, where a
-   solver can look at them. They are only kept out of the rated draw, where a
-   problem that cannot be entered can only cost the player rating.
-
-   Why each is unplayable: "1. ~ #" gives no move at all; the retro and joke
-   ones ask for something off the board (a rotation, a piece lifted, a proof of
-   the last move); "Black to play mates in 1" task problems record Black's keys
-   under a White-to-move diagram; and the en passant ones need a last move the
-   FEN does not carry. D481856 is the one repairable case — its diagram wants
-   the en passant square d6, and with it 1.exd6# is legal and mate — so it comes
-   off this list the day the position is fixed. */
-const UNPLAYABLE_IDS = [
-  305155, 306369, 306996, 327642, 328200, 328206, 328214, 328684, 342239,
-  355882, 388496, 479773, 481856, 507273, 532909, 544646, 544684, 588250,
-  597299, 608168, 625355, 639302, 649200, 650724, 650726, 650727, 650755,
-  650762, 650770, 650771, 652942,
-];
 
 function buildProblem(row: Record<string, unknown>, problemRating: number) {
   return {
