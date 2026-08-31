@@ -3221,6 +3221,7 @@ export default function App() {
                     : problem.problem.fullSolutionTree}
                   initialFen={problem.initialFen}
                   solutionText={problem.problem.solutionText}
+                  stipulation={activeTwinId ? undefined : problem.problem.stipulation}
                   firstColor={(problem.initialFen.split(' ')[1] || 'w') as 'w' | 'b'}
                   playback={problem.playback}
                   onGoTo={problem.playbackGoTo}

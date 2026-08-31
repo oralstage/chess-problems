@@ -1,12 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import type { SolutionNode } from '../types';
-import { buildTryCommentary } from '../utils/tryCommentary';
+import { buildTryCommentary, mergeSameMoveChildren } from '../utils/tryCommentary';
 
 interface SolutionTreeProps {
   fullNodes: SolutionNode[];
   initialFen: string;
   solutionText: string;
+  /** Stipulation of the position these nodes belong to; gates the Commentary
+      card (twomovers only). Leave undefined for twins — their tree comes with
+      a different FEN than initialFen, and the card's board checks would be
+      reading the wrong board. */
+  stipulation?: string;
   firstColor?: 'w' | 'b';
   playback: {
     positions: { fen: string; lastMove: { from: string; to: string } | null; san: string }[];
@@ -124,47 +129,9 @@ function branchChildren(node: SolutionNode): SolutionNode[] {
   return node.children.filter(c => !c.isThreat);
 }
 
-/**
- * Fold sibling nodes that carry the same move into one.
- *
- * YACPDB writes alternative continuations with slashes — "1...Qh1
- * 2.Nd7#/Ne2#/Ne6#" — and the parser expands that one source line into one line
- * per alternative, which leaves a copy of the defense in front of every mate.
- * Siblings share a position, so two siblings with the same move ARE the same
- * move: folding them back gives one defense with its mates hanging beneath,
- * which is what the fork layout below already knows how to draw.
- *
- * Roots are deliberately left as they are: their order and adjacency carry the
- * set-play / try / key grouping that buildRootVariations reads, and the
- * solution count shown elsewhere counts them.
- */
-function mergeSameMoveChildren(node: SolutionNode): SolutionNode {
-  if (node.children.length === 0) return node;
-
-  const order: SolutionNode[] = [];
-  const byMove = new Map<string, SolutionNode>();
-
-  for (const child of node.children) {
-    // Every field that distinguishes how a move is drawn or filtered is part of
-    // the key, so folding can never merge two nodes the display treats apart.
-    const key = [
-      child.move, child.moveSan, child.color, child.annotation,
-      child.isKey, child.isTry, child.isThreat, child.isMate, child.isCheck,
-      child.moveNum ?? '',
-    ].join('\u0000');
-
-    const seen = byMove.get(key);
-    if (seen) {
-      seen.children = [...seen.children, ...child.children];
-    } else {
-      const copy: SolutionNode = { ...child, children: [...child.children] };
-      byMove.set(key, copy);
-      order.push(copy);
-    }
-  }
-
-  return { ...node, children: order.map(mergeSameMoveChildren) };
-}
+// mergeSameMoveChildren lives in tryCommentary.ts now: it shapes the tree for
+// the fork layout here AND for the commentary prose, and the sweep script
+// imports it — a component file cannot export it without breaking fast refresh.
 
 interface MoveRef {
   node: SolutionNode;
@@ -366,7 +333,7 @@ function BranchView({ node, path, marker, omit, onNodeClick, activeNode, indent 
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, onShowLine, isCooked, notes }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, onShowLine, isCooked, notes }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -414,7 +381,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
   const variations = useMemo(() => buildRootVariations(merged), [merged]);
   // Prose reading of the tries — it walks the same folded tree, so a defence
   // written several ways in the source is one defence here too.
-  const commentary = useMemo(() => buildTryCommentary(merged, initialFen), [merged, initialFen]);
+  const commentary = useMemo(() => buildTryCommentary(merged, initialFen, stipulation), [merged, initialFen, stipulation]);
   const hasAnyMarkers = variations.some(v => v.isKey || v.isTry);
   // When no key/try markers exist (e.g., helpmates), treat all variations as "solutions"
   const keyVariations = hasAnyMarkers ? variations.filter(v => v.isKey) : [];

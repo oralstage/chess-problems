@@ -54,6 +54,52 @@ export interface TryCommentary {
 const branchChildren = (node: SolutionNode) => node.children.filter(c => !c.isThreat);
 const threatChildren = (node: SolutionNode) => node.children.filter(c => c.isThreat);
 
+/**
+ * Fold sibling nodes that carry the same move into one.
+ *
+ * YACPDB writes alternative continuations with slashes — "1...Qh1
+ * 2.Nd7#/Ne2#/Ne6#" — and the parser expands that one source line into one line
+ * per alternative, which leaves a copy of the defense in front of every mate.
+ * Siblings share a position, so two siblings with the same move ARE the same
+ * move: folding them back gives one defense with its mates hanging beneath,
+ * which is what SolutionTree's fork layout and this file's prose both expect.
+ *
+ * Roots are deliberately left as they are: their order and adjacency carry the
+ * set-play / try / key grouping that buildRootVariations reads, and the
+ * solution count shown elsewhere counts them.
+ *
+ * Lives here rather than in SolutionTree.tsx so the sweep script can import it
+ * without pulling a component file (and breaking fast refresh with a
+ * non-component export).
+ */
+export function mergeSameMoveChildren(node: SolutionNode): SolutionNode {
+  if (node.children.length === 0) return node;
+
+  const order: SolutionNode[] = [];
+  const byMove = new Map<string, SolutionNode>();
+
+  for (const child of node.children) {
+    // Every field that distinguishes how a move is drawn or filtered is part of
+    // the key, so folding can never merge two nodes the display treats apart.
+    const key = [
+      child.move, child.moveSan, child.color, child.annotation,
+      child.isKey, child.isTry, child.isThreat, child.isMate, child.isCheck,
+      child.moveNum ?? '',
+    ].join('\u0000');
+
+    const seen = byMove.get(key);
+    if (seen) {
+      seen.children = [...seen.children, ...child.children];
+    } else {
+      const copy: SolutionNode = { ...child, children: [...child.children] };
+      byMove.set(key, copy);
+      order.push(copy);
+    }
+  }
+
+  return { ...node, children: order.map(mergeSameMoveChildren) };
+}
+
 /** Same numbering the variation display uses: white moves carry the count. */
 function moveNumber(path: SolutionNode[]): number {
   const whites = path.filter(n => n.color === 'w').length;
@@ -109,15 +155,23 @@ function destSquare(san: string): string | null {
 
 /** How many defence-and-mate pairs one sentence may quote. Past that it is a
  *  table with the rows run together, and the sections below the card hold the
- *  same material in full. */
-const QUOTE_CAP = 6;
+ *  same material in full. Three is where a sentence stops scanning as a
+ *  sentence — the reader loses the verb between the fourth pair's slashes. */
+const QUOTE_CAP = 3;
 /** And how many moves one pair may name on either side of it. */
-const SLASH_CAP = 4;
+const SLASH_CAP = 3;
 const MATE_CAP = 3;
+/** The key's own quote runs one longer: it is the solution being stated. */
+const KEY_QUOTE_CAP = 4;
 
 function joinAnd(items: string[]): string {
   if (items.length <= 1) return items[0] ?? '';
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
+function joinOr(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} or ${items[items.length - 1]}`;
 }
 
 interface TryInfo {
@@ -163,7 +217,23 @@ function collect(fullNodes: SolutionNode[]): { tries: TryInfo[]; key: SolutionNo
     });
   }
 
-  return { tries, key };
+  // The source sometimes writes one try twice, once per refutation. Roots are
+  // deliberately not folded for display, but the prose must not say "Black has
+  // an answer to each: 1.Ne3 to 1...Rxe3!; 1.Ne3 to 1...Bxe3!" — one answer
+  // per try is enough to sink it, so duplicates fold onto the first mention.
+  const bySan = new Map<string, TryInfo>();
+  const deduped: TryInfo[] = [];
+  for (const t of tries) {
+    const seen = bySan.get(t.san);
+    if (!seen) { bySan.set(t.san, t); deduped.push(t); continue; }
+    if (!seen.refutation && t.refutation) { seen.refutation = t.refutation; seen.refKey = t.refKey; }
+    t.threatSans.forEach((san, i) => {
+      if (!seen.threatSans.includes(san)) { seen.threats.push(t.threats[i]); seen.threatSans.push(san); }
+    });
+    seen.threatKey = seen.threatSans.join('/');
+  }
+
+  return { tries: deduped, key };
 }
 
 function groupBy<T>(items: T[], keyOf: (item: T) => string): { key: string; items: T[] }[] {
@@ -301,7 +371,10 @@ function matesOf(root: SolutionNode, skip: string | string[] | null): { mate: st
   const byDefence = new Map<string, { node: SolutionNode; mates: string[] }>();
   for (const d of branchChildren(root)) {
     if (skipped.includes(bare(d.moveSan))) continue;
-    const ms = branchChildren(d);
+    // Only moves that end the game are quoted as mates: a white second move
+    // with children is a continuation the source kept writing, not a mate,
+    // and printing it in a defence-and-mate pair would call it one.
+    const ms = branchChildren(d).filter(m => m.isMate || m.children.length === 0);
     if (!ms.length) continue;
     const entry = byDefence.get(d.moveSan) ?? { node: d, mates: [] };
     for (const m of ms) {
@@ -324,19 +397,23 @@ function matesOf(root: SolutionNode, skip: string | string[] | null): { mate: st
  *  and putting the second move before the first reads as a misprint.
  *
  *  A pair naming twelve defences, or five mates for one defence, is a table
- *  row rather than a clause; `dropped` says whether any were left out, so a
- *  phase that cannot be quoted whole is not quoted at all. */
-function matePairs(root: SolutionNode, skip: string | string[] | null): { pairs: string[]; dropped: boolean } {
+ *  row rather than a clause, and past QUOTE_CAP pairs the sentence is a table.
+ *  `dropped` says whether anything was left out, so the sentence around the
+ *  quote can decline to claim completeness. Each pair carries the bare SANs of
+ *  the defences it names, for the changed-mates comparison. */
+interface QuotedPair { text: string; defs: string[]; mate: string }
+function matePairs(root: SolutionNode, skip: string | string[] | null): { pairs: QuotedPair[]; dropped: boolean } {
   const groups = matesOf(root, skip);
   const allDefs = groups.flatMap(g => g.defs);
-  const pairs: string[] = [];
+  const pairs: QuotedPair[] = [];
   let dropped = false;
   for (const g of groups) {
     const defs = nameDefences(g.defs, allDefs, d => write([root, d]));
     const names = defs.startsWith('any ') ? 1 : defs.split('/').length;
     if (names > SLASH_CAP || g.mate.split('/').length > MATE_CAP) { dropped = true; continue; }
-    pairs.push(`${defs} ${g.mate}`);
+    pairs.push({ text: `${defs} ${g.mate}`, defs: g.defs.map(d => bare(d.moveSan)), mate: g.mate });
   }
+  if (pairs.length > QUOTE_CAP) { pairs.length = QUOTE_CAP; dropped = true; }
   return { pairs, dropped };
 }
 
@@ -476,7 +553,13 @@ function blackMoves(fen: string, whiteMove?: string): string[] | null {
   }
 }
 
-export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string): TryCommentary | null {
+export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string, stipulation?: string): TryCommentary | null {
+  // Twomovers only. Everything this file trusts is #2 logic: the two-move
+  // test reads "threat" as mate-next-move, the vocabulary calls White's second
+  // moves mates, and the claims were measured over #2s. On a #3 the same code
+  // announces a waiting move over a key it then prints as "threatening", and
+  // on a selfmate the rhetoric is the wrong genre entirely.
+  if ((stipulation ?? '').trim() !== '#2') return null;
   const { tries, key } = collect(fullNodes);
   if (tries.length < 2 || !key) return null;
 
@@ -596,8 +679,10 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     framed = true;
   } else if (!framed) {
     const byPiece = groupBy(tries, t => pieceOf(t.san)).sort((a, b) => b.items.length - a.items.length);
-    const piece = byPiece[0].items.length > tries.length / 2
-      && byPiece[0].key === pieceOf(key.moveSan) ? PIECE_NAME[byPiece[0].key] : null;
+    // "the whole of the problem" has to be the whole of it: every try and the
+    // key moving the same piece, not merely most of them.
+    const piece = byPiece.length === 1 && byPiece[0].key === pieceOf(key.moveSan)
+      ? PIECE_NAME[byPiece[0].key] : null;
     if (sharedThreat) {
       sentences.push(`White would like ${sharedThreat}.`);
       related = true;
@@ -609,10 +694,10 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       sentences.push('There is no threat to be had here: White is hunting for a waiting move that leaves every answer in place.');
     } else if (withThreat.length === tries.length && byPiece.length === 1) {
       sentences.push(`The ${PIECE_NAME[byPiece[0].key]} has a threat from more than one square.`);
-    } else {
-      sentences.push('What White needs is a threat Black cannot answer.');
     }
-    framed = true;
+    // No filler otherwise: "What White needs is a threat Black cannot answer"
+    // is true of every twomover and says nothing about this one. A card with
+    // no opening worth making starts with the play.
   }
 
   /**
@@ -624,32 +709,25 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
    * Truncated by dropping whole groups rather than by counting the remainder:
    * a set of moves is either named or not mentioned.
    */
-  const classifyRefutations = (pool: TryInfo[], lead: string, showAims: boolean): string | null => {
+  const classifyRefutations = (pool: TryInfo[], showAims: boolean): string | null => {
     const groups = groupBy(pool.filter(t => t.refutation), t => t.refKey)
       .sort((a, b) => b.items.length - a.items.length);
     if (!groups.length) return null;
     // Moves that shared a threat are listed together with the aim written once,
-    // and the aim goes immediately after its own run. The runs that have no
-    // threat go last, so no bracket can be read as covering a move that never
-    // carried it.
+    // and the aim goes immediately after its own run: "or" joins the moves
+    // inside a run, "and" separates one run from the next, so the bracket
+    // reads over exactly the moves before it. The runs that have no threat go
+    // last, so no bracket can be read as covering a move that never carried it.
     const named = (items: TryInfo[]) => {
       const subs = showAims ? groupBy(items, t => t.threatKey) : [{ key: '', items }];
       const aimed = subs.filter(g => showAims && g.items[0].threats.length > 0);
       const plain = subs.filter(g => !(showAims && g.items[0].threats.length > 0)).flatMap(g => g.items);
-      if (aimed.length === 0) return joinAnd(plain.map(t => t.self));
-      if (aimed.length === 1 && plain.length === 0) {
-        return `${joinAnd(aimed[0].items.map(t => t.self))} (${mateList(aimed[0].items[0].threats)})`;
-      }
+      if (aimed.length === 0) return joinOr(plain.map(t => t.self));
       return joinAnd([
-        ...aimed.map(g => `${g.items.map(t => t.self).join(', ')} (${mateList(g.items[0].threats)})`),
+        ...aimed.map(g => `${joinOr(g.items.map(t => t.self))} (${mateList(g.items[0].threats)})`),
         ...plain.map(t => t.self),
       ]);
     };
-    if (groups.length === 1 && groups[0].items.length === 1) {
-      const t = groups[0].items[0];
-      const aim = showAims && t.threats.length ? ` (${mateList(t.threats)})` : '';
-      return `Against ${t.self}${aim} Black has ${t.refutation}.`;
-    }
     const shown: typeof groups = [];
     let total = 0;
     for (const g of groups) {
@@ -657,9 +735,19 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       shown.push(g);
       total += g.items.length;
     }
-    // Semicolons between the groups, so the "to 1...Ke7!" that closes each one
-    // cannot be read as belonging to the next group's moves.
-    return `${lead} ${shown.map(g => `${named(g.items)} to ${g.items[0].refutation}`).join('; ')}.`;
+    // One clause per refutation, the tries as its object — "Against <what it
+    // kills> Black has <it>". An earlier shape hung each group on a bare
+    // "to" ("1.Qa3, 1.Qb3 (2.Rf2#) to 1...Bxe2!"), a private grammar the
+    // reader had to learn from the card itself. The first clause carries the
+    // verb, the rest are elliptical, and semicolons keep each refutation with
+    // its own moves.
+    const clauses = shown.map((g, i) => {
+      const n = named(g.items);
+      return i === 0
+        ? `Against ${n} Black has ${g.items[0].refutation}`
+        : `against ${n}, ${g.items[0].refutation}`;
+    });
+    return `${clauses.join('; ')}.`;
   };
 
   // The try that was after the key's own mate: the key paragraph points back
@@ -684,7 +772,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       if (dominant && domRef && dominant.items.length === tries.length) {
         sentences.push(`Every move that goes for it falls to ${domRef}.`);
       } else {
-        const s = classifyRefutations(tries, 'Black has an answer to each:', false);
+        const s = classifyRefutations(tries, false);
         if (s) sentences.push(s);
       }
       related = true;
@@ -755,16 +843,19 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
 
       const rest = tries.filter(t => !domTries.includes(t)
         || (bare0.includes(t) && !domWaiters.includes(t)));
-      const s = classifyRefutations(rest, 'The rest are answered elsewhere:', true);
+      const s = classifyRefutations(rest, true);
       if (s) sentences.push(s);
     }
   } else {
     // A phase with fourteen defence-and-mate pairs in it is a data dump, and
     // the "Key variations" and "Tries" sections below print them in full
-    // anyway; those tries are classified by their refutation instead.
+    // anyway. The two richest tries are narrated, quoting at most QUOTE_CAP
+    // pairs each — "and more besides" when the quote is partial, so nothing
+    // claims completeness it does not have — and the other tries are
+    // classified by the move that answers them.
     const full = [...tries]
       .map(t => ({ t, groups: matesOf(t.root, t.refKey || null), quoted: matePairs(t.root, t.refKey || null) }))
-      .filter(x => x.groups.length >= 2 && x.groups.length <= QUOTE_CAP && !x.quoted.dropped)
+      .filter(x => x.groups.length >= 2 && x.quoted.pairs.length >= 2)
       .sort((a, b) => b.groups.length - a.groups.length)
       .slice(0, 2);
     const narrated = new Set(full.map(x => x.t));
@@ -773,12 +864,22 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       x.groups.map(g => g.mate).sort().join('|');
     full.forEach((x, i) => {
       const t = x.t;
-      const pairs = joinAnd(x.quoted.pairs);
-      // "the same defences are met differently" has to be true: when the
-      // second try answers the same defences the same way there is no
-      // exchange, and claiming one is the sort of thing the data can flatly
-      // contradict.
-      const exchanged = i > 0 && mateSetOf(x) !== mateSetOf(full[0]);
+      const pairs = joinAnd(x.quoted.pairs.map(p => p.text))
+        + (x.quoted.dropped ? ', and more besides' : '');
+      // "the same defences get changed mates" makes two claims and both are
+      // checked against the first phase: every defence this quote names was
+      // answered there too (same defences), and each one's mate differs
+      // (changed mates). Anything looser is narrated as an ordinary second
+      // try — an earlier draft made the claim over quotes that shared no
+      // defence at all, on the strength of the mate sets differing.
+      const prevMates = i > 0
+        ? new Map(full[0].groups.flatMap(g => g.defs.map(d => [bare(d.moveSan), g.mate] as const)))
+        : null;
+      const exchanged = prevMates !== null && !x.quoted.dropped && !full[0].quoted.dropped
+        && x.quoted.pairs.every(p => p.defs.every(d => {
+          const before = prevMates.get(d);
+          return before !== undefined && before !== p.mate;
+        }));
       if (exchanged) related = true;
       const aim = t.threats.length ? ` (${mateList(t.threats)})` : '';
       // "waits" is a claim about the board, not about what the source wrote
@@ -786,24 +887,31 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       // a move with an unwritten threat is not a waiting move either.
       const waits = t.threats.length === 0 && !t.san.includes('+')
         && threatOnBoard(initialFen, t.san) === false;
+      // "the same mates are still there" is likewise checked, not assumed.
+      const sameMates = i > 0 && !t.threats.length
+        && !x.quoted.dropped && !full[0].quoted.dropped
+        && mateSetOf(x) === mateSetOf(full[0]);
       const opening = exchanged
         ? `After ${t.self}${aim} the same defences get changed mates: ${pairs}`
         : t.threats.length
           ? `White ${i === 0 ? 'can start with' : 'might instead play'} ${t.self}, threatening ${mateList(t.threats)}, with ${pairs}`
-          : i > 0
+          : sameMates
             ? `After ${t.self} the same mates are still there: ${pairs}`
             : waits
-              ? `White can wait with ${t.self} — ${pairs}`
-              : `White has an answer to everything after ${t.self} — ${pairs}`;
+              ? `White can ${i === 0 ? 'wait' : 'also wait'} with ${t.self} — ${pairs}`
+              : t.san.includes('+')
+                ? `White can check with ${t.self} — ${pairs}`
+                : `The answers are in place after ${t.self} — ${pairs}`;
+      // The refutation clause restates its subject. Hung off "the same
+      // defences get changed mates" a bare "but has no reply" reads as the
+      // defences having no reply, and off "White has an answer to everything"
+      // it contradicted the sentence it closed.
       sentences.push(t.refutation
-        ? `${opening} — but has no reply to ${t.refutation}.`
+        ? `${opening} — but White has no reply to ${t.refutation}.`
         : `${opening}.`);
     });
 
-    const s = classifyRefutations(
-      tries.filter(t => !narrated.has(t)),
-      narrated.size ? 'Black has an answer to the others too:' : 'Black has an answer to each:',
-      true);
+    const s = classifyRefutations(tries.filter(t => !narrated.has(t)), true);
     if (s) sentences.push(s);
   }
 
@@ -816,18 +924,6 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     sentences.push(otherRefs.length === 0
       ? `Set the refutations side by side — ${joinAnd(flights)} — and the black king's flights turn out to be the whole defence.`
       : `Set the refutations side by side and most of them are flights of the black king — ${joinAnd(flights)}.`);
-    related = true;
-  }
-
-  // No defence anywhere near common to them all: that spread is itself the
-  // point — every candidate gives Black a different way through, and the key
-  // is the one move that gives none.
-  if (!related && withRef.length === tries.length && refGroups.length >= 3
-      && (!dominant || dominant.items.length < tries.length / 2)) {
-    const answers = count(refGroups.length);
-    sentences.push(answers
-      ? `No one defence covers them all: Black has ${answers} separate answers.`
-      : 'No one defence covers them all.');
     related = true;
   }
 
@@ -846,7 +942,25 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     ? withRef.filter(t => !diagramMoves.some(m => bare(m) === bare(t.refKey))
         && (blackMoves(initialFen, t.san) ?? []).some(m => bare(m) === bare(t.refKey)))
     : [];
-  if (selfInflicted.length >= 2 && selfInflicted.length >= withRef.length - 1) {
+  const willTellSelfInflicted =
+    selfInflicted.length >= 2 && selfInflicted.length >= withRef.length - 1;
+
+  // No defence anywhere near common to them all: that spread is itself the
+  // point — every candidate gives Black a different way through, and the key
+  // is the one move that gives none. Unless the self-inflicted sentence is
+  // about to say something sharper about the same spread: two meta-sentences
+  // in a row on the same fact is one too many.
+  if (!related && !willTellSelfInflicted
+      && withRef.length === tries.length && refGroups.length >= 3
+      && (!dominant || dominant.items.length < tries.length / 2)) {
+    const answers = count(refGroups.length);
+    sentences.push(answers
+      ? `No one defence covers them all: Black has ${answers} separate answers.`
+      : 'No one defence covers them all.');
+    related = true;
+  }
+
+  if (willTellSelfInflicted) {
     sentences.push(selfInflicted.length === withRef.length
       ? 'Not one of these defences exists in the diagram: every try opens the door that refutes it.'
       : 'Nearly every one of these defences is a move the try itself lets in.');
@@ -861,8 +975,14 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   // because they are the ones the reader last saw winning; the rest of the
   // key's play follows, with nothing repeated between them.
   const keyPiece = pieceOf(key.moveSan);
-  const triesSamePiece = tries.filter(t => pieceOf(t.san) === keyPiece).length;
-  const keyIsTheSquare = !plan && triesSamePiece >= tries.length / 2 && domRef === null;
+  // "The one square that holds" claims the piece was never in question and
+  // the square was: every try moves the key's own piece, and every candidate
+  // square is distinct. Half-the-tries was loose enough to call f5 "the one
+  // square" on a problem whose three candidates all went to f5 (D96913).
+  const keyDests = [...tries.map(t => destSquare(t.san)), destSquare(key.moveSan)];
+  const keyIsTheSquare = !plan && domRef === null
+    && tries.every(t => pieceOf(t.san) === keyPiece)
+    && keyDests.every(Boolean) && new Set(keyDests).size === keyDests.length;
 
   const keyPara: CommentarySpan[] = [];
   keyPara.push({ text: keyIsTheSquare ? 'The one square that holds is ' : 'The answer is ' });
@@ -926,14 +1046,21 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   if (refAnswers.length > 0) related = true;
   if (givesNothing) {
     connective = keyIsTheSquare
-      ? ', handing Black nothing he did not already have'
-      : ', the one move that hands Black nothing he did not already have';
+      ? ', handing Black nothing new'
+      : ', the one move that hands Black nothing new';
     pairs = unanswered.map(pairOf);
     related = true;
   } else if (allByThreat) {
     // Naming the refutations and then listing them against the same mate says
     // one thing twice, so the list here is the key's other play only.
-    connective = `, and ${joinAnd(refAnswers.map(x => `1...${x.san}`))} no longer stop it`;
+    // "neither/nor" and "none of" rather than a second "and": the connective
+    // already opens with one, and "and A and B no longer stop it" stutters.
+    const names = refAnswers.map(x => `1...${x.san}`);
+    connective = names.length === 1
+      ? `, and ${names[0]} no longer stops it`
+      : names.length === 2
+        ? `, and neither ${names[0]} nor ${names[1]} stops it`
+        : `, and none of ${joinAnd(names)} stops it`;
   } else if (unanswered.length > 0 && allAnswered) {
     // The key answering the very moves that broke the tries IS the connection
     // between them; a two-try problem often has nothing else to offer, and
@@ -957,9 +1084,11 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   } else if (domRef) {
     connective = ', and this time nothing is missing';
   }
-  // Same cap as the tries: what is not quoted here is in "Key variations"
-  // below, in full and clickable.
-  pairs = [...pairs, ...keyPairs].slice(0, QUOTE_CAP);
+  // One list, one meaning: when the connective is about the refutations, the
+  // list holds exactly the answers to them, and the key's other play stays in
+  // "Key variations" below, in full and clickable. Mixing the two in one bold
+  // list left the reader guessing which claim a given pair was serving.
+  pairs = (pairs.length ? pairs : keyPairs).slice(0, KEY_QUOTE_CAP);
 
   if (pairs.length) {
     keyPara.push({ text: `${connective}: ` });
