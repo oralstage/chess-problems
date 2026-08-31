@@ -82,7 +82,7 @@ for (const id of ids) {
 
   const sentences = text.split(/(?<=[.!]) (?=[A-Z])/);
   const opener = sentences[0] ?? '';
-  if (/no threat/.test(opener) && /The (answer|one square)[^\n]*threatening/.test(text)) {
+  if (/no threat/.test(opener) && /The (answer is|one square that holds is)[^.]*threatening/.test(text)) {
     flag('noThreatOpenerButKeyThreatens', id);
   }
   for (const s of sentences) {
@@ -112,7 +112,11 @@ for (const id of ids) {
           const piece = d.startsWith('O-O') ? 'K' : /^[KQRNB]/.test(d) ? d[0] : 'P';
           return prevDefs!.has(`any:${pieceName[piece]}`);
         };
-        if (!prevDefs || defs.size === 0 || ![...defs].every(covered)) {
+        // A current-side "any X move" cannot be expanded from the text; the
+        // generator verifies that group against the previous quote's actual
+        // defences, so only the named moves are checked here.
+        const namedOnly = [...defs].filter(d => !d.startsWith('any:'));
+        if (!prevDefs || defs.size === 0 || !namedOnly.every(covered)) {
           flag('sameDefencesOverreach', id);
         }
         prevDefs = new Set([...(prevDefs ?? []), ...defs]);
