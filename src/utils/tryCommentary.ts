@@ -553,6 +553,25 @@ function blackMoves(fen: string, whiteMove?: string): string[] | null {
   }
 }
 
+/** The source sometimes writes a threat without its mate mark while marking
+ *  every other mate on the card, and one bare "2.Rxd5" in a page of "#"s
+ *  reads as a distinction being drawn. Where the board confirms the threat
+ *  is mate, the mark is restored; where it cannot be read, the label stays
+ *  as written. */
+function markThreatMates(fen: string, moverSan: string, labels: string[], sans: string[]): string[] {
+  return labels.map((label, i) => {
+    if (label.includes('#')) return label;
+    try {
+      const board = new Chess(fen);
+      board.move(bare(moverSan));
+      const passed = new Chess(board.fen().replace(/ b /, ' w '));
+      passed.move(bare(sans[i]));
+      if (passed.isCheckmate()) return `${label.replace(/\+$/, '')}#`;
+    } catch { /* leave as written */ }
+    return label;
+  });
+}
+
 export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string, stipulation?: string): TryCommentary | null {
   // Twomovers only. Everything this file trusts is #2 logic: the two-move
   // test reads "threat" as mate-next-move, the vocabulary calls White's second
@@ -572,8 +591,10 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   const domRef = dominant?.items[0].refutation ?? null;
   const domTries = dominant ? dominant.items : [];
 
-  const keyThreats = threatChildren(key).map(t => writeThreat(key, t));
+  for (const t of tries) t.threats = markThreatMates(initialFen, t.san, t.threats, t.threatSans);
   const keyThreatSans = threatChildren(key).map(t => t.moveSan);
+  const keyThreats = markThreatMates(initialFen, key.moveSan,
+    threatChildren(key).map(t => writeThreat(key, t)), keyThreatSans);
   const marked = marksMates(fullNodes);
 
   const sentences: string[] = [];
@@ -605,6 +626,13 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     if (common) {
       sharedThreat = write([withThreat[0].root, common]);
       sharedThreatSan = common.moveSan;
+      // The mate mark check walks the tries until one is playable on the
+      // board: the first try may itself be shorthand ("1.Se~") chess.js
+      // cannot move.
+      for (const t of withThreat) {
+        if (sharedThreat.includes('#')) break;
+        sharedThreat = markThreatMates(initialFen, t.san, [sharedThreat], [common.moveSan])[0];
+      }
     }
   }
 
