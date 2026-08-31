@@ -264,6 +264,29 @@ function expandSlashAlternatives(line: string): string[] {
 }
 
 /**
+ * Repeat the single-group expansion until a line holds no alternatives left.
+ *
+ * One source line can carry alternatives on more than one move — YACPDB writes
+ * "1...Nc1/Nc5/Na1/Na5 2.Nf3#/Nf7#/Ng6#/Nxd3#/Nd7#" for "any of these four
+ * defenses is met by any of these five mates". expandSlashAlternatives only
+ * expands the first group it finds, which used to leave the mates joined by
+ * slashes in one segment; they were then read as a run of successive moves, so
+ * a #2 printed a third and a fourth move number and handed White's mates to
+ * Black. Expanding to the full cross product puts every mate on the second
+ * move where it belongs, and the display folds the repeated defenses back into
+ * one row.
+ *
+ * Depth is capped so a pathological line cannot expand without bound; a line
+ * that hits the cap keeps whatever slashes are left rather than being dropped.
+ */
+function expandAllSlashAlternatives(line: string, depth = 0): string[] {
+  const parts = expandSlashAlternatives(line);
+  // A no-op returns the line itself; a real expansion always yields 2 or more.
+  if (parts.length === 1 || depth >= 8) return parts;
+  return parts.flatMap(p => expandAllSlashAlternatives(p, depth + 1));
+}
+
+/**
  * Expand comma-separated alternative defenses into multiple lines.
  * e.g., "1... Sd5, Kf4 2. Q:f5#" → ["1... Sd5 2. Q:f5#", "1... Kf4 2. Q:f5#"]
  * Also handles: "1... Kd1, Sd3/c2 2. Bg4#" and threats like "~ 2. Qc6, Qc7#"
@@ -444,10 +467,11 @@ function parseSegments(solutionText: string): Segment[] {
     commaExpanded.push(...expandCommaAlternatives(line));
   }
 
-  // Expand slash alternatives before parsing
+  // Expand slash alternatives before parsing — every group on the line, not
+  // just the first, or the leftovers get read as a run of successive moves.
   const lines: string[] = [];
   for (const line of commaExpanded) {
-    lines.push(...expandSlashAlternatives(line));
+    lines.push(...expandAllSlashAlternatives(line));
   }
 
   let lineIndex = 0;
