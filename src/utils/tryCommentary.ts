@@ -161,8 +161,6 @@ const QUOTE_CAP = 3;
 /** And how many moves one pair may name on either side of it. */
 const SLASH_CAP = 3;
 const MATE_CAP = 3;
-/** The key's own quote runs one longer: it is the solution being stated. */
-const KEY_QUOTE_CAP = 4;
 
 function joinAnd(items: string[]): string {
   if (items.length <= 1) return items[0] ?? '';
@@ -737,6 +735,16 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
    * Truncated by dropping whole groups rather than by counting the remainder:
    * a set of moves is either named or not mentioned.
    */
+  // Every refutation the card names, in order of first mention. The key
+  // paragraph plays each of them against the key: they are the moves the
+  // reader last saw winning, and what becomes of them is how the key is
+  // derived from the tries rather than merely announced after them.
+  const namedRefs: string[] = [];
+  const nameRef = (san?: string | null) => {
+    if (!san) return;
+    if (!namedRefs.some(r => bare(r) === bare(san))) namedRefs.push(san);
+  };
+
   const classifyRefutations = (pool: TryInfo[], showAims: boolean): string | null => {
     const groups = groupBy(pool.filter(t => t.refutation), t => t.refKey)
       .sort((a, b) => b.items.length - a.items.length);
@@ -770,6 +778,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     // verb, the rest are elliptical, and semicolons keep each refutation with
     // its own moves.
     const clauses = shown.map((g, i) => {
+      nameRef(g.key);
       const n = named(g.items);
       return i === 0
         ? `Against ${n} Black has ${g.items[0].refutation}`
@@ -798,6 +807,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       && new Set(tries.map(t => t.threatKey)).size === 1;
     if (oneThreat) {
       if (dominant && domRef && dominant.items.length === tries.length) {
+        nameRef(dominant.key);
         sentences.push(`Every move that goes for it falls to ${domRef}.`);
       } else {
         const s = classifyRefutations(tries, false);
@@ -835,6 +845,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
           const fate = pi > 0 ? 'again'
             : pg.items.length === 1 ? 'it dies to'
             : 'every one of them dies to';
+          if (domRef && dominant) nameRef(dominant.key);
           sentences.push(domRef
             ? `${lead} — ${joinAnd(clauses)} — and ${fate} ${domRef}.`
             : `${lead} — ${joinAnd(clauses)}.`);
@@ -845,6 +856,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
         const names = joinAnd(runB.flatMap(g => g.items.map(t => t.self)));
         const aims = joinAnd([...new Set(runB.map(g => mateList(g.items[0].threats)))]);
         const many = runB.reduce((n, g) => n + g.items.length, 0) > 1;
+        if (domRef && dominant) nameRef(dominant.key);
         sentences.push(domRef
           ? `Aiming elsewhere, ${names} ${many ? 'threaten' : 'threatens'} ${aims} — and again ${domRef}.`
           : `Aiming elsewhere, ${names} ${many ? 'threaten' : 'threatens'} ${aims}.`);
@@ -854,6 +866,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
         const group = domTries.filter(t => t.threatKey === echoTry.threatKey);
         const names = joinAnd(group.map(t => t.self));
         const verb = group.length > 1 ? 'threaten' : 'threatens';
+        if (echoTry.refutation) nameRef(echoTry.refKey);
         sentences.push(echoTry.refutation
           ? `Then ${names} ${verb} ${mateList(echoTry.threats)}, the mate the key itself makes — yet ${echoTry.refutation} answers them too.`
           : `Then ${names} ${verb} ${mateList(echoTry.threats)}, the mate the key itself makes.`);
@@ -868,6 +881,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       const domWaiters = bare0.filter(t => threatOnBoard(initialFen, t.san) === false);
       if (domWaiters.length > 0) {
         const many = domWaiters.length > 1;
+        if (domRef && dominant) nameRef(dominant.key);
         sentences.push(`The waiting move${many ? 's' : ''} ${joinAnd(domWaiters.map(t => t.self))} `
           + `${many ? 'carry' : 'carries'} no threat at all`
           + (domRef ? `, and ${domRef} answers ${many ? 'them' : 'it'} too.` : '.'));
@@ -938,6 +952,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       // defences get changed mates" a bare "but has no reply" reads as the
       // defences having no reply, and off "White has an answer to everything"
       // it contradicted the sentence it closed.
+      if (t.refutation) nameRef(t.refKey);
       sentences.push(t.refutation
         ? `${opening} — but White has no reply to ${t.refutation}.`
         : `${opening}.`);
@@ -1026,109 +1041,106 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     else if (echoTry) keyPara.push({ text: `, exactly what ${echoTry.self} was after` });
   }
 
-  // The key's own play, collapsed exactly as the tries' was. Knowing which
-  // defences this list already covers — "any knight move" covers the knight's
-  // lot — is what keeps the refutations from being answered twice over.
-  const keyGroups = matesOf(key, null);
-  const keyAllDefs = keyGroups.flatMap(g => g.defs);
-  const keyNamed = keyGroups.map(g => ({
-    label: nameDefences(g.defs, keyAllDefs, d => write([key, d])),
-    mate: g.mate,
-    piece: pieceOf(g.defs[0].moveSan),
-  }));
-  const keyDefSans = new Set(keyAllDefs.map(d => bare(d.moveSan)));
-  const keyAnyPieces = new Set(keyNamed.filter(g => g.label.startsWith('any ')).map(g => g.piece));
-  const keyCovers = (san: string) => keyDefSans.has(bare(san)) || keyAnyPieces.has(pieceOf(san));
-  const keyPairs = keyNamed
-    .filter(g => (g.label.startsWith('any ') || g.label.split('/').length <= SLASH_CAP)
-      && g.mate.split('/').length <= MATE_CAP)
-    .map(g => `${g.label} ${g.mate}`);
-
-  const refAnswers = refGroups
-    .map(g => ({ san: g.key, mates: mateAfter(initialFen, key.moveSan, g.key) }))
-    .filter(x => x.mates.length > 0)
-    .slice(0, 4);
-  const unanswered = refAnswers.filter(x => !keyCovers(x.san));
-  const pairOf = (x: { san: string; mates: string[] }) =>
-    `1...${x.san} ${mateList(x.mates.map(m => `2.${m}`))}`;
-
   const keyMoves = blackMoves(initialFen, key.moveSan);
   const givesNothing = selfInflicted.length >= 2 && diagramMoves && keyMoves
     && keyMoves.every(m => diagramMoves.some(d => bare(d) === bare(m)));
-  // Only the refutations Black can still play need answering — a move the try
-  // itself let in is not owed an answer by the key. So the claim "what beat
-  // the tries is answered now" is made against this list, not against all of
-  // them, and when the list is empty the fact is the other way round.
-  const refSans = [...new Set(withRef.map(t => t.refKey))];
-  const survives = (s: string) => !!keyMoves && keyMoves.some(m => bare(m) === bare(s));
-  const needAnswer = refSans.filter(survives);
-  const allGone = !!keyMoves && refSans.length >= 2 && needAnswer.length === 0;
-  const allAnswered = needAnswer.length > 0
-    && needAnswer.every(s => keyCovers(s) || refAnswers.some(x => bare(x.san) === bare(s)));
-  const threatBare = keyThreatSans.map(bare);
-  const allByThreat = threatBare.length > 0 && refAnswers.length > 1
-    && unanswered.length === refAnswers.length
-    && refAnswers.every(x => x.mates.some(m => threatBare.includes(bare(m))));
-  // "the tries" has already been named once in this sentence when the key's
-  // threat was theirs; saying it again in the next clause reads as a stutter.
-  const them = sharedEcho || echoTry ? 'them' : 'the tries';
-
-  let connective = '';
-  let pairs: string[] = [];
-  if (refAnswers.length > 0) related = true;
   if (givesNothing) {
-    connective = keyIsTheSquare
-      ? ', handing Black nothing new'
-      : ', the one move that hands Black nothing new';
-    pairs = unanswered.map(pairOf);
+    keyPara.push({
+      text: keyIsTheSquare
+        ? ', handing Black nothing new'
+        : ', the one move that hands Black nothing new',
+    });
     related = true;
-  } else if (allByThreat) {
-    // Naming the refutations and then listing them against the same mate says
-    // one thing twice, so the list here is the key's other play only.
-    // "neither/nor" and "none of" rather than a second "and": the connective
-    // already opens with one, and "and A and B no longer stop it" stutters.
-    const names = refAnswers.map(x => `1...${x.san}`);
-    connective = names.length === 1
-      ? `, and ${names[0]} no longer stops it`
-      : names.length === 2
-        ? `, and neither ${names[0]} nor ${names[1]} stops it`
-        : `, and none of ${joinAnd(names)} stops it`;
-  } else if (unanswered.length > 0 && allAnswered) {
-    // The key answering the very moves that broke the tries IS the connection
-    // between them; a two-try problem often has nothing else to offer, and
-    // withholding the card there loses the one thing worth saying.
-    connective = `, and what beat ${them} it answers now`;
-    pairs = unanswered.map(pairOf);
-  } else if (unanswered.length > 0) {
-    // Some of them answered, not all: the pairs say which, and the prose does
-    // not claim more than the pairs.
-    connective = ', and it has an answer ready';
-    pairs = unanswered.map(pairOf);
-  } else if (allAnswered && refAnswers.length > 0) {
-    // Answered, but in the key's own published play — so the pairs are already
-    // in the list below and only the relation needs saying.
-    connective = `, and this time there is an answer to everything that beat ${them}`;
-  } else if (allGone) {
-    connective = `, and not one of the moves that beat ${them} is available any more`;
-    related = true;
-  } else if (flightDefence) {
-    connective = ', and now there is an answer wherever the king runs';
-  } else if (domRef) {
-    connective = ', and this time nothing is missing';
   }
-  // One list, one meaning: when the connective is about the refutations, the
-  // list holds exactly the answers to them, and the key's other play stays in
-  // "Key variations" below, in full and clickable. Mixing the two in one bold
-  // list left the reader guessing which claim a given pair was serving.
-  pairs = (pairs.length ? pairs : keyPairs).slice(0, KEY_QUOTE_CAP);
 
-  if (pairs.length) {
-    keyPara.push({ text: `${connective}: ` });
-    keyPara.push({ text: joinAnd(pairs), strong: true });
-  } else if (connective) {
-    keyPara.push({ text: connective });
+  // ── The derivation: put the key to the test every try failed ──
+  // The tries were each sunk by a named move, so the key is not merely
+  // announced with its own variations — each refutation the card named is
+  // played against it on the board and its fate reported: it runs into a
+  // quoted mate, it fails to stop the threat, or it can no longer be played
+  // at all. The key's own play stays in "Key variations" below; the mate
+  // quoted against a surviving refutation prefers the one printed there, so
+  // the prose and the list agree. If the board cannot confirm every fate,
+  // the whole test is withheld rather than half-claimed.
+  const keyGroups = matesOf(key, null);
+  const publishedMate = (san: string): string | null =>
+    keyGroups.find(g => g.defs.some(d => bare(d.moveSan) === bare(san)))?.mate ?? null;
+  const threatBare = keyThreatSans.map(bare);
+  const refLabel = (san: string) => `1...${san.replace(/[!?]/g, '')}`;
+  interface Fate { san: string; kind: 'met' | 'threat' | 'gone'; mate?: string }
+  let fates: Fate[] | null = keyMoves ? [] : null;
+  if (fates) {
+    for (const san of namedRefs) {
+      if (!keyMoves!.some(m => bare(m) === bare(san))) {
+        fates.push({ san, kind: 'gone' });
+        continue;
+      }
+      const mates = mateAfter(initialFen, key.moveSan, bare(san));
+      if (mates.length === 0) { fates = null; break; } // the board denies the claim
+      if (keyThreats.length > 0 && mates.some(m => threatBare.includes(bare(m)))) {
+        fates.push({ san, kind: 'threat' });
+      } else {
+        const published = publishedMate(san);
+        const mate = published && published.split('/').length <= MATE_CAP
+          ? published : `2.${mates[0]}`;
+        fates.push({ san, kind: 'met', mate });
+      }
+    }
   }
-  keyPara.push({ text: '.' });
+
+  if (fates && fates.length > 0) {
+    const met = fates.filter(f => f.kind === 'met');
+    const intoThreat = fates.filter(f => f.kind === 'threat');
+    const gone = fates.filter(f => f.kind === 'gone');
+    // "This time", the way the magazines turn from the tries to the key
+    // ("Correct is 1.Sce5!, which brings 1...g4 2.Sc6" — OzProblems): the
+    // key is introduced together with what it does about the moves that beat
+    // the tries, not merely with its own variations.
+    keyPara.push({ text: '. This time ' });
+    if (met.length === 0 && intoThreat.length === 0 && gone.length >= 2) {
+      keyPara.push({ text: 'not one of the moves that beat the tries can even be played.' });
+    } else {
+      const clauses: CommentarySpan[][] = [];
+      // Refutations sharing one answer are told together ("1...Kd4 and
+      // 1...Kd3 run into 2.Ne5#"), the verb elided after the first clause.
+      groupBy(met, f => f.mate!).forEach((g, i) => {
+        const names = joinAnd(g.items.map(f => refLabel(f.san)));
+        const verb = i > 0 ? 'into' : g.items.length > 1 ? 'run into' : 'runs into';
+        clauses.push([
+          { text: `${names} ${verb} ` },
+          { text: g.key, strong: true },
+        ]);
+      });
+      if (intoThreat.length > 0) {
+        const names = intoThreat.map(f => refLabel(f.san));
+        clauses.push([{
+          text: names.length === 1
+            ? `${names[0]} does not stop the threat`
+            : names.length === 2
+              ? `neither ${names[0]} nor ${names[1]} stops the threat`
+              : `none of ${joinAnd(names)} stops the threat`,
+        }]);
+      }
+      if (gone.length > 0) {
+        const names = gone.map(f => refLabel(f.san));
+        clauses.push([{
+          text: names.length === 1
+            ? `${names[0]} can no longer be played at all`
+            : names.length === 2
+              ? `neither ${names[0]} nor ${names[1]} can be played at all`
+              : `${joinAnd(names)} can no longer be played at all`,
+        }]);
+      }
+      clauses.forEach((clause, i) => {
+        if (i > 0) keyPara.push({ text: i === clauses.length - 1 ? ' and ' : ', ' });
+        keyPara.push(...clause);
+      });
+      keyPara.push({ text: '.' });
+    }
+    related = true;
+  } else {
+    keyPara.push({ text: '.' });
+  }
   paragraphs.push(keyPara);
 
   // ── 4. Changed mates across the phases ──
