@@ -803,8 +803,12 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
             : pi === 0
               ? `The ${piece} comes at it in turn`
               : `The ${piece} gets out of the way to the same end`;
+          // "every one of them" needs more than one of them.
+          const fate = pi > 0 ? 'again'
+            : pg.items.length === 1 ? 'it dies to'
+            : 'every one of them dies to';
           sentences.push(domRef
-            ? `${lead} — ${joinAnd(clauses)} — and ${pi === 0 ? 'every one of them dies to' : 'again'} ${domRef}.`
+            ? `${lead} — ${joinAnd(clauses)} — and ${fate} ${domRef}.`
             : `${lead} — ${joinAnd(clauses)}.`);
         });
       }
