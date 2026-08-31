@@ -115,17 +115,38 @@ function MiniBoard({ fen, marks, arrows }: {
   );
 }
 
+/** The visible line while a card is closed: enough to decide whether to open
+ *  it. Splits on a full stop that ends a word, so "1.Qd5!" survives. */
+function firstSentence(text: string): string {
+  const end = text.search(/[.!?](\s|$)/);
+  return end < 0 ? text : text.slice(0, end + 1);
+}
+
 export function ThemeInsightCards({ insights }: { insights: ThemeInsight[] }) {
   if (insights.length === 0) return null;
   return (
     <>
       {insights.map(ins => (
-        /* Open by default, but collapsible — the solution and its variations
-           live below these cards, and a long spotlight should not force a
-           scroll marathon on someone heading for the tries. */
-        <details key={ins.theme} open className="nb-plate nb-shadow-room p-3">
-          <summary className="text-xs font-extrabold tracking-widest uppercase text-[var(--muted)] cursor-pointer select-none">
-            Theme spotlight · {ins.title}
+        /* Closed, showing its first sentence. Three cards with diagrams put a
+           screen and a half between the result and the solution, and most
+           people came for the solution — but a bare heading is nothing to
+           open, so the visible line is about this problem, not the theme in
+           general. The default disclosure triangle reads as decoration next to
+           a plate this size, so the affordance is a framed button instead. */
+        <details key={ins.theme} className="group nb-plate nb-shadow-room p-3">
+          <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden flex items-start justify-between gap-3">
+            <span className="min-w-0">
+              <span className="block text-xs font-extrabold tracking-widest uppercase text-[var(--muted)]">
+                Theme spotlight · {ins.title}
+              </span>
+              <span className="mt-1 block text-sm leading-relaxed text-[var(--ink)] group-open:hidden">
+                {firstSentence(ins.text)}
+              </span>
+            </span>
+            <span className="nb-btn shrink-0 py-1 px-3 text-xs font-bold">
+              <span className="group-open:hidden">Read on</span>
+              <span className="hidden group-open:inline">Close</span>
+            </span>
           </summary>
           <div className="space-y-2 mt-2">
             <p className="text-sm leading-relaxed text-[var(--ink)]">{ins.text}</p>

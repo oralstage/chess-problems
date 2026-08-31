@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Chess } from 'chess.js';
 import type { SolutionNode } from '../types';
+import { buildTryCommentary } from '../utils/tryCommentary';
 
 interface SolutionTreeProps {
   fullNodes: SolutionNode[];
@@ -258,11 +259,17 @@ function buildRootVariations(fullNodes: SolutionNode[]): RootVariation[] {
 
 // ── Clickable move button ──
 
-function MoveButton({ node, path, onNodeClick, isActive }: {
+function MoveButton({ node, path, onNodeClick, isActive, prose, strong }: {
   node: SolutionNode;
   path: SolutionNode[];
   onNodeClick: (path: SolutionNode[]) => void;
   isActive?: boolean;
+  /** Styling for running prose: no side padding (it opens a gap before the
+      comma that follows), and weight from `strong` rather than from which side
+      moved — the problem magazines bold the key and the listed pairs, and
+      leave a move inside a prose clause plain. */
+  prose?: boolean;
+  strong?: boolean;
 }) {
   if (isActive) {
     return (
@@ -275,14 +282,16 @@ function MoveButton({ node, path, onNodeClick, isActive }: {
     );
   }
 
-  const moveClasses = node.color === 'w'
-    ? 'font-bold text-gray-900 dark:text-gray-100'
-    : 'italic text-gray-600 dark:text-gray-400';
+  const moveClasses = prose
+    ? `text-[var(--ink)] ${strong ? 'font-extrabold' : 'font-normal'}`
+    : node.color === 'w'
+      ? 'font-bold text-gray-900 dark:text-gray-100'
+      : 'italic text-gray-600 dark:text-gray-400';
 
   return (
     <button
       onClick={() => onNodeClick(path)}
-      className={`${moveClasses} hover:bg-green-100 dark:hover:bg-green-900/30 px-0.5 rounded cursor-pointer transition-colors`}
+      className={`${moveClasses} hover:bg-green-100 dark:hover:bg-green-900/30 ${prose ? '' : 'px-0.5'} rounded cursor-pointer transition-colors`}
     >
       {node.moveSan}
     </button>
@@ -409,10 +418,11 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
 
   // Fold the slash-expansion copies before grouping, so a try's refutation is
   // still found by identity among the children it is compared against.
-  const variations = useMemo(
-    () => buildRootVariations(fullNodes.map(mergeSameMoveChildren)),
-    [fullNodes],
-  );
+  const merged = useMemo(() => fullNodes.map(mergeSameMoveChildren), [fullNodes]);
+  const variations = useMemo(() => buildRootVariations(merged), [merged]);
+  // Prose reading of the tries — it walks the same folded tree, so a defence
+  // written several ways in the source is one defence here too.
+  const commentary = useMemo(() => buildTryCommentary(merged), [merged]);
   const hasAnyMarkers = variations.some(v => v.isKey || v.isTry);
   // When no key/try markers exist (e.g., helpmates), treat all variations as "solutions"
   const keyVariations = hasAnyMarkers ? variations.filter(v => v.isKey) : [];
@@ -500,6 +510,41 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
             ))}
           </div>
         </details>
+      )}
+
+      {/* How the key is found — the composer's argument, above the reference
+          material. Only the moves are stated: the data says what each try was
+          after and what answered it, never why, so no reason is claimed. */}
+      {commentary && (
+        <div className="nb-plate nb-shadow-room p-3">
+          <div className="text-xs font-extrabold tracking-widest uppercase text-[var(--muted)] mb-2">
+            How the key is found
+          </div>
+          <div className="space-y-2">
+            {commentary.paragraphs.map((para, pi) => (
+              <p key={pi} className="text-sm leading-relaxed text-[var(--ink)]">
+                {para.map((part, i) =>
+                  typeof part === 'string' ? (
+                    <span key={i}>{part}</span>
+                  ) : (
+                    <span key={i} className="whitespace-nowrap">
+                      {part.num && <span className="text-gray-400 text-xs mr-0.5">{part.num}</span>}
+                      <MoveButton
+                        node={part.node}
+                        path={part.path}
+                        onNodeClick={handleNodeClick}
+                        isActive={activeNode === part.node}
+                        prose
+                        strong={part.strong}
+                      />
+                      {part.marker && <span className="font-extrabold">{part.marker}</span>}
+                    </span>
+                  ),
+                )}
+              </p>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Key variations (all defenses after the key move) */}
