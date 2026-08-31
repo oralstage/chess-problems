@@ -123,6 +123,48 @@ function branchChildren(node: SolutionNode): SolutionNode[] {
   return node.children.filter(c => !c.isThreat);
 }
 
+/**
+ * Fold sibling nodes that carry the same move into one.
+ *
+ * YACPDB writes alternative continuations with slashes — "1...Qh1
+ * 2.Nd7#/Ne2#/Ne6#" — and the parser expands that one source line into one line
+ * per alternative, which leaves a copy of the defense in front of every mate.
+ * Siblings share a position, so two siblings with the same move ARE the same
+ * move: folding them back gives one defense with its mates hanging beneath,
+ * which is what the fork layout below already knows how to draw.
+ *
+ * Roots are deliberately left as they are: their order and adjacency carry the
+ * set-play / try / key grouping that buildRootVariations reads, and the
+ * solution count shown elsewhere counts them.
+ */
+function mergeSameMoveChildren(node: SolutionNode): SolutionNode {
+  if (node.children.length === 0) return node;
+
+  const order: SolutionNode[] = [];
+  const byMove = new Map<string, SolutionNode>();
+
+  for (const child of node.children) {
+    // Every field that distinguishes how a move is drawn or filtered is part of
+    // the key, so folding can never merge two nodes the display treats apart.
+    const key = [
+      child.move, child.moveSan, child.color, child.annotation,
+      child.isKey, child.isTry, child.isThreat, child.isMate, child.isCheck,
+      child.moveNum ?? '',
+    ].join('\u0000');
+
+    const seen = byMove.get(key);
+    if (seen) {
+      seen.children = [...seen.children, ...child.children];
+    } else {
+      const copy: SolutionNode = { ...child, children: [...child.children] };
+      byMove.set(key, copy);
+      order.push(copy);
+    }
+  }
+
+  return { ...node, children: order.map(mergeSameMoveChildren) };
+}
+
 interface MoveRef {
   node: SolutionNode;
   path: SolutionNode[];
@@ -338,7 +380,12 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, firstColor =
     onExplore(chess.fen(), lastMove);
   }, [initialFen, onExplore, onShowLine]);
 
-  const variations = useMemo(() => buildRootVariations(fullNodes), [fullNodes]);
+  // Fold the slash-expansion copies before grouping, so a try's refutation is
+  // still found by identity among the children it is compared against.
+  const variations = useMemo(
+    () => buildRootVariations(fullNodes.map(mergeSameMoveChildren)),
+    [fullNodes],
+  );
   const hasAnyMarkers = variations.some(v => v.isKey || v.isTry);
   // When no key/try markers exist (e.g., helpmates), treat all variations as "solutions"
   const keyVariations = hasAnyMarkers ? variations.filter(v => v.isKey) : [];
