@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-09-01',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Commentary (alpha): after you finish a twomover that has tries, a short prose note explains what each try was after, what refuted it, and what the key does about those very moves. Experimental — it only appears when it has something real to say.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-08-27',
     sections: [
       {

@@ -129,6 +129,14 @@ function branchChildren(node: SolutionNode): SolutionNode[] {
   return node.children.filter(c => !c.isThreat);
 }
 
+/** The visible line while the commentary is closed: enough to decide whether
+ *  to open it. Splits on a full stop that ends a word, so "1.Qd5!" survives.
+ *  (Same rule as the theme spotlight's teaser.) */
+function firstSentence(text: string): string {
+  const end = text.search(/[.!?](\s|$)/);
+  return end < 0 ? text : text.slice(0, end + 1);
+}
+
 // mergeSameMoveChildren lives in tryCommentary.ts now: it shapes the tree for
 // the fork layout here AND for the commentary prose, and the sweep script
 // imports it — a component file cannot export it without breaking fast refresh.
@@ -475,13 +483,28 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
           material. Prose only: the moves here are read, not played, and a
           paragraph of buttons that jump the board turned out to be unpleasant
           to use. Only the moves are stated — the data says what each try was
-          after and what answered it, never why, so no reason is claimed. */}
+          after and what answered it, never why, so no reason is claimed.
+          Folded by default like the theme spotlight above: most solvers came
+          for the solution, and an alpha essay should not stand between them
+          and it. The visible line is the card's own first sentence — a bare
+          heading is nothing to open. */}
       {commentary && (
-        <div className="nb-plate nb-shadow-room p-3">
-          <div className="text-xs font-extrabold tracking-widest uppercase text-[var(--muted)] mb-2">
-            Commentary
-          </div>
-          <div className="space-y-2">
+        <details className="group nb-plate nb-shadow-room p-3">
+          <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden flex items-start justify-between gap-3">
+            <span className="min-w-0">
+              <span className="block text-xs font-extrabold tracking-widest uppercase text-[var(--muted)]">
+                Commentary · alpha
+              </span>
+              <span className="mt-1 block text-sm leading-relaxed text-[var(--ink)] group-open:hidden">
+                {firstSentence(commentary.paragraphs[0].map(s => s.text).join(''))}
+              </span>
+            </span>
+            <span className="nb-btn shrink-0 py-1 px-3 text-xs font-bold">
+              <span className="group-open:hidden">Read on</span>
+              <span className="hidden group-open:inline">Close</span>
+            </span>
+          </summary>
+          <div className="space-y-2 mt-2">
             {commentary.paragraphs.map((para, pi) => (
               <p key={pi} className="text-sm leading-relaxed text-[var(--ink)]">
                 {para.map((span, i) => (
@@ -490,7 +513,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
               </p>
             ))}
           </div>
-        </div>
+        </details>
       )}
 
       {/* Key variations (all defenses after the key move) */}
