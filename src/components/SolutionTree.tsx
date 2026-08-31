@@ -303,6 +303,18 @@ function BranchView({ node, path, marker, omit, onNodeClick, activeNode, indent 
 }) {
   const { run, forks, lastPath } = collectRun(node, path, omit);
 
+  // A fork whose branches are all mates is not a branch in the line — it is one
+  // move written several ways, the way the source writes it: "2.Nf3#/Nf7#/Ng6#".
+  // Giving each of those a row of its own turns a #2 into a column seven rows
+  // tall, so they ride along on the same row, separated by slashes and still
+  // clickable one by one. Anything with a continuation keeps its own row.
+  const inlineMates =
+    forks.length >= 2 &&
+    forks.every(f => f.isMate && branchChildren(f).length === 0) &&
+    forks.every(f => f.color === forks[0].color)
+      ? forks
+      : null;
+
   return (
     <div className={indent ? 'ml-6' : ''}>
       <div className="flex items-baseline gap-1 flex-wrap leading-relaxed">
@@ -323,8 +335,23 @@ function BranchView({ node, path, marker, omit, onNodeClick, activeNode, indent 
             </span>
           );
         })}
+        {inlineMates?.map((mate, i) => {
+          const matePath = [...lastPath, mate];
+          return (
+            <span key={`m${i}`} className="inline">
+              {i === 0 ? (
+                <span className="text-gray-400 text-xs mr-0.5">
+                  {mate.color === 'w' ? `${moveNumber(matePath)}.` : `${moveNumber(matePath)}...`}
+                </span>
+              ) : (
+                <span className="text-gray-400 mr-0.5">/</span>
+              )}
+              <MoveButton node={mate} path={matePath} onNodeClick={onNodeClick} isActive={activeNode === mate} />
+            </span>
+          );
+        })}
       </div>
-      {forks.map((child, i) => (
+      {!inlineMates && forks.map((child, i) => (
         <BranchView
           key={i}
           node={child}
