@@ -645,8 +645,10 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   let flightDefence = false;
   /** Set play was mentioned in the opener; the key paragraph pays it off. */
   let setStory = false;
-  /** How many tries got the "nearest the mark" sentence just before the key. */
-  let echoTold = 0;
+  /** The tries named in the "nearest the mark" sentence just before the key,
+   *  re-named in the key clause itself: the reader who skips straight to
+   *  "The answer is" never met "those tries". */
+  let echoNames: string[] = [];
 
   const kind = classify(fullNodes, initialFen, key);
 
@@ -1069,7 +1071,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       sentences.push(echoes.length > 1
         ? `Nearest the mark are ${names}, threatening ${aimLabel} — but each falls to ${echoes[0].refutation}.`
         : `Nearest the mark is ${names}, threatening ${aimLabel} — but it falls to ${echoes[0].refutation}.`);
-      echoTold = echoes.length;
+      echoNames = echoes.map(t => t.self);
       related = true;
     }
   }
@@ -1150,7 +1152,8 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     keyPara.push({ text: ', threatening ' });
     keyPara.push({ text: mateList(keyThreats), strong: true });
     if (sharedEcho) keyPara.push({ text: ', the mate the tries were all after' });
-    else if (echoTold > 0) keyPara.push({ text: `, the very mate ${echoTold > 1 ? 'those tries' : 'that try'} went for` });
+    else if (echoNames.length > 1) keyPara.push({ text: `, the very mate those tries (${joinAnd(echoNames)}) went for` });
+    else if (echoNames.length === 1) keyPara.push({ text: `, the very mate ${echoNames[0]} went for` });
     else if (echoTry) keyPara.push({ text: `, exactly what ${echoTry.self} was after` });
   }
 
