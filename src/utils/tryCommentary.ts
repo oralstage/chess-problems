@@ -733,7 +733,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     // — and six of these cards used to promise a waiting key right above a
     // key printed with its threat (D29386).
     sentences.push(kind.hasThreat
-      ? 'If Black were to move first, every black move would run into a mate (a complete block) — and yet the key will not wait: it makes a threat of its own (a block-threat).'
+      ? 'If Black were to move first, every black move would run into a mate (a complete block) — but no waiting move keeps all of those answers, so White goes looking for a threat instead (a block-threat).'
       : setChanged
         ? 'If Black were to move first, every black move would run into a mate (a complete block) — but no waiting move keeps all of those answers, and the key rebuilds some of them: a mutate.'
         : 'If Black were to move first, every black move would run into a mate (a complete block), so all the key has to do is leave those answers standing.');
