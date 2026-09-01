@@ -137,7 +137,6 @@ const WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eig
   'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen',
   'eighteen', 'nineteen', 'twenty'];
 const count = (n: number) => WORDS[n] ?? null;
-const Count = (n: number) => { const w = count(n); return w ? w[0].toUpperCase() + w.slice(1) : null; };
 
 const PIECE_NAME: Record<string, string> = {
   K: 'king', Q: 'queen', R: 'rook', B: 'bishop', N: 'knight', P: 'pawn',
@@ -1305,42 +1304,12 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     }
   }
 
-  // ── 4. Changed mates across the phases ──
-  const phases: { label: string; mates: Map<string, string[]> }[] = [];
-  const phaseOf = (root: SolutionNode, label: string, skip: string | null) => {
-    const mates = new Map<string, string[]>();
-    for (const d of branchChildren(root)) {
-      if (skip && bare(d.moveSan) === bare(skip)) continue;
-      const ms = branchChildren(d).map(withMark);
-      if (ms.length) mates.set(d.moveSan, ms);
-    }
-    if (mates.size) phases.push({ label, mates });
-  };
-  for (const t of tries) phaseOf(t.root, t.self, t.refKey || null);
-  phaseOf(key, write([key], '!'), null);
-
-  if (phases.length >= 3) {
-    const defences = new Set<string>();
-    for (const p of phases) for (const d of p.mates.keys()) defences.add(d);
-    for (const defence of defences) {
-      const seen = phases.filter(p => p.mates.has(defence));
-      if (seen.length < 3 || seen.length > 4) continue;
-      const sets = seen.map(p => p.mates.get(defence)!);
-      // A mate shared between two phases is not a changed mate. The sets have
-      // to be disjoint, or the sentence claims an exchange the data denies.
-      const disjoint = sets.every((s, i) => sets.every((o, j) =>
-        i === j || s.every(m => !o.includes(m))));
-      if (!disjoint) continue;
-      const word = Count(seen.length);
-      if (!word) continue;
-      paragraphs.push([{
-        text: `Across the phases 1...${defence} is answered ${count(seen.length)} different ways — `
-          + `${joinAnd(sets.map(s => mateList(s.map(m => `2.${m}`))))} — changed mates.`,
-      }]);
-      related = true;
-      break;
-    }
-  }
+  // No changed-mates coda. "Across the phases 1...Rxe5 is answered three
+  // different ways — 2.d7, 2.Re4 and 2.Rf4 — changed mates." listed mates
+  // without saying which phase played which, and the theme is already
+  // explained — with marked diagrams, verified on the board — by the Theme
+  // spotlight card above this one. Saying it here again, worse, helped
+  // nobody.
 
   const written = paragraphs.flat().map(s => s.text).join('');
   if (written.length < 80) return null;
