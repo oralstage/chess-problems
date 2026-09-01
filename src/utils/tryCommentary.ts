@@ -645,6 +645,8 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   let flightDefence = false;
   /** Set play was mentioned in the opener; the key paragraph pays it off. */
   let setStory = false;
+  /** How many tries got the "nearest the mark" sentence just before the key. */
+  let echoTold = 0;
 
   const kind = classify(fullNodes, initialFen, key);
 
@@ -1041,8 +1043,35 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
         : `${opening}.`);
     });
 
-    const s = classifyRefutations(tries.filter(t => !narrated.has(t)), true);
+    // Tries that go for the very mate the key makes are the key's family,
+    // and the magazines keep the family together ("All of these moves ... In
+    // every case – four tries and the key ..." — OzProblems) instead of
+    // recalling one out of a list later: "exactly what 1.Qa3 was after"
+    // pointed at a try the reader had only skimmed past in a classification
+    // clause. When they share one refutation they get their own sentence,
+    // LAST before the key, and the key continues from it in the same breath.
+    const echoes = keyThreatSans.length > 0
+      ? tries.filter(t => !narrated.has(t) && t.refutation
+          && t.threatSans.some(s => keyThreatSans.some(k => bare(k) === bare(s))))
+      : [];
+    const tellEcho = echoes.length > 0
+      && new Set(echoes.map(t => bare(t.refKey))).size === 1;
+
+    const s = classifyRefutations(
+      tries.filter(t => !narrated.has(t) && !(tellEcho && echoes.includes(t))), true);
     if (s) sentences.push(s);
+
+    if (tellEcho) {
+      const names = joinAnd(echoes.map(t => t.self));
+      const matched = echoes[0].threatSans.findIndex(x => keyThreatSans.some(k => bare(k) === bare(x)));
+      const aimLabel = echoes[0].threats[matched] ?? echoes[0].threats[0];
+      nameRef(echoes[0].refKey);
+      sentences.push(echoes.length > 1
+        ? `Nearest the mark are ${names}, threatening ${aimLabel} — but each falls to ${echoes[0].refutation}.`
+        : `Nearest the mark is ${names}, threatening ${aimLabel} — but it falls to ${echoes[0].refutation}.`);
+      echoTold = echoes.length;
+      related = true;
+    }
   }
 
   // Most of the refutations being king moves IS the defence, and worth naming.
@@ -1121,6 +1150,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     keyPara.push({ text: ', threatening ' });
     keyPara.push({ text: mateList(keyThreats), strong: true });
     if (sharedEcho) keyPara.push({ text: ', the mate the tries were all after' });
+    else if (echoTold > 0) keyPara.push({ text: `, the very mate ${echoTold > 1 ? 'those tries' : 'that try'} went for` });
     else if (echoTry) keyPara.push({ text: `, exactly what ${echoTry.self} was after` });
   }
 
