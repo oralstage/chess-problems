@@ -67,6 +67,7 @@ const bad: Record<string, number[]> = {
   doubledPunctuation: [],
   doubledWord: [],
   numeralCount: [],
+  moveAfterBreak: [],
 };
 const flag = (name: string, id: number) => {
   if (!bad[name].includes(id)) bad[name].push(id);
@@ -92,6 +93,9 @@ for (const id of ids) {
     if (/[.,;:]{2,}|,\s*\./.test(s.replace(/\.\.\./g, ''))) flag('doubledPunctuation', id);
     if (/\b(\w{3,}) \1\b/.test(s)) flag('doubledWord', id);
     if (/\bthe other \d+\b|\b\d+ (more|others)\b/.test(s)) flag('numeralCount', id);
+    // A clause after ';' or ':' that opens on a move blurs the sentence
+    // boundary in front of it — clauses start with words.
+    if (/[;:] \d/.test(s)) flag('moveAfterBreak', id);
   }
 
   // "the same defences" may only name defences its own previous phase showed.

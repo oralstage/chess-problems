@@ -404,8 +404,18 @@ interface QuotedPair { text: string; defsLabel: string; mate: string }
  *  the defence-and-answer relation said with a verb. A bare "with 1...Bg2
  *  2.Qe2#" hung the pairs off the threat clause as if they belonged to it,
  *  when the relation is a different one: if Black plays this, White has that. */
-function metByChain(pairs: QuotedPair[], dropped: boolean, firstVerb = 'is met by'): string {
-  const items = pairs.map((p, i) => `${p.defsLabel} ${i === 0 ? firstVerb : 'by'} ${p.mate}`);
+/** With `parry`, the chain also starts with a word — "Black stops it with
+ *  1...Bg2 but is met by 2.Qe2#, with 1...Bh3 by 2.Qe2#" — because a clause
+ *  that opens on a move blurs the sentence boundary before it. */
+function metByChain(pairs: QuotedPair[], dropped: boolean, parry = false): string {
+  const items = pairs.map((p, i) => {
+    if (i === 0) {
+      return parry
+        ? `Black stops it with ${p.defsLabel} but is met by ${p.mate}`
+        : `${p.defsLabel} is met by ${p.mate}`;
+    }
+    return `${parry ? 'with ' : ''}${p.defsLabel} by ${p.mate}`;
+  });
   return joinAnd(items) + (dropped ? ', and more besides' : '');
 }
 function matePairs(root: SolutionNode, skip: string | string[] | null, threatSans: string[] = []): { pairs: QuotedPair[]; dropped: boolean } {
@@ -749,9 +759,9 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     if (sharedThreat) {
       sentences.push(`White would like ${sharedThreat}.`);
       related = true;
-    // No set-play lecture for a threat problem: the reader the card is for
-    // starts from the hunt, and the try narration below IS the hunt. Set play
-    // is explained only where it is the story — the complete block branch.
+    // No set-play sentence for a threat problem: the reader starts from the
+    // hunt, and the try narration below IS the hunt. Set play is explained
+    // only where it matters to the solving — the complete block branch above.
     } else if (piece) {
       sentences.push(`Where to put the ${piece} is the whole of the problem.`);
     } else if (!kind.hasThreat) {
@@ -809,25 +819,18 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       shown.push(g);
       total += g.items.length;
     }
-    // One clause per refutation, the tries as its subject. An earlier shape
-    // hung each group on a bare "to" ("1.Qa3, 1.Qb3 (2.Rf2#) to 1...Bxe2!"),
-    // a private grammar; the next opened every clause with "against ...,
-    // against ..." and drummed. Now one lead carries the sentence and the
-    // clauses share the verb — "1.Kb4 is met by 1...h5!; 1.Kb6 by 1...Rh5!"
-    // — elided after the first, semicolons keeping each refutation with its
-    // own moves. A single group keeps the old "Against ..." form: no
-    // repetition to avoid, and the lead would outweigh it.
-    if (shown.length === 1) {
-      nameRef(shown[0].key);
-      return `Against ${named(shown[0].items)} Black has ${shown[0].items[0].refutation}.`;
-    }
+    // One sentence, Black as its subject: "Black meets 1.Kb4 with 1...h5!,
+    // 1.Kb6 with 1...Rh5! and 1.Kc6 with 1...Kh5!." Earlier shapes hung each
+    // group on a bare "to" (a private grammar), drummed "against ...,
+    // against ...", or opened clauses on a move after a colon or semicolon —
+    // and a clause that starts on a move blurs the sentence boundary in
+    // front of it. Commas carry the list; only the first item needs a word,
+    // and "Black meets" is it.
     const clauses = shown.map((g, i) => {
       nameRef(g.key);
-      const n = named(g.items);
-      const verb = i > 0 ? 'by' : g.items.length > 1 ? 'are met by' : 'is met by';
-      return `${n} ${verb} ${g.items[0].refutation}`;
+      return `${i === 0 ? 'Black meets ' : ''}${named(g.items)} with ${g.items[0].refutation}`;
     });
-    return `Black has an answer for each: ${clauses.join('; ')}.`;
+    return `${joinAnd(clauses)}.`;
   };
 
   // The try that was after the key's own mate: the key paragraph points back
@@ -960,12 +963,11 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       x.groups.map(g => g.mate).sort().join('|');
     full.forEach((x, i) => {
       const t = x.t;
-      // For a threat try the role rides on the move itself — "1...Bg2 stops
-      // it but is met by 2.Qe2#" — rather than on a lead aphorism ("Stopping
-      // it is not enough:"), which was one abstraction more than the fact
-      // needed. Later pairs elide the shared verbs in parallel.
-      const pairs = metByChain(x.quoted.pairs, x.quoted.dropped,
-        t.threats.length ? 'stops it but is met by' : 'is met by');
+      // For a threat try the role rides on the move itself — "Black stops it
+      // with 1...Bg2 but is met by 2.Qe2#" — rather than on a lead aphorism
+      // ("Stopping it is not enough:"), which was one abstraction more than
+      // the fact needed. Later pairs elide the shared verbs in parallel.
+      const pairs = metByChain(x.quoted.pairs, x.quoted.dropped, t.threats.length > 0);
       // No changed-mates aside here: "After 1.Qf4 (2.Qf5) the same defences
       // get changed mates: ..." put a piece of appreciation in front of the
       // basic story — what 1.Qf4 wants and what refutes it — and a reader
@@ -986,13 +988,16 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
         // (the redundancy filter dropped every one that does not), so each
         // can be called what it is.
         ? `White ${i === 0 ? 'can start with' : 'might instead play'} ${t.self}, threatening ${mateList(t.threats)}; ${pairs}`
+        // Em-dashes, not colons, in front of the pair chains here: a clause
+        // that opens on "1...Kxd5" after a colon reads as a new sentence
+        // that starts on a move.
         : sameMates
-          ? `After ${t.self} the same mates are still there: ${pairs}`
+          ? `After ${t.self} the same mates are still there — ${pairs}`
           : waits
-            ? `White can ${i === 0 ? 'wait' : 'also wait'} with ${t.self}: ${pairs}`
+            ? `White can ${i === 0 ? 'wait' : 'also wait'} with ${t.self} — ${pairs}`
             : t.san.includes('+')
-              ? `White can check with ${t.self}: ${pairs}`
-              : `The answers are in place after ${t.self}: ${pairs}`;
+              ? `White can check with ${t.self} — ${pairs}`
+              : `The answers are in place after ${t.self} — ${pairs}`;
       // The refutation clause restates its subject. Hung off "the same
       // defences get changed mates" a bare "but has no reply" reads as the
       // defences having no reply, and off "White has an answer to everything"
@@ -1195,7 +1200,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       const intoThreat = rest.filter(f => f.kind === 'threat');
       const gone = rest.filter(f => f.kind === 'gone');
       keyPara.push({ text: echoAttached
-        ? ' The rest of what beat the tries does no better: '
+        ? ' The rest of what beat the tries does no better — '
         : ' This time ' });
       if (met.length === 0 && intoThreat.length === 0 && gone.length >= 2) {
         keyPara.push({ text: echoAttached
@@ -1247,74 +1252,11 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
 
   paragraphs.push(keyPara);
 
-  // ── Set play, told only where it means something ──
-  // The up-front lecture ("with Black to move these mates are already
-  // waiting...") made every threat problem open with a hypothesis the story
-  // never needed; a reader asked for the hunt instead, and got it. But when
-  // the board confirms the prepared mates SURVIVE the key, that is a real
-  // observation about this problem, and it reads best as a closing note —
-  // hypothesis, lines and payoff in one self-contained breath. Defences are
-  // matched by piece and square (1...Ba3 becomes 1...Bxa3 once the key
-  // stands on a3; two rooks may both reach the square and every way must
-  // keep the mate; the prepared Rxe3# may need disambiguating into Raxe3#).
-  if (!kind.completeBlock && kind.setRoots.length > 0 && keyMoves) {
-    const setByDefence = new Map<string, { node: SolutionNode; mates: string[] }>();
-    for (const r of kind.setRoots) {
-      const entry = setByDefence.get(r.moveSan) ?? { node: r, mates: [] };
-      for (const c of branchChildren(r)) {
-        const label = write([r, c]);
-        if (!entry.mates.includes(label)) entry.mates.push(label);
-      }
-      setByDefence.set(r.moveSan, entry);
-    }
-    const setRootsOnce = [...setByDefence.values()].map(e => e.node);
-    const setQuoted = groupBy([...setByDefence.values()], e => mateList(e.mates))
-      .filter(g => g.items.length <= 6)
-      .slice(0, 2)
-      .map(g => ({
-        defs: nameDefences(g.items.map(e => e.node), setRootsOnce, r => write([r])),
-        mate: g.key,
-        nodes: g.items.map(e => e.node),
-        mates: g.items[0].mates,
-      }))
-      .filter(g =>
-        (g.defs.startsWith('any ') || g.defs.split('/').length <= SLASH_CAP)
-        && g.mate.split('/').length <= MATE_CAP);
-    const kept = setQuoted.length > 0 && setQuoted.every(g => g.nodes.every(node => {
-      const match = keyMoves.filter(m => pieceOf(m) === pieceOf(node.moveSan)
-        && destSquare(m) === destSquare(node.moveSan));
-      return match.length > 0 && match.every(m => {
-        const mates = mateAfter(initialFen, key.moveSan, m).map(bare);
-        return g.mates.every(label => {
-          const sm = bare(label.replace(/^\d+\./, ''));
-          return mates.some(bm => bm === sm
-            || (pieceOf(bm) === pieceOf(sm) && destSquare(bm) !== null && destSquare(bm) === destSquare(sm)));
-        });
-      });
-    }));
-    if (kept) {
-      const runs = setQuoted.map((g, i) =>
-        `${g.defs} ${i === 0 ? 'would already lose to' : 'to'} ${g.mate}`);
-      // Everything spelled out, one claim per sentence: the hypothesis in
-      // concrete words (dropping it made the sentence impossible — before
-      // the key it is White's turn and 1...Ba3 cannot be played at all), the
-      // lines with a plain verb, the link to the key as an appositive rather
-      // than a second before/after clause, and the term defined in its own
-      // sentence instead of a dangling bracket.
-      const matesMany = setQuoted.length > 1;
-      paragraphs.push([{
-        text: `If it were Black's turn in the starting position, ${joinAnd(runs)} — the same ${matesMany ? 'answers' : 'answer'} the key uses. Problemists call this prepared play the set play.`,
-      }]);
-      related = true;
-    }
-  }
-
-  // No changed-mates coda. "Across the phases 1...Rxe5 is answered three
-  // different ways — 2.d7, 2.Re4 and 2.Rf4 — changed mates." listed mates
-  // without saying which phase played which, and the theme is already
-  // explained — with marked diagrams, verified on the board — by the Theme
-  // spotlight card above this one. Saying it here again, worse, helped
-  // nobody.
+  // No set-play note anywhere outside the complete-block opener. Every form
+  // of it — up-front lecture, hole-bridge, closing "prepared in advance"
+  // observation — read as an unexplained stranger wherever it stood, through
+  // four rewrites. The complete block is the one story set play belongs to,
+  // and there it is told in plain words without the term carrying the load.
 
   const written = paragraphs.flat().map(s => s.text).join('');
   if (written.length < 80) return null;
