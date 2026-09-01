@@ -129,12 +129,15 @@ function branchChildren(node: SolutionNode): SolutionNode[] {
   return node.children.filter(c => !c.isThreat);
 }
 
-/** The visible line while the commentary is closed: enough to decide whether
- *  to open it. Splits on a full stop that ends a word, so "1.Qd5!" survives.
- *  (Same rule as the theme spotlight's teaser.) */
-function firstSentence(text: string): string {
-  const end = text.search(/[.!?](\s|$)/);
-  return end < 0 ? text : text.slice(0, end + 1);
+/** The visible line while the commentary is closed. Cut mid-flow at a word
+ *  break, never at a sentence end: a complete first sentence read as the
+ *  whole story and gave no reason to open the card. The ellipsis says the
+ *  text carries on. Word-break cutting also keeps move tokens ("2.Rxe3#")
+ *  intact — they contain no spaces. */
+function teaser(text: string, cap = 110): string {
+  if (text.length <= cap) return text;
+  const cut = text.lastIndexOf(' ', cap);
+  return `${text.slice(0, cut > 40 ? cut : cap)} …`;
 }
 
 // mergeSameMoveChildren lives in tryCommentary.ts now: it shapes the tree for
@@ -496,7 +499,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
                 Commentary · alpha
               </span>
               <span className="mt-1 block text-sm leading-relaxed text-[var(--ink)] group-open:hidden">
-                {firstSentence(commentary.paragraphs[0].map(s => s.text).join(''))}
+                {teaser(commentary.paragraphs.map(p => p.map(s => s.text).join('')).join(' '))}
               </span>
             </span>
             <span className="nb-btn shrink-0 py-1 px-3 text-xs font-bold">
