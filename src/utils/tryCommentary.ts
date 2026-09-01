@@ -697,16 +697,14 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     .filter(g => g.items.length <= 6)
     .slice(0, 2)
     .map(g => ({
-      text: `${nameDefences(g.items.map(e => e.node), setRootsOnce, r => write([r]))} ${g.key}`,
+      defs: nameDefences(g.items.map(e => e.node), setRootsOnce, r => write([r])),
+      mate: g.key,
       nodes: g.items.map(e => e.node),
       mates: g.items[0].mates,
     }))
-    .filter(g => {
-      const [defs] = g.text.split(' 2.');
-      return (defs.startsWith('any ') || defs.split('/').length <= SLASH_CAP)
-        && g.text.split('/').length - defs.split('/').length + 1 <= MATE_CAP;
-    });
-  const setPairs = setQuoted.map(g => g.text);
+    .filter(g =>
+      (g.defs.startsWith('any ') || g.defs.split('/').length <= SLASH_CAP)
+      && g.mate.split('/').length <= MATE_CAP);
 
   const setChanged = [...kind.setDefences.entries()].some(([defence, mates]) => {
     const after = branchChildren(key).filter(d => d.moveSan === defence)
@@ -765,18 +763,21 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     if (sharedThreat) {
       sentences.push(`White would like ${sharedThreat}.`);
       related = true;
-    } else if (setPairs.length && diagramHasHole(initialFen) === true) {
-      // Three things this sentence must carry, each learned from a reader
-      // tripping over D2845: whose move the set lines assume (without it the
-      // set mate reads as White's plan, and the first try's different threat
-      // then reads as a contradiction); the plain fact before the term "set
-      // play", which a casual solver has no reason to know; and WHY White
-      // then goes hunting for a threat instead of keeping the prepared mates
-      // — the board confirms Black has moves nothing is prepared for, so a
-      // waiting move loses the thread. When that hole cannot be confirmed,
+    } else if (setQuoted.length && diagramHasHole(initialFen) === true) {
+      // The solver's own first step, in the solver's order, each clause
+      // hard-won from a reader tripping over D2845: ask what happens if
+      // Black had to move first — "(the set play)" tags that hypothesis, the
+      // whole black-first play, not the mating move it happens to sit next
+      // to; report what is prepared; then the board-confirmed hole (Black
+      // has moves with nothing ready), which rules out a complete block and
+      // sends White LOOKING for a threat — looking, not needing, because a
+      // quiet key that completes the net is a real outcome and belongs to
+      // the no-threat opener instead. When the hole cannot be confirmed,
       // set play is not mentioned at all: a prepared mate the story never
       // returns to is a gun that never fires.
-      sentences.push(`With Black to move, ${joinAnd(setPairs)} ${setPairs.length > 1 ? 'are' : 'is'} already waiting in the diagram (the set play) — but the rest of Black's moves have nothing ready, so this is no complete block, and White goes looking for a threat.`);
+      const runs = setQuoted.map((g, i) =>
+        `${g.defs} ${i === 0 ? 'would run straight into' : 'into'} ${g.mate}`);
+      sentences.push(`If Black were to move first (the set play), ${joinAnd(runs)}. But the rest of Black's moves would not be mated, so this is no complete block, and White goes looking for a threat.`);
       setStory = true;
       related = true;
     } else if (piece) {
