@@ -1292,8 +1292,12 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       const runs = setQuoted.map((g, i) =>
         `${g.defs} ${i === 0 ? 'would run straight into' : 'into'} ${g.mate}`);
       const many = setQuoted.reduce((n, g) => n + g.nodes.length, 0) > 1;
+      // Plain words, nothing elided: "the key leaves those answers standing"
+      // had to be explained to a reader, and "they still do" left the reader
+      // asking what "do" was. Subject, verb and object all said again.
+      const matesMany = setQuoted.length > 1;
       paragraphs.push([{
-        text: `If Black were to move first (the set play), ${joinAnd(runs)} — and the key leaves ${many ? 'those answers' : 'that answer'} standing.`,
+        text: `If Black were to move first (the set play), ${joinAnd(runs)} — and after ${write([key])} ${many ? 'these defences' : 'this defence'} still run${many ? '' : 's'} into the same ${matesMany ? 'mates' : 'mate'}.`,
       }]);
       related = true;
     }
