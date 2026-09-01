@@ -727,9 +727,16 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   // the bridge to the guide for whoever wants it.
   let framed = false;
   if (kind.completeBlock) {
-    sentences.push(setChanged
-      ? 'If Black were to move first, every black move would run into a mate (a complete block) — but no waiting move keeps all of those answers, and the key rebuilds some of them: a mutate.'
-      : 'If Black were to move first, every black move would run into a mate (a complete block), so all the key has to do is leave those answers standing.');
+    // "All the key has to do is wait" is a promise about the key, so the key
+    // is checked before making it: a complete block CAN be solved by a move
+    // that abandons the waiting game and threatens instead — the block-threat
+    // — and six of these cards used to promise a waiting key right above a
+    // key printed with its threat (D29386).
+    sentences.push(kind.hasThreat
+      ? 'If Black were to move first, every black move would run into a mate (a complete block) — and yet the key will not wait: it makes a threat of its own (a block-threat).'
+      : setChanged
+        ? 'If Black were to move first, every black move would run into a mate (a complete block) — but no waiting move keeps all of those answers, and the key rebuilds some of them: a mutate.'
+        : 'If Black were to move first, every black move would run into a mate (a complete block), so all the key has to do is leave those answers standing.');
     related = true;
     framed = true;
   } else if (!kind.hasThreat && kind.setDefences.size > 0) {
