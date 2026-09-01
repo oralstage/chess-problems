@@ -1290,14 +1290,16 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     }));
     if (kept) {
       const runs = setQuoted.map((g, i) =>
-        `${g.defs} ${i === 0 ? 'would run straight into' : 'into'} ${g.mate}`);
-      const many = setQuoted.reduce((n, g) => n + g.nodes.length, 0) > 1;
-      // Plain words, nothing elided: "the key leaves those answers standing"
-      // had to be explained to a reader, and "they still do" left the reader
-      // asking what "do" was. Subject, verb and object all said again.
+        `${g.defs} ${i === 0 ? 'would already lose to' : 'to'} ${g.mate}`);
+      // Everything spelled out, one claim per sentence: the hypothesis in
+      // concrete words (dropping it made the sentence impossible — before
+      // the key it is White's turn and 1...Ba3 cannot be played at all), the
+      // lines with a plain verb, the link to the key as an appositive rather
+      // than a second before/after clause, and the term defined in its own
+      // sentence instead of a dangling bracket.
       const matesMany = setQuoted.length > 1;
       paragraphs.push([{
-        text: `If Black were to move first (the set play), ${joinAnd(runs)} — and after ${write([key])} ${many ? 'these defences' : 'this defence'} still run${many ? '' : 's'} into the same ${matesMany ? 'mates' : 'mate'}.`,
+        text: `If it were Black's turn in the starting position, ${joinAnd(runs)} — the same ${matesMany ? 'answers' : 'answer'} the key uses. Problemists call this prepared play the set play.`,
       }]);
       related = true;
     }
