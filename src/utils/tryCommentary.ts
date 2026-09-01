@@ -651,6 +651,10 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   let echoNames: string[] = [];
   /** Their shared refutation — its fate belongs in the key's own sentence. */
   let echoRefSan: string | null = null;
+  /** Whether the echo try was actually narrated above. "Exactly what 1.Qxb3
+   *  was after" pointing at a try that only ever appeared inside a
+   *  classification clause is a callback with nothing to call back to. */
+  let echoNarrated = false;
 
   const kind = classify(fullNodes, initialFen, key);
 
@@ -738,11 +742,15 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     // that abandons the waiting game and threatens instead — the block-threat
     // — and six of these cards used to promise a waiting key right above a
     // key printed with its threat (D29386).
+    // The term reads over the whole clause, so it sits between dashes (or
+    // after a colon), never in brackets against the nearest noun: "a mate
+    // (a complete block)" named the mate, the same misattachment "(the set
+    // play)" was cured of.
     sentences.push(kind.hasThreat
-      ? 'If Black were to move first, every black move would run into a mate (a complete block) — but no waiting move keeps all of those answers, so White goes looking for a threat instead (a block-threat).'
+      ? 'If Black were to move first, every black move would run into a mate — a complete block — but no waiting move keeps all of those answers, so White goes looking for a threat instead: the block-threat.'
       : setChanged
-        ? 'If Black were to move first, every black move would run into a mate (a complete block) — but no waiting move keeps all of those answers, and the key rebuilds some of them: a mutate.'
-        : 'If Black were to move first, every black move would run into a mate (a complete block), so all the key has to do is leave those answers standing.');
+        ? 'If Black were to move first, every black move would run into a mate — a complete block — but no waiting move keeps all of those answers, and the key rebuilds some of them: a mutate.'
+        : 'If Black were to move first, every black move would run into a mate — a complete block — so all the key has to do is leave those answers standing.');
     related = true;
     framed = true;
   } else if (!kind.hasThreat && kind.setDefences.size > 0) {
@@ -756,7 +764,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       // have unanswered black moves, and "every black move already walks
       // into a mate" read as a claim about the diagram — false there.
       sentences.push(kind.zugzwang
-        ? 'There is no threat: the key simply leaves Black to move, and every black move then walks into a mate (zugzwang).'
+        ? 'There is no threat: the key simply leaves Black to move, and every black move then walks into a mate — zugzwang.'
         : 'The key carries no threat: what White needs is a move that leaves every answer in place.');
     }
     framed = true;
@@ -953,6 +961,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
         sentences.push(echoTry.refutation
           ? `Then ${names} ${verb} ${mateList(echoTry.threats)}, the mate the key itself makes — yet ${echoTry.refutation} answers them too.`
           : `Then ${names} ${verb} ${mateList(echoTry.threats)}, the mate the key itself makes.`);
+        echoNarrated = true;
         related = true;
       }
 
@@ -993,6 +1002,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       .sort((a, b) => b.quoted.pairs.length - a.quoted.pairs.length)
       .slice(0, 2);
     const narrated = new Set(full.map(x => x.t));
+    if (echoTry && narrated.has(echoTry)) echoNarrated = true;
 
     const mateSetOf = (x: { groups: { mate: string; defs: SolutionNode[] }[] }) =>
       x.groups.map(g => g.mate).sort().join('|');
@@ -1157,7 +1167,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     if (sharedEcho) keyPara.push({ text: ', the mate the tries were all after' });
     else if (echoNames.length > 1) keyPara.push({ text: `, the very mate those tries (${joinAnd(echoNames)}) went for` });
     else if (echoNames.length === 1) keyPara.push({ text: `, the very mate ${echoNames[0]} went for` });
-    else if (echoTry) keyPara.push({ text: `, exactly what ${echoTry.self} was after` });
+    else if (echoTry && echoNarrated) keyPara.push({ text: `, exactly what ${echoTry.self} was after` });
   }
 
   const keyMoves = blackMoves(initialFen, key.moveSan);
