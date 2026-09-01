@@ -392,7 +392,15 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
   const variations = useMemo(() => buildRootVariations(merged), [merged]);
   // Prose reading of the tries — it walks the same folded tree, so a defence
   // written several ways in the source is one defence here too.
-  const commentary = useMemo(() => buildTryCommentary(merged, initialFen, stipulation), [merged, initialFen, stipulation]);
+  // Fail closed: the card is an extra, and no problem — however strange its
+  // data — may take the solution view down with it. Worst case is no card.
+  const commentary = useMemo(() => {
+    try {
+      return buildTryCommentary(merged, initialFen, stipulation);
+    } catch {
+      return null;
+    }
+  }, [merged, initialFen, stipulation]);
   const hasAnyMarkers = variations.some(v => v.isKey || v.isTry);
   // When no key/try markers exist (e.g., helpmates), treat all variations as "solutions"
   const keyVariations = hasAnyMarkers ? variations.filter(v => v.isKey) : [];
