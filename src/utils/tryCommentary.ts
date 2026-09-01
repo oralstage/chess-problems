@@ -725,13 +725,13 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   // Jargon comes AFTER the plain fact it names, never instead of it: the card
   // is aimed at casual solvers, and "the position is a complete block" opens
   // with a term they have no reason to know. Say what is true of the board
-  // first; the problemists' word for it rides along at the end, as the bridge
-  // to the guide for whoever wants it.
+  // first; the problemists' word rides along in brackets — "(set play)" — as
+  // the bridge to the guide for whoever wants it.
   let framed = false;
   if (kind.completeBlock) {
     sentences.push(setChanged
-      ? 'Every black move already has a mate waiting for it — a complete block — but no waiting move keeps them all, and the key rebuilds some of them: a mutate.'
-      : 'Every black move already has a mate waiting for it — a complete block, problemists call it — so all the key has to do is leave them standing.');
+      ? 'Every black move already has a mate waiting for it (a complete block), but no waiting move keeps them all, and the key rebuilds some of them: a mutate.'
+      : 'Every black move already has a mate waiting for it (a complete block), so all the key has to do is leave them standing.');
     related = true;
     framed = true;
   } else if (!kind.hasThreat && kind.setDefences.size > 0) {
@@ -741,7 +741,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       related = true;
     } else {
       sentences.push(kind.zugzwang
-        ? 'There is no threat: every black move already walks into a mate — zugzwang — and White needs a move that leaves every answer in place.'
+        ? 'There is no threat: every black move already walks into a mate (zugzwang), and White needs a move that leaves every answer in place.'
         : 'The key carries no threat: what White needs is a move that leaves every answer in place.');
     }
     framed = true;
@@ -776,7 +776,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       // waiting move loses the thread. When that hole cannot be confirmed,
       // set play is not mentioned at all: a prepared mate the story never
       // returns to is a gun that never fires.
-      sentences.push(`With Black to move, ${joinAnd(setPairs)} ${setPairs.length > 1 ? 'are' : 'is'} already waiting in the diagram — prepared answers problemists call set play. But Black also has moves nothing is prepared for, so waiting will not do: White needs a threat.`);
+      sentences.push(`With Black to move, ${joinAnd(setPairs)} ${setPairs.length > 1 ? 'are' : 'is'} already waiting in the diagram (the set play) — but the rest of Black's moves have nothing ready, so this is no complete block, and White goes looking for a threat.`);
       setStory = true;
       related = true;
     } else if (piece) {
@@ -1221,9 +1221,18 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     const kept = setQuoted.every(g => g.nodes.every(node => {
       const match = keyMoves.filter(m => pieceOf(m) === pieceOf(node.moveSan)
         && destSquare(m) === destSquare(node.moveSan));
-      if (match.length !== 1) return false;
-      const mates = mateAfter(initialFen, key.moveSan, match[0]).map(bare);
-      return g.mates.every(sm => mates.includes(bare(sm.replace(/^\d+\./, ''))));
+      // Two rooks may both reach the set defence's square; the claim holds
+      // only when EVERY way of playing it still meets the prepared mate. The
+      // mate itself is matched by piece and square too: with the key on the
+      // board the prepared Rxe3# may need disambiguating into Raxe3#.
+      return match.length > 0 && match.every(m => {
+        const mates = mateAfter(initialFen, key.moveSan, m).map(bare);
+        return g.mates.every(label => {
+          const sm = bare(label.replace(/^\d+\./, ''));
+          return mates.some(bm => bm === sm
+            || (pieceOf(bm) === pieceOf(sm) && destSquare(bm) !== null && destSquare(bm) === destSquare(sm)));
+        });
+      });
     }));
     if (kept) {
       const many = setQuoted.reduce((n, g) => n + g.nodes.length, 0) > 1;
