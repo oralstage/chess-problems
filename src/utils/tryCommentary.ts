@@ -649,6 +649,8 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
    *  re-named in the key clause itself: the reader who skips straight to
    *  "The answer is" never met "those tries". */
   let echoNames: string[] = [];
+  /** Their shared refutation — its fate belongs in the key's own sentence. */
+  let echoRefSan: string | null = null;
 
   const kind = classify(fullNodes, initialFen, key);
 
@@ -1072,6 +1074,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
         ? `Nearest the mark are ${names}, threatening ${aimLabel} — but each falls to ${echoes[0].refutation}.`
         : `Nearest the mark is ${names}, threatening ${aimLabel} — but it falls to ${echoes[0].refutation}.`);
       echoNames = echoes.map(t => t.self);
+      echoRefSan = echoes[0].refKey;
       related = true;
     }
   }
@@ -1205,53 +1208,81 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   }
 
   if (fates && fates.length > 0) {
-    const met = fates.filter(f => f.kind === 'met');
-    const intoThreat = fates.filter(f => f.kind === 'threat');
-    const gone = fates.filter(f => f.kind === 'gone');
-    // "This time", the way the magazines turn from the tries to the key
-    // ("Correct is 1.Sce5!, which brings 1...g4 2.Sc6" — OzProblems): the
-    // key is introduced together with what it does about the moves that beat
-    // the tries, not merely with its own variations.
-    keyPara.push({ text: '. This time ' });
-    if (met.length === 0 && intoThreat.length === 0 && gone.length >= 2) {
-      keyPara.push({ text: 'not one of the moves that beat the tries can even be played.' });
-    } else {
-      const clauses: CommentarySpan[][] = [];
-      // Refutations sharing one answer are told together ("1...Kd4 and
-      // 1...Kd3 run into 2.Ne5#"), the verb elided after the first clause.
-      groupBy(met, f => f.mate!).forEach((g, i) => {
-        const names = joinAnd(g.items.map(f => refLabel(f.san)));
-        const verb = i > 0 ? 'into' : g.items.length > 1 ? 'run into' : 'runs into';
-        clauses.push([
-          { text: `${names} ${verb} ` },
-          { text: g.key, strong: true },
-        ]);
-      });
-      if (intoThreat.length > 0) {
-        const names = intoThreat.map(f => refLabel(f.san));
-        clauses.push([{
-          text: names.length === 1
-            ? `${names[0]} does not stop the threat`
-            : names.length === 2
-              ? `neither ${names[0]} nor ${names[1]} stops the threat`
-              : `none of ${joinAnd(names)} stops the threat`,
-        }]);
+    // One sentence, one meaning. The echo family's refutation completes the
+    // key's own sentence — "the very mate those tries went for — and this
+    // time 1...Bxe2 runs into 2.Qxe2#" is one story, the way the magazines
+    // tell it ("Correct is 1.Sce5!, which brings 1...g4 2.Sc6" — OzProblems).
+    // What became of the OTHER refutations is a different statement and gets
+    // its own sentence; joining the two by length made one sentence carry
+    // two meanings.
+    let rest = fates;
+    let echoAttached = false;
+    if (echoRefSan) {
+      const f = fates.find(x => bare(x.san) === bare(echoRefSan!));
+      if (f) {
+        rest = fates.filter(x => x !== f);
+        keyPara.push({ text: ' — and this time ' });
+        if (f.kind === 'met') {
+          keyPara.push({ text: `${refLabel(f.san)} runs into ` }, { text: f.mate!, strong: true });
+        } else if (f.kind === 'threat') {
+          keyPara.push({ text: `${refLabel(f.san)} does not stop it` });
+        } else {
+          keyPara.push({ text: `${refLabel(f.san)} cannot even be played` });
+        }
+        echoAttached = true;
       }
-      if (gone.length > 0) {
-        const names = gone.map(f => refLabel(f.san));
-        clauses.push([{
-          text: names.length === 1
-            ? `${names[0]} can no longer be played at all`
-            : names.length === 2
-              ? `neither ${names[0]} nor ${names[1]} can be played at all`
-              : `${joinAnd(names)} can no longer be played at all`,
-        }]);
+    }
+    keyPara.push({ text: '.' });
+
+    if (rest.length > 0) {
+      const met = rest.filter(f => f.kind === 'met');
+      const intoThreat = rest.filter(f => f.kind === 'threat');
+      const gone = rest.filter(f => f.kind === 'gone');
+      keyPara.push({ text: echoAttached
+        ? ' The rest of what beat the tries does no better: '
+        : ' This time ' });
+      if (met.length === 0 && intoThreat.length === 0 && gone.length >= 2) {
+        keyPara.push({ text: echoAttached
+          ? 'not one of those moves can even be played.'
+          : 'not one of the moves that beat the tries can even be played.' });
+      } else {
+        const clauses: CommentarySpan[][] = [];
+        // Refutations sharing one answer are told together ("1...Kd4 and
+        // 1...Kd3 run into 2.Ne5#"), the verb elided after the first clause.
+        groupBy(met, f => f.mate!).forEach((g, i) => {
+          const names = joinAnd(g.items.map(f => refLabel(f.san)));
+          const verb = i > 0 ? 'into' : g.items.length > 1 ? 'run into' : 'runs into';
+          clauses.push([
+            { text: `${names} ${verb} ` },
+            { text: g.key, strong: true },
+          ]);
+        });
+        if (intoThreat.length > 0) {
+          const names = intoThreat.map(f => refLabel(f.san));
+          clauses.push([{
+            text: names.length === 1
+              ? `${names[0]} does not stop the threat`
+              : names.length === 2
+                ? `neither ${names[0]} nor ${names[1]} stops the threat`
+                : `none of ${joinAnd(names)} stops the threat`,
+          }]);
+        }
+        if (gone.length > 0) {
+          const names = gone.map(f => refLabel(f.san));
+          clauses.push([{
+            text: names.length === 1
+              ? `${names[0]} can no longer be played at all`
+              : names.length === 2
+                ? `neither ${names[0]} nor ${names[1]} can be played at all`
+                : `${joinAnd(names)} can no longer be played at all`,
+          }]);
+        }
+        clauses.forEach((clause, i) => {
+          if (i > 0) keyPara.push({ text: i === clauses.length - 1 ? ' and ' : ', ' });
+          keyPara.push(...clause);
+        });
+        keyPara.push({ text: '.' });
       }
-      clauses.forEach((clause, i) => {
-        if (i > 0) keyPara.push({ text: i === clauses.length - 1 ? ' and ' : ', ' });
-        keyPara.push(...clause);
-      });
-      keyPara.push({ text: '.' });
     }
     related = true;
   } else {
