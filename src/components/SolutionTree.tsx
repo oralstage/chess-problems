@@ -268,6 +268,90 @@ function MoveButton({ node, path, onNodeClick, isActive }: {
   );
 }
 
+// ── Grouping siblings that share the same mate ──
+
+/**
+ * A branch that holds nothing but mating replies is summed up by those mates.
+ * When several siblings are answered by the very same set of mates, the source
+ * writes them as one line — "1...Rg3/Rxg4 2.O-O-O#" — and so do we.
+ * The match is deliberately exact: every reply a childless mate, the same set
+ * of mates, the same colours throughout. A branch with a continuation, or with
+ * only some mates in common, keeps its own row.
+ */
+function sharedMateSignature(node: SolutionNode): string | null {
+  const kids = branchChildren(node);
+  if (kids.length === 0) return null;
+  if (!kids.every(k => k.isMate && branchChildren(k).length === 0)) return null;
+  if (!kids.every(k => k.color === kids[0].color)) return null;
+  return `${node.color}|${kids[0].color}|${kids.map(k => k.moveSan).sort().join('/')}`;
+}
+
+/** Partition forks into same-mate groups, each group at its first member's place. */
+function groupForksByMate(forks: SolutionNode[]): SolutionNode[][] {
+  const groups: SolutionNode[][] = [];
+  const bySig = new Map<string, SolutionNode[]>();
+  for (const fork of forks) {
+    const sig = sharedMateSignature(fork);
+    if (sig !== null) {
+      const existing = bySig.get(sig);
+      if (existing) {
+        existing.push(fork);
+        continue;
+      }
+      const group = [fork];
+      bySig.set(sig, group);
+      groups.push(group);
+    } else {
+      groups.push([fork]);
+    }
+  }
+  return groups;
+}
+
+/** One row for a same-mate group: "1...d5/Re8/Rxd4 2.Rxe3#", every move a button. */
+function SharedMateRow({ heads, lastPath, onNodeClick, activeNode }: {
+  heads: SolutionNode[];
+  lastPath: SolutionNode[];
+  onNodeClick: (path: SolutionNode[]) => void;
+  activeNode?: SolutionNode | null;
+}) {
+  const headNum = moveNumber([...lastPath, heads[0]]);
+  // The mates are drawn once, from the first head's copies of them; the other
+  // heads hold their own copies, which clicking a head still replays through.
+  const mates = branchChildren(heads[0]);
+  return (
+    <div className="ml-6">
+      <div className="flex items-baseline gap-1 flex-wrap leading-relaxed">
+        {heads.map((head, i) => (
+          <span key={i} className="inline">
+            {i === 0 ? (
+              <span className="text-gray-400 text-xs mr-0.5">{head.color === 'w' ? `${headNum}.` : `${headNum}...`}</span>
+            ) : (
+              <span className="text-gray-400 mr-0.5">/</span>
+            )}
+            <MoveButton node={head} path={[...lastPath, head]} onNodeClick={onNodeClick} isActive={activeNode === head} />
+          </span>
+        ))}
+        {mates.map((mate, i) => {
+          const matePath = [...lastPath, heads[0], mate];
+          return (
+            <span key={`m${i}`} className="inline">
+              {i === 0 ? (
+                <span className="text-gray-400 text-xs mr-0.5">
+                  {mate.color === 'w' ? `${moveNumber(matePath)}.` : `${moveNumber(matePath)}...`}
+                </span>
+              ) : (
+                <span className="text-gray-400 mr-0.5">/</span>
+              )}
+              <MoveButton node={mate} path={matePath} onNodeClick={onNodeClick} isActive={activeNode === mate} />
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Variation display: straight runs on one row, forks on indented rows ──
 
 function BranchView({ node, path, marker, omit, onNodeClick, activeNode, indent = false }: {
@@ -330,15 +414,25 @@ function BranchView({ node, path, marker, omit, onNodeClick, activeNode, indent 
           );
         })}
       </div>
-      {!inlineMates && forks.map((child, i) => (
-        <BranchView
-          key={i}
-          node={child}
-          path={[...lastPath, child]}
-          onNodeClick={onNodeClick}
-          activeNode={activeNode}
-          indent
-        />
+      {!inlineMates && groupForksByMate(forks).map((group, i) => (
+        group.length >= 2 ? (
+          <SharedMateRow
+            key={i}
+            heads={group}
+            lastPath={lastPath}
+            onNodeClick={onNodeClick}
+            activeNode={activeNode}
+          />
+        ) : (
+          <BranchView
+            key={i}
+            node={group[0]}
+            path={[...lastPath, group[0]]}
+            onNodeClick={onNodeClick}
+            activeNode={activeNode}
+            indent
+          />
+        )
       ))}
     </div>
   );
