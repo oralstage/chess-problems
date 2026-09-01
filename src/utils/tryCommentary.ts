@@ -728,8 +728,8 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   let framed = false;
   if (kind.completeBlock) {
     sentences.push(setChanged
-      ? 'Every black move already has a mate waiting for it (a complete block), but no waiting move keeps them all, and the key rebuilds some of them: a mutate.'
-      : 'Every black move already has a mate waiting for it (a complete block), so all the key has to do is leave them standing.');
+      ? 'If Black were to move first, every black move would run into a mate (a complete block) — but no waiting move keeps all of those answers, and the key rebuilds some of them: a mutate.'
+      : 'If Black were to move first, every black move would run into a mate (a complete block), so all the key has to do is leave those answers standing.');
     related = true;
     framed = true;
   } else if (!kind.hasThreat && kind.setDefences.size > 0) {
@@ -738,8 +738,12 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       flightDefence = true;
       related = true;
     } else {
+      // The zugzwang was verified AFTER the key (zugzwangOnBoard), so the
+      // sentence must say so: at the diagram many of these positions still
+      // have unanswered black moves, and "every black move already walks
+      // into a mate" read as a claim about the diagram — false there.
       sentences.push(kind.zugzwang
-        ? 'There is no threat: every black move already walks into a mate (zugzwang), and White needs a move that leaves every answer in place.'
+        ? 'There is no threat: the key simply leaves Black to move, and every black move then walks into a mate (zugzwang).'
         : 'The key carries no threat: what White needs is a move that leaves every answer in place.');
     }
     framed = true;
