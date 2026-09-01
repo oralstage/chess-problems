@@ -399,7 +399,16 @@ function matesOf(root: SolutionNode, skip: string | string[] | null): { mate: st
  *  `dropped` says whether anything was left out, so the sentence around the
  *  quote can decline to claim completeness. Each pair carries the bare SANs of
  *  the defences it names, for the changed-mates comparison. */
-interface QuotedPair { text: string; defs: string[]; mate: string }
+interface QuotedPair { text: string; defsLabel: string; defs: string[]; mate: string }
+
+/** "1...Bg2 is met by 2.Qe2#, 1...Bh3/Be2 by 2.Qe2# and 1...Bd3 by 2.Qg2#" —
+ *  the defence-and-answer relation said with a verb. A bare "with 1...Bg2
+ *  2.Qe2#" hung the pairs off the threat clause as if they belonged to it,
+ *  when the relation is a different one: if Black plays this, White has that. */
+function metByChain(pairs: QuotedPair[], dropped: boolean): string {
+  const items = pairs.map((p, i) => `${p.defsLabel} ${i === 0 ? 'is met by' : 'by'} ${p.mate}`);
+  return joinAnd(items) + (dropped ? ', and more besides' : '');
+}
 function matePairs(root: SolutionNode, skip: string | string[] | null, threatSans: string[] = []): { pairs: QuotedPair[]; dropped: boolean } {
   const groups = matesOf(root, skip);
   const allDefs = groups.flatMap(g => g.defs);
@@ -425,7 +434,7 @@ function matePairs(root: SolutionNode, skip: string | string[] | null, threatSan
     const defs = nameDefences(g.defs, allDefs, d => write([root, d]));
     const names = defs.startsWith('any ') ? 1 : defs.split('/').length;
     if (names > SLASH_CAP || g.mate.split('/').length > MATE_CAP) { dropped = true; continue; }
-    pairs.push({ text: `${defs} ${g.mate}`, defs: g.defs.map(d => bare(d.moveSan)), mate: g.mate });
+    pairs.push({ text: `${defs} ${g.mate}`, defsLabel: defs, defs: g.defs.map(d => bare(d.moveSan)), mate: g.mate });
   }
   if (pairs.length > QUOTE_CAP) { pairs.length = QUOTE_CAP; dropped = true; }
   return { pairs, dropped };
@@ -455,31 +464,6 @@ function threatOnBoard(fen: string, keySan: string): boolean | null {
       const next = new Chess(passed.fen());
       next.move(m);
       return next.isCheckmate();
-    });
-  } catch {
-    return null;
-  }
-}
-
-/** Is there a black move in the diagram with no mating answer ready — i.e.
- *  would a pure waiting move fail? This is what turns "set play is in place"
- *  into a story: the prepared mates exist, but they do not cover everything,
- *  so White has to go and make a threat. Board-checked, because the source
- *  cannot say it: YACPDB prints the set lines worth showing, not all of
- *  them, and silence about a defence is not a hole. */
-function diagramHasHole(fen: string): boolean | null {
-  try {
-    const board = new Chess(fen.replace(/ [wb] /, ' b '));
-    const replies = board.moves();
-    if (!replies.length) return null;
-    return replies.some(r => {
-      const next = new Chess(board.fen());
-      next.move(r);
-      return !next.moves().some(m => {
-        const after = new Chess(next.fen());
-        after.move(m);
-        return after.isCheckmate();
-      });
     });
   } catch {
     return null;
@@ -643,8 +627,6 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   let related = false;
   /** The tries all fell to king flights: the key paragraph says so in words. */
   let flightDefence = false;
-  /** Set play was mentioned in the opener; the key paragraph pays it off. */
-  let setStory = false;
   /** The tries named in the "nearest the mark" sentence just before the key,
    *  re-named in the key clause itself: the reader who skips straight to
    *  "The answer is" never met "those tries". */
@@ -693,29 +675,6 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   // A set defence the source wrote twice — "1...c5 2.g3#/g4#" arrives as two
   // roots — carries one mate each time; collect them onto the defence first or
   // the same move is printed twice with a mate apiece.
-  const setByDefence = new Map<string, { node: SolutionNode; mates: string[] }>();
-  for (const r of kind.setRoots) {
-    const entry = setByDefence.get(r.moveSan) ?? { node: r, mates: [] };
-    for (const c of branchChildren(r)) {
-      const label = write([r, c]);
-      if (!entry.mates.includes(label)) entry.mates.push(label);
-    }
-    setByDefence.set(r.moveSan, entry);
-  }
-  const setRootsOnce = [...setByDefence.values()].map(e => e.node);
-  const setQuoted = groupBy([...setByDefence.values()], e => mateList(e.mates))
-    .filter(g => g.items.length <= 6)
-    .slice(0, 2)
-    .map(g => ({
-      defs: nameDefences(g.items.map(e => e.node), setRootsOnce, r => write([r])),
-      mate: g.key,
-      nodes: g.items.map(e => e.node),
-      mates: g.items[0].mates,
-    }))
-    .filter(g =>
-      (g.defs.startsWith('any ') || g.defs.split('/').length <= SLASH_CAP)
-      && g.mate.split('/').length <= MATE_CAP);
-
   const setChanged = [...kind.setDefences.entries()].some(([defence, mates]) => {
     const after = branchChildren(key).filter(d => d.moveSan === defence)
       .flatMap(d => branchChildren(d).map(m => m.moveSan));
@@ -763,8 +722,11 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       // sentence must say so: at the diagram many of these positions still
       // have unanswered black moves, and "every black move already walks
       // into a mate" read as a claim about the diagram — false there.
+      // "No threat" said the concrete way: the two-move test a solver would
+      // run. Both claims here are the board's own (threatOnBoard false and
+      // zugzwangOnBoard true — the unverified case takes the other branch).
       sentences.push(kind.zugzwang
-        ? 'There is no threat: the key simply leaves Black to move, and every black move then walks into a mate — zugzwang.'
+        ? 'Even two White moves in a row would produce no mate here. The key simply leaves Black to move, and every black move then walks into one — zugzwang.'
         : 'The key carries no threat: what White needs is a move that leaves every answer in place.');
     }
     framed = true;
@@ -788,23 +750,9 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     if (sharedThreat) {
       sentences.push(`White would like ${sharedThreat}.`);
       related = true;
-    } else if (setQuoted.length && diagramHasHole(initialFen) === true) {
-      // The solver's own first step, in the solver's order, each clause
-      // hard-won from a reader tripping over D2845: ask what happens if
-      // Black had to move first — "(the set play)" tags that hypothesis, the
-      // whole black-first play, not the mating move it happens to sit next
-      // to; report what is prepared; then the board-confirmed hole (Black
-      // has moves with nothing ready), which rules out a complete block and
-      // sends White LOOKING for a threat — looking, not needing, because a
-      // quiet key that completes the net is a real outcome and belongs to
-      // the no-threat opener instead. When the hole cannot be confirmed,
-      // set play is not mentioned at all: a prepared mate the story never
-      // returns to is a gun that never fires.
-      const runs = setQuoted.map((g, i) =>
-        `${g.defs} ${i === 0 ? 'would run straight into' : 'into'} ${g.mate}`);
-      sentences.push(`If Black were to move first (the set play), ${joinAnd(runs)}. But the rest of Black's moves would not be mated, so this is no complete block, and White goes looking for a threat.`);
-      setStory = true;
-      related = true;
+    // No set-play lecture for a threat problem: the reader the card is for
+    // starts from the hunt, and the try narration below IS the hunt. Set play
+    // is explained only where it is the story — the complete block branch.
     } else if (piece) {
       sentences.push(`Where to put the ${piece} is the whole of the problem.`);
     } else if (!kind.hasThreat) {
@@ -862,20 +810,25 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       shown.push(g);
       total += g.items.length;
     }
-    // One clause per refutation, the tries as its object — "Against <what it
-    // kills> Black has <it>". An earlier shape hung each group on a bare
-    // "to" ("1.Qa3, 1.Qb3 (2.Rf2#) to 1...Bxe2!"), a private grammar the
-    // reader had to learn from the card itself. The first clause carries the
-    // verb, the rest are elliptical, and semicolons keep each refutation with
-    // its own moves.
+    // One clause per refutation, the tries as its subject. An earlier shape
+    // hung each group on a bare "to" ("1.Qa3, 1.Qb3 (2.Rf2#) to 1...Bxe2!"),
+    // a private grammar; the next opened every clause with "against ...,
+    // against ..." and drummed. Now one lead carries the sentence and the
+    // clauses share the verb — "1.Kb4 is met by 1...h5!; 1.Kb6 by 1...Rh5!"
+    // — elided after the first, semicolons keeping each refutation with its
+    // own moves. A single group keeps the old "Against ..." form: no
+    // repetition to avoid, and the lead would outweigh it.
+    if (shown.length === 1) {
+      nameRef(shown[0].key);
+      return `Against ${named(shown[0].items)} Black has ${shown[0].items[0].refutation}.`;
+    }
     const clauses = shown.map((g, i) => {
       nameRef(g.key);
       const n = named(g.items);
-      return i === 0
-        ? `Against ${n} Black has ${g.items[0].refutation}`
-        : `against ${n}, ${g.items[0].refutation}`;
+      const verb = i > 0 ? 'by' : g.items.length > 1 ? 'are met by' : 'is met by';
+      return `${n} ${verb} ${g.items[0].refutation}`;
     });
-    return `${clauses.join('; ')}.`;
+    return `Black has an answer for each: ${clauses.join('; ')}.`;
   };
 
   // The try that was after the key's own mate: the key paragraph points back
@@ -1008,8 +961,7 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       x.groups.map(g => g.mate).sort().join('|');
     full.forEach((x, i) => {
       const t = x.t;
-      const pairs = joinAnd(x.quoted.pairs.map(p => p.text))
-        + (x.quoted.dropped ? ', and more besides' : '');
+      const pairs = metByChain(x.quoted.pairs, x.quoted.dropped);
       // "the same defences get changed mates" makes two claims and both are
       // checked against the first phase AS THE READER SAW IT: every defence
       // this quote names appeared in the first phase's own quote (same
@@ -1039,14 +991,17 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       const opening = exchanged
         ? `After ${t.self}${aim} the same defences get changed mates: ${pairs}`
         : t.threats.length
-          ? `White ${i === 0 ? 'can start with' : 'might instead play'} ${t.self}, threatening ${mateList(t.threats)}, with ${pairs}`
+          // The quoted pairs are exactly the defences that DO stop the threat
+          // (the redundancy filter dropped every one that does not), so the
+          // sentence can say what they are: parrying, and parrying in vain.
+          ? `White ${i === 0 ? 'can start with' : 'might instead play'} ${t.self}, threatening ${mateList(t.threats)}. Stopping ${i === 0 ? 'it is not enough' : 'this one is no better'}: ${pairs}`
           : sameMates
             ? `After ${t.self} the same mates are still there: ${pairs}`
             : waits
-              ? `White can ${i === 0 ? 'wait' : 'also wait'} with ${t.self} — ${pairs}`
+              ? `White can ${i === 0 ? 'wait' : 'also wait'} with ${t.self}: ${pairs}`
               : t.san.includes('+')
-                ? `White can check with ${t.self} — ${pairs}`
-                : `The answers are in place after ${t.self} — ${pairs}`;
+                ? `White can check with ${t.self}: ${pairs}`
+                : `The answers are in place after ${t.self}: ${pairs}`;
       // The refutation clause restates its subject. Hung off "the same
       // defences get changed mates" a bare "but has no reply" reads as the
       // defences having no reply, and off "White has an answer to everything"
@@ -1299,32 +1254,6 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     keyPara.push({ text: '.' });
   }
 
-  // The set play the opener promised is paid off here: when the board
-  // confirms that every quoted set mate still works after the key (the
-  // defence matched by piece and square, since 1...Ba3 becomes 1...Bxa3 once
-  // the key stands on a3), the card closes the loop it opened.
-  if (setStory && keyMoves) {
-    const kept = setQuoted.every(g => g.nodes.every(node => {
-      const match = keyMoves.filter(m => pieceOf(m) === pieceOf(node.moveSan)
-        && destSquare(m) === destSquare(node.moveSan));
-      // Two rooks may both reach the set defence's square; the claim holds
-      // only when EVERY way of playing it still meets the prepared mate. The
-      // mate itself is matched by piece and square too: with the key on the
-      // board the prepared Rxe3# may need disambiguating into Raxe3#.
-      return match.length > 0 && match.every(m => {
-        const mates = mateAfter(initialFen, key.moveSan, m).map(bare);
-        return g.mates.every(label => {
-          const sm = bare(label.replace(/^\d+\./, ''));
-          return mates.some(bm => bm === sm
-            || (pieceOf(bm) === pieceOf(sm) && destSquare(bm) !== null && destSquare(bm) === destSquare(sm)));
-        });
-      });
-    }));
-    if (kept) {
-      const many = setQuoted.reduce((n, g) => n + g.nodes.length, 0) > 1;
-      keyPara.push({ text: ` The prepared mate${many ? 's' : ''} still stand${many ? '' : 's'}.` });
-    }
-  }
   paragraphs.push(keyPara);
 
   // ── 4. Changed mates across the phases ──

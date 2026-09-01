@@ -492,7 +492,9 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
           and it. The visible line is the card's own first sentence — a bare
           heading is nothing to open. */}
       {commentary && (
-        <details className="group nb-plate nb-shadow-room p-3">
+        /* Tinted (the helpmate-card blue) so it cannot be mistaken for the
+           theme spotlight above, which sits on the plain surface plate. */
+        <details className="group nb-plate nb-shadow-room p-3" style={{ background: 'var(--card-help)' }}>
           <summary className="cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden flex items-start justify-between gap-3">
             <span className="min-w-0">
               <span className="block text-xs font-extrabold tracking-widest uppercase text-[var(--muted)]">
