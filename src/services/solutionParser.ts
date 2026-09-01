@@ -492,9 +492,13 @@ function parseSegments(solutionText: string): Segment[] {
     });
 
     // Extract parenthesized/bracketed threat content before splitting on move numbers
-    // (splitting on \d+\. would break content like "(2.Rd1#)" or "[2.Qf7#]")
+    // (splitting on \d+\. would break content like "(2.Rd1#)" or "[2.Qf7#]").
+    // Parens and brackets are matched separately: a paren threat may carry mate
+    // labels inside it — "(2.Bxe4#[A]/Rxe3#[B])" — and a single character class
+    // closing on either "]" or ")" used to cut the match at the first label,
+    // leaking "/Rxe3#" into the try's own segment as a phantom black defence.
     const lineThreatTexts: string[] = [];
-    trimmedClean = trimmedClean.replace(/[([][^)\]]+[)\]]/g, (match) => {
+    trimmedClean = trimmedClean.replace(/\([^()]*\)|\[[^\][]*\]/g, (match) => {
       const inner = match.slice(1, -1);
       lineThreatTexts.push(inner);
       return '';
@@ -573,11 +577,20 @@ function parseSegments(solutionText: string): Segment[] {
       segIndex++;
     }
 
-    // Add threat segments from parenthesized content extracted earlier
+    // Add threat segments from parenthesized content extracted earlier.
+    // A slash inside the parens is a DOUBLE threat: "(2.Bxe4#/Rxe3#)" is two
+    // separate threats, not a sequence. Expand the alternatives into one
+    // threat segment each. A sequence ("2.Re1 Kd5 3.Re5#") has no slash and
+    // stays one segment, chained as before. Mate labels ("[A]") are metadata
+    // and are stripped so they cannot glue to the move text.
     for (const threatText of lineThreatTexts) {
-      const cleanThreat = threatText.replace(/\uE000\d+\uE000/g, ' ').replace(/^\d+\./, '').trim();
-      const threatMoves = extractMoveStrings(cleanThreat);
-      if (threatMoves.length > 0) {
+      const cleanThreat = threatText
+        .replace(/\uE000\d+\uE000/g, ' ')
+        .replace(/\[[^\][]*\]/g, ' ')
+        .trim();
+      for (const alt of expandAllSlashAlternatives(cleanThreat)) {
+        const threatMoves = extractMoveStrings(alt.replace(/^\s*\d+\./, '').trim());
+        if (threatMoves.length === 0) continue;
         segments.push({
           indent: lineIndent + 1,
           lineIndex,
