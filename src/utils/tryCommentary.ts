@@ -399,7 +399,7 @@ function matesOf(root: SolutionNode, skip: string | string[] | null): { mate: st
  *  `dropped` says whether anything was left out, so the sentence around the
  *  quote can decline to claim completeness. Each pair carries the bare SANs of
  *  the defences it names, for the changed-mates comparison. */
-interface QuotedPair { text: string; defsLabel: string; defs: string[]; mate: string }
+interface QuotedPair { text: string; defsLabel: string; mate: string }
 
 /** "1...Bg2 is met by 2.Qe2#, 1...Bh3/Be2 by 2.Qe2# and 1...Bd3 by 2.Qg2#" —
  *  the defence-and-answer relation said with a verb. A bare "with 1...Bg2
@@ -434,7 +434,7 @@ function matePairs(root: SolutionNode, skip: string | string[] | null, threatSan
     const defs = nameDefences(g.defs, allDefs, d => write([root, d]));
     const names = defs.startsWith('any ') ? 1 : defs.split('/').length;
     if (names > SLASH_CAP || g.mate.split('/').length > MATE_CAP) { dropped = true; continue; }
-    pairs.push({ text: `${defs} ${g.mate}`, defsLabel: defs, defs: g.defs.map(d => bare(d.moveSan)), mate: g.mate });
+    pairs.push({ text: `${defs} ${g.mate}`, defsLabel: defs, mate: g.mate });
   }
   if (pairs.length > QUOTE_CAP) { pairs.length = QUOTE_CAP; dropped = true; }
   return { pairs, dropped };
@@ -962,23 +962,12 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
     full.forEach((x, i) => {
       const t = x.t;
       const pairs = metByChain(x.quoted.pairs, x.quoted.dropped);
-      // "the same defences get changed mates" makes two claims and both are
-      // checked against the first phase AS THE READER SAW IT: every defence
-      // this quote names appeared in the first phase's own quote (same
-      // defences), and each one's mate differs (changed mates). The full map
-      // is not enough — a defence the first phase answered with its threat
-      // was filtered from that quote as no information, and calling it "the
-      // same defence" points at a pair the reader never read.
-      const prevMates = i > 0
-        ? new Map(full[0].quoted.pairs.flatMap(p => p.defs.map(d => [d, p.mate] as const)))
-        : null;
-      const exchanged = prevMates !== null && !x.quoted.dropped && !full[0].quoted.dropped
-        && x.quoted.pairs.every(p => p.defs.every(d => {
-          const before = prevMates.get(d);
-          return before !== undefined && before !== p.mate;
-        }));
-      if (exchanged) related = true;
-      const aim = t.threats.length ? ` (${mateList(t.threats)})` : '';
+      // No changed-mates aside here: "After 1.Qf4 (2.Qf5) the same defences
+      // get changed mates: ..." put a piece of appreciation in front of the
+      // basic story — what 1.Qf4 wants and what refutes it — and a reader
+      // could no longer find either. The second try is told exactly like the
+      // first; the changed-mates observation has its own paragraph at the
+      // end, with the phases side by side.
       // "waits" is a claim about the board, not about what the source wrote
       // under the move: 1.Qc7+ with no threat printed still forces a reply, and
       // a move with an unwritten threat is not a waiting move either.
@@ -988,20 +977,18 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       const sameMates = i > 0 && !t.threats.length
         && !x.quoted.dropped && !full[0].quoted.dropped
         && mateSetOf(x) === mateSetOf(full[0]);
-      const opening = exchanged
-        ? `After ${t.self}${aim} the same defences get changed mates: ${pairs}`
-        : t.threats.length
-          // The quoted pairs are exactly the defences that DO stop the threat
-          // (the redundancy filter dropped every one that does not), so the
-          // sentence can say what they are: parrying, and parrying in vain.
-          ? `White ${i === 0 ? 'can start with' : 'might instead play'} ${t.self}, threatening ${mateList(t.threats)}. Stopping ${i === 0 ? 'it is not enough' : 'this one is no better'}: ${pairs}`
-          : sameMates
-            ? `After ${t.self} the same mates are still there: ${pairs}`
-            : waits
-              ? `White can ${i === 0 ? 'wait' : 'also wait'} with ${t.self}: ${pairs}`
-              : t.san.includes('+')
-                ? `White can check with ${t.self}: ${pairs}`
-                : `The answers are in place after ${t.self}: ${pairs}`;
+      const opening = t.threats.length
+        // The quoted pairs are exactly the defences that DO stop the threat
+        // (the redundancy filter dropped every one that does not), so the
+        // sentence can say what they are: parrying, and parrying in vain.
+        ? `White ${i === 0 ? 'can start with' : 'might instead play'} ${t.self}, threatening ${mateList(t.threats)}. Stopping ${i === 0 ? 'it is not enough' : 'this one is no better'}: ${pairs}`
+        : sameMates
+          ? `After ${t.self} the same mates are still there: ${pairs}`
+          : waits
+            ? `White can ${i === 0 ? 'wait' : 'also wait'} with ${t.self}: ${pairs}`
+            : t.san.includes('+')
+              ? `White can check with ${t.self}: ${pairs}`
+              : `The answers are in place after ${t.self}: ${pairs}`;
       // The refutation clause restates its subject. Hung off "the same
       // defences get changed mates" a bare "but has no reply" reads as the
       // defences having no reply, and off "White has an answer to everything"
@@ -1255,6 +1242,62 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
   }
 
   paragraphs.push(keyPara);
+
+  // ── Set play, told only where it means something ──
+  // The up-front lecture ("with Black to move these mates are already
+  // waiting...") made every threat problem open with a hypothesis the story
+  // never needed; a reader asked for the hunt instead, and got it. But when
+  // the board confirms the prepared mates SURVIVE the key, that is a real
+  // observation about this problem, and it reads best as a closing note —
+  // hypothesis, lines and payoff in one self-contained breath. Defences are
+  // matched by piece and square (1...Ba3 becomes 1...Bxa3 once the key
+  // stands on a3; two rooks may both reach the square and every way must
+  // keep the mate; the prepared Rxe3# may need disambiguating into Raxe3#).
+  if (!kind.completeBlock && kind.setRoots.length > 0 && keyMoves) {
+    const setByDefence = new Map<string, { node: SolutionNode; mates: string[] }>();
+    for (const r of kind.setRoots) {
+      const entry = setByDefence.get(r.moveSan) ?? { node: r, mates: [] };
+      for (const c of branchChildren(r)) {
+        const label = write([r, c]);
+        if (!entry.mates.includes(label)) entry.mates.push(label);
+      }
+      setByDefence.set(r.moveSan, entry);
+    }
+    const setRootsOnce = [...setByDefence.values()].map(e => e.node);
+    const setQuoted = groupBy([...setByDefence.values()], e => mateList(e.mates))
+      .filter(g => g.items.length <= 6)
+      .slice(0, 2)
+      .map(g => ({
+        defs: nameDefences(g.items.map(e => e.node), setRootsOnce, r => write([r])),
+        mate: g.key,
+        nodes: g.items.map(e => e.node),
+        mates: g.items[0].mates,
+      }))
+      .filter(g =>
+        (g.defs.startsWith('any ') || g.defs.split('/').length <= SLASH_CAP)
+        && g.mate.split('/').length <= MATE_CAP);
+    const kept = setQuoted.length > 0 && setQuoted.every(g => g.nodes.every(node => {
+      const match = keyMoves.filter(m => pieceOf(m) === pieceOf(node.moveSan)
+        && destSquare(m) === destSquare(node.moveSan));
+      return match.length > 0 && match.every(m => {
+        const mates = mateAfter(initialFen, key.moveSan, m).map(bare);
+        return g.mates.every(label => {
+          const sm = bare(label.replace(/^\d+\./, ''));
+          return mates.some(bm => bm === sm
+            || (pieceOf(bm) === pieceOf(sm) && destSquare(bm) !== null && destSquare(bm) === destSquare(sm)));
+        });
+      });
+    }));
+    if (kept) {
+      const runs = setQuoted.map((g, i) =>
+        `${g.defs} ${i === 0 ? 'would run straight into' : 'into'} ${g.mate}`);
+      const many = setQuoted.reduce((n, g) => n + g.nodes.length, 0) > 1;
+      paragraphs.push([{
+        text: `If Black were to move first (the set play), ${joinAnd(runs)} — and the key leaves ${many ? 'those answers' : 'that answer'} standing.`,
+      }]);
+      related = true;
+    }
+  }
 
   // ── 4. Changed mates across the phases ──
   const phases: { label: string; mates: Map<string, string[]> }[] = [];
