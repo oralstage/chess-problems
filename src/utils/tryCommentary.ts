@@ -404,8 +404,8 @@ interface QuotedPair { text: string; defsLabel: string; mate: string }
  *  the defence-and-answer relation said with a verb. A bare "with 1...Bg2
  *  2.Qe2#" hung the pairs off the threat clause as if they belonged to it,
  *  when the relation is a different one: if Black plays this, White has that. */
-function metByChain(pairs: QuotedPair[], dropped: boolean): string {
-  const items = pairs.map((p, i) => `${p.defsLabel} ${i === 0 ? 'is met by' : 'by'} ${p.mate}`);
+function metByChain(pairs: QuotedPair[], dropped: boolean, firstVerb = 'is met by'): string {
+  const items = pairs.map((p, i) => `${p.defsLabel} ${i === 0 ? firstVerb : 'by'} ${p.mate}`);
   return joinAnd(items) + (dropped ? ', and more besides' : '');
 }
 function matePairs(root: SolutionNode, skip: string | string[] | null, threatSans: string[] = []): { pairs: QuotedPair[]; dropped: boolean } {
@@ -960,7 +960,12 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
       x.groups.map(g => g.mate).sort().join('|');
     full.forEach((x, i) => {
       const t = x.t;
-      const pairs = metByChain(x.quoted.pairs, x.quoted.dropped);
+      // For a threat try the role rides on the move itself — "1...Bg2 stops
+      // it but is met by 2.Qe2#" — rather than on a lead aphorism ("Stopping
+      // it is not enough:"), which was one abstraction more than the fact
+      // needed. Later pairs elide the shared verbs in parallel.
+      const pairs = metByChain(x.quoted.pairs, x.quoted.dropped,
+        t.threats.length ? 'stops it but is met by' : 'is met by');
       // No changed-mates aside here: "After 1.Qf4 (2.Qf5) the same defences
       // get changed mates: ..." put a piece of appreciation in front of the
       // basic story — what 1.Qf4 wants and what refutes it — and a reader
@@ -978,9 +983,9 @@ export function buildTryCommentary(fullNodes: SolutionNode[], initialFen: string
         && mateSetOf(x) === mateSetOf(full[0]);
       const opening = t.threats.length
         // The quoted pairs are exactly the defences that DO stop the threat
-        // (the redundancy filter dropped every one that does not), so the
-        // sentence can say what they are: parrying, and parrying in vain.
-        ? `White ${i === 0 ? 'can start with' : 'might instead play'} ${t.self}, threatening ${mateList(t.threats)}. Stopping ${i === 0 ? 'it is not enough' : 'this one is no better'}: ${pairs}`
+        // (the redundancy filter dropped every one that does not), so each
+        // can be called what it is.
+        ? `White ${i === 0 ? 'can start with' : 'might instead play'} ${t.self}, threatening ${mateList(t.threats)}; ${pairs}`
         : sameMates
           ? `After ${t.self} the same mates are still there: ${pairs}`
           : waits

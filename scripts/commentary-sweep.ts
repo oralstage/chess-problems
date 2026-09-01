@@ -101,9 +101,6 @@ for (const id of ids) {
     for (const s of para.split(/(?<=[.!]) (?=[A-Z])/)) {
       if (/can start with|can wait with|might instead play|can check with|answers are in place after/.test(s)) {
         prevDefs = quotedDefences(s);
-      } else if (/^Stopping (it is not enough|this one is no better):/.test(s)) {
-        // The pairs of a threat-try live in this follow-on sentence.
-        prevDefs = new Set([...(prevDefs ?? []), ...quotedDefences(s)]);
       } else if (s.includes('the same defences get changed mates:')) {
         const body = s.split('changed mates:')[1].split(/but \w+ has no reply/)[0];
         const defs = quotedDefences(body);
