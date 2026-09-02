@@ -15,12 +15,15 @@
  * Sources (pick one):
  *   --db <file.sqlite>   a local SQLite copy of the problems table
  *                        (e.g. rebuilt from scripts/.update/rebuild-*.sql)
- *   --api <baseUrl>      the live /api/problems/ids endpoint (reads ~590k
- *                        D1 rows once — fine right after an import)
+ *   --api <baseUrl>      the live /api/problems/ids endpoint, bypassing the
+ *                        edge cache (reads ~590k D1 rows once — fine right
+ *                        after an import; do it after 00:00 UTC if the day's
+ *                        quota is already well used)
  *
  * Optional:
- *   --verify <baseUrl>   after generating, fetch the live endpoint and
- *                        compare every entry (count, order, fields).
+ *   --verify <baseUrl>   after generating, fetch the live endpoint (fresh
+ *                        from D1, same ~590k rows) and compare every entry
+ *                        (count, order, fields).
  *
  * Output format (columnar, ~6MB for direct instead of ~20MB as objects):
  *   { version, genre, count, stipulations: string[], ids: number[],
@@ -61,8 +64,11 @@ async function loadFromSqlite(file, genre) {
 }
 
 async function loadFromApi(baseUrl, genre) {
-  // Same URL the client used, so we hit whatever the edge already holds.
-  const url = `${baseUrl.replace(/\/$/, '')}/api/problems/ids?genre=${genre}&sortBy=difficulty&sortOrder=asc&v=2`;
+  // `fresh` is ignored by the endpoint's SQL but is part of its edge-cache
+  // key, so this always reads D1 directly. Without it, right after an import
+  // the edge would still hold the previous list under the old DATA_VERSION
+  // key for up to 30 days and we would bake stale data into the index.
+  const url = `${baseUrl.replace(/\/$/, '')}/api/problems/ids?genre=${genre}&sortBy=difficulty&sortOrder=asc&v=2&fresh=${Date.now()}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${url} → ${res.status}`);
   const data = await res.json();
