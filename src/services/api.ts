@@ -4,6 +4,7 @@
  */
 
 import type { ChessProblem } from '../types';
+import { PROBLEM_INDEX_VERSION } from '../data/problemIndexVersion';
 
 const API_BASE = '/api';
 // Bump the version suffix after every data import: entries have no expiry, so
@@ -187,8 +188,52 @@ export interface ProblemStub {
   sourceYear?: number | null;
 }
 
-/** Fetch lightweight ID+stipulation list for a genre (cached, very fast) */
+/**
+ * Static problem index shipped with the build (public/problem-index/), in the
+ * columnar shape written by scripts/build-problem-index.mjs. Served by the
+ * Pages CDN, so opening a genre costs zero D1 reads.
+ */
+interface ProblemIndexFile {
+  version: string;
+  genre: string;
+  count: number;
+  stipulations: string[];
+  ids: number[];
+  stips: number[];
+  years: (number | null)[];
+}
+
+function decodeProblemIndex(data: ProblemIndexFile, genre: string): ProblemStub[] {
+  const { ids, stips, years, stipulations } = data;
+  if (data.genre !== genre || !Array.isArray(ids) || !Array.isArray(stips) || !Array.isArray(years)
+      || ids.length !== data.count || stips.length !== ids.length || years.length !== ids.length) {
+    throw new Error('Problem index file is malformed');
+  }
+  const out: ProblemStub[] = new Array(ids.length);
+  for (let i = 0; i < ids.length; i++) {
+    const stipulation = stipulations[stips[i]];
+    if (typeof stipulation !== 'string') throw new Error('Problem index file is malformed');
+    out[i] = { id: ids[i], stipulation, sourceYear: years[i] };
+  }
+  return out;
+}
+
+/**
+ * Fetch lightweight ID+stipulation list for a genre (cached, very fast).
+ *
+ * The unfiltered list comes from the static index file; if that fails for
+ * any reason (missing file, bad shape, network) it falls back to the API
+ * endpoint, which is the same data read live from D1.
+ */
 export async function fetchProblemIndex(genre: string, filters?: Record<string, string>): Promise<ProblemStub[]> {
+  if (!filters || Object.values(filters).every(v => !v)) {
+    try {
+      const res = await cachedFetch(`/problem-index/${genre}-${PROBLEM_INDEX_VERSION}.json`);
+      if (res.ok) {
+        return decodeProblemIndex(await res.json() as ProblemIndexFile, genre);
+      }
+    } catch { /* fall through to the API */ }
+  }
   // v=2: the index gained sourceYear — the version busts the edge cache and
   // every browser's Cache API copy of the year-less shape.
   const params = new URLSearchParams({ genre, sortBy: 'difficulty', sortOrder: 'asc', v: '2' });
