@@ -3,16 +3,26 @@ import type { SolutionNode } from '../types';
 
 /**
  * Duplex helpmates are solved twice from the same diagram: once with Black
- * moving first (the ordinary h#N) and once with White moving first, White
- * being the side that gets mated. YACPDB writes both solutions with the same
- * "1.Xx 2.Yy" numbering, so the parser colours every root as Black's move and
- * the White-first half comes out as an impossible black move ("1...Kd8" for a
- * king standing on d7). This puts the colours of that half right: a root
- * whose first move only a white piece can make is flipped, with its whole
- * line, to White-first. Returns whether any root was flipped, so the caller
- * can keep that half out of the solving task and list it separately.
+ * moving first (the ordinary h#N) and once with White moving first, Black and
+ * White cooperating to mate the white king. YACPDB writes both solutions with
+ * the same "1.Xx 2.Yy" numbering, so the parser colours every root as Black's
+ * move and the White-to-play half comes out as an impossible black move
+ * ("1...Kd8" for a king standing on d7). This puts the colours of that half
+ * right: a root whose line is White's is flipped, with its whole line, to
+ * White-first. Returns whether any root was flipped.
  *
- * Only runs for problems YACPDB tags "Duplex". Elsewhere a root the wrong
+ * Which side a root belongs to is decided on the board, not from the text:
+ *   1. when the move names its from-square ("Kd7-d8"), by the colour of the
+ *      piece standing there;
+ *   2. otherwise ("Ne3", which both a white and a black knight may be able to
+ *      play) by playing the whole line as Black-first and as White-first and
+ *      keeping the side that gets further — a duplex line only plays through
+ *      for its own side.
+ * A plain "can Black play this move?" test was not enough: in about one
+ * duplex in twenty the other side has a piece that can make the same move,
+ * and the White half then stayed black and unplayable.
+ *
+ * Only runs for problems YACPDB marks Duplex. Elsewhere a root the wrong
  * side can play is parser noise, and flipping it would turn junk into an
  * accepted solution.
  */
@@ -21,7 +31,7 @@ export function flipDuplexRoots(roots: SolutionNode[], fen: string, keywords: st
   let flipped = false;
   for (const root of roots) {
     if (root.color !== 'b') continue;
-    if (!executes(fen, 'b', root) && executes(fen, 'w', root)) {
+    if (sideOf(fen, root) === 'w') {
       flipLine(root);
       flipped = true;
     }
@@ -34,29 +44,54 @@ function flipLine(node: SolutionNode): void {
   for (const child of node.children) flipLine(child);
 }
 
-/** Can `color` play this node's move from the diagram? */
-function executes(fen: string, color: 'w' | 'b', node: SolutionNode): boolean {
-  const turned = fen.replace(/ [wb] /, ` ${color} `);
+/** Whose line is this root? 'b' when in doubt (the ordinary half). */
+function sideOf(fen: string, root: SolutionNode): 'w' | 'b' {
+  const from = fromSquare(root);
+  if (from) {
+    try {
+      const piece = new Chess(fen).get(from as never);
+      if (piece) return piece.color;
+    } catch { /* fall through to playing the line */ }
+  }
+  const asBlack = pliesPlayable(fen, 'b', root);
+  const asWhite = pliesPlayable(fen, 'w', root);
+  return asWhite > asBlack ? 'w' : 'b';
+}
+
+function fromSquare(node: SolutionNode): string | null {
+  const m = node.moveUci.match(/^([a-h][1-8])[a-h][1-8]/);
+  return m ? m[1] : null;
+}
+
+/** How many moves of the root's main line play legally when `color` starts. */
+function pliesPlayable(fen: string, color: 'w' | 'b', root: SolutionNode): number {
   let chess: Chess;
   try {
-    chess = new Chess(turned);
+    chess = new Chess(fen.replace(/ [wb] /, ` ${color} `));
   } catch {
-    return false;
+    return 0;
   }
-  if (node.moveUci.length >= 4) {
+  let plies = 0;
+  let node: SolutionNode | undefined = root;
+  while (node) {
+    if (!play(chess, node)) break;
+    plies++;
+    node = node.children[0];
+  }
+  return plies;
+}
+
+function play(chess: Chess, node: SolutionNode): boolean {
+  const from = fromSquare(node);
+  if (from) {
     try {
-      const m = chess.move({
-        from: node.moveUci.slice(0, 2),
-        to: node.moveUci.slice(2, 4),
-        promotion: node.moveUci.slice(4) || undefined,
-      });
-      if (m) return true;
+      if (chess.move({ from, to: node.moveUci.slice(2, 4), promotion: node.moveUci.slice(4) || undefined })) return true;
     } catch { /* try SAN */ }
   }
   const san = node.moveSan.replace(/[!?]/g, '');
   if (!san) return false;
   try {
-    return !!new Chess(turned).move(san);
+    return !!chess.move(san);
   } catch {
     return false;
   }
