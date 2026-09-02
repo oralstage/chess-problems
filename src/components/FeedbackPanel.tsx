@@ -50,6 +50,10 @@ interface FeedbackPanelProps {
   solutionsTotal?: number;
   solutionsFound?: number;
   duplex?: { black: number; white: number } | null;
+  /** The diagram is Black's move (a Black-to-move study, a retro deduced
+   *  as Black's turn): the first entry is "1..." and White's moves carry
+   *  the numbers. Helpmates keep their own convention (Black's move is 1.). */
+  blackToMoveFirst?: boolean;
   /** Rated multi-solution problem underway: the pool can't be changed
    *  mid-match, or switching would be a free escape from the hard half. */
   difficultyLocked?: boolean;
@@ -103,6 +107,7 @@ export function FeedbackPanel({
   solutionsTotal,
   solutionsFound = 0,
   duplex = null,
+  blackToMoveFirst = false,
   difficultyLocked,
 }: FeedbackPanelProps) {
   return (
@@ -111,14 +116,23 @@ export function FeedbackPanel({
       {moveHistory.length > 0 && status === 'solving' && !waitingForAutoPlay && (
         <div className="text-sm text-gray-600 dark:text-gray-400">
           <span className="text-xs text-gray-400">Moves: </span>
-          {moveHistory.map((m, i) => (
-            <span key={i}>
-              {i % 2 === 0 && <span className="text-gray-400">{Math.floor(i / 2) + 1}. </span>}
-              <span className={i % 2 === 0 ? 'font-bold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}>
-                {m}{' '}
+          {moveHistory.map((m, i) => {
+            // Which entries open a numbered pair: even indices normally;
+            // with Black to move first, the opening black move reads "1..."
+            // and White's moves (odd indices) carry the numbers.
+            const numbered = blackToMoveFirst ? i % 2 === 1 : i % 2 === 0;
+            const label = blackToMoveFirst
+              ? (i === 0 ? '1... ' : numbered ? `${Math.floor((i - 1) / 2) + 2}. ` : '')
+              : (numbered ? `${Math.floor(i / 2) + 1}. ` : '');
+            return (
+              <span key={i}>
+                {label && <span className="text-gray-400">{label}</span>}
+                <span className={numbered ? 'font-bold text-gray-900 dark:text-gray-100' : 'text-gray-700 dark:text-gray-300'}>
+                  {m}{' '}
+                </span>
               </span>
-            </span>
-          ))}
+            );
+          })}
         </div>
       )}
 

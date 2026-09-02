@@ -888,6 +888,15 @@ export default function App() {
     if (isRetroBlack && p.fen.includes(' w ')) {
       p.fen = p.fen.replace(' w ', ' b ');
     }
+    // Black-to-move study ("1... Kxb8 2. b7 Ka7 3. Kc7 1-0"): YACPDB has no
+    // side-to-move field, so the import filed every study as White to move.
+    // When every recorded line opens with a black move, the diagram is
+    // Black's turn; the solver (White) takes over after Black's first move,
+    // which the board plays itself (useProblem.loadProblem).
+    if (p.genre === 'study' && p.fen.includes(' w ')
+        && p.solutionTree.length > 0 && p.solutionTree.every(n => n.color === 'b')) {
+      p.fen = p.fen.replace(' w ', ' b ');
+    }
     return p;
   }, []);
 
@@ -3192,6 +3201,7 @@ export default function App() {
                 solutionsTotal={problem.totalSolutions}
                 solutionsFound={problem.foundSolutionCount}
                 duplex={problem.duplex}
+                blackToMoveFirst={problem.problem.genre !== 'help' && problem.initialFen.split(' ')[1] === 'b'}
                 difficultyLocked={isRatedMode && problem.totalSolutions > 1 && problem.status === 'solving'
                   && (problem.moveHistory.length > 0 || problem.foundSolutionCount > 0)}
               />}

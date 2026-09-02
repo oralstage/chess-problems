@@ -551,6 +551,22 @@ export function useProblem(stockfish?: StockfishApi) {
       fen = fen.replace(' w ', ' b ');
     }
 
+    // Black-to-move study: Black's recorded first move is part of the
+    // problem, not the solver's task. Play one of the recorded openings
+    // (several, like direct-mate defences, means one branch per attempt),
+    // then give the board to White.
+    let blackOpening: { root: SolutionNode; move: NonNullable<ReturnType<Chess['move']>>; fen: string } | null = null;
+    if (problem.genre === 'study' && fen.split(' ')[1] === 'b'
+        && problem.solutionTree.length > 0 && problem.solutionTree.every(n => n.color === 'b')) {
+      const roots = problem.solutionTree;
+      const root = roots[Math.floor(Math.random() * roots.length)];
+      try {
+        const chess = new Chess(fen);
+        const move = tryExecuteNode(chess, root);
+        if (move) blackOpening = { root, move, fen: chess.fen() };
+      } catch { /* leave the board as it is */ }
+    }
+
     setState({
       problem,
       fen,
@@ -562,7 +578,7 @@ export function useProblem(stockfish?: StockfishApi) {
       lastMove: null,
       feedbackSquare: null,
       feedbackType: null,
-      waitingForAutoPlay: false,
+      waitingForAutoPlay: blackOpening !== null,
       userColor,
       hintSquares: null,
       wrongMoveCount: 0,
@@ -581,6 +597,23 @@ export function useProblem(stockfish?: StockfishApi) {
     });
     activeTwinRef.current = null;
     recordEventsRef.current = true;
+
+    if (blackOpening) {
+      const { root, move, fen: afterFen } = blackOpening;
+      autoPlayTimerRef.current = setTimeout(() => {
+        setState(prev => {
+          if (prev.problem?.id !== problem.id || prev.status !== 'solving') return prev;
+          return {
+            ...prev,
+            fen: afterFen,
+            moveHistory: [move.san],
+            currentNodes: root.children.filter(c => !c.isThreat),
+            lastMove: { from: move.from, to: move.to },
+            waitingForAutoPlay: false,
+          };
+        });
+      }, AUTO_PLAY_DELAY);
+    }
   }, []);
 
   /**
