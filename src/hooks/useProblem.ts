@@ -745,8 +745,12 @@ export function useProblem(stockfish?: StockfishApi) {
       return false;
     };
 
-    if (!tryWithFen(state.fen) && problem.genre === 'retro') {
-      // Flip turn and retry (user deduced it's the other side's move)
+    // Retro: the user deduces whose move it is. Duplex helpmate: while a
+    // solution that starts with the other side's move is still to be found
+    // (the White-to-play half), that side may move too.
+    const otherSideHasLine = problem.genre === 'help' && currentNodes.some(n => n.color !== currentTurn);
+    if (!tryWithFen(state.fen) && (problem.genre === 'retro' || otherSideHasLine)) {
+      // Flip turn and retry
       const flippedFen = state.fen.replace(/ [wb] /, currentTurn === 'w' ? ' b ' : ' w ');
       tryWithFen(flippedFen);
     }
@@ -1261,12 +1265,19 @@ export function useProblem(stockfish?: StockfishApi) {
 
     // Solution tree hint (all genres)
     const currentTurn = fen.split(' ')[1] as 'w' | 'b';
-    const validNodes = currentNodes.filter(n => n.color === currentTurn);
+    let hintFen = fen;
+    let validNodes = currentNodes.filter(n => n.color === currentTurn);
+    // Duplex helpmate: only the White-to-play solution is left, so the hint is
+    // a white move on a board whose turn still says Black.
+    if (validNodes.length === 0 && problem.genre === 'help' && currentNodes.length > 0) {
+      hintFen = fen.replace(/ [wb] /, currentTurn === 'w' ? ' b ' : ' w ');
+      validNodes = currentNodes.filter(n => n.color !== currentTurn);
+    }
 
     if (validNodes.length > 0) {
       const verifiedMoves: { from: string; to: string; isKey: boolean }[] = [];
       for (const node of validNodes) {
-        const chess = new Chess(fen);
+        const chess = new Chess(hintFen);
         const move = tryExecuteNode(chess, node);
         if (move) {
           verifiedMoves.push({ from: move.from, to: move.to, isKey: node.isKey });
@@ -1274,7 +1285,7 @@ export function useProblem(stockfish?: StockfishApi) {
       }
       if (verifiedMoves.length > 0) {
         const keyMove = verifiedMoves.find(m => m.isKey) || verifiedMoves[0];
-        const allTargets = getAllLegalMoves(fen, keyMove.from);
+        const allTargets = getAllLegalMoves(hintFen, keyMove.from);
         setState(prev => ({ ...prev, hintSquares: [keyMove.from, ...allTargets] }));
         return;
       }
@@ -1285,12 +1296,12 @@ export function useProblem(stockfish?: StockfishApi) {
       if (destMatch) {
         const destSq = destMatch[1];
         try {
-          const chess = new Chess(fen);
+          const chess = new Chess(hintFen);
           const legal = chess.moves({ verbose: true });
           const candidates = legal.filter(m => m.to === destSq);
           if (candidates.length > 0) {
             const fromSq = candidates[0].from;
-            const allTargets = getAllLegalMoves(fen, fromSq);
+            const allTargets = getAllLegalMoves(hintFen, fromSq);
             setState(prev => ({ ...prev, hintSquares: [fromSq, ...allTargets] }));
             return;
           }
@@ -1480,11 +1491,23 @@ export function useProblem(stockfish?: StockfishApi) {
     }
   }
 
+  const duplexCounts = state.problem?.genre === 'help' && state.activeTree.some(n => n.color === 'w')
+    ? { black: state.activeTree.filter(n => n.color === 'b').length, white: state.activeTree.filter(n => n.color === 'w').length }
+    : null;
+
   return {
     problem: state.problem,
     totalSolutions: state.totalSolutions,
     foundSolutionCount: state.foundSolutions.length,
     replayNoticeAt: state.replayNoticeAt,
+    /** Duplex helpmate: how many solutions start with each side. Non-null
+     *  only when the tree really holds a White-to-play line, so the label
+     *  never promises what the board cannot do. */
+    duplex: duplexCounts,
+    /** A remaining solution starts with the side NOT on move (the
+     *  White-to-play half of a duplex), so either colour may be picked up. */
+    anyColorAllowed: state.status === 'solving' && state.problem?.genre === 'help'
+      && state.currentNodes.some(n => n.color !== (state.fen.split(' ')[1] as 'w' | 'b')),
     fen: effectiveFen,
     initialFen: state.initialFen,
     moveHistory: state.moveHistory,

@@ -49,9 +49,15 @@ interface FeedbackPanelProps {
   /** Multi-solution helpmates: how many solutions exist / are found. */
   solutionsTotal?: number;
   solutionsFound?: number;
+  duplex?: { black: number; white: number } | null;
   /** Rated multi-solution problem underway: the pool can't be changed
    *  mid-match, or switching would be a free escape from the hard half. */
   difficultyLocked?: boolean;
+}
+
+const COUNT_WORDS = ['none', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n);
 }
 
 export function FeedbackPanel({
@@ -96,6 +102,7 @@ export function FeedbackPanel({
   onChangeDifficulty,
   solutionsTotal,
   solutionsFound = 0,
+  duplex = null,
   difficultyLocked,
 }: FeedbackPanelProps) {
   return (
@@ -120,11 +127,17 @@ export function FeedbackPanel({
       {solutionsTotal != null && solutionsTotal > 1 && status === 'solving' && (
         <div className="nb-panel flex items-center gap-2 py-1.5 px-3 text-sm">
           <span className="font-bold text-[var(--ink)] shrink-0">
-            {solutionsTotal} solutions
+            {duplex ? 'Duplex' : `${solutionsTotal} solutions`}
           </span>
           <span className="text-[var(--muted)]">
-            — found {solutionsFound}/{solutionsTotal}.{' '}
-            {feedback || 'All of them make the solve.'}
+            {duplex && (
+              <>
+                — {solutionsTotal} solutions: {countWord(duplex.black)} with Black to play,{' '}
+                {countWord(duplex.white)} with White to play (Black and White mate the white king).{' '}
+              </>
+            )}
+            {duplex ? 'Found' : '— found'} {solutionsFound}/{solutionsTotal}.{' '}
+            {feedback || (duplex ? '' : 'All of them make the solve.')}
           </span>
         </div>
       )}

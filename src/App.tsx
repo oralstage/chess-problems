@@ -37,6 +37,7 @@ import type { Glicko2Rating } from './utils/glicko2';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import { flipDuplexRoots } from './utils/duplex';
+import { DUPLEX_IDS } from './data/duplexIds';
 import { matchesAwardFilter, type AwardFilter } from './utils/award';
 import { moveFreely, pieceAt } from './utils/freeBoard';
 import { isCookedProblem } from './utils/cookMarker';
@@ -848,16 +849,17 @@ export default function App() {
       };
       flipColors(allNodes);
     }
-    // Duplex helpmate: the source numbers the White-first half like the
-    // Black-first one, so the parser paints it black and it would count as a
-    // second solution the solver cannot play. Colour it White-first for the
-    // display, and keep it out of what the solver is asked to find: the
-    // solving task is the ordinary Black-first h#N only (user decision,
-    // 2026-09-02 — "duplex" is not "2 solutions").
-    const isDuplex = flipDuplexRoots(allNodes, fixCastlingRights(p.fen, p.solutionText), p.keywords, p.genre);
+    // Duplex helpmate: the diagram is solved twice — Black to play, then
+    // White to play with Black and White mating the white king. The source
+    // numbers both halves alike, so the parser paints the White-to-play half
+    // black; colour it right so it can be played and shown as White's. YACPDB
+    // records Duplex in the entry's options (part of the stipulation), which
+    // the database does not keep — hence the generated id list; the keyword
+    // is a fallback that only about half the duplexes carry.
+    const duplexTagged = p.genre === 'help' && (DUPLEX_IDS.has(p.id) || (p.keywords ?? []).includes('Duplex'));
+    flipDuplexRoots(allNodes, fixCastlingRights(p.fen, p.solutionText), duplexTagged ? ['Duplex'] : [], p.genre);
     p.fullSolutionTree = allNodes;
     p.solutionTree = filterKeyMoves(allNodes, firstColor);
-    if (isDuplex) p.solutionTree = p.solutionTree.filter(n => n.color === firstColor);
     // Generate twin data for twin problems
     if (!p.twins) {
       p.twins = parseTwins(p.solutionText, p._originalFen || originalFen, parserColor) ?? undefined;
@@ -2768,6 +2770,7 @@ export default function App() {
                     problem={problem.problem}
                     showCredits={creditsRevealed}
                     solutionsTotal={problem.totalSolutions}
+                    duplex={problem.duplex}
                     problemNumber={problem.problem!.id}
                     /* From the problem itself, not from currentGenre: Review Mode
                        and Rated pools serve problems the current genre does not
@@ -2904,7 +2907,7 @@ export default function App() {
                   feedbackType={enginePlay ? (enginePlay.positions[enginePlay.viewIndex].feedback?.type ?? null) : analysisFen !== null ? null : problem.feedbackType}
                   hintSquares={enginePlay || analysisFen !== null ? null : problem.hintSquares}
                   arrows={enginePlay ? (enginePlay.hint?.arrow ? [enginePlay.hint.arrow] : []) : analysisFen !== null ? [] : boardArrows}
-                  allowAnyColor={!enginePlay && currentGenre === 'retro'}
+                  allowAnyColor={!enginePlay && (currentGenre === 'retro' || problem.anyColorAllowed)}
                   freeMove={!enginePlay && analysisFen !== null}
                   printMode={printMode}
                 />
@@ -3171,6 +3174,7 @@ export default function App() {
                 onChangeDifficulty={isRatedMode ? handleChangeDifficulty : undefined}
                 solutionsTotal={problem.totalSolutions}
                 solutionsFound={problem.foundSolutionCount}
+                duplex={problem.duplex}
                 difficultyLocked={isRatedMode && problem.totalSolutions > 1 && problem.status === 'solving'
                   && (problem.moveHistory.length > 0 || problem.foundSolutionCount > 0)}
               />}

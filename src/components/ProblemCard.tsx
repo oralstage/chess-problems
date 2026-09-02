@@ -6,6 +6,9 @@ import { pieceCounts } from '../utils/pieceCount';
 interface ProblemCardProps {
   /** Multi-solution helpmates announce their count, like print does. */
   solutionsTotal?: number;
+  /** Duplex helpmate (solutions starting with each side). Part of the
+   *  stipulation in print — "h#2 Duplex" — so it shows while solving. */
+  duplex?: { black: number; white: number } | null;
   problem: ChessProblem;
   problemNumber?: number;
   genrePrefix?: string;
@@ -25,7 +28,7 @@ function stipulationDisplay(stip: string): string {
   return stip;
 }
 
-export function ProblemCard({ problem, problemNumber, genrePrefix, solutionsTotal, showCredits = true }: ProblemCardProps) {
+export function ProblemCard({ problem, problemNumber, genrePrefix, solutionsTotal, duplex = null, showCredits = true }: ProblemCardProps) {
   const stipColor = getStipulationColorClasses(problem.stipulation, problem.genre);
 
   return (
@@ -37,9 +40,11 @@ export function ProblemCard({ problem, problemNumber, genrePrefix, solutionsTota
           </span>
         )}
         <span className={`rounded-full font-extrabold font-mono px-2.5 py-0.5 text-sm border-2 border-[var(--ink)] ${stipColor}`}>
-          {stipulationDisplay(problem.stipulation)}
+          {stipulationDisplay(problem.stipulation)}{duplex ? ' Duplex' : ''}
         </span>
-        {solutionsTotal != null && solutionsTotal > 1 && (
+        {/* A duplex's two halves are not "2 solutions": the panel under the
+            board spells out how many start with each side. */}
+        {!duplex && solutionsTotal != null && solutionsTotal > 1 && (
           <span className="nb-chip px-2.5 py-0.5 text-sm font-bold">
             {solutionsTotal} solutions
           </span>
