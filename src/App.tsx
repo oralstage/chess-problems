@@ -848,12 +848,16 @@ export default function App() {
       };
       flipColors(allNodes);
     }
-    // Duplex helpmate: the White-first solution is numbered like the Black-first
-    // one in the source, so the parser paints it black. Fix it before the
-    // roots are filtered so both halves stay playable.
-    flipDuplexRoots(allNodes, fixCastlingRights(p.fen, p.solutionText), p.keywords, p.genre);
+    // Duplex helpmate: the source numbers the White-first half like the
+    // Black-first one, so the parser paints it black and it would count as a
+    // second solution the solver cannot play. Colour it White-first for the
+    // display, and keep it out of what the solver is asked to find: the
+    // solving task is the ordinary Black-first h#N only (user decision,
+    // 2026-09-02 — "duplex" is not "2 solutions").
+    const isDuplex = flipDuplexRoots(allNodes, fixCastlingRights(p.fen, p.solutionText), p.keywords, p.genre);
     p.fullSolutionTree = allNodes;
     p.solutionTree = filterKeyMoves(allNodes, firstColor);
+    if (isDuplex) p.solutionTree = p.solutionTree.filter(n => n.color === firstColor);
     // Generate twin data for twin problems
     if (!p.twins) {
       p.twins = parseTwins(p.solutionText, p._originalFen || originalFen, parserColor) ?? undefined;
@@ -2900,7 +2904,7 @@ export default function App() {
                   feedbackType={enginePlay ? (enginePlay.positions[enginePlay.viewIndex].feedback?.type ?? null) : analysisFen !== null ? null : problem.feedbackType}
                   hintSquares={enginePlay || analysisFen !== null ? null : problem.hintSquares}
                   arrows={enginePlay ? (enginePlay.hint?.arrow ? [enginePlay.hint.arrow] : []) : analysisFen !== null ? [] : boardArrows}
-                  allowAnyColor={!enginePlay && (currentGenre === 'retro' || problem.anyColorAllowed)}
+                  allowAnyColor={!enginePlay && currentGenre === 'retro'}
                   freeMove={!enginePlay && analysisFen !== null}
                   printMode={printMode}
                 />

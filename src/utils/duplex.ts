@@ -9,20 +9,24 @@ import type { SolutionNode } from '../types';
  * the White-first half comes out as an impossible black move ("1...Kd8" for a
  * king standing on d7). This puts the colours of that half right: a root
  * whose first move only a white piece can make is flipped, with its whole
- * line, to White-first.
+ * line, to White-first. Returns whether any root was flipped, so the caller
+ * can keep that half out of the solving task and list it separately.
  *
  * Only runs for problems YACPDB tags "Duplex". Elsewhere a root the wrong
  * side can play is parser noise, and flipping it would turn junk into an
  * accepted solution.
  */
-export function flipDuplexRoots(roots: SolutionNode[], fen: string, keywords: string[] | undefined, genre: string): void {
-  if (genre !== 'help' || !keywords?.includes('Duplex')) return;
+export function flipDuplexRoots(roots: SolutionNode[], fen: string, keywords: string[] | undefined, genre: string): boolean {
+  if (genre !== 'help' || !keywords?.includes('Duplex')) return false;
+  let flipped = false;
   for (const root of roots) {
     if (root.color !== 'b') continue;
     if (!executes(fen, 'b', root) && executes(fen, 'w', root)) {
       flipLine(root);
+      flipped = true;
     }
   }
+  return flipped;
 }
 
 function flipLine(node: SolutionNode): void {

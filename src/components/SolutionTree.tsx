@@ -499,7 +499,11 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
   // When no key/try markers exist (e.g., helpmates), treat all variations as "solutions"
   const keyVariations = hasAnyMarkers ? variations.filter(v => v.isKey) : [];
   const tryVariations = hasAnyMarkers ? variations.filter(v => v.isTry) : [];
-  const plainSolutions = hasAnyMarkers ? [] : variations;
+  // Duplex helpmate: the half that starts with White is not one of the
+  // problem's solutions — it is the same diagram set as a second task — so
+  // it is listed apart and never counted with them.
+  const duplexLines = !hasAnyMarkers && firstColor === 'b' ? variations.filter(v => v.rootNode.color === 'w') : [];
+  const plainSolutions = hasAnyMarkers ? [] : variations.filter(v => !duplexLines.includes(v));
 
   const moveIndex = playback?.moveIndex ?? -1;
   const positions = playback?.positions ?? [];
@@ -574,6 +578,25 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
           </summary>
           <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-1">
             {plainSolutions.map((v, vi) => (
+              <BranchView
+                key={vi}
+                node={v.rootNode}
+                path={[v.rootNode]}
+                onNodeClick={handleNodeClick}
+                activeNode={activeNode}
+              />
+            ))}
+          </div>
+        </details>
+      )}
+
+      {duplexLines.length > 0 && (
+        <details className="text-xs" open>
+          <summary className="cursor-pointer text-sm font-bold text-[var(--ink)] underline decoration-2 underline-offset-2">
+            Duplex — White to play
+          </summary>
+          <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-1">
+            {duplexLines.map((v, vi) => (
               <BranchView
                 key={vi}
                 node={v.rootNode}
