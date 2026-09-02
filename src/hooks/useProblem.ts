@@ -80,6 +80,10 @@ function countSolutions(genre: string, roots: SolutionNode[]): number {
  *  returns for the next one. Long enough to see the mate that was played. */
 const SOLUTION_RESET_HOLD = 1300;
 const AUTO_PLAY_DELAY = 250;
+/** A Black-to-move study opens with Black's recorded move played by the
+ *  board. Long enough to take in the diagram first; a reply to the solver's
+ *  own move can come sooner. */
+const BLACK_OPENING_DELAY = 1000;
 // How long the finished position is held on its own when the LAST move of a
 // problem is auto-played rather than made by the solver — a selfmate always
 // ends that way, a study sometimes. Everything the solved state brings in
@@ -612,7 +616,7 @@ export function useProblem(stockfish?: StockfishApi) {
             waitingForAutoPlay: false,
           };
         });
-      }, AUTO_PLAY_DELAY);
+      }, BLACK_OPENING_DELAY);
     }
   }, []);
 
