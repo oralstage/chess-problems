@@ -63,6 +63,18 @@ function fromSquare(node: SolutionNode): string | null {
   return m ? m[1] : null;
 }
 
+/**
+ * Does this root's whole main line play legally on the board, with its own
+ * side starting? Used to keep a solution the solver could never enter — a
+ * move the parser mangled, a line the source truncated into nonsense — out of
+ * the count of solutions they are asked to find.
+ */
+export function mainLinePlays(fen: string, root: SolutionNode): boolean {
+  let length = 0;
+  for (let node: SolutionNode | undefined = root; node; node = node.children[0]) length++;
+  return pliesPlayable(fen, root.color, root) === length;
+}
+
 /** How many moves of the root's main line play legally when `color` starts. */
 function pliesPlayable(fen: string, color: 'w' | 'b', root: SolutionNode): number {
   let chess: Chess;
@@ -81,18 +93,33 @@ function pliesPlayable(fen: string, color: 'w' | 'b', root: SolutionNode): numbe
   return plies;
 }
 
+/**
+ * Play one node — the same readings the solver's own executor accepts
+ * (useProblem's tryExecuteNode): a from-to move, a wildcard "any move by
+ * this piece", plain SAN, and SAN with its check/mate mark dropped. A move
+ * no board can hold ("joke:") never plays.
+ */
 function play(chess: Chess, node: SolutionNode): boolean {
+  const uci = node.moveUci;
+  if (uci.startsWith('joke:')) return false;
+  if (uci === 'any') {
+    const piece = node.moveSan.match(/^([KQRBN])/)?.[1]?.toLowerCase();
+    const candidates = chess.moves({ verbose: true }).filter(m => !piece || m.piece === piece);
+    if (candidates.length === 0) return false;
+    try { return !!chess.move(candidates[0]); } catch { return false; }
+  }
   const from = fromSquare(node);
   if (from) {
     try {
-      if (chess.move({ from, to: node.moveUci.slice(2, 4), promotion: node.moveUci.slice(4) || undefined })) return true;
+      if (chess.move({ from, to: uci.slice(2, 4), promotion: uci.slice(4) || undefined })) return true;
     } catch { /* try SAN */ }
   }
-  const san = node.moveSan.replace(/[!?]/g, '');
+  const san = (uci.startsWith('san:') ? uci.slice(4) : node.moveSan).replace(/[!?]/g, '');
   if (!san) return false;
-  try {
-    return !!chess.move(san);
-  } catch {
-    return false;
+  for (const attempt of [san, san.replace(/[+#]/g, '')]) {
+    try {
+      if (chess.move(attempt)) return true;
+    } catch { /* next reading */ }
   }
+  return false;
 }
