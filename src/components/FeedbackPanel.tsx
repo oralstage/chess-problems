@@ -129,11 +129,12 @@ export function FeedbackPanel({
           <span className="font-bold text-[var(--ink)] shrink-0">
             {duplex ? 'Duplex' : `${solutionsTotal} solutions`}
           </span>
-          <span className="text-[var(--muted)]">
+          <span className={duplex ? 'text-[var(--ink)]' : 'text-[var(--muted)]'}>
             {duplex && (
               <>
                 — {solutionsTotal} solutions: {countWord(duplex.black)} with Black to play,{' '}
-                {countWord(duplex.white)} with White to play (Black and White mate the white king).{' '}
+                {countWord(duplex.white)} with White to play{' '}
+                <strong>(Black and White mate the white king)</strong>.{' '}
               </>
             )}
             {duplex ? 'Found' : '— found'} {solutionsFound}/{solutionsTotal}.{' '}
