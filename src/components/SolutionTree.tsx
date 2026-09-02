@@ -542,7 +542,9 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
       {positions.length > 1 && (
         <div className="space-y-2">
           <div className="flex items-center gap-1 flex-wrap text-sm">
-            {mainLine.map((node, i) => (
+            {/* Number from who actually moves first in THIS line: the
+                White-first half of a duplex helpmate starts with White. */}
+            {mainLine.map((node, i, line) => (
               <button
                 key={i}
                 onClick={() => onGoTo(i)}
@@ -554,7 +556,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
                       : 'italic font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]'
                 }`}
               >
-                {firstColor === 'b'
+                {(line[0]?.color ?? firstColor) === 'b'
                   ? (i % 2 === 1 ? `${Math.floor(i / 2) + 2}.` : i === 0 ? '1...' : '')
                   : (i % 2 === 0 ? `${Math.floor(i / 2) + 1}.` : '')
                 }{positions[i + 1]?.san || node.moveSan}

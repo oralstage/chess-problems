@@ -36,6 +36,7 @@ import { usePlayerRating } from './hooks/usePlayerRating';
 import type { Glicko2Rating } from './utils/glicko2';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
+import { flipDuplexRoots } from './utils/duplex';
 import { matchesAwardFilter, type AwardFilter } from './utils/award';
 import { moveFreely, pieceAt } from './utils/freeBoard';
 import { isCookedProblem } from './utils/cookMarker';
@@ -559,6 +560,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [problem.foundSolutionCount, problem.status]);
 
+  /* Replaying a solution that is already found: the move lands and snaps
+     back, and this says why — the note under the board alone was missed. */
+  useEffect(() => {
+    if (!problem.replayNoticeAt || !problem.problem) return;
+    const p = problem.problem;
+    setStipulationToast({
+      label: 'Already found',
+      sub: 'Look for a different solution.',
+      stipulation: p.stipulation, genre: p.genre,
+    });
+    const timer = setTimeout(() => setStipulationToast(null), 2500);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [problem.replayNoticeAt]);
+
   /* Thematic-try toast. refutationText appears at the exact moment the
      refutation move is played on the board (its only producer is
      flashTryRefutation), so the sequence reads: your move, the refutation
@@ -832,6 +848,10 @@ export default function App() {
       };
       flipColors(allNodes);
     }
+    // Duplex helpmate: the White-first solution is numbered like the Black-first
+    // one in the source, so the parser paints it black. Fix it before the
+    // roots are filtered so both halves stay playable.
+    flipDuplexRoots(allNodes, fixCastlingRights(p.fen, p.solutionText), p.keywords, p.genre);
     p.fullSolutionTree = allNodes;
     p.solutionTree = filterKeyMoves(allNodes, firstColor);
     // Generate twin data for twin problems
@@ -2880,7 +2900,7 @@ export default function App() {
                   feedbackType={enginePlay ? (enginePlay.positions[enginePlay.viewIndex].feedback?.type ?? null) : analysisFen !== null ? null : problem.feedbackType}
                   hintSquares={enginePlay || analysisFen !== null ? null : problem.hintSquares}
                   arrows={enginePlay ? (enginePlay.hint?.arrow ? [enginePlay.hint.arrow] : []) : analysisFen !== null ? [] : boardArrows}
-                  allowAnyColor={!enginePlay && currentGenre === 'retro'}
+                  allowAnyColor={!enginePlay && (currentGenre === 'retro' || problem.anyColorAllowed)}
                   freeMove={!enginePlay && analysisFen !== null}
                   printMode={printMode}
                 />

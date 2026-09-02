@@ -45,6 +45,9 @@ interface ProblemState {
   totalSolutions: number;
   foundSolutions: number[];
   currentRootIndex: number | null;
+  /** When the solver last replayed a solution they had already found
+   *  (a timestamp so the UI can toast each occurrence). */
+  replayNoticeAt: number | null;
   playback: {
     positions: PlaybackPosition[];
     mainLine: SolutionNode[];
@@ -438,6 +441,7 @@ export function useProblem(stockfish?: StockfishApi) {
     totalSolutions: 1,
     foundSolutions: [],
     currentRootIndex: null,
+    replayNoticeAt: null,
     playback: null,
     activeTree: [],
   });
@@ -566,6 +570,7 @@ export function useProblem(stockfish?: StockfishApi) {
       totalSolutions: countSolutions(problem.genre, problem.solutionTree),
       foundSolutions: [],
       currentRootIndex: null,
+      replayNoticeAt: null,
       playback: null,
       activeTree: problem.solutionTree,
     });
@@ -614,6 +619,7 @@ export function useProblem(stockfish?: StockfishApi) {
         totalSolutions: 1,
         foundSolutions: [],
         currentRootIndex: null,
+        replayNoticeAt: null,
         playback: null,
         activeTree: twinTree,
       };
@@ -739,8 +745,12 @@ export function useProblem(stockfish?: StockfishApi) {
       return false;
     };
 
-    if (!tryWithFen(state.fen) && problem.genre === 'retro') {
-      // Flip turn and retry (user deduced it's the other side's move)
+    // Retro: the user deduces whose move it is. Duplex helpmate: while a
+    // solution that starts with the other side's move is still to be found
+    // (the White-first half), that side may move too.
+    const otherSideHasLine = problem.genre === 'help' && currentNodes.some(n => n.color !== currentTurn);
+    if (!tryWithFen(state.fen) && (problem.genre === 'retro' || otherSideHasLine)) {
+      // Flip turn and retry
       const flippedFen = state.fen.replace(/ [wb] /, currentTurn === 'w' ? ' b ' : ' w ');
       tryWithFen(flippedFen);
     }
@@ -1149,11 +1159,27 @@ export function useProblem(stockfish?: StockfishApi) {
       const replayed = matchMoveToTree(state.fen, from, to, move.san, move.promotion,
         foundRoots.filter(n => n.color === movedColor));
       if (replayed) {
+        // Let the move land so it reads as "you played it", say so, and put
+        // the diagram back after the same hold a completed solution gets.
         setState(prev => ({
           ...prev,
+          fen: newFen,
+          lastMove: { from, to },
           feedback: 'Already found — look for a different solution.',
+          feedbackSquare: null,
+          feedbackType: null,
+          hintSquares: null,
+          waitingForAutoPlay: true,
+          replayNoticeAt: Date.now(),
         }));
-        return false;
+        if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+        autoPlayTimerRef.current = setTimeout(() => {
+          setState(prev => {
+            if (!prev.problem || prev.status !== 'solving') return prev;
+            return { ...prev, fen: prev.initialFen, lastMove: null, waitingForAutoPlay: false };
+          });
+        }, SOLUTION_RESET_HOLD);
+        return true;
       }
     }
 
@@ -1239,12 +1265,19 @@ export function useProblem(stockfish?: StockfishApi) {
 
     // Solution tree hint (all genres)
     const currentTurn = fen.split(' ')[1] as 'w' | 'b';
-    const validNodes = currentNodes.filter(n => n.color === currentTurn);
+    let hintFen = fen;
+    let validNodes = currentNodes.filter(n => n.color === currentTurn);
+    // Duplex helpmate: only the White-first solution is left, so the hint is
+    // a white move on a board whose turn still says Black.
+    if (validNodes.length === 0 && problem.genre === 'help' && currentNodes.length > 0) {
+      hintFen = fen.replace(/ [wb] /, currentTurn === 'w' ? ' b ' : ' w ');
+      validNodes = currentNodes.filter(n => n.color !== currentTurn);
+    }
 
     if (validNodes.length > 0) {
       const verifiedMoves: { from: string; to: string; isKey: boolean }[] = [];
       for (const node of validNodes) {
-        const chess = new Chess(fen);
+        const chess = new Chess(hintFen);
         const move = tryExecuteNode(chess, node);
         if (move) {
           verifiedMoves.push({ from: move.from, to: move.to, isKey: node.isKey });
@@ -1252,7 +1285,7 @@ export function useProblem(stockfish?: StockfishApi) {
       }
       if (verifiedMoves.length > 0) {
         const keyMove = verifiedMoves.find(m => m.isKey) || verifiedMoves[0];
-        const allTargets = getAllLegalMoves(fen, keyMove.from);
+        const allTargets = getAllLegalMoves(hintFen, keyMove.from);
         setState(prev => ({ ...prev, hintSquares: [keyMove.from, ...allTargets] }));
         return;
       }
@@ -1263,12 +1296,12 @@ export function useProblem(stockfish?: StockfishApi) {
       if (destMatch) {
         const destSq = destMatch[1];
         try {
-          const chess = new Chess(fen);
+          const chess = new Chess(hintFen);
           const legal = chess.moves({ verbose: true });
           const candidates = legal.filter(m => m.to === destSq);
           if (candidates.length > 0) {
             const fromSq = candidates[0].from;
-            const allTargets = getAllLegalMoves(fen, fromSq);
+            const allTargets = getAllLegalMoves(hintFen, fromSq);
             setState(prev => ({ ...prev, hintSquares: [fromSq, ...allTargets] }));
             return;
           }
@@ -1319,8 +1352,13 @@ export function useProblem(stockfish?: StockfishApi) {
     // and overwrite the 'viewing' state with 'correct'
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
 
-    // Always use solution tree (works for all genres, no Stockfish dependency)
-    let pb = startPlayback(initialFen, activeTree);
+    // Always use solution tree (works for all genres, no Stockfish dependency).
+    // Multi-solution helpmate: show a solution the solver has NOT found yet —
+    // replaying the one they already played would answer nothing.
+    const remaining = state.totalSolutions > 1
+      ? activeTree.filter((_, i) => !state.foundSolutions.includes(i))
+      : [];
+    let pb = startPlayback(initialFen, remaining.length > 0 ? [remaining[0]] : activeTree);
     if (pb && pb.positions.length > 1) {
       pb.moveIndex = 0;
     }
@@ -1331,7 +1369,7 @@ export function useProblem(stockfish?: StockfishApi) {
       ...prev, status: 'viewing', feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null,
       refutationText: null, refutationArrow: null, playback: pb,
     }));
-  }, [state.problem, state.initialFen, state.activeTree, startPlayback]);
+  }, [state.problem, state.initialFen, state.activeTree, state.totalSolutions, state.foundSolutions, startPlayback]);
 
   // ── Playback navigation ──
   const playbackGoTo = useCallback((index: number) => {
@@ -1457,6 +1495,11 @@ export function useProblem(stockfish?: StockfishApi) {
     problem: state.problem,
     totalSolutions: state.totalSolutions,
     foundSolutionCount: state.foundSolutions.length,
+    replayNoticeAt: state.replayNoticeAt,
+    /** Duplex helpmate: a remaining solution starts with the side NOT on
+     *  move, so the board must let either colour be picked up. */
+    anyColorAllowed: state.status === 'solving' && state.problem?.genre === 'help'
+      && state.currentNodes.some(n => n.color !== (state.fen.split(' ')[1] as 'w' | 'b')),
     fen: effectiveFen,
     initialFen: state.initialFen,
     moveHistory: state.moveHistory,
