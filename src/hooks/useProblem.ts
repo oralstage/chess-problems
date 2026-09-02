@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Chess } from 'chess.js';
+import { moveSanLenient } from '../utils/sanResolve';
 import type { ChessProblem, SolutionNode, Genre } from '../types';
 import { trackEvent } from '../services/api';
 
@@ -215,6 +216,10 @@ function tryExecuteNode(chess: Chess, node: SolutionNode): ReturnType<Chess['mov
       if (move) return move;
     } catch { /* fallback */ }
   }
+
+  // "Sc6#" where two knights reach c6: the mark on the move says which.
+  const resolved = moveSanLenient(chess, node.moveSan || san);
+  if (resolved) return resolved;
 
   const destMatch = node.move.match(/([a-h][1-8])(?:=[QRBN])?[+#!?]*$/i);
   if (destMatch) {

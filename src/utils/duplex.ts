@@ -1,5 +1,6 @@
 import { Chess } from 'chess.js';
 import type { SolutionNode } from '../types';
+import { moveSanLenient } from './sanResolve';
 
 /**
  * Duplex helpmates are solved twice from the same diagram: once with Black
@@ -114,12 +115,11 @@ function play(chess: Chess, node: SolutionNode): boolean {
       if (chess.move({ from, to: uci.slice(2, 4), promotion: uci.slice(4) || undefined })) return true;
     } catch { /* try SAN */ }
   }
-  const san = (uci.startsWith('san:') ? uci.slice(4) : node.moveSan).replace(/[!?]/g, '');
+  // Prefer moveSan: it keeps the "+"/"#" the source wrote, which is what
+  // resolves "Sc6#" when two knights can reach c6.
+  const san = (node.moveSan || (uci.startsWith('san:') ? uci.slice(4) : '')).replace(/[!?]/g, '');
   if (!san) return false;
-  for (const attempt of [san, san.replace(/[+#]/g, '')]) {
-    try {
-      if (chess.move(attempt)) return true;
-    } catch { /* next reading */ }
-  }
-  return false;
+  // Sources write "Sc6#" where a strict parser wants "Sec6#": resolve by the
+  // mark on the move (see moveSanLenient).
+  return moveSanLenient(chess, san) !== null;
 }

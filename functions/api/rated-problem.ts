@@ -15,6 +15,7 @@ const RATED_GENRES = ['direct', 'self', 'help'];
 
 import { addFairyExclusion } from './fairy-filter';
 import { UNPLAYABLE_IDS } from './unplayable-filter';
+import { UNPLAYABLE_HELP_IDS } from './unplayable-help';
 
 
 function buildProblem(row: Record<string, unknown>, problemRating: number) {
@@ -135,6 +136,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         "keywords NOT LIKE '%Joke problem%'",
         "keywords NOT LIKE '%Retractor%'",
         `id NOT IN (${UNPLAYABLE_IDS.join(',')})`,
+        // Helpmates none of whose recorded solutions play through on this
+        // board (unflagged fairy conditions, twin notation the reader does not
+        // follow, broken notation) — a guaranteed loss in a rated game.
+        `id NOT IN (${UNPLAYABLE_HELP_IDS.join(',')})`,
       ];
       const bindings: (string | number)[] = [rated.problem_id, genre];
       addFairyExclusion(conditions, bindings);

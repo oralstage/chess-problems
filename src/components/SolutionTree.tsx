@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Chess } from 'chess.js';
+import { moveSanLenient } from '../utils/sanResolve';
 import type { SolutionNode } from '../types';
 import { buildTryCommentary, mergeSameMoveChildren } from '../utils/tryCommentary';
 
@@ -58,6 +59,11 @@ function tryExecuteNode(chess: Chess, node: SolutionNode): { from: string; to: s
       const move = chess.move(uci.slice(4));
       if (move) return { from: move.from, to: move.to };
     } catch { /* fall through */ }
+    {
+      // Ambiguous as written ("Sc6#" with two knights): the mark decides.
+      const move = moveSanLenient(chess, node.moveSan || uci.slice(4));
+      if (move) return { from: move.from, to: move.to };
+    }
     try {
       const parts = chess.fen().split(' ');
       parts[1] = parts[1] === 'w' ? 'b' : 'w';
