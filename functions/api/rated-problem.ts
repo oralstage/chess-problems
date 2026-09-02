@@ -16,6 +16,7 @@ const RATED_GENRES = ['direct', 'self', 'help'];
 import { addFairyExclusion } from './fairy-filter';
 import { UNPLAYABLE_IDS } from './unplayable-filter';
 import { UNPLAYABLE_HELP_IDS } from './unplayable-help';
+import { UNPLAYABLE_KEY_IDS } from './unplayable-keys';
 
 
 function buildProblem(row: Record<string, unknown>, problemRating: number) {
@@ -135,7 +136,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         "keywords NOT LIKE '%Shortmate%'",
         "keywords NOT LIKE '%Joke problem%'",
         "keywords NOT LIKE '%Retractor%'",
+        // YACPDB's own verdict that the problem has no valid solution as
+        // recorded. Nothing to solve, so nothing to rate (2026-09-02: 1,721
+        // direct mates and 177 selfmates carried Unsound, 372 No solution).
+        "keywords NOT LIKE '%Unsound%'",
+        "keywords NOT LIKE '%No solution%'",
         `id NOT IN (${UNPLAYABLE_IDS.join(',')})`,
+        // Direct mates and selfmates whose key cannot be entered on the board
+        // and that no keyword catches — see scripts/find-unplayable-keys.ts.
+        `id NOT IN (${UNPLAYABLE_KEY_IDS.join(',')})`,
         // Helpmates none of whose recorded solutions play through on this
         // board (unflagged fairy conditions, twin notation the reader does not
         // follow, broken notation) — a guaranteed loss in a rated game.
