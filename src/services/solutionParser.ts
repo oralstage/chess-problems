@@ -1332,7 +1332,12 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
       const parent = stack.length > 0 ? stack[stack.length - 1].node : null;
       color = parent ? parent.color : firstMoveColor;
     } else if (seg.isBlackNum) {
-      color = 'b';
+      // "1..." is the half-move of the side that does NOT own the numbers:
+      // Black in a direct mate, but White in a helpmate (set play written
+      // "1...Sd5-b6", or the White-to-play half of a duplex). It used to be
+      // Black unconditionally, which painted every helpmate set-play line as
+      // a black solution that could never be played.
+      color = firstMoveColor === 'w' ? 'b' : 'w';
     } else if (seg.moveNum !== null) {
       color = firstMoveColor;
     } else {
@@ -1349,15 +1354,26 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     // Also treat "1.xxx 1...yyy" (same move number, white→black) as continuation on same line
     const moveNumContinued = seg.moveNum !== null && prevSegMoveNum !== null
       && seg.moveNum === prevSegMoveNum && seg.isBlackNum;
+    // The first mover's move 1 can never continue what precedes it: after
+    // "1...a8=Q#" (set play) the next thing on the same line that reads
+    // "1.Ka6-b7" is a new line of play, not move 1 following move 1.
+    const restartsAtMoveOne = seg.moveNum === 1 && !seg.isBlackNum && !seg.isThreat;
     const isSameLineFollow = seg.lineIndex === prevLineIndex && seg.segIndex > 0
-      && !seg.isThreat && (seg.indent > stackTopIndent || moveNumIncreased || moveNumContinued);
+      && !seg.isThreat && !restartsAtMoveOne
+      && (seg.indent > stackTopIndent || moveNumIncreased || moveNumContinued);
 
     if (!isSameLineFollow) {
       if (seg.afterBlankLine) {
         // Blank line = section break: reset stack to start a new section
         stack.length = 0;
-      } else if (seg.moveNum === 1 && !seg.isBlackNum && (seg.isKey || seg.isTry) && stack.length > 0) {
-        // Key/try move at move 1 (e.g., "1.Bf6-d8 !") after set play: new root section
+      } else if (restartsAtMoveOne && stack.length > 0) {
+        // The first mover's move 1 ("1.Bf6-d8 !", or a helpmate's plain
+        // "1.Ke5-d4", on its own line or after set play on the same line)
+        // starts a new solution, whatever came before it. This used to
+        // require a key/try mark and a fresh line, so an unmarked helpmate
+        // solution written after set play ("1...Sd5-b6 ...") was nested under
+        // that set-play line and lost as a solution (H100803, H103130 and
+        // ~1,800 others).
         stack.length = 0;
       } else {
         // Pop stack based on indent, and on the move itself: two moves with the

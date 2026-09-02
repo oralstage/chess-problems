@@ -860,6 +860,14 @@ export default function App() {
     flipDuplexRoots(allNodes, fixCastlingRights(p.fen, p.solutionText), duplexTagged ? ['Duplex'] : [], p.genre);
     p.fullSolutionTree = allNodes;
     p.solutionTree = filterKeyMoves(allNodes, firstColor);
+    // Helpmate set play ("1...Sd5-b6 ...": what would happen if White were
+    // to move) is now coloured White by the parser. It is shown after the
+    // solve, but it is not a solution to find — only a duplex asks for a
+    // White-to-play line. Keep the tree if nothing else would be left.
+    if (p.genre === 'help' && !duplexTagged) {
+      const own = p.solutionTree.filter(n => n.color === firstColor);
+      if (own.length > 0) p.solutionTree = own;
+    }
     // Generate twin data for twin problems
     if (!p.twins) {
       p.twins = parseTwins(p.solutionText, p._originalFen || originalFen, parserColor) ?? undefined;
@@ -3260,6 +3268,7 @@ export default function App() {
                   solutionText={problem.problem.solutionText}
                   stipulation={activeTwinId ? undefined : problem.problem.stipulation}
                   firstColor={(problem.initialFen.split(' ')[1] || 'w') as 'w' | 'b'}
+                  duplex={problem.duplex != null}
                   playback={problem.playback}
                   onGoTo={problem.playbackGoTo}
                   onFirst={problem.playbackFirst}

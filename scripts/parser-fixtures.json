@@ -48,7 +48,7 @@
     "id": 373202,
     "stipulation": "#2",
     "note": "try+refutation on same line (1. Qh1? e4!); twins",
-    "solution": "a) \n1. Qh1? e4!\n\n1. Qe4! \u2013 zz\n1. ... Kd7 2. Q:d5#\n1. ... d:e4 2. Rd2#\n1. ... d4 2. Qc6#\n\nb) \n1. Ke8? ~ 2. Rf6#\n1. ... Ke6 2. Qc6#\n1. ... d4!\n\n1. Rc2! ~ 2. Qc6, Qc7#\n1. ... Kd7, e4 2. Qc7#\n1. ... d4 2. Qc6#\n\nc) \n1. Qh4! ~ 2. Qe7, Qd8#\n1. ... Kd7, e4 2. Qe7#\n1. ... d4 2. Qd8#",
+    "solution": "a) \n1. Qh1? e4!\n\n1. Qe4! – zz\n1. ... Kd7 2. Q:d5#\n1. ... d:e4 2. Rd2#\n1. ... d4 2. Qc6#\n\nb) \n1. Ke8? ~ 2. Rf6#\n1. ... Ke6 2. Qc6#\n1. ... d4!\n\n1. Rc2! ~ 2. Qc6, Qc7#\n1. ... Kd7, e4 2. Qc7#\n1. ... d4 2. Qc6#\n\nc) \n1. Qh4! ~ 2. Qe7, Qd8#\n1. ... Kd7, e4 2. Qe7#\n1. ... d4 2. Qd8#",
     "expected": [
       "Qe4"
     ]
@@ -102,7 +102,7 @@
   {
     "id": 338058,
     "stipulation": "h#2.5",
-    "note": "h#2.5 with two solutions; the \"1... ... 2.X\" half-move convention numbers the first real move 2 \u2014 both solutions must stay accepted",
+    "note": "h#2.5 with two solutions; the \"1... ... 2.X\" half-move convention numbers the first real move 2 — both solutions must stay accepted",
     "expected": [
       "Ka7-b8",
       "Kc6-d5"
@@ -121,7 +121,7 @@
   {
     "id": 142094,
     "stipulation": "#3",
-    "note": "threat: label subtree \u2014 2.g8=Q after 1...Kxa2 must be walkable (old bug: threat children attached to the key, rejecting the promotion)",
+    "note": "threat: label subtree — 2.g8=Q after 1...Kxa2 must be walkable (old bug: threat children attached to the key, rejecting the promotion)",
     "expected": [
       "Bf7-a2"
     ],
@@ -135,7 +135,7 @@
   {
     "id": 100456,
     "stipulation": "h#2",
-    "note": "h#2 with a second solution indented by two spaces \u2014 both must be accepted (used to reject 1.Bd5)",
+    "note": "h#2 with a second solution indented by two spaces — both must be accepted (used to reject 1.Bd5)",
     "expected": [
       "Bf3-h5",
       "Bf3-d5"
@@ -154,10 +154,32 @@
   {
     "id": 259137,
     "stipulation": "s#6",
-    "note": "mixed 0/2 indents with wrapped mainline \u2014 must not fragment into root pieces",
+    "note": "mixed 0/2 indents with wrapped mainline — must not fragment into root pieces",
     "expected": [
       "Rg7-d7"
     ],
     "solution": "1. Qa4-b3? Qe8*e6!\n  1. Bc3-b2? Bc1*b2!\n  1. Qa4*c6? Qe8*c6!\n  1. Qa4-c4? g6*h5 2. Rg7-g4 f5*g4!\n1.Rg7-d7 threat: 2.Rd7-d3 +  Se1*d3 # 1...Sb8*d7  2.Qa4*c6 ! threat: 3.Qc6-f3 + Se1*f3 # 2...Qe8- \na8 3.b6-b7 threat: 4.Qc6-f3 + Se1*f3 # 3...Qa8*b7 4.Qc6*b7 threat: 5.Qb7-f3 + Se1*f3 # 4...c7-c6 \n5.Qb7*c6 threat: 6.Qc6-f3 + Se1*f3 # 3...Qa8-a6 + 4.Qc6-c4 threat: 5.Qc4-e2 + Qa6*e2 # 4...Qa6-d6 \n5.e5*d6 + Sd7-e5 6.Qc4-d3 + Se1*d3 # 4...g6*h5 5.Bc3-d4 + Ke3-f4 6.Bd4-f2 + Qa6*c4 #"
+  },
+  {
+    "id": 100803,
+    "stipulation": "h#4",
+    "note": "Helpmate set play written '1...Sd5-b6' before the solutions: the 1... line is White's (not a black solution) and each following '1.Ke5-d4' line is a new root, not a child of the set play (2026-09-02; ~1,600 helpmates were unsolvable because the real solutions were buried)",
+    "solution": "1...Sd5-b6   2.Ke5-f6 Sb6-d7 +   3.Kf6-g7 Sd7-f6 +   4.Kg7-h8 Rb7-h7 #\n1...g4-g5   2.Ke5-f5 Rb7-b8   3.Kf5-g6 Rb8-g8 +   4.Kg6-h7 Sd5-f6 # {(Cook...)}\n1.Ke5-d4 Sd5-c7   2.Kd4-c3 Sc7-b5 +   3.Kc3-b2 Sb5-c3 +   4.Kb2-a1 Rb7-b1 #\n1.Ke5-d4 Sd5-b6   2.Kd4-c5 Ka8-b8   3.Kc5-b5 Sb6-c4 +   4.Kb5-a6 Rb7-b6 # {(Cook...)}",
+    "expected": [
+      "Sd5-b6",
+      "g4-g5",
+      "Ke5-d4",
+      "Ke5-d4"
+    ],
+    "line": [
+      "Kd4",
+      "Nc7",
+      "Kc3",
+      "Nb5",
+      "Kb2",
+      "Nc3",
+      "Ka1",
+      "Rb1"
+    ]
   }
 ]

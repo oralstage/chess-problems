@@ -13,6 +13,10 @@ interface SolutionTreeProps {
       reading the wrong board. */
   stipulation?: string;
   firstColor?: 'w' | 'b';
+  /** Duplex helpmate: the White-to-play lines are solutions (Black and
+   *  White mate the white king). Otherwise a helpmate's White-first lines
+   *  are set play — shown, not asked for. */
+  duplex?: boolean;
   playback: {
     positions: { fen: string; lastMove: { from: string; to: string } | null; san: string }[];
     mainLine: SolutionNode[];
@@ -438,7 +442,7 @@ function BranchView({ node, path, marker, omit, onNodeClick, activeNode, indent 
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation, firstColor = 'w', playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, onShowLine, isCooked, notes }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation, firstColor = 'w', duplex = false, playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, onShowLine, isCooked, notes }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -499,8 +503,10 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
   // When no key/try markers exist (e.g., helpmates), treat all variations as "solutions"
   const keyVariations = hasAnyMarkers ? variations.filter(v => v.isKey) : [];
   const tryVariations = hasAnyMarkers ? variations.filter(v => v.isTry) : [];
-  // Duplex helpmate: the solutions that start with White (Black and White
-  // mating the white king) are listed under their own heading.
+  // Helpmate lines that start with White are listed under their own heading:
+  // in a duplex they are the White-to-play solutions (Black and White mating
+  // the white king); otherwise they are set play, the prepared answer to
+  // what would happen if White were to move.
   const duplexLines = !hasAnyMarkers && firstColor === 'b' ? variations.filter(v => v.rootNode.color === 'w') : [];
   const plainSolutions = hasAnyMarkers ? [] : variations.filter(v => !duplexLines.includes(v));
 
@@ -573,7 +579,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
       {plainSolutions.length > 0 && (
         <details className="text-xs" open>
           <summary className="cursor-pointer text-sm font-bold text-[var(--ink)] underline decoration-2 underline-offset-2">
-            {duplexLines.length > 0 ? `Black to play (${plainSolutions.length})` : `Solutions (${plainSolutions.length})`}
+            {duplexLines.length > 0 && duplex ? `Black to play (${plainSolutions.length})` : `Solutions (${plainSolutions.length})`}
           </summary>
           <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-1">
             {plainSolutions.map((v, vi) => (
@@ -592,7 +598,9 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
       {duplexLines.length > 0 && (
         <details className="text-xs" open>
           <summary className="cursor-pointer text-sm font-bold text-[var(--ink)] underline decoration-2 underline-offset-2">
-            White to play ({duplexLines.length}) — Black and White mate the white king
+            {duplex
+              ? `White to play (${duplexLines.length}) — Black and White mate the white king`
+              : `Set play (${duplexLines.length}) — if White were to move first`}
           </summary>
           <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-1">
             {duplexLines.map((v, vi) => (
