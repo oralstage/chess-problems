@@ -6,7 +6,7 @@ Over 575,000 problems: direct mates (~406,000), helpmates (~85,000), selfmates (
 
 **Live site: [chess-problems.pages.dev](https://chess-problems.pages.dev)**
 
-© 2025–2026 ushiyutvj. Licensed under the [GNU AGPL v3](LICENSE) — you may use and modify the code, but a site built on it must publish its source under the same license and keep this notice.
+© 2025–2026 ushiyutvj. All rights reserved. The source is published here for reading and reference only; copying, redistribution, or use of this code in another site or product is not permitted without the author's written permission.
 
 ## Features
 
