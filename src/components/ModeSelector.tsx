@@ -662,6 +662,9 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
               What's new
             </button>
           )}
+          <a href="/about" className="nb-btn px-4 py-1.5 text-sm">
+            About
+          </a>
           <a
             href="https://ushiyutvj.pages.dev"
             target="_blank"

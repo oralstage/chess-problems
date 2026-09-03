@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>About Chess Problems — an interactive solver for YACPDB compositions</title>
+  <meta name="description" content="What Chess Problems is: a free site for solving over 580,000 chess compositions from YACPDB on an interactive board — direct mates, helpmates, selfmates, endgame studies and retros — with rated play, spaced-repetition review, hints and full solutions." />
+  <link rel="canonical" href="https://chess-problems.pages.dev/about" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png" />
+  <meta name="theme-color" content="#93ab6a" />
+  <meta property="og:title" content="About Chess Problems" />
+  <meta property="og:description" content="A free interactive solver for chess compositions from YACPDB: direct mates, helpmates, selfmates, studies and retros, with rated play and spaced-repetition review." />
+  <meta property="og:image" content="https://chess-problems.pages.dev/og-image.png" />
+  <meta property="og:url" content="https://chess-problems.pages.dev/about" />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --sq-a: #93ab6a;
+      --sq-b: #90a867;
+      --check: 128px;
+      --surface: #fffdf2;
+      --ink: #171d10;
+      --muted: #3b4433;
+      --faint: #667254;
+      --acid: #ffb020;
+      --card-direct: #dfe8cd;
+      --card-help: #cfe0ee;
+      --card-self: #f2ddb4;
+      --card-study: #eecdd6;
+      --card-retro: #dccfea;
+      --soft: 3px 3px 0 var(--ink);
+      --hard: 5px 5px 0 var(--ink);
+      --hard-lg: 8px 8px 0 var(--ink);
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--sq-a); }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background-color: var(--sq-a);
+      background-image:
+        linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%),
+        linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%);
+      background-size: var(--check) var(--check);
+      background-position: 0 0, calc(var(--check) / 2) calc(var(--check) / 2);
+      background-attachment: fixed;
+      font-family: 'Baloo 2', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 17px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+    .card {
+      background: var(--surface); border: 3px solid var(--ink); border-radius: 26px;
+      box-shadow: var(--hard-lg); padding: 1.6rem 1.5rem 2rem; margin-top: 1.2rem;
+    }
+    @media (min-width: 640px) { .card { padding: 2.2rem 2.4rem 2.6rem; } }
+    a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+    a:hover { background: var(--acid); text-decoration: none; }
+    .back {
+      display: inline-flex; align-items: center; gap: .4rem;
+      border: 3px solid var(--ink); border-radius: 999px; background: var(--surface);
+      padding: .3rem 1rem .3rem .8rem; font-weight: 700; font-size: .95rem;
+      text-decoration: none; box-shadow: var(--soft);
+    }
+    .back:hover { background: var(--acid); transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--ink); }
+    h1 { font-size: 2.4rem; line-height: 1.1; font-weight: 800; margin: 1.6rem 0 .4rem; letter-spacing: -.01em; }
+    .lede { font-size: 1.15rem; color: var(--muted); font-weight: 500; margin: 0 0 2rem; }
+    h2 {
+      font-size: 1.05rem; text-transform: uppercase; letter-spacing: .08em;
+      font-weight: 800; margin: 2.4rem 0 .6rem; padding-bottom: .3rem;
+      border-bottom: 3px solid var(--ink);
+    }
+    p { margin: .7rem 0; }
+    ul { padding-left: 1.2rem; margin: .5rem 0; }
+    li { margin: .35rem 0; }
+    code, .mono { font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace; font-size: .92em; }
+    .genres { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .7rem; margin: 1rem 0; padding: 0; list-style: none; }
+    .genres li {
+      border: 3px solid var(--ink); border-radius: 18px; padding: .7rem .9rem;
+      box-shadow: var(--soft); margin: 0;
+    }
+    .genres b { display: block; font-size: 1.05rem; }
+    .genres small { color: var(--muted); font-weight: 600; }
+    .g-direct { background: var(--card-direct); }
+    .g-help { background: var(--card-help); }
+    .g-self { background: var(--card-self); }
+    .g-study { background: var(--card-study); }
+    .g-retro { background: var(--card-retro); }
+    .note {
+      border: 3px solid var(--ink); border-radius: 18px; background: #fff;
+      padding: .9rem 1.1rem; box-shadow: var(--hard); margin: 1.4rem 0;
+    }
+    footer { margin-top: 3rem; padding-top: 1rem; border-top: 3px solid var(--ink); font-size: .85rem; color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="/">&larr; Back to the site</a>
+
+  <article class="card">
+  <h1>About Chess Problems</h1>
+  <p class="lede">
+    A free site for solving chess compositions on an interactive board. The problems come from
+    <a href="https://www.yacpdb.org" rel="noopener">YACPDB</a>, the open chess problem database;
+    the site checks your moves against the composer's published solution.
+  </p>
+
+  <h2>What is here</h2>
+  <p>
+    Over 580,000 problems, in five genres that the site keeps completely separate. Each has its own
+    list, filters, progress and history.
+  </p>
+  <ul class="genres">
+    <li class="g-direct"><b>Direct mates</b><small>#2 to #5 and longer &middot; about 406,000</small></li>
+    <li class="g-help"><b>Helpmates</b><small>h#1 to h#5, including duplex and multi-solution &middot; about 85,000</small></li>
+    <li class="g-self"><b>Selfmates</b><small>s#1 to s#5 and longer &middot; about 53,000</small></li>
+    <li class="g-study"><b>Endgame studies</b><small>White to win or draw &middot; about 32,000</small></li>
+    <li class="g-retro"><b>Retros</b><small>retrograde analysis &middot; about 1,500</small></li>
+  </ul>
+  <p>
+    A <b>Daily problem</b> (a mate in two) appears on the home page every day, with an archive of past days.
+    A <b>Themes</b> guide explains the classic ideas of problem chess — battery, zugzwang, Grimshaw, Novotny,
+    Plachutta, model and ideal mates — each on a prize-winning example you can solve first. There is also a page
+    for the problems set at the <b>World Chess Solving Championship 2026</b>, laid out like the official
+    solving sheets.
+  </p>
+
+  <h2>Solving</h2>
+  <ul>
+    <li>You play the solving side; the site plays the defence. In direct mates and selfmates you are White and
+      Black's replies are played for you. In helpmates you play both sides. In studies you are White with no move limit.</li>
+    <li>Every move is checked against the composer's solution tree, so tries, refutations and all thematic
+      variations are known to the site. After you finish (or give up), the full solution is shown with every
+      variation, and each move can be clicked to see it on the board.</li>
+    <li>Twin problems show every twin's position and solution. Helpmates with several solutions ask you to find them all.</li>
+    <li>Hints come from Stockfish running in your browser. An <b>analysis board</b> lets you move pieces freely
+      while thinking, without affecting your answer. Where YACPDB's solution stops early, or in studies, you can
+      play the position out against the engine.</li>
+    <li>While you are solving, the composer, source and award are hidden, as at a solving tournament. They are
+      shown once you have finished.</li>
+    <li>Filters by stipulation, piece count, year, theme and award; search by composer; bookmarks; a history of
+      everything you have solved.</li>
+  </ul>
+
+  <h2>Rated mode</h2>
+  <p>
+    A matchmaking mode that picks a problem near your current strength. Ratings use the Glicko-2 system,
+    for players and for problems alike, so every problem's difficulty is learnt from how solvers actually do
+    on it. A solve counts as a win only when it is perfect: no wrong move, no hint. There are separate rating
+    pools for direct mates, helpmates and selfmates, and a difficulty selector from very easy to very hard.
+  </p>
+
+  <h2>Review mode</h2>
+  <p>
+    Spaced repetition for problems you have played in rated mode, scheduled with the FSRS-4.5 algorithm.
+    Problems you got wrong come back sooner; problems you keep solving cleanly come back at ever longer
+    intervals.
+  </p>
+
+  <h2>Where the problems come from</h2>
+  <p>
+    All problem data — positions, stipulations, solutions, composers, sources and awards — comes from
+    <a href="https://www.yacpdb.org" rel="noopener">YACPDB (Yet Another Chess Problem Database)</a>, maintained by
+    Dmitri Turevski and its contributors. Every problem on this site links back to its YACPDB entry. The site
+    takes orthodox problems only; fairy chess has a
+    <a href="https://fairy-chess-problems.pages.dev" rel="noopener">sister site</a>.
+  </p>
+  <p>
+    Solutions in YACPDB are written by hand in a range of notations, and the site parses them into move trees
+    so they can be played on the board. Where a solution cannot be read or played, the problem is kept out of
+    the rated pool, but it remains in the lists.
+  </p>
+
+  <h2>Who made it</h2>
+  <p>
+    Chess Problems is made and run by <a href="https://ushiyutvj.pages.dev" rel="noopener">Ushiyutvj</a>, a
+    chess problem enthusiast, as a one-person project. The source code is open under the GNU Affero General
+    Public License v3 and is on
+    <a href="https://github.com/oralstage/chess-problems" rel="noopener">GitHub</a>, where bug reports and
+    suggestions are welcome as issues. A daily problem is also posted on
+    <a href="https://x.com/k_capa50367" rel="noopener">X</a>.
+  </p>
+  <div class="note">
+    <b>Licence in one sentence.</b> You may use, study and modify the code, but a site built on it must publish
+    its own source under the same licence and keep the original copyright notice.
+  </div>
+
+  <h2>Privacy</h2>
+  <p>
+    The site collects anonymous usage data — which problems are attempted, which moves are tried, how long solving
+    takes — to improve the problem ratings and the site itself. No account is needed and no personal information
+    is stored. Your progress, bookmarks and ratings live in your own browser.
+    See also the <a href="/#/terms">commerce disclosure</a>.
+  </p>
+
+  <footer>
+    &copy; 2025&ndash;2026 Ushiyutvj &middot; Problems &copy; their composers, via YACPDB.
+  </footer>
+  </article>
+</main>
+</body>
+</html>
