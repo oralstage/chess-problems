@@ -675,11 +675,12 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
             <span>Made by Ushiyutvj</span>
           </a>
         </div>
-        {/* Two lines, not one paragraph: where the problems come from and what
-            the site records are unrelated facts, and running them together made
-            the provenance read as part of the privacy notice. */}
+        {/* One line of links, not four sentences. The privacy notice lives on
+            /about#privacy and the third-party licences on /licenses, so the
+            footer only has to point at them. */}
         <p className="text-[11px] font-semibold text-[var(--muted)] mt-5 px-4">
-          Problems from the{' '}
+          © {new Date().getFullYear() > 2026 ? `2026–${new Date().getFullYear()}` : '2026'} Ushiyutvj
+          {' · '}Problems from{' '}
           <a
             href="https://www.yacpdb.org"
             target="_blank"
@@ -687,21 +688,15 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
             className="underline decoration-2 underline-offset-2 text-[var(--ink)] font-bold"
           >
             YACPDB
-          </a>{' '}
-          archive.
-        </p>
-        <p className="text-[11px] font-semibold text-[var(--muted)] mt-1 px-4">
-          Anonymous usage data is collected to improve the site. No personal information is stored.
-        </p>
-        <p className="text-[11px] font-semibold text-[var(--muted)] mt-1 px-4">
-          Runs on open-source software —{' '}
-          <a href="/licenses" className="underline decoration-2 underline-offset-2 text-[var(--ink)] font-bold">
-            licences
           </a>
-          .
-        </p>
-        <p className="text-[11px] font-semibold text-[var(--muted)] mt-3 px-4">
-          © {new Date().getFullYear() > 2026 ? `2026–${new Date().getFullYear()}` : '2026'} Ushiyutvj. All rights reserved.
+          {' · '}
+          <a href="/licenses" className="underline decoration-2 underline-offset-2 text-[var(--ink)] font-bold">
+            Licences
+          </a>
+          {' · '}
+          <a href="/about#privacy" className="underline decoration-2 underline-offset-2 text-[var(--ink)] font-bold">
+            Privacy
+          </a>
         </p>
       </footer>
     </div>
