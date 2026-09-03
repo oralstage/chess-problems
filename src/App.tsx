@@ -22,7 +22,6 @@ import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
 import { RatingSyncModal } from './components/RatingSyncModal';
 import { SearchPage, type SearchViewState } from './components/SearchPage';
-import { ComposerPage } from './components/ComposerPage';
 import { BookmarksPage } from './components/BookmarksPage';
 import { WcscPage } from './components/WcscPage';
 import { ThemeGuidePage } from './components/ThemeGuidePage';
@@ -273,7 +272,6 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchView, setSearchView] = useState<SearchViewState | null>(null);
   const [showBookmarksPage, setShowBookmarksPage] = useState(false);
-  const [composerName, setComposerName] = useState<string | null>(null);
   const [showWcscPage, setShowWcscPage] = useState(false);
   const [showThemeGuide, setShowThemeGuide] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
@@ -3455,20 +3453,10 @@ export default function App() {
           onQueryChange={setSearchQuery}
           cachedView={searchView}
           onViewChange={setSearchView}
-          onSelectComposer={setComposerName}
           onSelectResult={openSearchResult}
         />
       )}
 
-      {/* Over the search page, not instead of it: coming back from one
-          composer's work should land on the results that named them. */}
-      {composerName && (
-        <ComposerPage
-          name={composerName}
-          onClose={() => setComposerName(null)}
-          onSelectResult={result => { setComposerName(null); openSearchResult(result); }}
-        />
-      )}
 
       {showChangelog && (
         <ChangelogPage onClose={() => closeStaticPage('#/whatsnew', () => setShowChangelog(false))} />

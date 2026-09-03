@@ -24,7 +24,6 @@ interface SearchPageProps {
   onQueryChange?: (q: string) => void;
   cachedView?: SearchViewState | null;
   onViewChange?: (view: SearchViewState | null) => void;
-  onSelectComposer: (name: string) => void;
 }
 
 type SortKey = 'year-desc' | 'year-asc' | 'stipulation';
@@ -34,7 +33,7 @@ type SortKey = 'year-desc' | 'year-asc' | 'stipulation';
 const PAGE_SIZE = 18;
 
 export function SearchPage({
-  onClose, onSelectResult, initialQuery, onQueryChange, cachedView, onViewChange, onSelectComposer,
+  onClose, onSelectResult, initialQuery, onQueryChange, cachedView, onViewChange,
 }: SearchPageProps) {
   const { columns, boardSize } = useTileGrid(672);
   const [query, setQuery] = useState(initialQuery ?? cachedView?.query ?? '');
@@ -214,20 +213,17 @@ export function SearchPage({
                   a result without its name says nothing. */}
               <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
                 {results.map(r => (
-                  <ProblemTile
-                    key={r.id}
-                    result={r}
-                    boardSize={boardSize}
-                    onSelect={onSelectResult}
-                    onSelectComposer={onSelectComposer}
-                  />
+                  <ProblemTile key={r.id} result={r} boardSize={boardSize} onSelect={onSelectResult} />
                 ))}
               </div>
             </>
           )}
         </div>
 
-        <div className="shrink-0 px-4">
+        {/* The same clearance the problem list's pager has. Flush with the
+            bottom of a `fixed inset-0` overlay means under the iPhone's
+            Safari toolbar, which hides the page number. */}
+        <div className="shrink-0 px-4 pb-8">
           <Pagination page={page} totalPages={totalPages} onChange={setPage} />
         </div>
       </div>
