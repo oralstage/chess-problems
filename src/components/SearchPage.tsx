@@ -1,78 +1,101 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState } from 'react';
 import { useTileGrid } from '../hooks/useTileGrid';
 import { ProblemTile } from './ProblemTile';
+import { Pagination } from './Pagination';
 import { GENRE_LABEL } from '../utils/genreLabels';
 import type { SearchResult } from '../services/api';
 import { searchByAuthor } from '../services/api';
+
+/** Everything the page needs to come back to where it was. */
+export interface SearchViewState {
+  query: string;
+  page: number;
+  genre: string | null;
+  sort: SortKey;
+  results: SearchResult[];
+  total: number;
+  genreCounts: Record<string, number>;
+}
 
 interface SearchPageProps {
   onClose: () => void;
   onSelectResult: (result: SearchResult) => void;
   initialQuery?: string;
   onQueryChange?: (q: string) => void;
-  cachedResults?: SearchResult[] | null;
-  onResultsChange?: (results: SearchResult[] | null) => void;
-  /** Opens one composer's own page — the way past the 200-result ceiling. */
+  cachedView?: SearchViewState | null;
+  onViewChange?: (view: SearchViewState | null) => void;
   onSelectComposer: (name: string) => void;
 }
 
 type SortKey = 'year-desc' | 'year-asc' | 'stipulation';
 
-export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChange, cachedResults, onResultsChange, onSelectComposer }: SearchPageProps) {
-  const [query, setQuery] = useState(initialQuery || '');
-  const { columns, boardSize } = useTileGrid(672);
-  const [results, setResults] = useState<SearchResult[] | null>(cachedResults ?? null);
-  const [searching, setSearching] = useState(false);
-  const [genreFilter, setGenreFilter] = useState<string | null>(null);
-  const [sortBy, setSortBy] = useState<SortKey>('year-desc');
+// Three across, six down — the problem list's page, so the two lists move the
+// same way and a page is the same amount of looking in both.
+const PAGE_SIZE = 18;
 
-  const handleSearch = async (e?: React.FormEvent) => {
+export function SearchPage({
+  onClose, onSelectResult, initialQuery, onQueryChange, cachedView, onViewChange, onSelectComposer,
+}: SearchPageProps) {
+  const { columns, boardSize } = useTileGrid(672);
+  const [query, setQuery] = useState(initialQuery ?? cachedView?.query ?? '');
+  // What was actually searched, as opposed to what is being typed.
+  const [submitted, setSubmitted] = useState(cachedView?.query ?? '');
+  const [page, setPage] = useState(cachedView?.page ?? 0);
+  const [genreFilter, setGenreFilter] = useState<string | null>(cachedView?.genre ?? null);
+  const [sortBy, setSortBy] = useState<SortKey>(cachedView?.sort ?? 'year-desc');
+  const [loaded, setLoaded] = useState<SearchViewState | null>(cachedView ?? null);
+
+  // Whether what is loaded is the view being asked for. Derived, not stored:
+  // a "searching" flag set inside the effect would set state during it and
+  // cascade a render.
+  const holdsCurrent = !!loaded && loaded.query === submitted && loaded.page === page
+    && loaded.genre === genreFilter && loaded.sort === sortBy;
+  const searching = !!submitted && !holdsCurrent;
+
+  useEffect(() => {
+    if (!submitted || holdsCurrent) return;
+    let cancelled = false;
+    searchByAuthor(submitted, { page, pageSize: PAGE_SIZE, genre: genreFilter, sort: sortBy })
+      .then(data => {
+        if (cancelled) return;
+        const view: SearchViewState = {
+          query: submitted, page, genre: genreFilter, sort: sortBy,
+          results: data.results, total: data.total, genreCounts: data.genreCounts,
+        };
+        setLoaded(view);
+        onViewChange?.(view);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        const view: SearchViewState = {
+          query: submitted, page, genre: genreFilter, sort: sortBy,
+          results: [], total: 0, genreCounts: {},
+        };
+        setLoaded(view);
+        onViewChange?.(view);
+      });
+    return () => { cancelled = true; };
+  }, [submitted, page, genreFilter, sortBy, holdsCurrent, onViewChange]);
+
+  const handleSearch = (e?: React.FormEvent) => {
     e?.preventDefault();
     const q = query.trim();
     if (q.length < 2) return;
-    setSearching(true);
+    setPage(0);
     setGenreFilter(null);
-    try {
-      const data = await searchByAuthor(q, 200);
-      setResults(data);
-      onResultsChange?.(data);
-    } catch {
-      setResults([]);
-      onResultsChange?.([]);
-    }
-    setSearching(false);
+    setSubmitted(q);
   };
 
-  // Available genres from results
-  const availableGenres = useMemo(() => {
-    if (!results) return [];
-    const genres = new Set(results.map(r => r.genre));
-    return ['direct', 'help', 'self', 'study', 'retro'].filter(g => genres.has(g));
-  }, [results]);
-
-  // Genre counts
-  const genreCounts = useMemo(() => {
-    if (!results) return {};
-    const counts: Record<string, number> = {};
-    for (const r of results) {
-      counts[r.genre] = (counts[r.genre] || 0) + 1;
-    }
-    return counts;
-  }, [results]);
-
-  // Filtered and sorted results
-  const displayResults = useMemo(() => {
-    if (!results) return [];
-    let filtered = genreFilter ? results.filter(r => r.genre === genreFilter) : results;
-    if (sortBy === 'year-asc') {
-      filtered = [...filtered].sort((a, b) => (a.sourceYear || 0) - (b.sourceYear || 0));
-    } else if (sortBy === 'year-desc') {
-      filtered = [...filtered].sort((a, b) => (b.sourceYear || 0) - (a.sourceYear || 0));
-    } else if (sortBy === 'stipulation') {
-      filtered = [...filtered].sort((a, b) => a.stipulation.localeCompare(b.stipulation));
-    }
-    return filtered;
-  }, [results, genreFilter, sortBy]);
+  const showing = loaded && loaded.query === submitted ? loaded : null;
+  const results = showing?.results ?? null;
+  const total = showing?.total ?? 0;
+  const genreCounts = showing?.genreCounts ?? {};
+  const allCount = Object.values(genreCounts).reduce((a, b) => a + b, 0);
+  const availableGenres = ['direct', 'help', 'self', 'study', 'retro']
+    .filter(g => (genreCounts[g] ?? 0) > 0);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
+  const first = page * PAGE_SIZE + 1;
+  const last = Math.min(total, (page + 1) * PAGE_SIZE);
 
   return (
     <div className="nb-ground fixed inset-0 z-50 flex flex-col overflow-hidden">
@@ -81,10 +104,10 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
         <div className="flex items-center justify-between px-4 py-3 border-b-2 border-[var(--ink)] shrink-0">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white">Search by Author</h2>
           <div className="flex items-center gap-2">
-            {results != null && results.length > 0 && (
+            {total > 0 && (
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortKey)}
+                onChange={(e) => { setSortBy(e.target.value as SortKey); setPage(0); }}
                 className="nb-chip text-xs px-2 py-1 focus:outline-none cursor-pointer"
               >
                 <option value="year-desc">Newest</option>
@@ -92,10 +115,7 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
                 <option value="stipulation">By type</option>
               </select>
             )}
-            <button
-              onClick={onClose}
-              className="nb-disc" aria-label="Close"
-            >
+            <button onClick={onClose} className="nb-disc" aria-label="Close">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -118,7 +138,10 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
               {query && (
                 <button
                   type="button"
-                  onClick={() => { setQuery(''); onQueryChange?.(''); setResults(null); onResultsChange?.(null); }}
+                  onClick={() => {
+                    setQuery(''); onQueryChange?.('');
+                    setSubmitted(''); setLoaded(null); onViewChange?.(null);
+                  }}
                   className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -137,26 +160,26 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
           </form>
         </div>
 
-        {/* Genre filter pills + sort */}
-        {results != null && results.length > 0 && (
+        {/* Genre filter pills — counted over the whole match, not the page */}
+        {availableGenres.length > 0 && (
           <div className="px-4 py-2 border-b-2 border-[var(--ink)] shrink-0 flex items-center gap-2 overflow-x-auto">
             <button
-              onClick={() => setGenreFilter(null)}
+              onClick={() => { setGenreFilter(null); setPage(0); }}
               className={`px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
                 !genreFilter ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
               }`}
             >
-              All ({results.length})
+              All ({allCount.toLocaleString()})
             </button>
             {availableGenres.map(g => (
               <button
                 key={g}
-                onClick={() => setGenreFilter(genreFilter === g ? null : g)}
+                onClick={() => { setGenreFilter(genreFilter === g ? null : g); setPage(0); }}
                 className={`px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors ${
                   genreFilter === g ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700'
                 }`}
               >
-                {GENRE_LABEL[g] || g} ({genreCounts[g] || 0})
+                {GENRE_LABEL[g] || g} ({(genreCounts[g] ?? 0).toLocaleString()})
               </button>
             ))}
           </div>
@@ -164,29 +187,33 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
 
         {/* Results */}
         <div className="flex-1 overflow-y-auto">
-          {results == null && (
+          {!submitted && (
             <div className="text-center py-12 text-[var(--faint)] text-sm">
               Enter an author name to search across all problems
             </div>
           )}
 
+          {submitted && results == null && (
+            <div className="text-center py-12 text-[var(--faint)] text-sm">Searching…</div>
+          )}
+
           {results != null && results.length === 0 && (
             <div className="text-center py-12 text-[var(--faint)] text-sm">
-              No results found for &ldquo;{query}&rdquo;
+              No results found for &ldquo;{submitted}&rdquo;
             </div>
           )}
 
-          {displayResults.length > 0 && (
+          {results != null && results.length > 0 && (
             <>
               <div className="px-4 py-1.5 text-xs font-semibold text-[var(--faint)]">
-                {displayResults.length} result{displayResults.length !== 1 ? 's' : ''}{results && results.length >= 200 ? ' (limit reached)' : ''}
+                {total.toLocaleString()} result{total !== 1 ? 's' : ''}
+                {totalPages > 1 ? ` — showing ${first}–${last}` : ''}
               </div>
               {/* The composer stays on every tile — the search matches on part of
-                  a name, so "yama" answers with Yamashita and Yamada together and a
-                  result without its name says nothing. Here the name is also the
-                  way to the rest of that composer's work. */}
+                  a name, so "yama" answers with Yamashita and Yamada together and
+                  a result without its name says nothing. */}
               <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-                {displayResults.map(r => (
+                {results.map(r => (
                   <ProblemTile
                     key={r.id}
                     result={r}
@@ -198,6 +225,10 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
               </div>
             </>
           )}
+        </div>
+
+        <div className="shrink-0 px-4">
+          <Pagination page={page} totalPages={totalPages} onChange={setPage} />
         </div>
       </div>
     </div>

@@ -21,7 +21,7 @@ import { ProblemList } from './components/ProblemList';
 import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
 import { RatingSyncModal } from './components/RatingSyncModal';
-import { SearchPage } from './components/SearchPage';
+import { SearchPage, type SearchViewState } from './components/SearchPage';
 import { ComposerPage } from './components/ComposerPage';
 import { BookmarksPage } from './components/BookmarksPage';
 import { WcscPage } from './components/WcscPage';
@@ -271,7 +271,7 @@ export default function App() {
   const [siteStats, setSiteStats] = useState<import('./services/api').SiteStats | null>(null);
   const [showSearchPage, setShowSearchPage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
+  const [searchView, setSearchView] = useState<SearchViewState | null>(null);
   const [showBookmarksPage, setShowBookmarksPage] = useState(false);
   const [composerName, setComposerName] = useState<string | null>(null);
   const [showWcscPage, setShowWcscPage] = useState(false);
@@ -3453,8 +3453,8 @@ export default function App() {
           onClose={() => setShowSearchPage(false)}
           initialQuery={searchQuery}
           onQueryChange={setSearchQuery}
-          cachedResults={searchResults}
-          onResultsChange={setSearchResults}
+          cachedView={searchView}
+          onViewChange={setSearchView}
           onSelectComposer={setComposerName}
           onSelectResult={openSearchResult}
         />

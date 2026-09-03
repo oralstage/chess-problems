@@ -312,11 +312,28 @@ export interface SearchResult {
   award: string;
 }
 
-export async function searchByAuthor(author: string, limit = 50): Promise<SearchResult[]> {
-  const res = await fetch(`${API_BASE}/search?author=${encodeURIComponent(author)}&limit=${limit}`);
+/** One page of author-search results, with the counts for the whole match. */
+export interface SearchPageResult {
+  results: SearchResult[];
+  total: number;
+  genreCounts: Record<string, number>;
+}
+
+export async function searchByAuthor(
+  author: string,
+  opts: { page: number; pageSize: number; genre?: string | null; sort?: string } = { page: 0, pageSize: 18 }
+): Promise<SearchPageResult> {
+  const params = new URLSearchParams({
+    author,
+    page: String(opts.page),
+    pageSize: String(opts.pageSize),
+  });
+  if (opts.genre) params.set('genre', opts.genre);
+  if (opts.sort) params.set('sort', opts.sort);
+  const res = await fetch(`${API_BASE}/search?${params}`);
   if (!res.ok) throw new Error(`Search API error: ${res.status}`);
-  const data: { results: SearchResult[] } = await res.json();
-  return data.results;
+  const data: SearchPageResult = await res.json();
+  return { results: data.results, total: data.total ?? data.results.length, genreCounts: data.genreCounts ?? {} };
 }
 
 /** One composer's problems, a page at a time — see functions/api/author.ts. */

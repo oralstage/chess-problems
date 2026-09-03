@@ -5,11 +5,15 @@ import { dataCacheKey, DATA_CACHE_CONTROL } from './data-cache';
  * GET /api/search
  *
  * Query params:
- *   author - search by author name (partial match, case-insensitive)
- *   limit  - max results (default 50, max 200)
+ *   author   - author name; each whitespace-separated term must start a word
+ *              of the name or of one of its generated readings
+ *   page     - 0-based page index
+ *   pageSize - problems per page (default 18, max 100)
+ *   genre    - optional genre filter
+ *   sort     - year-desc (default) | year-asc | stipulation
  *
  * Returns:
- *   { results: [{ id, fen, authors, sourceName, sourceYear, stipulation, moveCount, genre, difficulty, difficultyScore, pieceCount, keywords, award }] }
+ *   { results: [...], total, page, pageSize, genreCounts }
  */
 // Same per-isolate limiter as solve-event. Every NOVEL search costs ~21k D1
 // rows (the author index scan), so a bot iterating names could walk through
@@ -32,7 +36,14 @@ function isRateLimited(ip: string): boolean {
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const author = url.searchParams.get('author')?.trim();
-  const limit = Math.min(200, Math.max(1, (parseInt(url.searchParams.get('limit') || '50') || 50)));
+  // Paged like the problem list, not capped: the old 200-result ceiling hid
+  // most of the composers who matter — 683 of them have more than 200
+  // problems and hold 58% of the database between them.
+  const page = Math.max(0, parseInt(url.searchParams.get('page') || '0') || 0);
+  const pageSize = Math.min(100, Math.max(1,
+    parseInt(url.searchParams.get('pageSize') || '18') || 18));
+  const genreFilter = url.searchParams.get('genre') || '';
+  const sort = url.searchParams.get('sort') || 'year-desc';
 
   if (!author || author.length < 2) {
     return Response.json({ error: 'author param required (min 2 chars)' }, { status: 400 });
@@ -129,10 +140,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     indexedIds = null; // table missing — take the legacy path
   }
 
-  let result;
+  let rowsForQuery: Record<string, unknown>[];
   if (indexedIds != null) {
     if (indexedIds.length === 0) {
-      const empty = Response.json({ results: [], total: 0 }, {
+      const empty = Response.json({ results: [], total: 0, page, pageSize, genreCounts: {} }, {
         headers: { 'Cache-Control': DATA_CACHE_CONTROL },
       });
       context.waitUntil(cache.put(cacheKey, empty.clone()));
@@ -140,20 +151,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     }
     // Numeric literals sidestep D1's 100-binding limit.
     const pick = [...new Set(indexedIds)];
-    result = await context.env.DB.prepare(
+    const result = await context.env.DB.prepare(
       `SELECT id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award
        FROM problems
        WHERE id IN (${pick.join(',')}) AND is_fairy = 0`
     ).all();
-    result.results.sort((a: Record<string, unknown>, b: Record<string, unknown>) => {
-      const ya = a.source_year as number | null, yb = b.source_year as number | null;
-      if (ya == null && yb == null) return (a.difficulty_score as number) - (b.difficulty_score as number);
-      if (ya == null) return 1;
-      if (yb == null) return -1;
-      if (yb !== ya) return yb - ya;
-      return (a.difficulty_score as number) - (b.difficulty_score as number);
-    });
-    result.results = result.results.slice(0, limit);
+    rowsForQuery = result.results as Record<string, unknown>[];
   } else {
     const conditions: string[] = [];
     const bindings: (string | number)[] = [];
@@ -162,32 +165,58 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       bindings.push(p);
     }
     addFairyExclusion(conditions, bindings);
-    result = await context.env.DB.prepare(
+    const result = await context.env.DB.prepare(
       `SELECT id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award
        FROM problems
        WHERE ${conditions.join(' AND ')}
        ORDER BY source_year DESC, difficulty_score ASC
-       LIMIT ?`
-    ).bind(...bindings, limit).all();
+       LIMIT 1000`
+    ).bind(...bindings).all();
+    rowsForQuery = result.results as Record<string, unknown>[];
   }
 
-  const results = result.results.map((row: Record<string, unknown>) => ({
-    id: row.id,
-    fen: row.fen as string,
-    authors: row.authors as string,
-    sourceName: row.source_name as string,
-    sourceYear: row.source_year as number | null,
-    stipulation: row.stipulation as string,
-    moveCount: row.move_count as number,
-    genre: row.genre as string,
-    difficulty: row.difficulty as string,
-    difficultyScore: row.difficulty_score as number,
-    pieceCount: row.piece_count as number,
-    keywords: row.keywords as string,
-    award: row.award as string,
-  }));
+  // Genre counts come from the whole match, not from the page — the chips are
+  // there to say what the search found, and counting only what is on screen
+  // made them say something else.
+  const genreCounts: Record<string, number> = {};
+  for (const row of rowsForQuery) {
+    const g = row.genre as string;
+    genreCounts[g] = (genreCounts[g] || 0) + 1;
+  }
 
-  const response = Response.json({ results, total: results.length }, {
+  const filtered = genreFilter ? rowsForQuery.filter(r => r.genre === genreFilter) : rowsForQuery;
+  filtered.sort((a, b) => {
+    if (sort === 'stipulation') {
+      return (a.stipulation as string).localeCompare(b.stipulation as string);
+    }
+    const ya = a.source_year as number | null, yb = b.source_year as number | null;
+    if (ya == null && yb == null) return (a.difficulty_score as number) - (b.difficulty_score as number);
+    if (ya == null) return 1;
+    if (yb == null) return -1;
+    if (ya !== yb) return sort === 'year-asc' ? ya - yb : yb - ya;
+    return (a.difficulty_score as number) - (b.difficulty_score as number);
+  });
+
+  const total = filtered.length;
+  const results = filtered
+    .slice(page * pageSize, page * pageSize + pageSize)
+    .map((row: Record<string, unknown>) => ({
+      id: row.id,
+      fen: row.fen as string,
+      authors: row.authors as string,
+      sourceName: row.source_name as string,
+      sourceYear: row.source_year as number | null,
+      stipulation: row.stipulation as string,
+      moveCount: row.move_count as number,
+      genre: row.genre as string,
+      difficulty: row.difficulty as string,
+      difficultyScore: row.difficulty_score as number,
+      pieceCount: row.piece_count as number,
+      keywords: row.keywords as string,
+      award: row.award as string,
+    }));
+
+  const response = Response.json({ results, total, page, pageSize, genreCounts }, {
     headers: { 'Cache-Control': DATA_CACHE_CONTROL },
   });
   context.waitUntil(cache.put(cacheKey, response.clone()));
