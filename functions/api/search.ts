@@ -53,7 +53,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   // Split search terms by space and require all to match (AND).
   // Escape LIKE metacharacters so user input can't act as wildcards.
-  const terms = author.split(/\s+/).filter(t => t.length > 0);
+  // Six bindings per term below, against D1's limit of 100.
+  const terms = author.split(/\s+/).filter(t => t.length > 0).slice(0, 12);
   const likePatterns = terms.map(t => `%${t.replace(/[\\%_]/g, c => '\\' + c)}%`);
 
   // Indexed path: scan the ~30k-row author_search table (name → pre-sorted
@@ -65,35 +66,65 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   try {
     const lowered = likePatterns.map(p => p.toLowerCase());
     const onName = terms.map(() => `name_lower LIKE ? ESCAPE '\\'`).join(' AND ');
-    // The aliases column holds the Latin readings of Cyrillic names and the
+    // The alias columns hold the Latin readings of Cyrillic names and the
     // diacritic-free forms of Latin ones (see scripts/translit.ts), so a
     // reader who only has "Janevski" or "Vukcevic" reaches the right rows.
-    const onAny = terms.map(
-      () => `(name_lower || ' ' || aliases) LIKE ? ESCAPE '\\'`
+    // `aliases` is the surname's readings, `alias_other` the given names' and
+    // patronymics'.
+    //
+    // Terms match anywhere inside a generated form, the same as they do
+    // inside a printed name. Two-letter terms are held to the printed name:
+    // the generated spellings are full of common Slavic fragments, and at that
+    // length they stop telling authors apart. Three is enough — every one of
+    // sixteen real tournament spellings still resolves from its first three
+    // letters.
+    const MIN_ALIAS_TERM = 3;
+    const aliasable = terms.map(t => t.length >= MIN_ALIAS_TERM);
+    const anyColumn = terms.map((_, i) => aliasable[i]
+      ? `(name_lower LIKE ? ESCAPE '\\'`
+        + ` OR aliases LIKE ? ESCAPE '\\'`
+        + ` OR alias_other LIKE ? ESCAPE '\\')`
+      : `name_lower LIKE ? ESCAPE '\\'`
     ).join(' AND ');
-    // Matching aliases widens common fragments a lot ("sch" goes from ~970 to
-    // ~2,700 authors), so the 100-row cap can no longer be taken arbitrarily:
-    // put rows whose printed name matches first, then the most prolific.
+    const onSurname = terms.map((_, i) => aliasable[i]
+      ? `(name_lower LIKE ? ESCAPE '\\' OR aliases LIKE ? ESCAPE '\\')`
+      : `name_lower LIKE ? ESCAPE '\\'`
+    ).join(' AND ');
+    // Rank by which part of the name was hit: the printed name, then the
+    // surname's readings, then a given name or patronymic. Rows that only
+    // matched a given name or patronymic are dropped whenever anything
+    // stronger matched — otherwise "Bron" spends the whole page on the
+    // patronymic in Згерский, Геннадий Брониславович and never reaches
+    // Брон, Владимир Акимович at all.
+    const tier = `CASE WHEN ${onName} THEN 2 WHEN ${onSurname} THEN 1 ELSE 0 END`;
+    const bind: string[] = [];
+    for (let i = 0; i < terms.length; i++) bind.push(lowered[i]);
+    for (let i = 0; i < terms.length; i++) {
+      bind.push(lowered[i]);
+      if (aliasable[i]) bind.push(lowered[i]);
+    }
+    for (let i = 0; i < terms.length; i++) {
+      bind.push(lowered[i]);
+      if (aliasable[i]) bind.push(lowered[i], lowered[i]);
+    }
     let rows;
     try {
       rows = await context.env.DB.prepare(
-        `SELECT problem_ids, (CASE WHEN ${onName} THEN 1 ELSE 0 END) AS on_name
-         FROM author_search WHERE ${onAny}
-         ORDER BY on_name DESC, length(problem_ids) DESC LIMIT 100`
-      ).bind(...lowered, ...lowered).all();
+        `SELECT problem_ids, ${tier} AS tier
+         FROM author_search WHERE ${anyColumn}
+         ORDER BY tier DESC, length(problem_ids) DESC LIMIT 100`
+      ).bind(...bind).all();
     } catch {
-      // Index built before the aliases column existed.
+      // Index built before the alias columns existed.
       rows = await context.env.DB.prepare(
-        `SELECT problem_ids FROM author_search WHERE ${onName}
+        `SELECT problem_ids, 2 AS tier FROM author_search WHERE ${onName}
          ORDER BY length(problem_ids) DESC LIMIT 100`
       ).bind(...lowered).all();
     }
-    // Round-robin across the matched authors' pre-sorted (newest-first)
-    // lists, so one prolific author cannot crowd the others out of the cap —
-    // every matched author keeps its newest problems, and the global
-    // re-sort below stays exact for up to cap/limit matched authors.
+    const all = rows.results as { problem_ids: string; tier: number }[];
+    const named = all.filter(r => r.tier > 0);
     const lists: number[][] = [];
-    for (const r of rows.results as { problem_ids: string }[]) {
+    for (const r of (named.length > 0 ? named : all)) {
       try {
         const ids = JSON.parse(r.problem_ids).filter((id: unknown) => Number.isInteger(id));
         if (ids.length > 0) lists.push(ids);

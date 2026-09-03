@@ -16,7 +16,7 @@
  * and staging, so one rebuild serves both.
  */
 import { execFileSync } from 'node:child_process';
-import { extraSearchText } from './translit.ts';
+import { extraSearchParts } from './translit.ts';
 import { writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 
@@ -80,12 +80,12 @@ async function main() {
     const ids = JSON.stringify(list.map(e => e.id));
     // Latin readings of Cyrillic names (and diacritic-free forms of Latin
     // ones) so a Latin-alphabet query reaches composers filed in Cyrillic.
-    const aliases = extraSearchText(name);
-    values.push(`('${escapeSQL(name)}','${escapeSQL(name.toLowerCase())}','${escapeSQL(ids)}','${escapeSQL(aliases)}')`);
+    const alias = extraSearchParts(name);
+    values.push(`('${escapeSQL(name)}','${escapeSQL(name.toLowerCase())}','${escapeSQL(ids)}','${escapeSQL(alias.surname)}','${escapeSQL(alias.other)}')`);
   }
 
   const stmts: string[] = [
-    'CREATE TABLE IF NOT EXISTS author_search (name TEXT PRIMARY KEY, name_lower TEXT NOT NULL, problem_ids TEXT NOT NULL, aliases TEXT NOT NULL DEFAULT \'\');',
+    'CREATE TABLE IF NOT EXISTS author_search (name TEXT PRIMARY KEY, name_lower TEXT NOT NULL, problem_ids TEXT NOT NULL, aliases TEXT NOT NULL DEFAULT \'\', alias_other TEXT NOT NULL DEFAULT \'\');',
     'DELETE FROM author_search;',
   ];
   // Batch by bytes, not row count: one prolific author's tuple is ~33KB, and
@@ -95,7 +95,7 @@ async function main() {
   let batchBytes = 0;
   const flush = () => {
     if (batch.length === 0) return;
-    stmts.push('INSERT INTO author_search (name, name_lower, problem_ids, aliases) VALUES\n' + batch.join(',\n') + ';');
+    stmts.push('INSERT INTO author_search (name, name_lower, problem_ids, aliases, alias_other) VALUES\n' + batch.join(',\n') + ';');
     batch = [];
     batchBytes = 0;
   };

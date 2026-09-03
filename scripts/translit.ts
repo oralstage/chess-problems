@@ -187,10 +187,24 @@ export function searchAliases(name: string): string {
 
 /**
  * searchAliases minus anything the printed name already contains — which is
- * most of a plain Latin name. Keeps the stored column to the rows that need
- * it (6,419 of 20,870) so a rebuild and an in-place migration agree.
+ * most of a plain Latin name. Keeps the stored columns to the rows that need
+ * them (6,419 of 20,870) so a rebuild and an in-place migration agree.
+ *
+ * Split by name part, because a surname hit and a patronymic hit are not worth
+ * the same: "Bron" reaches both Брон (589 problems) and the patronymic in
+ * Згерский, Геннадий Брониславович, and without the distinction the second
+ * one's newer problems fill the whole page.
  */
-export function extraSearchText(name: string): string {
+export function extraSearchParts(name: string): { surname: string; other: string } {
   const lower = name.toLowerCase();
-  return searchAliases(name).split(' ').filter(a => a && !lower.includes(a)).join(' ');
+  const comma = name.indexOf(',');
+  const surname = comma === -1 ? name : name.slice(0, comma);
+  const rest = comma === -1 ? '' : name.slice(comma + 1);
+  const keep = (part: string, taken: Set<string>) =>
+    searchAliases(part).split(' ')
+      .filter(a => a && !lower.includes(a) && !taken.has(a))
+      .join(' ');
+  const sur = keep(surname, new Set());
+  const taken = new Set(sur.split(' '));
+  return { surname: sur, other: keep(rest, taken) };
 }
