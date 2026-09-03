@@ -16,7 +16,7 @@
  * and staging, so one rebuild serves both.
  */
 import { execFileSync } from 'node:child_process';
-import { searchAliases } from './translit.ts';
+import { extraSearchText } from './translit.ts';
 import { writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 
@@ -80,7 +80,7 @@ async function main() {
     const ids = JSON.stringify(list.map(e => e.id));
     // Latin readings of Cyrillic names (and diacritic-free forms of Latin
     // ones) so a Latin-alphabet query reaches composers filed in Cyrillic.
-    const aliases = searchAliases(name);
+    const aliases = extraSearchText(name);
     values.push(`('${escapeSQL(name)}','${escapeSQL(name.toLowerCase())}','${escapeSQL(ids)}','${escapeSQL(aliases)}')`);
   }
 

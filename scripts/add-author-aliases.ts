@@ -15,19 +15,12 @@
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
-import { searchAliases } from './translit.ts';
+import { extraSearchText } from './translit.ts';
 
 const UPDATE_DIR = path.join(import.meta.dirname, '.update');
 
 function escapeSQL(s: string): string {
   return s.replace(/'/g, "''");
-}
-
-/** Drop alias text that the name already contains — most Latin names. */
-function usefulAliases(name: string): string {
-  const lower = name.toLowerCase();
-  const kept = searchAliases(name).split(' ').filter(a => a && !lower.includes(a));
-  return kept.join(' ');
 }
 
 const src = process.argv[2];
@@ -52,7 +45,7 @@ const flush = () => {
   batchBytes = 0;
 };
 for (const r of rows) {
-  const aliases = usefulAliases(r.name);
+  const aliases = extraSearchText(r.name);
   if (!aliases) continue;
   const stmt = `UPDATE author_search SET aliases='${escapeSQL(aliases)}' WHERE name='${escapeSQL(r.name)}';`;
   if (batchBytes + stmt.length > STMT_BUDGET) flush();

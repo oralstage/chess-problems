@@ -184,3 +184,13 @@ export function searchAliases(name: string): string {
   }
   return [...out].join(' ');
 }
+
+/**
+ * searchAliases minus anything the printed name already contains — which is
+ * most of a plain Latin name. Keeps the stored column to the rows that need
+ * it (6,419 of 20,870) so a rebuild and an in-place migration agree.
+ */
+export function extraSearchText(name: string): string {
+  const lower = name.toLowerCase();
+  return searchAliases(name).split(' ').filter(a => a && !lower.includes(a)).join(' ');
+}
