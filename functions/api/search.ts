@@ -4,17 +4,50 @@ import { dataCacheKey, DATA_CACHE_CONTROL } from './data-cache';
 /**
  * GET /api/search
  *
- * Query params:
- *   author   - author name; each whitespace-separated term must start a word
- *              of the name or of one of its generated readings
- *   page     - 0-based page index
- *   pageSize - problems per page (default 18, max 100)
- *   genre    - optional genre filter
- *   sort     - year-desc (default) | year-asc | stipulation
+ * Two modes, because the index scan must not be repeated per page.
+ *
+ *   ?author=NAME
+ *     The whole match as a light list — one row per problem, id/genre/year/
+ *     stipulation/difficulty only. Costs the ~21k-row author_search scan plus
+ *     the matched problems' rows, once. The client sorts, filters by genre and
+ *     pages this list itself.
+ *
+ *   ?ids=1,2,3
+ *     Full rows for up to 100 ids, in the order given — one page's worth.
+ *     Costs those rows and nothing else. A GET, so the edge caches it.
+ *
+ * Paging used to re-run the author query for every page: 18 problems for
+ * ~26,000 rows read, eleven times over to see what one request used to
+ * return. Now a page turn costs the page.
  *
  * Returns:
- *   { results: [...], total, page, pageSize, genreCounts }
+ *   author mode: { list: [[id, genreChar, year, stipulation, difficulty]], total }
+ *   ids mode:    { results: [...] }
  */
+
+/** One letter per genre, to keep the light list small. */
+const GENRE_CHAR: Record<string, string> = { direct: 'd', help: 'h', self: 's', study: 'e', retro: 'r' };
+
+const PROBLEM_FIELDS =
+  'id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award';
+
+function toResult(row: Record<string, unknown>) {
+  return {
+    id: row.id,
+    fen: row.fen as string,
+    authors: row.authors as string,
+    sourceName: row.source_name as string,
+    sourceYear: row.source_year as number | null,
+    stipulation: row.stipulation as string,
+    moveCount: row.move_count as number,
+    genre: row.genre as string,
+    difficulty: row.difficulty as string,
+    difficultyScore: row.difficulty_score as number,
+    pieceCount: row.piece_count as number,
+    keywords: row.keywords as string,
+    award: row.award as string,
+  };
+}
 // Same per-isolate limiter as solve-event. Every NOVEL search costs ~21k D1
 // rows (the author index scan), so a bot iterating names could walk through
 // the daily free-tier read budget; a human types a handful of searches a
@@ -36,14 +69,34 @@ function isRateLimited(ip: string): boolean {
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const author = url.searchParams.get('author')?.trim();
-  // Paged like the problem list, not capped: the old 200-result ceiling hid
-  // most of the composers who matter — 683 of them have more than 200
-  // problems and hold 58% of the database between them.
-  const page = Math.max(0, parseInt(url.searchParams.get('page') || '0') || 0);
-  const pageSize = Math.min(100, Math.max(1,
-    parseInt(url.searchParams.get('pageSize') || '18') || 18));
-  const genreFilter = url.searchParams.get('genre') || '';
-  const sort = url.searchParams.get('sort') || 'year-desc';
+  const idsParam = url.searchParams.get('ids');
+
+  // One page of an already-known list. No author_search scan, no rate limit:
+  // it reads exactly the rows it returns.
+  if (idsParam) {
+    const ids = idsParam.split(',')
+      .map(v => parseInt(v, 10))
+      .filter(v => Number.isSafeInteger(v) && v > 0)
+      .slice(0, 100);
+    if (ids.length === 0) {
+      return Response.json({ error: 'ids must be a comma-separated list of problem ids' }, { status: 400 });
+    }
+    const cacheKeyIds = dataCacheKey(url);
+    const hit = await caches.default.match(cacheKeyIds);
+    if (hit) return hit;
+    const rows = await context.env.DB.prepare(
+      `SELECT ${PROBLEM_FIELDS} FROM problems WHERE id IN (${ids.join(',')}) AND is_fairy = 0`
+    ).all();
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    const ordered = (rows.results as Record<string, unknown>[])
+      .sort((a, b) => (rank.get(a.id as number) ?? 0) - (rank.get(b.id as number) ?? 0))
+      .map(toResult);
+    const res = Response.json({ results: ordered }, {
+      headers: { 'Cache-Control': DATA_CACHE_CONTROL },
+    });
+    context.waitUntil(caches.default.put(cacheKeyIds, res.clone()));
+    return res;
+  }
 
   if (!author || author.length < 2) {
     return Response.json({ error: 'author param required (min 2 chars)' }, { status: 400 });
@@ -143,7 +196,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   let rowsForQuery: Record<string, unknown>[];
   if (indexedIds != null) {
     if (indexedIds.length === 0) {
-      const empty = Response.json({ results: [], total: 0, page, pageSize, genreCounts: {} }, {
+      const empty = Response.json({ list: [], total: 0 }, {
         headers: { 'Cache-Control': DATA_CACHE_CONTROL },
       });
       context.waitUntil(cache.put(cacheKey, empty.clone()));
@@ -152,9 +205,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     // Numeric literals sidestep D1's 100-binding limit.
     const pick = [...new Set(indexedIds)];
     const result = await context.env.DB.prepare(
-      `SELECT id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award
-       FROM problems
-       WHERE id IN (${pick.join(',')}) AND is_fairy = 0`
+      `SELECT id, genre, source_year, stipulation, difficulty_score
+       FROM problems WHERE id IN (${pick.join(',')}) AND is_fairy = 0`
     ).all();
     rowsForQuery = result.results as Record<string, unknown>[];
   } else {
@@ -166,7 +218,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     }
     addFairyExclusion(conditions, bindings);
     const result = await context.env.DB.prepare(
-      `SELECT id, fen, authors, source_name, source_year, stipulation, move_count, genre, difficulty, difficulty_score, piece_count, keywords, award
+      `SELECT id, genre, source_year, stipulation, difficulty_score
        FROM problems
        WHERE ${conditions.join(' AND ')}
        ORDER BY source_year DESC, difficulty_score ASC
@@ -175,48 +227,27 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     rowsForQuery = result.results as Record<string, unknown>[];
   }
 
-  // Genre counts come from the whole match, not from the page — the chips are
-  // there to say what the search found, and counting only what is on screen
-  // made them say something else.
-  const genreCounts: Record<string, number> = {};
-  for (const row of rowsForQuery) {
-    const g = row.genre as string;
-    genreCounts[g] = (genreCounts[g] || 0) + 1;
-  }
-
-  const filtered = genreFilter ? rowsForQuery.filter(r => r.genre === genreFilter) : rowsForQuery;
-  filtered.sort((a, b) => {
-    if (sort === 'stipulation') {
-      return (a.stipulation as string).localeCompare(b.stipulation as string);
-    }
+  // Newest first, oldest of a year's problems being the easiest — the order
+  // the list has always come back in. The client re-sorts for its other two
+  // orders without asking again.
+  rowsForQuery.sort((a, b) => {
     const ya = a.source_year as number | null, yb = b.source_year as number | null;
     if (ya == null && yb == null) return (a.difficulty_score as number) - (b.difficulty_score as number);
     if (ya == null) return 1;
     if (yb == null) return -1;
-    if (ya !== yb) return sort === 'year-asc' ? ya - yb : yb - ya;
+    if (ya !== yb) return yb - ya;
     return (a.difficulty_score as number) - (b.difficulty_score as number);
   });
 
-  const total = filtered.length;
-  const results = filtered
-    .slice(page * pageSize, page * pageSize + pageSize)
-    .map((row: Record<string, unknown>) => ({
-      id: row.id,
-      fen: row.fen as string,
-      authors: row.authors as string,
-      sourceName: row.source_name as string,
-      sourceYear: row.source_year as number | null,
-      stipulation: row.stipulation as string,
-      moveCount: row.move_count as number,
-      genre: row.genre as string,
-      difficulty: row.difficulty as string,
-      difficultyScore: row.difficulty_score as number,
-      pieceCount: row.piece_count as number,
-      keywords: row.keywords as string,
-      award: row.award as string,
-    }));
+  const list = rowsForQuery.map(row => [
+    row.id as number,
+    GENRE_CHAR[row.genre as string] ?? '?',
+    row.source_year as number | null,
+    row.stipulation as string,
+    row.difficulty_score as number,
+  ]);
 
-  const response = Response.json({ results, total, page, pageSize, genreCounts }, {
+  const response = Response.json({ list, total: list.length }, {
     headers: { 'Cache-Control': DATA_CACHE_CONTROL },
   });
   context.waitUntil(cache.put(cacheKey, response.clone()));

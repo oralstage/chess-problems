@@ -312,28 +312,37 @@ export interface SearchResult {
   award: string;
 }
 
-/** One page of author-search results, with the counts for the whole match. */
-export interface SearchPageResult {
-  results: SearchResult[];
-  total: number;
-  genreCounts: Record<string, number>;
+/**
+ * One entry of an author search's match list: id, genre letter, year,
+ * stipulation, difficulty score. Deliberately an array — the biggest name in
+ * the database matches 3,202 problems, and object keys would triple that.
+ */
+export type SearchListEntry = [number, string, number | null, string, number];
+
+export const SEARCH_GENRE: Record<string, string> = {
+  d: 'direct', h: 'help', s: 'self', e: 'study', r: 'retro',
+};
+
+/**
+ * The whole match, light. One call per search — the author index is a ~21k-row
+ * scan, so paging must not repeat it. Sorting, the genre filter and the page
+ * cut all happen on this list; fetchSearchPage then reads only what a page
+ * shows.
+ */
+export async function searchByAuthor(author: string): Promise<SearchListEntry[]> {
+  const res = await fetch(`${API_BASE}/search?author=${encodeURIComponent(author)}`);
+  if (!res.ok) throw new Error(`Search API error: ${res.status}`);
+  const data: { list?: SearchListEntry[] } = await res.json();
+  return data.list ?? [];
 }
 
-export async function searchByAuthor(
-  author: string,
-  opts: { page: number; pageSize: number; genre?: string | null; sort?: string } = { page: 0, pageSize: 18 }
-): Promise<SearchPageResult> {
-  const params = new URLSearchParams({
-    author,
-    page: String(opts.page),
-    pageSize: String(opts.pageSize),
-  });
-  if (opts.genre) params.set('genre', opts.genre);
-  if (opts.sort) params.set('sort', opts.sort);
-  const res = await fetch(`${API_BASE}/search?${params}`);
+/** Full rows for one page of a match list, in the order given. */
+export async function fetchSearchPage(ids: number[]): Promise<SearchResult[]> {
+  if (ids.length === 0) return [];
+  const res = await fetch(`${API_BASE}/search?ids=${ids.join(',')}`);
   if (!res.ok) throw new Error(`Search API error: ${res.status}`);
-  const data: SearchPageResult = await res.json();
-  return { results: data.results, total: data.total ?? data.results.length, genreCounts: data.genreCounts ?? {} };
+  const data: { results: SearchResult[] } = await res.json();
+  return data.results;
 }
 
 /**
