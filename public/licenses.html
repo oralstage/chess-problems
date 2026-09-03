@@ -193,15 +193,18 @@
 
   <h2>This site's own code</h2>
   <p>
-    The site's own code is &copy; 2025&ndash;2026 Ushiyutvj, all rights reserved. It is not covered by any of the
+    The site's own code is &copy; 2025&ndash;<span class="year">2026</span> Ushiyutvj, all rights reserved. It is not covered by any of the
     licences above. The source can be read on <a href="https://github.com/oralstage/chess-problems" rel="noopener">GitHub</a>
     for reference; copying it or using it in another site or product needs the author's permission.
   </p>
 
   <footer>
-    <a href="/about">About this site</a> &middot; <a href="/#/terms">Commerce disclosure</a>
+    &copy; 2025&ndash;<span class="year">2026</span> Ushiyutvj. All rights reserved. &middot; <a href="/about">About this site</a> &middot; <a href="/#/terms">Commerce disclosure</a>
   </footer>
   </article>
 </main>
+  <script>
+    for (const el of document.querySelectorAll('.year')) el.textContent = String(new Date().getFullYear());
+  </script>
 </body>
 </html>
