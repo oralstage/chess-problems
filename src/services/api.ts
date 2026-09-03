@@ -319,6 +319,18 @@ export async function searchByAuthor(author: string, limit = 50): Promise<Search
   return data.results;
 }
 
+/** One composer's problems, a page at a time — see functions/api/author.ts. */
+export async function fetchAuthorProblems(
+  name: string, page: number, pageSize: number
+): Promise<{ results: SearchResult[]; total: number }> {
+  const res = await fetch(
+    `${API_BASE}/author?name=${encodeURIComponent(name)}&page=${page}&pageSize=${pageSize}`
+  );
+  if (!res.ok) throw new Error(`Author API error: ${res.status}`);
+  const data: { results: SearchResult[]; total: number } = await res.json();
+  return { results: data.results, total: data.total };
+}
+
 /**
  * Convert ProblemMeta to ChessProblem (without solutionTree — must be built separately).
  */

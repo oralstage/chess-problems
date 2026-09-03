@@ -1,9 +1,7 @@
 import { useState, useMemo } from 'react';
-import { composerLine } from '../utils/composerName';
-import { pieceCounts } from '../utils/pieceCount';
 import { useTileGrid } from '../hooks/useTileGrid';
-import { Chessboard } from 'react-chessboard';
-import { LazyBoard } from './LazyBoard';
+import { ProblemTile } from './ProblemTile';
+import { GENRE_LABEL } from '../utils/genreLabels';
 import type { SearchResult } from '../services/api';
 import { searchByAuthor } from '../services/api';
 
@@ -14,14 +12,13 @@ interface SearchPageProps {
   onQueryChange?: (q: string) => void;
   cachedResults?: SearchResult[] | null;
   onResultsChange?: (results: SearchResult[] | null) => void;
+  /** Opens one composer's own page — the way past the 200-result ceiling. */
+  onSelectComposer: (name: string) => void;
 }
-
-const GENRE_PREFIX: Record<string, string> = { direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' };
-const GENRE_LABEL: Record<string, string> = { direct: 'Direct', help: 'Helpmate', self: 'Selfmate', study: 'Study', retro: 'Retro' };
 
 type SortKey = 'year-desc' | 'year-asc' | 'stipulation';
 
-export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChange, cachedResults, onResultsChange }: SearchPageProps) {
+export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChange, cachedResults, onResultsChange, onSelectComposer }: SearchPageProps) {
   const [query, setQuery] = useState(initialQuery || '');
   const { columns, boardSize } = useTileGrid(672);
   const [results, setResults] = useState<SearchResult[] | null>(cachedResults ?? null);
@@ -184,57 +181,20 @@ export function SearchPage({ onClose, onSelectResult, initialQuery, onQueryChang
               <div className="px-4 py-1.5 text-xs font-semibold text-[var(--faint)]">
                 {displayResults.length} result{displayResults.length !== 1 ? 's' : ''}{results && results.length >= 200 ? ' (limit reached)' : ''}
               </div>
-              {/* Tiles, like the WCSC set and the menu's lists: the diagram gets the
-                  room, and what a solving sheet carries sits under it. The composer
-                  stays — the search matches on part of a name, so "yama" answers with
-                  Yamashita and Yamada together and a result without its name says
-                  nothing. Source and year stay too: the sort is by year, and without
-                  it the order has no visible reason. */}
+              {/* The composer stays on every tile — the search matches on part of
+                  a name, so "yama" answers with Yamashita and Yamada together and a
+                  result without its name says nothing. Here the name is also the
+                  way to the rest of that composer's work. */}
               <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
-                {displayResults.map(r => {
-                  const authors = typeof r.authors === 'string' ? JSON.parse(r.authors) : r.authors;
-                  return (
-                    <button
-                      key={r.id}
-                      onClick={() => onSelectResult(r)}
-                      className="nb-tile nb-shadow-room-sm w-full p-2 flex flex-col items-center gap-1"
-                    >
-                      <span className="flex items-baseline gap-1.5">
-                        <span className="font-mono font-bold text-sm text-gray-700 dark:text-gray-200">
-                          {GENRE_PREFIX[r.genre] || ''}{r.id}
-                        </span>
-                        <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                          {GENRE_LABEL[r.genre] || r.genre}
-                        </span>
-                      </span>
-                      <LazyBoard size={boardSize} className="rounded-[6px] overflow-hidden border-2 border-[var(--ink)]">
-                        <Chessboard
-                          position={r.fen}
-                          boardWidth={boardSize}
-                          arePiecesDraggable={false}
-                          animationDuration={0}
-                          customBoardStyle={{ borderRadius: '0' }}
-                          customDarkSquareStyle={{ backgroundColor: '#779952' }}
-                          customLightSquareStyle={{ backgroundColor: '#edeed1' }}
-                        />
-                      </LazyBoard>
-                      <div className="flex w-full items-baseline justify-between text-sm" style={{ maxWidth: boardSize }}>
-                        <span className="font-bold text-[var(--ink)]">{r.stipulation}</span>
-                        <span className="text-[var(--muted)]">{pieceCounts(r.fen)}</span>
-                      </div>
-                      {/* Wrapped, not clipped: a joint composition is the one result
-                          whose name says something the search term did not. */}
-                      <div className="w-full text-center text-xs text-gray-600 dark:text-gray-400 break-words" style={{ maxWidth: boardSize }}>
-                        {composerLine(authors)}
-                      </div>
-                      <div className="w-full text-center text-[11px] text-gray-400 dark:text-gray-500 break-words" style={{ maxWidth: boardSize }}>
-                        {r.sourceName || ''}
-                        {r.sourceYear ? `, ${r.sourceYear}` : ''}
-                        {r.award ? ` — ${r.award}` : ''}
-                      </div>
-                    </button>
-                  );
-                })}
+                {displayResults.map(r => (
+                  <ProblemTile
+                    key={r.id}
+                    result={r}
+                    boardSize={boardSize}
+                    onSelect={onSelectResult}
+                    onSelectComposer={onSelectComposer}
+                  />
+                ))}
               </div>
             </>
           )}

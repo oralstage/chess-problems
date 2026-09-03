@@ -22,6 +22,7 @@ import { FilterPage } from './components/FilterPage';
 import { HamburgerMenu } from './components/HamburgerMenu';
 import { RatingSyncModal } from './components/RatingSyncModal';
 import { SearchPage } from './components/SearchPage';
+import { ComposerPage } from './components/ComposerPage';
 import { BookmarksPage } from './components/BookmarksPage';
 import { WcscPage } from './components/WcscPage';
 import { ThemeGuidePage } from './components/ThemeGuidePage';
@@ -31,7 +32,7 @@ import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins, extractSolutionNotes } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, RATED_GENRES, type RatedGenre, type SyncReviewCard } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, RATED_GENRES, type RatedGenre, type SyncReviewCard, type SearchResult } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { Glicko2Rating } from './utils/glicko2';
 import { useReviewQueue } from './hooks/useReviewQueue';
@@ -270,8 +271,9 @@ export default function App() {
   const [siteStats, setSiteStats] = useState<import('./services/api').SiteStats | null>(null);
   const [showSearchPage, setShowSearchPage] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<import('./services/api').SearchResult[] | null>(null);
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [showBookmarksPage, setShowBookmarksPage] = useState(false);
+  const [composerName, setComposerName] = useState<string | null>(null);
   const [showWcscPage, setShowWcscPage] = useState(false);
   const [showThemeGuide, setShowThemeGuide] = useState(false);
   const [showChangelog, setShowChangelog] = useState(false);
@@ -2648,6 +2650,26 @@ export default function App() {
       ? [[problem.refutationArrow[0], problem.refutationArrow[1], 'rgba(255, 50, 50, 0.8)']]
       : [];
 
+  /** Open a problem picked from author search or from a composer's page. */
+  const openSearchResult = useCallback(async (result: SearchResult) => {
+    setShowSearchPage(false);
+    const genre = result.genre as Genre;
+    exitSpecialModes();
+    setCurrentGenre(genre);
+    setView('solving');
+    const cat = categoryFromGenreProblem(genre, result.moveCount);
+    setCurrentCategory(cat);
+    try {
+      const full = await fetchProblem(result.id);
+      const p = metaToChessProblem(full, full.solutionText);
+      loadAndStartProblem(p);
+      cacheProblem(p);
+      setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
+      updateHash(cat, p.id);
+      loadGenre(genre);
+    } catch { /* ignore */ }
+  }, [exitSpecialModes, categoryFromGenreProblem, loadAndStartProblem, cacheProblem, updateHash, loadGenre]);
+
   return (
     // min-h-dvh, not min-h-screen: iOS's 100vh is the URL-bar-collapsed
     // height, which keeps the page scrollable by exactly the bar's height
@@ -3433,24 +3455,18 @@ export default function App() {
           onQueryChange={setSearchQuery}
           cachedResults={searchResults}
           onResultsChange={setSearchResults}
-          onSelectResult={async (result) => {
-            setShowSearchPage(false);
-            const genre = result.genre as Genre;
-            exitSpecialModes();
-            setCurrentGenre(genre);
-            setView('solving');
-            const cat = categoryFromGenreProblem(genre, result.moveCount);
-            setCurrentCategory(cat);
-            try {
-              const full = await fetchProblem(result.id);
-              const p = metaToChessProblem(full, full.solutionText);
-              loadAndStartProblem(p);
-              cacheProblem(p);
-              setCurrentProblemId(prev => ({ ...prev, [cat]: p.id }));
-              updateHash(cat, p.id);
-              loadGenre(genre);
-            } catch { /* ignore */ }
-          }}
+          onSelectComposer={setComposerName}
+          onSelectResult={openSearchResult}
+        />
+      )}
+
+      {/* Over the search page, not instead of it: coming back from one
+          composer's work should land on the results that named them. */}
+      {composerName && (
+        <ComposerPage
+          name={composerName}
+          onClose={() => setComposerName(null)}
+          onSelectResult={result => { setComposerName(null); openSearchResult(result); }}
         />
       )}
 
