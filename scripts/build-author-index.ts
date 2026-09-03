@@ -16,6 +16,7 @@
  * and staging, so one rebuild serves both.
  */
 import { execFileSync } from 'node:child_process';
+import { searchAliases } from './translit.ts';
 import { writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 
@@ -77,11 +78,14 @@ async function main() {
       return a.score - b.score;
     });
     const ids = JSON.stringify(list.map(e => e.id));
-    values.push(`('${escapeSQL(name)}','${escapeSQL(name.toLowerCase())}','${escapeSQL(ids)}')`);
+    // Latin readings of Cyrillic names (and diacritic-free forms of Latin
+    // ones) so a Latin-alphabet query reaches composers filed in Cyrillic.
+    const aliases = searchAliases(name);
+    values.push(`('${escapeSQL(name)}','${escapeSQL(name.toLowerCase())}','${escapeSQL(ids)}','${escapeSQL(aliases)}')`);
   }
 
   const stmts: string[] = [
-    'CREATE TABLE IF NOT EXISTS author_search (name TEXT PRIMARY KEY, name_lower TEXT NOT NULL, problem_ids TEXT NOT NULL);',
+    'CREATE TABLE IF NOT EXISTS author_search (name TEXT PRIMARY KEY, name_lower TEXT NOT NULL, problem_ids TEXT NOT NULL, aliases TEXT NOT NULL DEFAULT \'\');',
     'DELETE FROM author_search;',
   ];
   // Batch by bytes, not row count: one prolific author's tuple is ~33KB, and
@@ -91,7 +95,7 @@ async function main() {
   let batchBytes = 0;
   const flush = () => {
     if (batch.length === 0) return;
-    stmts.push('INSERT INTO author_search (name, name_lower, problem_ids) VALUES\n' + batch.join(',\n') + ';');
+    stmts.push('INSERT INTO author_search (name, name_lower, problem_ids, aliases) VALUES\n' + batch.join(',\n') + ';');
     batch = [];
     batchBytes = 0;
   };
