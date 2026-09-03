@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-09-03',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'Author search reads Latin spellings of Cyrillic names. Russian, Ukrainian, Serbian and Macedonian composers are filed here the way their sources printed them — Јаневски, Живко rather than Janevski — and were unreachable unless you could type the Cyrillic. Now “Janevski”, “Zalokotsky”, “Pankratiev” or “Bron” finds them, in whichever romanisation you know: the English one, the German one of the old continental magazines (“Tkatschenko”, “Saizew”), or the diacritic-free Serbian one. Typing the first few letters is enough.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-09-01',
     sections: [
       {
