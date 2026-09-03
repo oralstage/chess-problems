@@ -693,6 +693,13 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         <p className="text-[11px] font-semibold text-[var(--muted)] mt-1 px-4">
           Anonymous usage data is collected to improve the site. No personal information is stored.
         </p>
+        <p className="text-[11px] font-semibold text-[var(--muted)] mt-1 px-4">
+          Runs on open-source software —{' '}
+          <a href="/licenses" className="underline decoration-2 underline-offset-2 text-[var(--ink)] font-bold">
+            licences
+          </a>
+          .
+        </p>
       </footer>
     </div>
   );

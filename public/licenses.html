@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Licences &amp; corresponding source — Chess Problems</title>
+  <meta name="description" content="Open-source licences for the software Chess Problems runs on in your browser — Stockfish (GPL-3.0), chess.js, React, react-chessboard and the Cburnett chess piece images — and where to get the corresponding source." />
+  <link rel="canonical" href="https://chess-problems.pages.dev/licenses" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/favicon-180.png" />
+  <meta name="theme-color" content="#93ab6a" />
+  <meta property="og:title" content="Licences — Chess Problems" />
+  <meta property="og:description" content="Open-source licences and corresponding source for the software this site runs on." />
+  <meta property="og:image" content="https://chess-problems.pages.dev/og-image.png" />
+  <meta property="og:url" content="https://chess-problems.pages.dev/licenses" />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --sq-a: #93ab6a;
+      --sq-b: #90a867;
+      --check: 128px;
+      --surface: #fffdf2;
+      --ink: #171d10;
+      --muted: #3b4433;
+      --faint: #667254;
+      --acid: #ffb020;
+      --card-direct: #dfe8cd;
+      --card-help: #cfe0ee;
+      --card-self: #f2ddb4;
+      --card-study: #eecdd6;
+      --card-retro: #dccfea;
+      --soft: 3px 3px 0 var(--ink);
+      --hard: 5px 5px 0 var(--ink);
+      --hard-lg: 8px 8px 0 var(--ink);
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--sq-a); }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background-color: var(--sq-a);
+      background-image:
+        linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%),
+        linear-gradient(45deg, var(--sq-b) 25%, transparent 25%, transparent 75%, var(--sq-b) 75%);
+      background-size: var(--check) var(--check);
+      background-position: 0 0, calc(var(--check) / 2) calc(var(--check) / 2);
+      background-attachment: fixed;
+      font-family: 'Baloo 2', 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+      font-size: 17px;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
+    }
+    main { max-width: 44rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+    .card {
+      background: var(--surface); border: 3px solid var(--ink); border-radius: 26px;
+      box-shadow: var(--hard-lg); padding: 1.6rem 1.5rem 2rem; margin-top: 1.2rem;
+    }
+    @media (min-width: 640px) { .card { padding: 2.2rem 2.4rem 2.6rem; } }
+    a { color: var(--ink); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+    a:hover { background: var(--acid); text-decoration: none; }
+    .back {
+      display: inline-flex; align-items: center; gap: .4rem;
+      border: 3px solid var(--ink); border-radius: 999px; background: var(--surface);
+      padding: .3rem 1rem .3rem .8rem; font-weight: 700; font-size: .95rem;
+      text-decoration: none; box-shadow: var(--soft);
+    }
+    .back:hover { background: var(--acid); transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--ink); }
+    h1 { font-size: 2.4rem; line-height: 1.1; font-weight: 800; margin: 1.6rem 0 .4rem; letter-spacing: -.01em; }
+    .lede { font-size: 1.15rem; color: var(--muted); font-weight: 500; margin: 0 0 2rem; }
+    h2 {
+      font-size: 1.05rem; text-transform: uppercase; letter-spacing: .08em;
+      font-weight: 800; margin: 2.4rem 0 .6rem; padding-bottom: .3rem;
+      border-bottom: 3px solid var(--ink);
+    }
+    p { margin: .7rem 0; }
+    ul { padding-left: 1.2rem; margin: .5rem 0; }
+    li { margin: .35rem 0; }
+    code, .mono { font-family: 'IBM Plex Mono', ui-monospace, SFMono-Regular, monospace; font-size: .92em; }
+    .genres { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: .7rem; margin: 1rem 0; padding: 0; list-style: none; }
+    .genres li {
+      border: 3px solid var(--ink); border-radius: 18px; padding: .7rem .9rem;
+      box-shadow: var(--soft); margin: 0;
+    }
+    .genres b { display: block; font-size: 1.05rem; }
+    .genres small { color: var(--muted); font-weight: 600; }
+    .g-direct { background: var(--card-direct); }
+    .g-help { background: var(--card-help); }
+    .g-self { background: var(--card-self); }
+    .g-study { background: var(--card-study); }
+    .g-retro { background: var(--card-retro); }
+    .note {
+      border: 3px solid var(--ink); border-radius: 18px; background: #fff;
+      padding: .9rem 1.1rem; box-shadow: var(--hard); margin: 1.4rem 0;
+    }
+    footer { margin-top: 3rem; padding-top: 1rem; border-top: 3px solid var(--ink); font-size: .85rem; color: var(--muted); font-weight: 600; }
+    dl { margin: .6rem 0 0; }
+    dt { font-weight: 800; margin-top: .6rem; }
+    dd { margin: .1rem 0 0 0; color: var(--muted); }
+    dd code { color: var(--ink); }
+  </style>
+</head>
+<body>
+<main>
+  <a class="back" href="/">&larr; Back to the site</a>
+
+  <article class="card">
+  <h1>Licences &amp; corresponding source</h1>
+  <p class="lede">
+    Everything this site runs on in your browser is open-source software. The chess engine is distributed
+    unmodified; its corresponding source is available from the upstream repositories linked below.
+  </p>
+
+  <h2>Stockfish</h2>
+  <dl>
+    <dt>Licence</dt>
+    <dd>GNU General Public License, version 3 &mdash;
+      <a href="https://www.gnu.org/licenses/gpl-3.0.txt" rel="noopener">full text</a></dd>
+    <dt>Copyright</dt>
+    <dd>The Stockfish developers (see <a href="https://github.com/official-stockfish/Stockfish/blob/master/AUTHORS" rel="noopener">AUTHORS</a>)</dd>
+    <dt>Distributed files</dt>
+    <dd><code>stockfish-18-lite.js</code> / <code>.wasm</code> and <code>stockfish-18-lite-single.js</code> / <code>.wasm</code>
+      &mdash; the lite builds from the npm package <code>stockfish</code> 18.0.5, unmodified. The small NNUE
+      evaluation network is embedded in the WASM binary.</dd>
+    <dt>Corresponding source</dt>
+    <dd><a href="https://github.com/nmrugg/stockfish.js" rel="noopener">nmrugg/stockfish.js</a> (the WebAssembly build) &middot;
+      <a href="https://github.com/official-stockfish/Stockfish" rel="noopener">official-stockfish/Stockfish</a> (upstream engine)</dd>
+  </dl>
+  <p>
+    Stockfish is used only for hints, analysis and play against the engine. Whether your solution is correct
+    is decided by the composer's published solution, not by the engine.
+  </p>
+
+  <h2>Chess piece images</h2>
+  <dl>
+    <dt>Asset</dt>
+    <dd>The standard SVG chess pieces, as shipped with react-chessboard</dd>
+    <dt>Author</dt>
+    <dd>Colin M.L. Burnett (Cburnett)</dd>
+    <dt>Licence</dt>
+    <dd><a href="https://creativecommons.org/licenses/by-sa/3.0/" rel="noopener">Creative Commons Attribution-ShareAlike 3.0 Unported</a></dd>
+    <dt>Source</dt>
+    <dd><a href="https://commons.wikimedia.org/wiki/Category:SVG_chess_pieces" rel="noopener">Wikimedia Commons</a> &middot; used as-is</dd>
+  </dl>
+
+  <h2>chess.js</h2>
+  <dl>
+    <dt>Version</dt><dd>1.4.0</dd>
+    <dt>Licence</dt><dd>BSD 2-Clause License</dd>
+    <dt>Copyright</dt><dd>&copy; 2025, Jeff Hlywa</dd>
+    <dt>Source</dt><dd><a href="https://github.com/jhlywa/chess.js" rel="noopener">jhlywa/chess.js</a> (licence text in the repository)</dd>
+  </dl>
+
+  <h2>react-chessboard</h2>
+  <dl>
+    <dt>Version</dt><dd>4.7.3</dd>
+    <dt>Licence</dt><dd>MIT License</dd>
+    <dt>Copyright</dt><dd>&copy; 2022 Ryan Gregory</dd>
+    <dt>Source</dt><dd><a href="https://github.com/Clariity/react-chessboard" rel="noopener">Clariity/react-chessboard</a></dd>
+  </dl>
+
+  <h2>React</h2>
+  <dl>
+    <dt>Version</dt><dd>19.2</dd>
+    <dt>Licence</dt><dd>MIT License</dd>
+    <dt>Copyright</dt><dd>&copy; Meta Platforms, Inc. and affiliates</dd>
+    <dt>Source</dt><dd><a href="https://github.com/facebook/react" rel="noopener">facebook/react</a></dd>
+  </dl>
+
+  <h2>Tailwind CSS</h2>
+  <dl>
+    <dt>Version</dt><dd>4.2</dd>
+    <dt>Licence</dt><dd>MIT License</dd>
+    <dt>Copyright</dt><dd>&copy; Tailwind Labs, Inc.</dd>
+    <dt>Source</dt><dd><a href="https://github.com/tailwindlabs/tailwindcss" rel="noopener">tailwindlabs/tailwindcss</a></dd>
+  </dl>
+
+  <h2>Fonts</h2>
+  <p>
+    Baloo 2, Inter and IBM Plex Mono are served by Google Fonts under the
+    <a href="https://openfontlicense.org" rel="noopener">SIL Open Font License 1.1</a>. They are not redistributed by this site.
+  </p>
+
+  <h2>Problem data</h2>
+  <p>
+    Positions, stipulations, solutions and bibliographic data come from
+    <a href="https://www.yacpdb.org" rel="noopener">YACPDB</a>. The problems themselves are the work of their composers,
+    who are named on every problem page once it has been solved.
+  </p>
+
+  <h2>This site's own code</h2>
+  <p>
+    The site's own code is &copy; 2025&ndash;2026 Ushiyutvj and is provided under the
+    <a href="https://www.gnu.org/licenses/agpl-3.0.txt" rel="noopener">GNU Affero General Public License v3</a>.
+    Source and the LICENSE file are on <a href="https://github.com/oralstage/chess-problems" rel="noopener">GitHub</a>.
+  </p>
+
+  <footer>
+    <a href="/about">About this site</a> &middot; <a href="/#/terms">Commerce disclosure</a>
+  </footer>
+  </article>
+</main>
+</body>
+</html>
