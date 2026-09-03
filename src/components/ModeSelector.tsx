@@ -701,7 +701,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
           .
         </p>
         <p className="text-[11px] font-semibold text-[var(--muted)] mt-3 px-4">
-          © 2025–{new Date().getFullYear()} Ushiyutvj. All rights reserved.
+          © {new Date().getFullYear() > 2026 ? `2026–${new Date().getFullYear()}` : '2026'} Ushiyutvj. All rights reserved.
         </p>
       </footer>
     </div>
