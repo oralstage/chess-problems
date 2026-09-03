@@ -66,58 +66,41 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   try {
     const lowered = likePatterns.map(p => p.toLowerCase());
     const onName = terms.map(() => `name_lower LIKE ? ESCAPE '\\'`).join(' AND ');
-    // The alias columns hold the Latin readings of Cyrillic names and the
-    // diacritic-free forms of Latin ones (see scripts/translit.ts), so a
-    // reader who only has "Janevski" or "Vukcevic" reaches the right rows.
-    // `aliases` is the surname's readings, `alias_other` the given names' and
-    // patronymics'.
+    // The alias columns hold every searchable word of the name: the printed
+    // words themselves, their ASCII-folded forms, and — for a name filed in
+    // Cyrillic — each romanisation of it (see scripts/translit.ts). `aliases`
+    // is the surname's words, `alias_other` the given names' and patronymics'.
     //
-    // Terms match anywhere inside a generated form, the same as they do
-    // inside a printed name. Two-letter terms are held to the printed name:
-    // the generated spellings are full of common Slavic fragments, and at that
-    // length they stop telling authors apart. Three is enough — every one of
-    // sixteen real tournament spellings still resolves from its first three
-    // letters.
-    const MIN_ALIAS_TERM = 3;
-    const aliasable = terms.map(t => t.length >= MIN_ALIAS_TERM);
-    const anyColumn = terms.map((_, i) => aliasable[i]
-      ? `(name_lower LIKE ? ESCAPE '\\'`
-        + ` OR aliases LIKE ? ESCAPE '\\'`
-        + ` OR alias_other LIKE ? ESCAPE '\\')`
-      : `name_lower LIKE ? ESCAPE '\\'`
+    // A term has to start a word. Matching mid-word turned every common
+    // fragment into a dragnet: "dashi" pulled in Wakashima, Tadashi, and the
+    // generated spellings are full of Slavic fragments that did the same at
+    // scale. What that costs is 44 of 17,675 Latin-filed rows — 346 problems
+    // of 448,993 — where one convention writes a leading cluster the reader's
+    // convention drops (Tschobanjan for Chobanjan). Prefixes are unaffected,
+    // which is what a reader actually types: "tada", "yama", "tkach", "zalok".
+    const anchored = terms.map(t => `% ${t.replace(/[\\%_]/g, c => '\\' + c).toLowerCase()}%`);
+    const onSurname = terms.map(() => `(' ' || aliases) LIKE ? ESCAPE '\\'`).join(' AND ');
+    const onAnyPart = terms.map(
+      () => `((' ' || aliases) LIKE ? ESCAPE '\\' OR (' ' || alias_other) LIKE ? ESCAPE '\\')`
     ).join(' AND ');
-    const onSurname = terms.map((_, i) => aliasable[i]
-      ? `(name_lower LIKE ? ESCAPE '\\' OR aliases LIKE ? ESCAPE '\\')`
-      : `name_lower LIKE ? ESCAPE '\\'`
-    ).join(' AND ');
-    // Rank by which part of the name was hit: the printed name, then the
-    // surname's readings, then a given name or patronymic. Rows that only
-    // matched a given name or patronymic are dropped whenever anything
-    // stronger matched — otherwise "Bron" spends the whole page on the
-    // patronymic in Згерский, Геннадий Брониславович and never reaches
-    // Брон, Владимир Акимович at all.
-    const tier = `CASE WHEN ${onName} THEN 2 WHEN ${onSurname} THEN 1 ELSE 0 END`;
+    // A surname hit outranks a given-name or patronymic one, and the weaker
+    // rows are dropped whenever any surname matched at all — otherwise "Bron"
+    // spends the page on the patronymic in Згерский, Геннадий Брониславович
+    // and never reaches Брон, Владимир Акимович.
     const bind: string[] = [];
-    for (let i = 0; i < terms.length; i++) bind.push(lowered[i]);
-    for (let i = 0; i < terms.length; i++) {
-      bind.push(lowered[i]);
-      if (aliasable[i]) bind.push(lowered[i]);
-    }
-    for (let i = 0; i < terms.length; i++) {
-      bind.push(lowered[i]);
-      if (aliasable[i]) bind.push(lowered[i], lowered[i]);
-    }
+    for (const a of anchored) bind.push(a);
+    for (const a of anchored) bind.push(a, a);
     let rows;
     try {
       rows = await context.env.DB.prepare(
-        `SELECT problem_ids, ${tier} AS tier
-         FROM author_search WHERE ${anyColumn}
+        `SELECT problem_ids, (CASE WHEN ${onSurname} THEN 1 ELSE 0 END) AS tier
+         FROM author_search WHERE ${onAnyPart}
          ORDER BY tier DESC, length(problem_ids) DESC LIMIT 100`
       ).bind(...bind).all();
     } catch {
       // Index built before the alias columns existed.
       rows = await context.env.DB.prepare(
-        `SELECT problem_ids, 2 AS tier FROM author_search WHERE ${onName}
+        `SELECT problem_ids, 1 AS tier FROM author_search WHERE ${onName}
          ORDER BY length(problem_ids) DESC LIMIT 100`
       ).bind(...lowered).all();
     }

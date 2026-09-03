@@ -53,6 +53,7 @@ const flush = () => {
 for (const r of rows) {
   const alias = extraSearchParts(r.name);
   if (!alias.surname && !alias.other) continue;
+  // Every row carries its own name words now, not just the generated ones.
   const stmt = `UPDATE author_search SET aliases='${escapeSQL(alias.surname)}', alias_other='${escapeSQL(alias.other)}' WHERE name='${escapeSQL(r.name)}';`;
   if (batchBytes + stmt.length > STMT_BUDGET) flush();
   batch.push(stmt);

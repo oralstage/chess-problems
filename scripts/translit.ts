@@ -186,25 +186,37 @@ export function searchAliases(name: string): string {
 }
 
 /**
- * searchAliases minus anything the printed name already contains — which is
- * most of a plain Latin name. Keeps the stored columns to the rows that need
- * them (6,419 of 20,870) so a rebuild and an in-place migration agree.
+ * The words a search term may start inside, split by name part.
  *
- * Split by name part, because a surname hit and a patronymic hit are not worth
- * the same: "Bron" reaches both Брон (589 problems) and the patronymic in
- * Згерский, Геннадий Брониславович, and without the distinction the second
- * one's newer problems fill the whole page.
+ * Every searchable word lives here — the printed name's own words as well as
+ * the generated readings — because matching is anchored to a word start, and
+ * anchoring inside a stored name would otherwise need SQL to know that comma,
+ * hyphen and apostrophe end a word. Both the raw word and its ASCII-folded
+ * form are kept, so "Živković" and "Zivkovic" both work.
+ *
+ * Surname and the rest are separate: a surname hit outranks a patronymic one.
+ * "Bron" reaches both Брон, Владимир Акимович with 589 problems and the
+ * patronymic in Згерский, Геннадий Брониславович, and without the distinction
+ * the second one's newer problems fill the whole page.
  */
 export function extraSearchParts(name: string): { surname: string; other: string } {
-  const lower = name.toLowerCase();
   const comma = name.indexOf(',');
   const surname = comma === -1 ? name : name.slice(0, comma);
   const rest = comma === -1 ? '' : name.slice(comma + 1);
-  const keep = (part: string, taken: Set<string>) =>
-    searchAliases(part).split(' ')
-      .filter(a => a && !lower.includes(a) && !taken.has(a))
-      .join(' ');
-  const sur = keep(surname, new Set());
-  const taken = new Set(sur.split(' '));
-  return { surname: sur, other: keep(rest, taken) };
+  const words = (part: string, taken: Set<string>) => {
+    const out: string[] = [];
+    const add = (w: string) => {
+      if (w && !taken.has(w)) { taken.add(w); out.push(w); }
+    };
+    for (const w of part.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
+      if (!w) continue;
+      add(w);
+      add(asciiFold(w).replace(/[^a-z0-9]/g, ''));
+      for (const f of latinFormsOfWord(w)) add(f);
+    }
+    return out.join(' ');
+  };
+  const taken = new Set<string>();
+  const sur = words(surname, taken);
+  return { surname: sur, other: words(rest, taken) };
 }
