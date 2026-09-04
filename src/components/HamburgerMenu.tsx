@@ -9,13 +9,14 @@ interface HamburgerMenuProps {
   onOpenSearch: () => void;
   onOpenRatingSync: () => void;
   onOpenChangelog: () => void;
+  changelogUnseen: boolean;
   onGoToId: (id: number) => void;
   ratingSyncSeen: boolean;
 }
 
 export function HamburgerMenu({
   isOpen, onClose,
-  onOpenDailyHistory, onOpenHistory, onOpenBookmarks, onOpenSearch, onOpenRatingSync, onOpenChangelog, onGoToId,
+  onOpenDailyHistory, onOpenHistory, onOpenBookmarks, onOpenSearch, onOpenRatingSync, onOpenChangelog, changelogUnseen, onGoToId,
   ratingSyncSeen,
 }: HamburgerMenuProps) {
   const [idInput, setIdInput] = useState('');
@@ -129,6 +130,11 @@ export function HamburgerMenu({
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
             </svg>
             What's new
+            {changelogUnseen && (
+              <span className="ml-auto text-[10px] font-extrabold uppercase tracking-wider text-[var(--surface)] bg-[var(--bad)] px-1.5 py-0.5 rounded-full">
+                New
+              </span>
+            )}
           </button>
 
           <div className="h-0.5 bg-[var(--hairline)] my-2 mx-5" />

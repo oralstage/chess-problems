@@ -25,7 +25,7 @@ import { SearchPage, type SearchViewState } from './components/SearchPage';
 import { BookmarksPage } from './components/BookmarksPage';
 import { WcscPage } from './components/WcscPage';
 import { ThemeGuidePage } from './components/ThemeGuidePage';
-import { ChangelogPage } from './components/ChangelogPage';
+import { ChangelogPage, LATEST_CHANGELOG_DATE } from './components/ChangelogPage';
 import { GuidePage } from './components/GuidePage';
 import { HistoryPage } from './components/HistoryPage';
 import { DailyHistoryPage } from './components/DailyHistoryPage';
@@ -261,6 +261,22 @@ export default function App() {
   const markRatingSyncSeen = useCallback(() => {
     try { localStorage.setItem('cp-sync-seen', '1'); } catch { /* ignore */ }
     setRatingSyncSeen(true);
+  }, []);
+  /* The menu's What's new badge. Not a one-shot flag like the Sync one above:
+     it has to come back every time an entry is added, so what is stored is the
+     date of the newest entry the user has actually opened. A visitor with
+     nothing stored counts as not having seen it — for everyone already here
+     that is true, and for a first visit the whole log is new anyway.
+
+     It clears when What's new itself is opened, NOT when the menu is opened:
+     the disc's own badge does that, and if this one went with it the news
+     would die the first time someone reached for Bookmarks. */
+  const [changelogSeen, setChangelogSeen] = useState<boolean>(() => {
+    try { return localStorage.getItem('cp-changelog-seen') === LATEST_CHANGELOG_DATE; } catch { return true; }
+  });
+  const markChangelogSeen = useCallback(() => {
+    try { localStorage.setItem('cp-changelog-seen', LATEST_CHANGELOG_DATE); } catch { /* ignore */ }
+    setChangelogSeen(true);
   }, []);
   const [showHistory, setShowHistory] = useState(false);
   const [showDailyHistory, setShowDailyHistory] = useState(false);
@@ -2685,7 +2701,7 @@ export default function App() {
             markMenuBadgeSeen();
             setShowHamburgerMenu(true);
           }}
-          hasMenuBadge={!menuBadgeSeen}
+          hasMenuBadge={!menuBadgeSeen || !changelogSeen}
           onShowSiteStats={view === 'mode-select' ? () => {
             setShowSiteStats(true);
             if (!siteStats) fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -3350,7 +3366,11 @@ export default function App() {
       <HamburgerMenu
         isOpen={showHamburgerMenu}
         onClose={() => setShowHamburgerMenu(false)}
-        onOpenChangelog={() => openStaticPage('#/whatsnew', () => setShowChangelog(true))}
+        onOpenChangelog={() => {
+          markChangelogSeen();
+          openStaticPage('#/whatsnew', () => setShowChangelog(true));
+        }}
+        changelogUnseen={!changelogSeen}
         onOpenDailyHistory={() => {
           setShowHamburgerMenu(false);
           setShowDailyHistory(true);

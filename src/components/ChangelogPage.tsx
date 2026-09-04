@@ -9,7 +9,7 @@ const CHANGELOG = [
       {
         title: 'New',
         items: [
-          'For composers: a Similar problems card on the home page finds published problems that look like yours.',
+          'For composers: a Similar problems card on the home page searches for positions close to yours, so you can check an original before you send it anywhere. The search runs in your browser \u2014 nothing is sent to a server.',
         ],
       },
     ],
@@ -376,3 +376,8 @@ export function ChangelogPage({ onClose }: ChangelogPageProps) {
     </div>
   );
 }
+
+/* The date of the newest entry, for the menu's badge. Exported from the log
+   itself so adding an entry is the whole of announcing it — there is no second
+   place to remember to bump. */
+export const LATEST_CHANGELOG_DATE = CHANGELOG[0].date;
