@@ -839,9 +839,33 @@ function parsePgnSolution(text: string, firstMoveColor: 'w' | 'b'): SolutionNode
  * Format: "a) bKa7-->a6" means move black King from a7 to a6.
  * Piece codes: b/w + K/Q/R/B/S/P, where S = Knight.
  */
+/**
+ * The text from "a)" on, or null when this is not a twin block.
+ *
+ * A zeroposition holds the block one line down. The diagram is not a problem
+ * in its own right -- only the twins are -- and YACPDB says so first:
+ * "{zeroposition}", "{(zero position)}", "{0-position}", or a fairy condition
+ * by name. Read past a preamble like that so the twins are found.
+ *
+ * Only when it carries no moves. A study labels its variations "A)" and "B)"
+ * at the start of a line, and twin markers are matched case-insensitively, so
+ * a solution that has already begun would otherwise be cut into "twins" at its
+ * own variation labels. The marker we skip forward to must be the lowercase
+ * "a)" YACPDB writes twins with, for the same reason.
+ */
+function twinBlockStart(trimmed: string): string | null {
+  if (/^a\)/i.test(trimmed)) return trimmed;
+  const at = trimmed.search(/\n[ \t]*a\)/);
+  if (at < 0) return null;
+  const preamble = trimmed.slice(0, at).replace(/\{[^}]*\}/g, ' ');
+  if (/\d\s*\.{1,3}\s*\S/.test(preamble)) return null; // a solution, not a preamble
+  return trimmed.slice(at).replace(/^\s+/, '');
+}
+
 export function extractTwinFenMods(solutionText: string): { from: string; to: string; }[] | null {
   if (!solutionText) return null;
-  const trimmed = solutionText.trim();
+  const trimmed = twinBlockStart(solutionText.trim());
+  if (!trimmed) return null;
   // Match "a) <modifications>" at the start
   const aMatch = trimmed.match(/^a\)\s*(.*?)(?:\n|$)/i);
   if (!aMatch) return null;
@@ -1166,8 +1190,8 @@ const TWIN_STIP_RE = /\{\s*([a-z]*[#=]\d*)\s*\}/i;
 
 export function parseTwins(solutionText: string, originalFen: string, firstMoveColor: 'w' | 'b' = 'w'): TwinData[] | null {
   if (!solutionText) return null;
-  const trimmed = solutionText.trim();
-  if (!trimmed.match(/^a\)/i)) return null; // Not a twin problem
+  const trimmed = twinBlockStart(solutionText.trim());
+  if (!trimmed) return null; // Not a twin problem
 
   // Split into twin sections: "a) ...", "b) ...", "+c) ..."
   const twinRegex = /(?:^|\n)\s*(\+?)([a-z])\)\s*/gi;
