@@ -9,7 +9,7 @@ const CHANGELOG = [
       {
         title: 'New',
         items: [
-          'For composers: a Similar problems card on the home page opens a checker that takes a position and comes back with the published problems that resemble it \u2014 the question you want answered before you send an original anywhere.',
+          'For composers: a Similar problems card on the home page finds published problems that look like yours.',
         ],
       },
     ],

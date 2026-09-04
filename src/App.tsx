@@ -2710,7 +2710,6 @@ export default function App() {
                 dailyProblemRating={dailyProblemRating}
                 onSolveDaily={handleSolveDaily}
                 dailySolved={dailySolved}
-                onShowChangelog={() => openStaticPage('#/whatsnew', () => setShowChangelog(true))}
                 onShowGuide={() => openGuide()}
                 onShowWcsc={() => openStaticPage('#/wcsc2026', () => setShowWcscPage(true))}
                 onShowThemes={() => openStaticPage('#/themes', () => setShowThemeGuide(true))}
@@ -3351,6 +3350,7 @@ export default function App() {
       <HamburgerMenu
         isOpen={showHamburgerMenu}
         onClose={() => setShowHamburgerMenu(false)}
+        onOpenChangelog={() => openStaticPage('#/whatsnew', () => setShowChangelog(true))}
         onOpenDailyHistory={() => {
           setShowHamburgerMenu(false);
           setShowDailyHistory(true);

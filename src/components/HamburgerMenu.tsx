@@ -8,13 +8,14 @@ interface HamburgerMenuProps {
   onOpenBookmarks: () => void;
   onOpenSearch: () => void;
   onOpenRatingSync: () => void;
+  onOpenChangelog: () => void;
   onGoToId: (id: number) => void;
   ratingSyncSeen: boolean;
 }
 
 export function HamburgerMenu({
   isOpen, onClose,
-  onOpenDailyHistory, onOpenHistory, onOpenBookmarks, onOpenSearch, onOpenRatingSync, onGoToId,
+  onOpenDailyHistory, onOpenHistory, onOpenBookmarks, onOpenSearch, onOpenRatingSync, onOpenChangelog, onGoToId,
   ratingSyncSeen,
 }: HamburgerMenuProps) {
   const [idInput, setIdInput] = useState('');
@@ -110,6 +111,24 @@ export function HamburgerMenu({
                 New
               </span>
             )}
+          </button>
+
+          {/* What's new. It was a button in the home page footer, where it
+              sat below everything on the page and was only found by someone
+              who had already scrolled to the bottom. Here it is one tap from
+              the top of the screen, and it is in reach from a problem page
+              too, which the footer never was. */}
+          <button
+            onClick={() => {
+              onOpenChangelog();
+              onClose();
+            }}
+            className="w-full text-left px-5 py-3 text-sm font-bold text-[var(--ink)] hover:bg-[var(--surface-2)] transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+            </svg>
+            What's new
           </button>
 
           <div className="h-0.5 bg-[var(--hairline)] my-2 mx-5" />

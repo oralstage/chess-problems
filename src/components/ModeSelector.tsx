@@ -16,7 +16,6 @@ interface ModeSelectorProps {
   dailyProblemRating?: number | null;
   onSolveDaily: () => void;
   dailySolved: boolean;
-  onShowChangelog?: () => void;
   onShowGuide?: () => void;
   onShowWcsc?: () => void;
   onShowThemes?: () => void;
@@ -99,7 +98,7 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
 ];
 
-export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowChangelog, onShowGuide, onShowWcsc, onShowThemes, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowGuide, onShowWcsc, onShowThemes, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -703,14 +702,6 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
       {/* ── Footer ── */}
       <footer className="text-center mt-16 px-4 space-y-1">
         <div className="flex items-center justify-center gap-3">
-          {onShowChangelog && (
-            <button
-              onClick={onShowChangelog}
-              className="nb-btn px-4 py-1.5 text-sm"
-            >
-              What's new
-            </button>
-          )}
           <a href="/about" className="nb-btn px-4 py-1.5 text-sm">
             About
           </a>
