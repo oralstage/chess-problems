@@ -3609,6 +3609,24 @@ export default function App() {
                     #{p.id}
                   </a>
                 </div>
+                {/* The same checker the home page points composers at, aimed
+                    at this problem: #id= loads it as the origin, so nothing
+                    has to be typed or pasted. It belongs on this line rather
+                    than in the panel below the board — this half of the sheet
+                    is the facts about the problem and where else to read
+                    about it, and the solving row is for carrying on solving.
+
+                    Only after the solve, which needs no condition of its own:
+                    the ⓘ button is hidden while solving, because the author
+                    and source it opens with are what the solver is not
+                    supposed to see yet. */}
+                <div>
+                  <span className="text-[var(--faint)] font-semibold">Diagram: </span>
+                  <a href={`https://similar-chess-problems.pages.dev/#id=${p.id}`} target="_blank" rel="noopener noreferrer"
+                    className="text-[var(--ink)] font-bold underline decoration-2 underline-offset-2">
+                    Similar problems ↗
+                  </a>
+                </div>
                 {(infoRating != null || (solveStats?.players ?? 0) > 0) && (
                   <div className="pt-2 mt-1 border-t-2 border-[var(--ink)] space-y-2">
                     <div className="text-[11px] font-extrabold uppercase tracking-wider text-[var(--faint)]">On this site</div>

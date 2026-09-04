@@ -10,6 +10,7 @@ const CHANGELOG = [
         title: 'New',
         items: [
           'For composers: a Similar problems card on the home page searches for positions close to yours, so you can check an original before you send it anywhere. The search runs in your browser \u2014 nothing is sent to a server.',
+          'Every problem\u2019s info panel links to the same search for that diagram, so you can see what the problem in front of you resembles.',
         ],
       },
     ],
