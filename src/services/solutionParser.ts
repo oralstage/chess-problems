@@ -862,33 +862,29 @@ function twinBlockStart(trimmed: string): string | null {
   return trimmed.slice(at).replace(/^\s+/, '');
 }
 
-export function extractTwinFenMods(solutionText: string): { from: string; to: string; }[] | null {
+export function extractTwinFenMods(solutionText: string): FenMod[] | null {
   if (!solutionText) return null;
   const trimmed = twinBlockStart(solutionText.trim());
   if (!trimmed) return null;
   // Match "a) <modifications>" at the start
   const aMatch = trimmed.match(/^a\)\s*(.*?)(?:\n|$)/i);
   if (!aMatch) return null;
-  const modLine = aMatch[1].trim();
+  /* The change and the start of the solution can share the line -- see the
+     same cut in parseTwins, which this has to agree with or the board would
+     not be the position twin a) is solved from. */
+  const line = aMatch[1];
+  const solAt = line.search(/(?<=\s)\d+\s*\./);
+  const modLine = (solAt > 0 ? line.slice(0, solAt) : line).trim();
   if (!modLine) return null; // a) with no modification — diagram position
 
-  // Match patterns like "bKa7-->a6", "wRh1-->h3"
-  const modPattern = /[bw][KQRBSP][a-h][1-8]\s*-->\s*[a-h][1-8]/gi;
-  const mods = modLine.match(modPattern);
-  if (!mods || mods.length === 0) return null;
-
-  return mods.map(mod => {
-    const clean = mod.replace(/\s/g, '');
-    // e.g. "bKa7-->a6"
-    const from = clean.slice(2, 4); // "a7"
-    const to = clean.slice(7, 9);   // "a6"
-    return { from, to };
-  });
+  const mods = parseTwinMods(modLine);
+  return mods.length > 0 ? mods : null;
 }
 
 /** FEN modification: move, add, or remove a piece */
 type FenMod =
   | { type: 'move'; from: string; to: string }
+  | { type: 'swap'; a: string; b: string }
   | { type: 'add'; square: string; piece: string }   // piece = FEN char like 'P','p','N','n'
   | { type: 'remove'; square: string };
 
@@ -901,46 +897,68 @@ function pieceToFen(colorPiece: string): string {
 }
 
 /** Parse twin modification line into FenMod array */
+/* How a twin names a piece. YACPDB is not consistent about it: colour first
+   ("wR"), piece first ("RW"), or the colour left off entirely ("R"), and the
+   arrow is written with one dash or two. */
+const PIECE_TAG = '(?:[bw][KQRBSP]|[KQRBSP][bw]|[KQRBSP])';
+
 export function parseTwinMods(modLine: string): FenMod[] {
   const mods: FenMod[] = [];
   if (!modLine) return mods;
 
-  // Move: "bKa7-->a6" or "wKc2 --> c1"
-  const movePattern = /([bw][KQRBSP])([a-h][1-8])\s*-->\s*([a-h][1-8])/gi;
-  let m;
-  while ((m = movePattern.exec(modLine)) !== null) {
-    mods.push({ type: 'move', from: m[2], to: m[3] });
-  }
+  /* Each pattern blanks what it claimed before the next one reads, so an
+     operand is never counted twice -- the "wR" of "-wRf3" as a substitution,
+     or the "wRg1-->" of a swap as a move.
 
-  // Remove: "-wRf3" or "-bBg8"
-  const removePattern = /-([bw][KQRBSP])([a-h][1-8])/gi;
-  while ((m = removePattern.exec(modLine)) !== null) {
-    mods.push({ type: 'remove', square: m[2] });
-  }
-
-  // Add: "+wBb3" or "+bSg8"
-  const addPattern = /\+([bw][KQRBSP])([a-h][1-8])/gi;
-  while ((m = addPattern.exec(modLine)) !== null) {
-    // Skip if this is "+b)" twin marker (not a piece addition)
-    if (m[1].toLowerCase() === 'b)' || /^\+[b-z]\)/.test(m[0])) continue;
-    mods.push({ type: 'add', square: m[2], piece: pieceToFen(m[1]) });
-  }
-
-  // Substitution: a bare "wRa8" means the piece standing on a8 becomes a white
-  // rook. Blank out everything the patterns above already claimed so their
-  // operands (the "wR" of "-wRf3", the "wK" of "wKc2-->c1") are not read a
-  // second time as substitutions.
+     The patterns run in the order that keeps them from stealing each other's
+     text, which is not the order the changes have to be applied in: in
+     "-wPh2 wKh3-->h2" the pawn has to leave h2 before the king arrives, or
+     the king is what gets removed. So each change remembers where it was
+     written and they are sorted back into that order at the end. */
+  const at: number[] = [];
   let rest = modLine;
-  for (const pattern of [movePattern, removePattern, addPattern]) {
+  const take = (pattern: RegExp, onMatch: (m: RegExpExecArray) => void) => {
+    pattern.lastIndex = 0;
+    let m;
+    while ((m = pattern.exec(rest)) !== null) {
+      const before = mods.length;
+      onMatch(m);
+      for (let i = before; i < mods.length; i++) at[i] = m.index;
+    }
     pattern.lastIndex = 0;
     rest = rest.replace(pattern, (matched) => ' '.repeat(matched.length));
-  }
-  const substPattern = /([bw][KQRBSP])([a-h][1-8])/gi;
-  while ((m = substPattern.exec(rest)) !== null) {
-    mods.push({ type: 'add', square: m[2], piece: pieceToFen(m[1]) });
-  }
+  };
 
-  return mods;
+  // Swap: "wRg1<-->wSh4", "SWc1<->KWf7" -- the two squares trade pieces. Read
+  // before the move patterns, whose arrow is a part of this one.
+  take(new RegExp(`${PIECE_TAG}([a-h][1-8])\\s*<-{1,2}>\\s*${PIECE_TAG}([a-h][1-8])`, 'gi'),
+    m => mods.push({ type: 'swap', a: m[1], b: m[2] }));
+
+  // Move: "bKa7-->a6", "wKc2 --> c1", "Ra3->f8"
+  take(new RegExp(`${PIECE_TAG}([a-h][1-8])\\s*-{1,2}>\\s*([a-h][1-8])`, 'gi'),
+    m => mods.push({ type: 'move', from: m[1], to: m[2] }));
+
+  // Remove: "-wRf3", "-bBg8", "-Bd6", "- wPa6"
+  take(new RegExp(`-\\s*${PIECE_TAG}([a-h][1-8])`, 'gi'),
+    m => mods.push({ type: 'remove', square: m[1] }));
+
+  // Add: "+wBb3" or "+bSg8"
+  take(/\+([bw][KQRBSP])([a-h][1-8])/gi, m => {
+    // Skip if this is "+b)" twin marker (not a piece addition)
+    if (m[1].toLowerCase() === 'b)' || /^\+[b-z]\)/.test(m[0])) return;
+    mods.push({ type: 'add', square: m[2], piece: pieceToFen(m[1]) });
+  });
+
+  // Substitution: a bare "wRa8" means the piece standing on a8 becomes a white
+  // rook. Only the spelt-out colour counts here -- a bare "Ra8" would swallow
+  // any stray piece-and-square in the line.
+  take(/([bw][KQRBSP])([a-h][1-8])/gi,
+    m => mods.push({ type: 'add', square: m[2], piece: pieceToFen(m[1]) }));
+
+  return mods
+    .map((mod, i) => ({ mod, i }))
+    .sort((x, y) => at[x.i] - at[y.i] || x.i - y.i)
+    .map(e => e.mod);
 }
 
 /**
@@ -977,6 +995,12 @@ export function applyTwinMods(fen: string, mods: FenMod[] | { from: string; to: 
           board[f.row][f.col] = '';
           board[t.row][t.col] = piece;
         }
+      } else if (mod.type === 'swap') {
+        const a = sq(mod.a);
+        const b = sq(mod.b);
+        const tmp = board[a.row][a.col];
+        board[a.row][a.col] = board[b.row][b.col];
+        board[b.row][b.col] = tmp;
       } else if (mod.type === 'remove') {
         const s = sq(mod.square);
         board[s.row][s.col] = '';
@@ -1224,11 +1248,18 @@ export function parseTwins(solutionText: string, originalFen: string, firstMoveC
       TWIN_GEO_RE.test(firstLine)
       || TWIN_SHIFT_RE.test(firstLine)
       || TWIN_STIP_RE.test(firstLine)
-      || /[bw][KQRBSP][a-h][1-8]\s*-->|^-[bw][KQRBSP]|^\+[bw][KQRBSP][a-h]/.test(firstLine)
+      || new RegExp(`${PIECE_TAG}[a-h][1-8]\\s*<?-{1,2}>|^-\\s*${PIECE_TAG}[a-h][1-8]|^\\+[bw][KQRBSP][a-h]`, 'i').test(firstLine)
       || /^[bw][KQRBSP][a-h][1-8](?:\s+[bw][KQRBSP][a-h][1-8])*$/.test(firstLine)
     );
-    const modLine = hasMod ? firstLine : '';
-    const solText = hasMod ? lines.slice(1).join('\n') : content;
+    /* A twin can hold its change and the start of its solution on one line:
+       "a) wBf4-->a8 1. Sa6-c5 Kd4*c5 ...". Claiming the whole line as the
+       change threw that first move away and left a) unsolvable -- with the
+       key gone, the second move became the key. Cut at the move number. */
+    const solOnModLine = hasMod ? firstLine.search(/(?<=\s)\d+\s*\./) : -1;
+    const modLine = hasMod ? (solOnModLine > 0 ? firstLine.slice(0, solOnModLine).trim() : firstLine) : '';
+    const solText = hasMod
+      ? (solOnModLine > 0 ? [firstLine.slice(solOnModLine), ...lines.slice(1)].join('\n') : lines.slice(1).join('\n'))
+      : content;
     twins.push({
       id: splits[i].id,
       cumulative: splits[i].cumulative,
