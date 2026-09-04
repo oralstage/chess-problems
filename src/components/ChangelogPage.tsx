@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-09-05',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'For composers: a Similar problems card on the home page opens a checker that takes a position and comes back with the published problems that resemble it \u2014 the question you want answered before you send an original anywhere.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-09-03',
     sections: [
       {

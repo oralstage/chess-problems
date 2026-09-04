@@ -30,6 +30,13 @@ const SAGE = 'var(--surface-2)';
 const GREEN = 'var(--board-d)';
 const RED = 'var(--bad)';
 
+/* One jigsaw piece, 18 by 18, centred on its own origin so a transform can
+   place and tilt it: flat left and bottom, a socket in the top edge and a tab
+   on the right. Both halves of the Similar problems mark use this same string
+   — if the two pieces stopped being identical the drawing would stop saying
+   what it is there to say. */
+const PIECE = 'M-9 -9H-3.2c0 3.4 6.4 3.4 6.4 0H9V-3.2c3.4 0 3.4 6.4 0 6.4V9H-9Z';
+
 /* The three rated pools reuse their genre's drawing, so the button for the
    direct pool is recognisably the same object as the Direct Mates row. Pulled
    out as fragments rather than duplicated: a change to the target has to reach
@@ -280,6 +287,29 @@ function markBody(name: string) {
               only thing that would stop it reading as that flag. */}
           <rect x="22" y="2" width="20.5" height="13.7" rx="1.4" fill={CREAM} strokeWidth={2.2} />
           <circle cx="32.25" cy="8.85" r="4.1" fill={RED} stroke="none" />
+        </svg>
+      );
+
+    /* The anticipation checker, which asks one question: has this position
+       already been composed? So the drawing is two jigsaw pieces of the SAME
+       shape — one path, drawn twice — because that is the answer the tool
+       comes back with. A single piece was better looking and said nothing:
+       it is a puzzle, which the whole site is.
+
+       Both pieces keep the tab on the right and the socket on the top, so
+       they are the same piece rather than two that interlock. Interlocking
+       them was tried and dropped: side by side they close up into one bar
+       and the "two" disappears, and stacked they leave a white crescent
+       where the socket meets the piece behind. */
+    case 'Similar problems':
+      return (
+        <svg {...box}>
+          <g transform="translate(15.5 16.5) rotate(-8) scale(1.09)">
+            <path d={PIECE} fill={CREAM} strokeWidth={2.8} />
+          </g>
+          <g transform="translate(28.5 28.5) rotate(9) scale(1.09)">
+            <path d={PIECE} fill={GREEN} strokeWidth={2.8} />
+          </g>
         </svg>
       );
 

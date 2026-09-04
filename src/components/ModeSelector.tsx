@@ -651,6 +651,55 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         </a>
       </div>
 
+      {/* ── For composers ── */}
+      {/* Last of the sections, and the only one not addressed to a solver: the
+          people who make these things. It sits below the Guide because the
+          audience is the narrowest on the page — put anywhere higher, every
+          solver has to step over it to reach what they came for.
+
+          The heading object is a stave with one note. The field borrows its
+          words from music — composer, composition, key, theme, variation —
+          so a written score is what "composer" looks like here, and the
+          stave is what keeps a bare note from reading as a sound toggle.
+          The lines are ink: --board-d was tried first and vanished, because
+          the page's ground IS that green, and every other object gets away
+          with green only as a fill inside an ink outline. */}
+      <div className="px-4 mt-6 mb-2">
+        <div className="nb-section-head">
+          <h2>For composers</h2>
+          <span className="nb-heading-object" style={{ width: '3.5rem', height: '2.75rem', transform: 'translateY(-50%) rotate(-4deg)' }} aria-hidden="true">
+            {/* Drawn, not the ♪ character: Safari renders some of those as
+                emoji glyphs, where colour and transform stop applying. */}
+            <svg viewBox="0 0 56 44" fill="none" stroke="var(--ink)" strokeLinecap="round" strokeLinejoin="round">
+              <g strokeWidth="2"><path d="M2 14h52M2 22h52M2 30h52" /></g>
+              <path d="M31.6 22V5" strokeWidth="3.2" />
+              <path d="M31.6 5.5c8 1.5 11 6 9.5 12" strokeWidth="3.4" />
+              {/* Head on the middle line, so lines run above and below it and
+                  the mark reads as a note in a stave rather than one sitting
+                  on a rule. No outline on the head — at this size a 3px
+                  stroke eats a 10px ellipse and leaves a blob. */}
+              <ellipse cx="25" cy="22" rx="7" ry="5.4" transform="rotate(-20 25 22)" fill="var(--ink)" stroke="none" />
+            </svg>
+          </span>
+        </div>
+      </div>
+
+      {/* Same card as everywhere else, and it leaves — the sister site's tile
+          set the form for that. One card in the three-column grid, so it is
+          the width of every other tile instead of a banner. */}
+      <div className="grid grid-cols-3 gap-2.5 px-4">
+        <a
+          href="https://similar-chess-problems.pages.dev"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={CARD}
+          style={{ backgroundColor: 'var(--card-help)' }}
+        >
+          <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Similar problems" /></span>
+          <span className={CARD_TITLE}>Similar problems</span>
+        </a>
+      </div>
+
       {/* ── Footer ── */}
       <footer className="text-center mt-16 px-4 space-y-1">
         <div className="flex items-center justify-center gap-3">
