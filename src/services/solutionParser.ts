@@ -193,6 +193,10 @@ interface Segment {
   hasThreatLabel: boolean; // "threat:" label — children are threats, not this segment itself
   annotation: string;
   afterBlankLine: boolean; // preceded by a blank line (section break)
+  /** The indent as written. `indent` is overwritten with a virtual one when the
+   *  source does not indent its tree, and then it no longer says anything about
+   *  what the writer put where. */
+  sourceIndent: number;
 }
 
 /**
@@ -573,6 +577,7 @@ function parseSegments(solutionText: string): Segment[] {
         hasThreatLabel,
         annotation,
         afterBlankLine: segIndex === 0 && lastLineWasBlank,
+        sourceIndent: lineIndent,
       });
       segIndex++;
     }
@@ -604,6 +609,7 @@ function parseSegments(solutionText: string): Segment[] {
           hasThreatLabel: false,
           annotation: '',
           afterBlankLine: false,
+          sourceIndent: lineIndent,
         });
         segIndex++;
       }
@@ -1371,7 +1377,9 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
   const stack: {
     node: SolutionNode;
     indent: number;
+    sourceIndent: number;
     isThreatParent: boolean;
+    isThreatNode: boolean;
     moveNum: number | null;
     isBlackNum: boolean;
   }[] = [];
@@ -1418,7 +1426,23 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
       && (seg.indent > stackTopIndent || moveNumIncreased || moveNumContinued);
 
     if (!isSameLineFollow) {
-      if (seg.afterBlankLine) {
+      /* A blank line separates the sections a source writes -- set play, each
+         try, the key -- and each starts over at the left margin. It does not
+         separate a line of play from the answers to it: sources put a blank
+         line between the threat and the defences that follow it, and resetting
+         there dropped every defence out of the key and into a root of its own,
+         where key filtering discarded it (D2674 lost seven). So a segment
+         indented deeper than the section it is standing in is a continuation of
+         that section, blank line or not, and the indent decides where it
+         attaches as usual.
+
+         The indent as written, not the virtual one: a flat source has its
+         indents computed from move numbers, where a defence always comes out
+         deeper than the key, and the exception would swallow every section
+         break in the file (D324140 lost its key to the try above it). */
+      const blankBreaksSection = seg.afterBlankLine
+        && !(stack.length > 0 && seg.sourceIndent > stack[0].sourceIndent);
+      if (blankBreaksSection) {
         // Blank line = section break: reset stack to start a new section
         stack.length = 0;
       } else if (restartsAtMoveOne && stack.length > 0) {
@@ -1438,8 +1462,35 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
         // defence that followed it (D40016).
         const sameTurnAs = (e: { moveNum: number | null; isBlackNum: boolean }) =>
           seg.moveNum !== null && e.moveNum === seg.moveNum && e.isBlackNum === seg.isBlackNum;
+        /* A threat is what the attacker plays if the defender does nothing, so
+           the answers to the defender's move 1 stand beside it, never inside
+           it. A source that writes the threat on the key's own line
+           ("1.Qa1-a8 ! threat:  2.Sd2-c4 #") leaves it at the key's indent,
+           where indent alone cannot pop it, and every defence indented under
+           the key was read as a continuation of the threat instead (D297 hid
+           four that way, and key filtering then had nothing to keep). A move
+           can never be inside a later one, so the number settles it.
+
+           Threats only. The same rule applied to every node is more correct on
+           its face and fixes a few hundred more, but retro solutions number
+           moves by a convention of their own -- they undo moves rather than
+           make them -- and it took two of them apart (D629598 went from one key
+           to five, D676378 from one to three). */
+        const threatOfALaterMove = (e: { isThreatNode: boolean; moveNum: number | null }) =>
+          e.isThreatNode && e.moveNum !== null && seg.moveNum !== null && e.moveNum > seg.moveNum;
+        /* "1...Bg6-h5" answers "1.Sf5-d4", whatever column it is written in.
+           Plenty of sources put the defences flush with the key instead of
+           indenting them under it, and the indent rule then popped the key and
+           made every defence a root of its own, where key filtering dropped it
+           (D511 lost four). So stop popping at the move of the same number by
+           the other side -- the one this segment is an answer to. */
+        const isTheMoveAnsweredBy = (e: { moveNum: number | null; isBlackNum: boolean }) =>
+          seg.isBlackNum && !e.isBlackNum && e.moveNum !== null && e.moveNum === seg.moveNum;
         while (stack.length > 0
-          && (stack[stack.length - 1].indent >= seg.indent || sameTurnAs(stack[stack.length - 1]))) {
+          && !isTheMoveAnsweredBy(stack[stack.length - 1])
+          && (stack[stack.length - 1].indent >= seg.indent
+            || sameTurnAs(stack[stack.length - 1])
+            || threatOfALaterMove(stack[stack.length - 1]))) {
           stack.pop();
         }
       }
@@ -1480,7 +1531,9 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
       stack.push({
         node,
         indent: seg.indent + i,
+        sourceIndent: seg.sourceIndent,
         isThreatParent: i === 0 && (seg.isThreat || seg.hasThreatLabel),
+        isThreatNode: isNodeThreat,
         // Only the segment's opening move carries its number; the moves chained
         // after it on the same line are a different turn each.
         moveNum: i === 0 ? seg.moveNum : null,
