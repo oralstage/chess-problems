@@ -3,6 +3,28 @@ import type { SolutionNode } from '../types';
 import { moveSanLenient } from './sanResolve';
 
 /**
+ * A duplex source lists the two halves in turn -- "1.Kf1-g1 ..." then
+ * "1...Rh1-h8 ..." -- and since 4ae2f37 the parser reads a "1..." line that
+ * follows a "1." line as the answer to it, which for a direct mate it is.
+ * In a duplex it is the other half: an independent White-to-play solution,
+ * which has to be a root to be flipped, counted and played (H501636 lost one
+ * of its four solutions that way). So a White move numbered 1 that hangs
+ * directly under a black root is put back beside it. Duplex only: in an
+ * ordinary helpmate the same shape is a second White reply to the black
+ * solution, and there it belongs where it hangs.
+ */
+function liftWhiteHalves(roots: SolutionNode[]): void {
+  for (const root of [...roots]) {
+    if (root.color !== 'b') continue;
+    const halves = root.children.filter(c => c.color === 'w' && c.moveNum === 1);
+    if (halves.length === 0) continue;
+    root.children = root.children.filter(c => !halves.includes(c));
+    const at = roots.indexOf(root) + 1;
+    roots.splice(at, 0, ...halves);
+  }
+}
+
+/**
  * Duplex helpmates are solved twice from the same diagram: once with Black
  * moving first (the ordinary h#N) and once with White moving first, Black and
  * White cooperating to mate the white king. YACPDB writes both solutions with
@@ -29,6 +51,7 @@ import { moveSanLenient } from './sanResolve';
  */
 export function flipDuplexRoots(roots: SolutionNode[], fen: string, keywords: string[] | undefined, genre: string): boolean {
   if (genre !== 'help' || !keywords?.includes('Duplex')) return false;
+  liftWhiteHalves(roots);
   let flipped = false;
   for (const root of roots) {
     if (root.color !== 'b') continue;
