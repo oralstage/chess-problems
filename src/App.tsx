@@ -28,6 +28,17 @@ import { ThemeGuidePage } from './components/ThemeGuidePage';
 import { ChangelogPage, LATEST_CHANGELOG_DATE } from './components/ChangelogPage';
 import { GuidePage } from './components/GuidePage';
 import { HistoryPage } from './components/HistoryPage';
+import { ReportIssue } from './components/ReportIssue';
+
+/** Asset hash of the running bundle, to tell which deploy a report came from. */
+function currentBuild(): string {
+  try {
+    const el = document.querySelector('script[type="module"][src]') as HTMLScriptElement | null;
+    return el?.src.match(/index-([A-Za-z0-9_-]+)\./)?.[1] ?? '';
+  } catch {
+    return '';
+  }
+}
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins, extractSolutionNotes } from './services/solutionParser';
@@ -281,6 +292,10 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [showDailyHistory, setShowDailyHistory] = useState(false);
   const [showProblemInfo, setShowProblemInfo] = useState(false);
+  // Non-null while the report sheet is open; holds the snapshot taken when it
+  // was opened, so what the sender sees under "Sent with this" is exactly what
+  // gets sent.
+  const [reportContext, setReportContext] = useState<Record<string, unknown> | null>(null);
   const [showSolveStats, setShowSolveStats] = useState(false);
   const [showSiteStats, setShowSiteStats] = useState(false);
   const [siteStats, setSiteStats] = useState<import('./services/api').SiteStats | null>(null);
@@ -1877,6 +1892,33 @@ export default function App() {
   // Track solve timing for solve events
   const solveStartTimeRef = useRef<number | null>(null);
   const hintUsedRef = useRef(false);
+
+  // Snapshot for the report sheet, taken when it opens. The reports worth
+  // having are about problems that behave when I reopen the id and did not
+  // behave for the sender, so the position as it stood and the moves they
+  // played are the report — the comment is optional.
+  const openReportSheet = useCallback(() => {
+    const p = problem.problem;
+    const twin = activeTwinId && p?.twins
+      ? p.twins.find(t => t.id === activeTwinId)?.label
+      : undefined;
+    setReportContext({
+      problem: p ? `D${p.id}` : null,
+      stipulation: p?.stipulation ?? '',
+      genre: p?.genre ?? currentGenre ?? '',
+      ...(twin ? { twin } : {}),
+      position: problem.initialFen || p?.fen || '',
+      movesPlayed: problem.moveHistory.join(' '),
+      outcome: problem.status === 'correct' ? 'solved' : 'gave up',
+      wrongMoves: problem.wrongMoveCount,
+      hintUsed: hintUsedRef.current,
+      mode: isRatedMode ? 'rated' : isReviewMode ? 'review'
+        : isDaily ? 'daily' : isWcsc ? 'event' : 'browsing',
+      page: window.location.href,
+      build: currentBuild(),
+      browser: navigator.userAgent,
+    });
+  }, [problem, currentGenre, activeTwinId, isRatedMode, isReviewMode, isDaily, isWcsc]);
   useEffect(() => {
     if (hashRestoredRef.current) return;
     hashRestoredRef.current = true;
@@ -3239,6 +3281,7 @@ export default function App() {
                 blackToMoveFirst={problem.problem.genre !== 'help' && problem.initialFen.split(' ')[1] === 'b'}
                 difficultyLocked={isRatedMode && problem.totalSolutions > 1 && problem.status === 'solving'
                   && (problem.moveHistory.length > 0 || problem.foundSolutionCount > 0)}
+                onReportIssue={openReportSheet}
               />}
 
               {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {
@@ -3695,6 +3738,14 @@ export default function App() {
             )}
           </div>
         </div>
+      )}
+
+      {reportContext && (
+        <ReportIssue
+          problemId={problem.problem?.id ?? null}
+          context={reportContext}
+          onClose={() => setReportContext(null)}
+        />
       )}
     </div>
   );

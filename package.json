@@ -20,7 +20,8 @@
     "daily-post:install": "node scripts/install-daily-post-launch-agent.mjs",
     "fetch-data": "tsx scripts/fetch-problems.ts",
     "test:parser": "tsx scripts/parser-regression.ts",
-    "test:move-input": "tsx scripts/move-input-regression.ts"
+    "test:move-input": "tsx scripts/move-input-regression.ts",
+    "feedback": "node scripts/read-feedback.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",

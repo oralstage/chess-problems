@@ -57,6 +57,9 @@ interface FeedbackPanelProps {
   /** Rated multi-solution problem underway: the pool can't be changed
    *  mid-match, or switching would be a free escape from the hard half. */
   difficultyLocked?: boolean;
+  /** Opens the report sheet. Offered only once the solve is decided:
+   *  while solving, nobody can tell a broken problem from a hard one. */
+  onReportIssue?: () => void;
 }
 
 const COUNT_WORDS = ['none', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
@@ -109,6 +112,7 @@ export function FeedbackPanel({
   duplex = null,
   blackToMoveFirst = false,
   difficultyLocked,
+  onReportIssue,
 }: FeedbackPanelProps) {
   return (
     <div className="space-y-3">
@@ -490,6 +494,21 @@ export function FeedbackPanel({
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* The way to say a problem misbehaved. It sits under both decided
+          states rather than inside either: what gets reported is the same
+          whether the solve went through or not, and while solving there is
+          nothing to tell a broken problem from a hard one. */}
+      {!classicBoard && onReportIssue && (status === 'correct' || status === 'viewing') && (
+        <div className="flex justify-end">
+          <button
+            onClick={onReportIssue}
+            className="text-xs text-[var(--faint)] underline decoration-dotted underline-offset-2 hover:text-[var(--ink)]"
+          >
+            Something looks wrong
+          </button>
         </div>
       )}
     </div>

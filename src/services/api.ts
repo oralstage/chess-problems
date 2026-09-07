@@ -857,3 +857,34 @@ export function metaToChessProblem(meta: ProblemMeta, solutionText?: string): Ch
     award: meta.award,
   };
 }
+
+// ── Problem reports ──
+
+export interface ProblemFeedbackData {
+  problemId: number | null;
+  comment: string;
+  context: Record<string, unknown>;
+}
+
+/**
+ * Send a "Something looks wrong" report. Resolves to false when the send
+ * fails, so the sheet can say so rather than claim a report that never left.
+ */
+export async function submitProblemFeedback(data: ProblemFeedbackData): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/problem-feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        problemId: data.problemId,
+        sessionId: getSessionId(),
+        dev: isDevMode(),
+        comment: data.comment,
+        context: data.context,
+      }),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

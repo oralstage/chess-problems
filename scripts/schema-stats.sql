@@ -94,3 +94,23 @@ CREATE TABLE IF NOT EXISTS stats_cache (
 -- problem_id index exists, but the planner picked (excluded, dev) and scanned
 -- the whole table for every solve-stats call.
 CREATE INDEX IF NOT EXISTS idx_solve_problem_full ON solve_events(problem_id, excluded, dev);
+
+-- Reports sent from the "Something looks wrong" button under a solved or
+-- given-up problem. Everything but the comment is filled in by the app, so a
+-- report costs the sender one tap: the point is to catch the problems that
+-- only misbehave for one person, where reopening the id here reproduces
+-- nothing. Read them with `npm run feedback`.
+CREATE TABLE IF NOT EXISTS problem_feedback (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  problem_id INTEGER,
+  session_id TEXT NOT NULL DEFAULT '',
+  dev INTEGER NOT NULL DEFAULT 0,
+  comment TEXT NOT NULL DEFAULT '',
+  context TEXT NOT NULL DEFAULT '{}',
+  country TEXT NOT NULL DEFAULT '',
+  handled INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON problem_feedback(created_at);
+CREATE INDEX IF NOT EXISTS idx_feedback_problem ON problem_feedback(problem_id);
