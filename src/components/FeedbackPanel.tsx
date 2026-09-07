@@ -507,7 +507,9 @@ export function FeedbackPanel({
             onClick={onReportIssue}
             className="nb-btn px-3 py-1.5 text-xs"
           >
-            Something looks wrong
+            {/* The button is the signpost, so it says plainly what kind of
+                button it is; the sheet it opens does the talking. */}
+            ⚠ Bug report
           </button>
         </div>
       )}

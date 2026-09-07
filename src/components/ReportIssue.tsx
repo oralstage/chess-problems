@@ -3,8 +3,9 @@ import { submitProblemFeedback } from '../services/api';
 
 interface ReportIssueProps {
   problemId: number | null;
-  /** Filled in by the app: the position as it was shown, the moves played,
-   *  the mode, the build. Shown in full behind "Sent with this". */
+  /** Filled in by the app and sent as-is: the position as it was shown, the
+   *  moves played, the mode, the build, the browser. Summed up for the sender
+   *  in one line rather than printed. */
   context: Record<string, unknown>;
   onClose: () => void;
 }
@@ -24,7 +25,6 @@ export function ReportIssue({ problemId, context, onClose }: ReportIssueProps) {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [failed, setFailed] = useState(false);
-  const [showContext, setShowContext] = useState(false);
 
   const send = async () => {
     setSending(true);
@@ -68,20 +68,13 @@ export function ReportIssue({ problemId, context, onClose }: ReportIssueProps) {
               />
             </label>
 
-            <div className="text-xs text-[var(--faint)]">
-              <button
-                onClick={() => setShowContext(v => !v)}
-                className="text-left underline decoration-dotted underline-offset-2"
-              >
-                Sent with this: {problemId != null ? `D${problemId}` : 'this page'}, the position,
-                and the moves you played {showContext ? '▾' : '▸'}
-              </button>
-              {showContext && (
-                <pre className="mt-2 max-h-40 overflow-auto rounded bg-[var(--surface-2)] p-2 text-[10px] leading-snug whitespace-pre-wrap break-all">
-                  {JSON.stringify(context, null, 1)}
-                </pre>
-              )}
-            </div>
+            {/* Said, not shown: the snapshot is JSON, which is unreadable to
+                most of the people this sheet is for, and one sentence covers
+                what is in it. */}
+            <p className="text-xs text-[var(--faint)]">
+              Sent with this: {problemId != null ? `D${problemId}` : 'this page'}, the position,
+              the moves you played, and your browser version.
+            </p>
 
             {failed && (
               <p className="text-xs text-[var(--bad)] font-semibold">Couldn't send. Try again in a moment.</p>
