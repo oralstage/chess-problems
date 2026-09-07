@@ -44,7 +44,7 @@ export function ReportIssue({ problemId, context, onClose }: ReportIssueProps) {
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
       <div className="nb-sheet relative max-w-sm w-full mx-4 p-5 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-extrabold text-[var(--ink)]">Something looks wrong</h3>
+          <h3 className="text-lg font-extrabold text-[var(--ink)]">Bug report</h3>
           <button onClick={onClose} className="nb-disc" aria-label="Close">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -56,8 +56,17 @@ export function ReportIssue({ problemId, context, onClose }: ReportIssueProps) {
           <p className="text-sm text-[var(--ink)] py-4 font-semibold">Thanks — sent.</p>
         ) : (
           <>
+            {/* The title names the sheet, this line says what it does, and the
+                label below is quiet enough to read as an offer. Someone who
+                arrives with nothing to type should still reach Send. */}
+            <p className="text-sm text-[var(--ink)]">
+              Something looks wrong with this problem? Send it over.
+            </p>
+
             <label className="block">
-              <span className="text-sm text-[var(--faint)] font-semibold">What happened? (optional)</span>
+              <span className="text-xs font-semibold text-[var(--faint)]">
+                What happened? <span className="font-normal opacity-70">optional</span>
+              </span>
               <textarea
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
