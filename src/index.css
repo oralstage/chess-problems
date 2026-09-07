@@ -617,6 +617,10 @@ body {
   font-weight: 500;
 }
 
+/* The pill radius belongs to one-line fields. On a multi-line box the curve
+   eats the first and last lines of what is being typed. */
+textarea.nb-input { border-radius: var(--radius-nb); }
+
 .nb-rule { background: var(--ink); border-radius: 2px; }
 
 .nb-panel-label {

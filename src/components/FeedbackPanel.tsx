@@ -505,7 +505,7 @@ export function FeedbackPanel({
         <div className="flex justify-end">
           <button
             onClick={onReportIssue}
-            className="text-xs text-[var(--faint)] underline decoration-dotted underline-offset-2 hover:text-[var(--ink)]"
+            className="nb-btn px-3 py-1.5 text-xs"
           >
             Something looks wrong
           </button>
