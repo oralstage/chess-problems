@@ -71,7 +71,7 @@ export function ReportIssue({ problemId, context, onClose }: ReportIssueProps) {
             <div className="text-xs text-[var(--faint)]">
               <button
                 onClick={() => setShowContext(v => !v)}
-                className="underline decoration-dotted underline-offset-2"
+                className="text-left underline decoration-dotted underline-offset-2"
               >
                 Sent with this: {problemId != null ? `D${problemId}` : 'this page'}, the position,
                 and the moves you played {showContext ? '▾' : '▸'}
