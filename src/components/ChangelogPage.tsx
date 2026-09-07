@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-09-08',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'A Bug report button now sits under every problem once you have solved it or given up. If a problem misbehaves \u2014 the solution will not play, your move is refused, the board does not match the diagram \u2014 press it. Writing anything is optional: the problem number, the position and the moves you played travel with the report, so I can see what you saw.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-09-05',
     sections: [
       {
