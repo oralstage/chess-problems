@@ -105,6 +105,7 @@ CREATE TABLE IF NOT EXISTS problem_feedback (
   problem_id INTEGER,
   session_id TEXT NOT NULL DEFAULT '',
   dev INTEGER NOT NULL DEFAULT 0,
+  categories TEXT NOT NULL DEFAULT '[]',
   comment TEXT NOT NULL DEFAULT '',
   context TEXT NOT NULL DEFAULT '{}',
   country TEXT NOT NULL DEFAULT '',

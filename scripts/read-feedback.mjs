@@ -24,7 +24,7 @@ const onlyId = flag('id', null);
 const where = [`dev = ${dev ? 1 : 0}`];
 if (onlyId) where.push(`problem_id = ${Number(onlyId)}`);
 
-const sql = `SELECT id, problem_id, comment, context, country, created_at, handled
+const sql = `SELECT id, problem_id, categories, comment, context, country, created_at, handled
   FROM problem_feedback WHERE ${where.join(' AND ')}
   ORDER BY id DESC LIMIT ${limit}`;
 
@@ -62,6 +62,10 @@ for (const r of rows) {
     r.handled ? '· handled' : '',
   ].filter(Boolean).join('  ');
   console.log(head);
+
+  let picked = [];
+  try { picked = JSON.parse(r.categories || '[]'); } catch { /* stored as-is */ }
+  if (picked.length) console.log(`   ${picked.join(' · ')}`);
 
   if (r.comment) console.log(`   "${r.comment}"`);
 

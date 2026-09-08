@@ -9,7 +9,7 @@ const CHANGELOG = [
       {
         title: 'New',
         items: [
-          'A Bug report button now sits under every problem once you have solved it or given up. If a problem misbehaves \u2014 the solution will not play, your move is refused, the board does not match the diagram \u2014 press it. Writing anything is optional: the problem number, the position and the moves you played travel with the report, so I can see what you saw.',
+          'A Bug report button now sits under every problem, once you have solved it or given up. If the solution will not play, your move is refused, or the position looks wrong, press it \u2014 ticking a box is enough. The problem number, the position and the moves you played come along, which is usually all it takes to find the fault and fix it. Every report gets read. Thank you!',
         ],
       },
     ],

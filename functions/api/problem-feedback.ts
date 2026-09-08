@@ -22,11 +22,15 @@ interface FeedbackBody {
   problemId?: number;
   sessionId?: string;
   dev?: boolean;
+  categories?: string[];
   comment?: string;
   context?: Record<string, unknown>;
 }
 
 const COMMENT_MAX = 1000;
+// The sheet offers six; anything past a handful was not ticked by a person.
+const CATEGORIES_MAX = 10;
+const CATEGORY_LEN = 60;
 // Long selfmate lines plus the FEN and the user agent stay well inside this;
 // anything past it is not a report.
 const CONTEXT_MAX = 4096;
@@ -61,6 +65,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.slice(0, 64) : '';
   const dev = body.dev ? 1 : 0;
   const comment = typeof body.comment === 'string' ? body.comment.slice(0, COMMENT_MAX) : '';
+  const categories = Array.isArray(body.categories)
+    ? JSON.stringify(body.categories
+        .filter((c): c is string => typeof c === 'string')
+        .slice(0, CATEGORIES_MAX)
+        .map(c => c.slice(0, CATEGORY_LEN)))
+    : '[]';
 
   // The context is the whole value of a report with no comment, so an
   // oversized one is dropped rather than truncated: half a JSON object
@@ -79,8 +89,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const country = context.request.headers.get('CF-IPCountry') || '';
 
   await context.env.STATS_DB.prepare(
-    'INSERT INTO problem_feedback (problem_id, session_id, dev, comment, context, country) VALUES (?, ?, ?, ?, ?, ?)'
-  ).bind(problemId, sessionId, dev, comment, ctx, country).run();
+    'INSERT INTO problem_feedback (problem_id, session_id, dev, categories, comment, context, country) VALUES (?, ?, ?, ?, ?, ?, ?)'
+  ).bind(problemId, sessionId, dev, categories, comment, ctx, country).run();
 
   return Response.json({ ok: true }, { status: 201 });
 };

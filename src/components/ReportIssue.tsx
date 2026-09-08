@@ -10,26 +10,48 @@ interface ReportIssueProps {
   onClose: () => void;
 }
 
+/** What actually goes wrong, in the words of someone who just hit it. Ticking
+ *  is one tap where writing a sentence in a second language is not. */
+const ISSUES = [
+  "The solution doesn't work",
+  'My move was refused',
+  'The solution stops early',
+  'Another move also solves it',
+  'The position looks wrong',
+  'Something else',
+];
+const OTHER = 'Something else';
+
 /**
- * The sheet behind "Something looks wrong", offered once a problem is decided
- * — before that nobody can tell a broken problem from a hard one.
+ * The sheet behind "Bug report", offered once a problem is decided — before
+ * that nobody can tell a broken problem from a hard one.
  *
- * Writing anything is optional: a report that is just a tap still carries the
- * id, the position and the moves, which is what makes a one-person-only fault
- * reproducible. So Send is never disabled for an empty comment, and there is
- * no list of categories to work through — the placeholder does that job
- * without costing a choice.
+ * Saying anything is optional: a report that is just a tap still carries the
+ * id, the position and the moves, which is what makes a fault that only
+ * happens to one person reproducible. So the list stays folded away, Send is
+ * never disabled, and the box for words appears only for the one tick that
+ * needs it.
  */
 export function ReportIssue({ problemId, context, onClose }: ReportIssueProps) {
+  const [listOpen, setListOpen] = useState(false);
+  const [picked, setPicked] = useState<string[]>([]);
   const [comment, setComment] = useState('');
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [failed, setFailed] = useState(false);
 
+  const toggle = (label: string) =>
+    setPicked(prev => (prev.includes(label) ? prev.filter(x => x !== label) : [...prev, label]));
+
   const send = async () => {
     setSending(true);
     setFailed(false);
-    const ok = await submitProblemFeedback({ problemId, comment: comment.trim(), context });
+    const ok = await submitProblemFeedback({
+      problemId,
+      categories: picked,
+      comment: comment.trim(),
+      context,
+    });
     setSending(false);
     if (!ok) {
       setFailed(true);
@@ -56,26 +78,60 @@ export function ReportIssue({ problemId, context, onClose }: ReportIssueProps) {
           <p className="text-sm text-[var(--ink)] py-4 font-semibold">Thanks — sent.</p>
         ) : (
           <>
-            {/* The title names the sheet, this line says what it does, and the
-                label below is quiet enough to read as an offer. Someone who
-                arrives with nothing to type should still reach Send. */}
+            {/* The title names the sheet, this line says what it does. Someone
+                who arrives with nothing to add should still reach Send. */}
             <p className="text-sm text-[var(--ink)]">
               Something looks wrong with this problem? Send it over.
             </p>
 
-            <label className="block">
-              <span className="text-xs font-semibold text-[var(--faint)]">
-                What happened? <span className="font-normal opacity-70">optional</span>
+            {/* Folded, but as a full-width button rather than a line of text:
+                a fold nobody notices is a fold nobody opens. Closing it keeps
+                what was ticked, and the count stays on the button, so nothing
+                travels that the sender cannot see. */}
+            <button
+              onClick={() => setListOpen(o => !o)}
+              className="nb-btn w-full px-3 py-2 text-sm flex items-center justify-between gap-2"
+              aria-expanded={listOpen}
+            >
+              <span>
+                What happened? <span className="font-normal">(optional)</span>
+                {picked.length > 0 && (
+                  <span className="font-normal"> · {picked.length} selected</span>
+                )}
               </span>
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                rows={3}
-                maxLength={1000}
-                placeholder="e.g. the solution doesn't mate"
-                className="nb-input mt-1 w-full text-sm px-3 py-2 focus:outline-none resize-none"
-              />
-            </label>
+              <span aria-hidden="true">{listOpen ? '▴' : '▾'}</span>
+            </button>
+
+            {listOpen && (
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {ISSUES.map(label => (
+                    <button
+                      key={label}
+                      onClick={() => toggle(label)}
+                      className={`nb-chip px-2.5 py-1 text-xs ${picked.includes(label) ? 'nb-chip-on' : ''}`}
+                      aria-pressed={picked.includes(label)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Only "Something else" leaves nothing said, so only it asks
+                    for words. */}
+                {picked.includes(OTHER) && (
+                  <textarea
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    rows={3}
+                    maxLength={1000}
+                    autoFocus
+                    placeholder="What happened?"
+                    className="nb-input w-full text-sm px-3 py-2 focus:outline-none resize-none"
+                  />
+                )}
+              </div>
+            )}
 
             {/* Said, not shown: the snapshot is JSON, which is unreadable to
                 most of the people this sheet is for, and one sentence covers

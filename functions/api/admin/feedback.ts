@@ -33,7 +33,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit') ?? 10) || 10, 1), 50);
 
   const { results } = await context.env.STATS_DB.prepare(
-    `SELECT id, problem_id, comment, country, created_at
+    `SELECT id, problem_id, categories, comment, country, created_at
        FROM problem_feedback
       WHERE dev = ? AND id > ?
       ORDER BY id DESC
@@ -41,6 +41,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   ).bind(dev, after, limit).all<{
     id: number;
     problem_id: number | null;
+    categories: string;
     comment: string;
     country: string;
     created_at: string;
@@ -61,6 +62,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     items: (results ?? []).map(r => ({
       id: r.id,
       problemId: r.problem_id,
+      categories: r.categories,
       comment: r.comment,
       country: r.country,
       createdAt: r.created_at,

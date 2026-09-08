@@ -862,6 +862,7 @@ export function metaToChessProblem(meta: ProblemMeta, solutionText?: string): Ch
 
 export interface ProblemFeedbackData {
   problemId: number | null;
+  categories: string[];
   comment: string;
   context: Record<string, unknown>;
 }
@@ -879,6 +880,7 @@ export async function submitProblemFeedback(data: ProblemFeedbackData): Promise<
         problemId: data.problemId,
         sessionId: getSessionId(),
         dev: isDevMode(),
+        categories: data.categories,
         comment: data.comment,
         context: data.context,
       }),
