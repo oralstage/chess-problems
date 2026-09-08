@@ -94,7 +94,7 @@ export function ReportIssue({ problemId, context, onClose }: ReportIssueProps) {
               aria-expanded={listOpen}
             >
               <span>
-                What happened? <span className="font-normal">(optional)</span>
+                What happened? (optional)
                 {picked.length > 0 && (
                   <span className="font-normal"> · {picked.length} selected</span>
                 )}
