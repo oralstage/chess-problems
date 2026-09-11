@@ -761,6 +761,16 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
           <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Similar problems" /></span>
           <span className={CARD_TITLE}>Similar problems</span>
         </a>
+        <a
+          href="https://popeye.chessproblem.org"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={CARD}
+          style={{ backgroundColor: 'var(--card-study)' }}
+        >
+          <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Popeye" /></span>
+          <span className={CARD_TITLE}>Popeye online</span>
+        </a>
       </div>
 
       {/* ── Footer ── */}

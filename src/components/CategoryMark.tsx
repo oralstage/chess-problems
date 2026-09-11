@@ -28,6 +28,11 @@ const box = {
 const CREAM = 'var(--surface)';
 const SAGE = 'var(--surface-2)';
 const GREEN = 'var(--board-d)';
+/* Only the spinach needs these: a leaf has to be green whichever of the three
+   layers it is on, and cream in the middle of a plant reads as a dead leaf. */
+const LEAF_DARK = 'var(--color-green-600)';
+const LEAF_PALE = 'var(--card-direct)';
+const ROOT_PINK = '#e79ab0';
 const RED = 'var(--bad)';
 
 /* One jigsaw piece, 18 by 18, centred on its own origin so a transform can
@@ -310,6 +315,44 @@ function markBody(name: string) {
           <g transform="translate(28.5 28.5) rotate(9) scale(1.09)">
             <path d={PIECE} fill={GREEN} strokeWidth={2.8} />
           </g>
+        </svg>
+      );
+
+    /* Popeye, the solving program, drawn as the tin of spinach the sailor it is
+       named after eats. The program itself has no picture — a terminal window
+       would say "command line", not "this finds every solution" — and the
+       spinach is the one object the name already carries.
+
+       Leaves out of an open tin rather than a sealed one: a closed tin at 44px
+       is a cylinder, and a cylinder is a battery. */
+    case 'Popeye':
+      return (
+        <svg {...box}>
+          {/* A bunch of spinach, which is what the solver's name carries — the
+              program itself has no picture, and a terminal window would say
+              "command line" rather than "this finds every solution".
+
+              Two things make it spinach rather than a generic plant, and both
+              were arrived at by drawing it without them first: the blades are
+              scalloped, not smooth ovals, and the root is pink. The pink is
+              the single feature anyone who has bought a bunch recognises, so
+              it is worth the one colour that comes from outside the palette.
+
+              Every blade is green — an earlier version put cream in the middle
+              to keep the overlaps apart, and a white leaf in the middle of a
+              plant reads as a dead one. Three shades of green do that job
+              instead, and the ink outline does the rest. */}
+          <path d="M21 25C15 25 9 22 5 17c2-1 2-3 1-4 3 0 5-1 6-3 2 2 5 2 7 1 1 3 2 7 2 14z" fill={LEAF_DARK} />
+          <path d="M23 25c6 0 12-3 16-8-2-1-2-3-1-4-3 0-5-1-6-3-2 2-5 2-7 1-1 3-2 7-2 14z" fill={LEAF_DARK} />
+          <path d="M21 24c-4-3-6-8-6-14 2 0 3-1 4-3 1 2 2 3 4 3 0 5-1 10-2 14z" fill={GREEN} />
+          <path d="M23 24c4-3 6-8 6-14-2 0-3-1-4-3-1 2-2 3-4 3 0 5 1 10 2 14z" fill={GREEN} />
+          <path d="M22 23c2-4 3-9 2-14-1-1-3-1-4 0-1 5 0 10 2 14z" fill={LEAF_PALE} />
+          {/* Stems into the waist. Three lines with air between them: a solid
+              block of stalk turns the bunch into a single plant. */}
+          <g strokeWidth={2.2}>
+            <path d="M13 20c4 7 7 12 9 18M31 20c-4 7-7 12-9 18M22 22v16" />
+          </g>
+          <path d="M22 37c2.2 0 3.6 1.3 3.6 2.8S24.2 42 22 42s-3.6-.7-3.6-2.2S19.8 37 22 37z" fill={ROOT_PINK} />
         </svg>
       );
 
