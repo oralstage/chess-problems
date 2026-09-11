@@ -36,6 +36,20 @@
         border-radius: 10px;
         background: #fffdf2;
       }
+      h2 { font-size: 17px; margin: 40px 0 4px; }
+      /* Sizes a host page might actually give it: a narrow column beside an
+         article, a phone-width column, and a wide box that is short enough
+         that the height is what limits the board rather than the width. Each
+         one is the frame's real size, capped so the page itself still fits a
+         phone. */
+      .sizes { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+      /* Each frame keeps the size written on it -- the point of this row --
+         so the figures neither grow nor shrink; they wrap instead. */
+      .sizes figure { flex: 0 0 auto; max-width: 100%; }
+      /* The width:100% and the ratio above are for the responsive pair. Here
+         each frame's own size is the whole point, so it is written inline --
+         an attribute would lose to the rule above. */
+      .sizes iframe { aspect-ratio: auto; max-width: 100%; }
       pre {
         margin: 32px 0 0;
         padding: 12px 14px;
@@ -60,6 +74,26 @@
         <figure>
           <figcaption>Mate in 2 — /embed?id=632615</figcaption>
           <iframe src="/embed/?id=632615" title="Mate in 2" loading="lazy"></iframe>
+        </figure>
+      </div>
+
+      <h2>Other sizes</h2>
+      <p>The same embed in frames of different shapes. The board takes the width it is
+        given, or the height left over once the lines around it have taken theirs —
+        whichever is the smaller — and none of them scrolls.</p>
+
+      <div class="sizes">
+        <figure>
+          <figcaption>280 × 420 — narrow column</figcaption>
+          <iframe src="/embed/?id=632615" title="Mate in 2" style="width:280px;height:420px" loading="lazy"></iframe>
+        </figure>
+        <figure>
+          <figcaption>360 × 560 — phone width</figcaption>
+          <iframe src="/embed/?id=338114" title="Helpmate in 2" style="width:360px;height:560px" loading="lazy"></iframe>
+        </figure>
+        <figure>
+          <figcaption>640 × 380 — wide and short</figcaption>
+          <iframe src="/embed/?id=632615" title="Mate in 2" style="width:640px;height:380px" loading="lazy"></iframe>
         </figure>
       </div>
 
