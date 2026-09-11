@@ -232,7 +232,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
             </svg>
           </div>
           <h1 className="nb-shadow-type text-4xl sm:text-6xl font-extrabold tracking-tight text-[var(--ink)]">
-            Chess Problems
+            Chess Problem Arcade
           </h1>
         </div>
         {/* {siteStats && siteStats.timesSolved > 0 && (
