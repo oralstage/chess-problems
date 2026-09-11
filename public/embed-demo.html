@@ -39,7 +39,12 @@
       .sizes figure { flex: 0 0 auto; max-width: 100%; }
 
       figure { margin: 0; min-width: 0; }
-      figcaption { font-size: 13px; color: #666; margin-bottom: 8px; }
+      figcaption { margin-bottom: 8px; }
+      /* The credit belongs to the page, not to the diagram: the embed holds
+         it back until the solve is decided, the way a solving tourney does,
+         so a page that wants it in sight puts it here. */
+      .credit { display: block; font-size: 14px; font-weight: 600; color: #333; }
+      .note { display: block; font-size: 12px; color: #777; }
       iframe {
         max-width: 100%;
         border: 1px solid #d7d7d2;
@@ -68,16 +73,19 @@
       <p>Each of these is an iframe of <code>/embed?id=&lt;YACPDB id&gt;</code> and nothing
         else — the board, and what it takes to solve it. The markup under each one is the
         markup that draws it.</p>
+      <p>Inside the frame the composer and the source stay out of sight until the solve is
+        decided, as a solving tourney's diagram sheet does. A page that would rather have
+        them in view writes them beside the diagram, as here.</p>
 
       <div class="pair">
         <figure>
-          <figcaption>Helpmate in 2</figcaption>
+          <figcaption><span class="credit">Jūlija Visocka — The Problemist Supplement, 2012</span></figcaption>
           <iframe src="/embed/?id=338114" title="Helpmate in 2"
                   style="width:100%; aspect-ratio:4/5"></iframe>
           <pre></pre>
         </figure>
         <figure>
-          <figcaption>Mate in 2</figcaption>
+          <figcaption><span class="credit">Марјан Ковачевић — ЮК Уральский проблемист - 30, 2023</span></figcaption>
           <iframe src="/embed/?id=632615" title="Mate in 2"
                   style="width:100%; aspect-ratio:4/5"></iframe>
           <pre></pre>
@@ -90,19 +98,19 @@
 
       <div class="sizes">
         <figure>
-          <figcaption>280 × 420 — narrow column</figcaption>
+          <figcaption><span class="credit">Марјан Ковачевић — ЮК Уральский проблемист - 30, 2023</span><span class="note">280 × 420 — narrow column</span></figcaption>
           <iframe src="/embed/?id=632615" title="Mate in 2"
                   style="width:280px; height:420px"></iframe>
           <pre></pre>
         </figure>
         <figure>
-          <figcaption>360 × 560 — phone width</figcaption>
+          <figcaption><span class="credit">Jūlija Visocka — The Problemist Supplement, 2012</span><span class="note">360 × 560 — phone width</span></figcaption>
           <iframe src="/embed/?id=338114" title="Helpmate in 2"
                   style="width:360px; height:560px"></iframe>
           <pre></pre>
         </figure>
         <figure>
-          <figcaption>640 × 380 — wide and short</figcaption>
+          <figcaption><span class="credit">Марјан Ковачевић — ЮК Уральский проблемист - 30, 2023</span><span class="note">640 × 380 — wide and short</span></figcaption>
           <iframe src="/embed/?id=632615" title="Mate in 2"
                   style="width:640px; height:380px"></iframe>
           <pre></pre>
