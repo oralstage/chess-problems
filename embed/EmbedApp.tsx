@@ -33,30 +33,71 @@ function siteUrl(p: ChessProblem): string {
   return `${window.location.origin}/#/${def?.category ?? p.genre}/yacpdb/${p.id}`;
 }
 
-/** The side of the largest square that fits the box, tracked as it resizes. */
-function useSquareSize(ref: React.RefObject<HTMLDivElement | null>): number {
+/* How big the diagram can be: the width it is given, or the height left once
+   the lines around it have taken theirs, whichever is smaller.
+
+   The board is then that square exactly, and the lines are set to its width,
+   so the whole thing is one block with the stipulation and the material count
+   sitting on the board's own edges. Slack goes outside that block -- above and
+   below it -- rather than opening a gap between the diagram and its caption,
+   which is what made a tall frame look stretched.
+
+   Measured from the frame and the lines rather than from the board, so that
+   the board's own size can never feed back into the number. The 2px deadband
+   is for the one place it still could: a credit line that wraps differently at
+   the new width would otherwise be able to trade places with itself forever. */
+function useBoardSize(
+  root: React.RefObject<HTMLDivElement | null>,
+  stack: React.RefObject<HTMLDivElement | null>,
+  slot: React.RefObject<HTMLDivElement | null>,
+): number {
   const [size, setSize] = useState(0);
+
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const measure = () => setSize(Math.floor(Math.min(el.clientWidth, el.clientHeight)));
-    measure();
+    const rootEl = root.current, stackEl = stack.current, slotEl = slot.current;
+    if (!rootEl || !stackEl || !slotEl) return;
+
+    const measure = () => {
+      const rootStyle = getComputedStyle(rootEl);
+      const padX = parseFloat(rootStyle.paddingLeft) + parseFloat(rootStyle.paddingRight);
+      const padY = parseFloat(rootStyle.paddingTop) + parseFloat(rootStyle.paddingBottom);
+      // Everything in the block that is not the board, gaps and all, taken as
+      // one figure: it stays the same when the board's own box changes, so the
+      // number the board is given can never chase itself.
+      const lines = stackEl.getBoundingClientRect().height - slotEl.getBoundingClientRect().height;
+      const availableW = rootEl.clientWidth - padX;
+      const availableH = rootEl.clientHeight - padY - lines;
+      const next = Math.max(0, Math.floor(Math.min(availableW, availableH)));
+      setSize(prev => (Math.abs(prev - next) < 2 ? prev : next));
+    };
+
     if (typeof ResizeObserver === 'undefined') {
+      const raf = requestAnimationFrame(measure);
       window.addEventListener('resize', measure);
-      return () => window.removeEventListener('resize', measure);
+      return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', measure); };
     }
+    // The frame, and the block inside it. The block is what reports the lines
+    // arriving and leaving -- the credit after the solve, a row of buttons
+    // wrapping, the caption appearing with the problem -- none of which is a
+    // resize from outside. Watching the block rather than the lines it holds
+    // is what keeps that true for lines that were not there at the start.
+    // The observer's own first callback does the initial measurement.
     const ro = new ResizeObserver(measure);
-    ro.observe(el);
+    ro.observe(rootEl);
+    ro.observe(stackEl);
     return () => ro.disconnect();
-  }, [ref]);
+  }, [root, stack, slot]);
+
   return size;
 }
 
 export function EmbedApp() {
   const problem = useProblem();
   const [error, setError] = useState<string | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const stackRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
-  const boardSize = useSquareSize(slotRef);
+  const boardSize = useBoardSize(rootRef, stackRef, slotRef);
 
   const loadProblem = problem.loadProblem;
   useEffect(() => {
@@ -100,10 +141,11 @@ export function EmbedApp() {
     .filter(Boolean).join(' — ') : '';
 
   return (
-    <div className="emb-root">
+    <div className="emb-root" ref={rootRef}>
+      <div className="emb-stack" ref={stackRef} style={boardSize ? { width: boardSize } : undefined}>
       <div className="emb-credit">{decided ? credit : ''}</div>
 
-      <div className="emb-slot" ref={slotRef}>
+      <div className="emb-slot" ref={slotRef} style={{ height: boardSize }}>
         <div className="emb-slot-inner">
           {error ? (
             <p className="emb-msg">{error}</p>
@@ -189,6 +231,7 @@ export function EmbedApp() {
             Open on Chess Problem Arcade ↗
           </a>
         )}
+      </div>
       </div>
     </div>
   );

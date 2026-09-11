@@ -32,6 +32,17 @@ body {
   padding: 8px;
   display: flex;
   flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+/* The diagram and its lines are one block, as wide as the board itself, so
+   the stipulation and the material count sit on the board's own edges. Room
+   the frame has over that goes above and below the block. */
+.emb-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
 
@@ -72,7 +83,6 @@ body {
   line-height: 1.3;
   color: var(--ink);
   text-align: center;
-  overflow: hidden;
 }
 
 .emb-caption {
@@ -80,7 +90,6 @@ body {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  padding: 0 2px;
 }
 
 .emb-stip {
