@@ -86,8 +86,11 @@ export function EmbedApp() {
 
   /* The way out to the site, on the page from the first moment and worded the
      same throughout -- the form every embed uses to name where it came from
-     ("Watch on YouTube", "Open in Lichess"). It never comes and goes, so the
-     diagram is never resized by it. */
+     ("Watch on YouTube", "Open in Lichess"). "Open" and not "Solve": the page
+     it opens is one page holding the variations, the notes and the way on to
+     the next problem, and naming any one of those would send the other two to
+     the wrong place. It never comes and goes, so the diagram is never resized
+     by it. */
 
   /* A printed diagram carries the composer above it and the stipulation with
      the material count below. The credit is held back until the solve is
@@ -183,7 +186,7 @@ export function EmbedApp() {
       <div className="emb-link-row">
         {p && (
           <a className="emb-link" href={siteUrl(p)} target="_blank" rel="noopener noreferrer">
-            Solve on Chess Problem Arcade ↗
+            Open on Chess Problem Arcade ↗
           </a>
         )}
       </div>
