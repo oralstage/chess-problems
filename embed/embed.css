@@ -23,6 +23,10 @@ body {
    an interface. */
 .emb-root {
   --emb-text: 1rem;
+  /* The one exception to that: the link out to the site is an aside, not part
+     of what is being said, and it is set a step down so it does not read as
+     another control. */
+  --emb-aside: 0.875rem;
   box-sizing: border-box;
   height: 100%;
   padding: 8px;
@@ -128,3 +132,22 @@ body {
   color: var(--faint);
   font-weight: 700;
 }
+
+/* Held open whether or not there is a link in it, so that the diagram is
+   never resized by the link appearing. */
+.emb-link-row {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  min-height: 1.25rem;
+}
+
+.emb-link {
+  font-size: var(--emb-aside);
+  font-weight: 700;
+  color: var(--faint);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.emb-link:hover { color: var(--ink); }

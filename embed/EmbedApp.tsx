@@ -6,6 +6,8 @@ import { fetchProblem, metaToChessProblem } from '../src/services/api';
 import { pieceCounts } from '../src/utils/pieceCount';
 import { stipulationPhrase } from '../src/utils/stipulationColor';
 import { composerLine } from '../src/utils/composerName';
+import { CATEGORY_DEFS } from '../src/types';
+import type { ChessProblem } from '../src/types';
 import { ensureSolution } from './ensureSolution';
 
 /* Shown when the host page names no problem. A two-mover, so that an embed
@@ -16,6 +18,19 @@ function problemIdFromUrl(): number {
   const raw = new URLSearchParams(window.location.search).get('id');
   const id = raw ? Number(raw) : NaN;
   return Number.isInteger(id) && id > 0 ? id : FALLBACK_ID;
+}
+
+/* The same problem on the site it came from. The origin is the one serving
+   the embed, so a staging embed points at staging and the live one at the
+   live site without either being written down. The category slug comes off
+   CATEGORY_DEFS rather than a second copy of the move-count ranges; a move
+   count in no category (a #1) falls back to the bare genre slug, which the
+   app also accepts. */
+function siteUrl(p: ChessProblem): string {
+  const def = CATEGORY_DEFS.find(d => d.genre === p.genre
+    && (d.minMoves == null || p.moveCount >= d.minMoves)
+    && (d.maxMoves == null || d.maxMoves === 0 || p.moveCount <= d.maxMoves));
+  return `${window.location.origin}/#/${def?.category ?? p.genre}/yacpdb/${p.id}`;
 }
 
 /** The side of the largest square that fits the box, tracked as it resizes. */
@@ -68,6 +83,15 @@ export function EmbedApp() {
   const playback = problem.playback;
   const decided = problem.status === 'correct' || problem.status === 'viewing';
   const phrase = p ? stipulationPhrase(p.stipulation, p.genre, p.moveCount) : '';
+
+  /* The way out to the site, offered at the three moments it answers
+     something: a move that did not work and a solve given up both leave a
+     question the full page can answer, and a solve finished leaves someone
+     ready for the next problem. Not before the first move, and not in the
+     middle of a solve that is going well -- there it would only be an advert
+     across the board. Its row is held open from the start, so that the link
+     arriving never changes the size of the diagram. */
+  const mistake = problem.status === 'solving' && problem.wrongMoveCount > 0;
 
   /* A printed diagram carries the composer above it and the stipulation with
      the material count below. The credit is held back until the solve is
@@ -159,6 +183,14 @@ export function EmbedApp() {
           )}
         </div>
       )}
+
+      <div className="emb-link-row">
+        {p && (mistake || decided) && (
+          <a className="emb-link" href={siteUrl(p)} target="_blank" rel="noopener noreferrer">
+            {problem.status === 'correct' ? 'Solve another problem ↗' : 'See the full solution ↗'}
+          </a>
+        )}
+      </div>
     </div>
   );
 }
