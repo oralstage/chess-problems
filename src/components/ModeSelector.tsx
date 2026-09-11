@@ -5,7 +5,7 @@ import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
 import type { RatedGenre } from '../services/api';
-import { hasLocalAccountData } from '../utils/domainHandoff';
+import { buildRequestUrl, hasLocalAccountData } from '../utils/domainHandoff';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
 
@@ -27,8 +27,6 @@ interface ModeSelectorProps {
   /** One rating per pool. The pools are separate games — a number from one says
    *  nothing about another — so all three are shown rather than one total. */
   ratingsByGenre?: Record<RatedGenre, { rating: number; rd: number }>;
-  /** Opens the Sync modal, for the notice about the move to this address. */
-  onOpenSync?: () => void;
 }
 
 /* The rated pools, in the order the free-play list already introduces them. The
@@ -101,7 +99,7 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
 ];
 
-export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowGuide, onShowWcsc, onShowThemes, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre, onOpenSync }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowGuide, onShowWcsc, onShowThemes, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -466,17 +464,22 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
           {/* Above the pools, not below: the ~800 on those cards is what sends
               this player away, and a way back printed underneath it arrives
               after the decision. */}
-          {showMovedNotice && onOpenSync && (
+          {showMovedNotice && (
             <div className="nb-panel flex items-start gap-3 px-3 py-2.5 mb-3">
+              {/* The button goes to the old address rather than opening Sync.
+                  Sync asks for a code, which means finding it on the other site
+                  and carrying it back; this way the old address hands the
+                  account over by itself and the player is returned here with it
+                  already applied. One press, nothing to copy. */}
               <p className="text-xs sm:text-sm font-semibold text-[var(--ink)] leading-snug">
-                Played before at chess-problems.pages.dev?{' '}
+                Played at the old site?{' '}
                 <button
-                  onClick={onOpenSync}
+                  onClick={() => { window.location.href = buildRequestUrl(); }}
                   className="underline underline-offset-2 font-extrabold"
                 >
-                  Bring your rating over
+                  Click to restore your rating
                 </button>
-                {' '}— your history and bookmarks come with it.
+                {' '}— history and bookmarks come with it.
               </p>
               <button
                 onClick={dismissMovedNotice}

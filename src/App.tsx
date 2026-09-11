@@ -45,7 +45,7 @@ import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parse
 import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, RATED_GENRES, type RatedGenre, type SyncReviewCard, type SearchResult, fetchMySnapshot, type MySnapshot } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { Glicko2Rating } from './utils/glicko2';
-import { consumeHandoffCode, hasLocalAccountData } from './utils/domainHandoff';
+import { buildHandoffUrl, consumeHandoffCode, hasLocalAccountData, isHandoffRequest } from './utils/domainHandoff';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import { flipDuplexRoots, mainLinePlays } from './utils/duplex';
@@ -1964,6 +1964,13 @@ export default function App() {
   useEffect(() => {
     if (handoffRef.current) return;
     handoffRef.current = true;
+    // On the old address: a player at the new one pressed "restore my rating"
+    // and was sent here to fetch it. Hand the session id straight back. Nobody
+    // is moved without this in the fragment.
+    if (isHandoffRequest()) {
+      window.location.replace(buildHandoffUrl(getSessionId()));
+      return;
+    }
     const code = consumeHandoffCode();
     if (!code) return;
     if (code === getSessionId()) return;
@@ -2830,7 +2837,6 @@ export default function App() {
                 reviewDueCount={reviewQueue.dueCount}
                 reviewTotalCount={reviewQueue.totalCount}
                 ratingsByGenre={ratingsByGenre}
-                onOpenSync={() => setShowRatingSync(true)}
               />
           )}
 

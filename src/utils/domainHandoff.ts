@@ -19,8 +19,14 @@
  */
 
 export const ARCADE_ORIGIN = 'https://arcade.chessproblem.org';
+export const OLD_HOST = 'chess-problems.pages.dev';
 
 const HANDOFF_PREFIX = '#sync=';
+/* What a player at the new address sends to the old one to ask for their
+   account back. It is a request, not a redirect: the old address only hands
+   anything over when this is in the fragment, so nobody is moved who did not
+   press the button. */
+const REQUEST_HASH = '#handoff';
 
 /** Every key that carries an account on this device. */
 const ACCOUNT_KEYS = [
@@ -36,6 +42,25 @@ const ACCOUNT_KEYS = [
  */
 export function buildHandoffUrl(sessionId: string): string {
   return `${ARCADE_ORIGIN}/${HANDOFF_PREFIX}${encodeURIComponent(sessionId)}`;
+}
+
+/** Where the button in the notice goes: the old address, asking for the account. */
+export function buildRequestUrl(): string {
+  return `https://${OLD_HOST}/${REQUEST_HASH}`;
+}
+
+/**
+ * On the old address, whether this load is a player asking for their account
+ * back. Exact host match, never a suffix: chess-problems-staging.pages.dev runs
+ * the same code and must not send anyone anywhere.
+ */
+export function isHandoffRequest(): boolean {
+  try {
+    return window.location.hostname === OLD_HOST
+      && window.location.hash === REQUEST_HASH;
+  } catch {
+    return false;
+  }
 }
 
 /**
