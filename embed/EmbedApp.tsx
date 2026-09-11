@@ -84,14 +84,11 @@ export function EmbedApp() {
   const decided = problem.status === 'correct' || problem.status === 'viewing';
   const phrase = p ? stipulationPhrase(p.stipulation, p.genre, p.moveCount) : '';
 
-  /* The way out to the site, offered at the three moments it answers
-     something: a move that did not work and a solve given up both leave a
-     question the full page can answer, and a solve finished leaves someone
-     ready for the next problem. Not before the first move, and not in the
-     middle of a solve that is going well -- there it would only be an advert
-     across the board. Its row is held open from the start, so that the link
-     arriving never changes the size of the diagram. */
-  const mistake = problem.status === 'solving' && problem.wrongMoveCount > 0;
+  /* The way out to the site, on the page from the first moment. What it
+     offers changes with the solve -- the full page answers a move that did
+     not work or a solve given up, and has the next problem for one that is
+     finished -- but the line itself does not come and go, so the diagram is
+     never resized by it. */
 
   /* A printed diagram carries the composer above it and the stipulation with
      the material count below. The credit is held back until the solve is
@@ -185,7 +182,7 @@ export function EmbedApp() {
       )}
 
       <div className="emb-link-row">
-        {p && (mistake || decided) && (
+        {p && (
           <a className="emb-link" href={siteUrl(p)} target="_blank" rel="noopener noreferrer">
             {problem.status === 'correct' ? 'Solve another problem ↗' : 'See the full solution ↗'}
           </a>

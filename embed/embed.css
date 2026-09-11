@@ -133,8 +133,8 @@ body {
   font-weight: 700;
 }
 
-/* Held open whether or not there is a link in it, so that the diagram is
-   never resized by the link appearing. */
+/* The link is there from the first moment and stays; only its wording
+   changes. Its own row, so the controls beside it keep their line. */
 .emb-link-row {
   display: flex;
   justify-content: flex-end;
