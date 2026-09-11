@@ -2830,6 +2830,7 @@ export default function App() {
                 reviewDueCount={reviewQueue.dueCount}
                 reviewTotalCount={reviewQueue.totalCount}
                 ratingsByGenre={ratingsByGenre}
+                onOpenSync={() => setShowRatingSync(true)}
               />
           )}
 

@@ -5,6 +5,7 @@ import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
 import type { RatedGenre } from '../services/api';
+import { hasLocalAccountData } from '../utils/domainHandoff';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
 
@@ -26,6 +27,8 @@ interface ModeSelectorProps {
   /** One rating per pool. The pools are separate games — a number from one says
    *  nothing about another — so all three are shown rather than one total. */
   ratingsByGenre?: Record<RatedGenre, { rating: number; rd: number }>;
+  /** Opens the Sync modal, for the notice about the move to this address. */
+  onOpenSync?: () => void;
 }
 
 /* The rated pools, in the order the free-play list already introduces them. The
@@ -98,7 +101,7 @@ const FREE_PLAY: { category: Category; title: string; mark: string; stip?: strin
   { category: 'retro', title: 'Retros', mark: 'Retros', tint: '--card-retro' },
 ];
 
-export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowGuide, onShowWcsc, onShowThemes, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre }: ModeSelectorProps) {
+export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySolved, onShowGuide, onShowWcsc, onShowThemes, onStartRated, onStartReview, reviewDueCount = 0, reviewTotalCount = 0, ratingsByGenre, onOpenSync }: ModeSelectorProps) {
   // const [siteStats, setSiteStats] = useState<SiteStats | null>(null);
   // useEffect(() => {
   //   fetchSiteStats().then(setSiteStats).catch(() => {});
@@ -121,6 +124,25 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
     ro.observe(el);
     return () => ro.disconnect();
   }, [dailyProblem]);
+
+  /* The notice about the move to this address. localStorage belongs to one
+     origin, so someone who played at chess-problems.pages.dev and then follows
+     a link straight here — from the WFCC list, say — arrives with nothing: the
+     pool cards below read ~800, and the rating they built is not gone but is
+     sitting under the old address. That number is the last thing they see
+     before they close the tab, so the way back has to be next to it. Shown only
+     on a device with no record of its own, which is the same test the handoff
+     uses, and taken down for good once dismissed. */
+  const [showMovedNotice, setShowMovedNotice] = useState(() => {
+    try {
+      if (localStorage.getItem('cp-moved-notice-seen') === '1') return false;
+    } catch { return false; }
+    return !hasLocalAccountData();
+  });
+  const dismissMovedNotice = () => {
+    setShowMovedNotice(false);
+    try { localStorage.setItem('cp-moved-notice-seen', '1'); } catch { /* ignore */ }
+  };
 
   const dailyPieces = pieceCountParts(dailyProblem?.fen ?? '');
 
@@ -441,6 +463,32 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
               </svg>
             </span>
           </div>
+          {/* Above the pools, not below: the ~800 on those cards is what sends
+              this player away, and a way back printed underneath it arrives
+              after the decision. */}
+          {showMovedNotice && onOpenSync && (
+            <div className="nb-panel flex items-start gap-3 px-3 py-2.5 mb-3">
+              <p className="text-xs sm:text-sm font-semibold text-[var(--ink)] leading-snug">
+                Played before at chess-problems.pages.dev?{' '}
+                <button
+                  onClick={onOpenSync}
+                  className="underline underline-offset-2 font-extrabold"
+                >
+                  Bring your rating over
+                </button>
+                {' '}— your history and bookmarks come with it.
+              </p>
+              <button
+                onClick={dismissMovedNotice}
+                className="nb-icon shrink-0 w-6 h-6 ml-auto"
+                aria-label="Dismiss"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          )}
           {/* Three across, all the same size. Drawing direct big and the other
               two small was tried and put back: the pools are peers — separate
               ratings, separate matchmaking — and sizing one of them up made the
