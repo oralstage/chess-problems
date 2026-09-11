@@ -307,7 +307,9 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
               account over by itself and the player is returned here with it
               already applied. One press, nothing to copy. */}
           <p className="text-xs sm:text-sm font-semibold text-[var(--ink)] leading-snug">
-            This site moved from{' '}
+            The site is now{' '}
+            <span className="whitespace-nowrap">arcade.chessproblem.org</span>,
+            previously{' '}
             <span className="whitespace-nowrap">chess-problems.pages.dev</span>.
             Played there? Your rating, history and bookmarks are still yours —{' '}
             <button
