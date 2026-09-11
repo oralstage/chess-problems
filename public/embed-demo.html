@@ -8,7 +8,7 @@
     <style>
       body {
         margin: 0;
-        padding: 32px 24px 48px;
+        padding: 32px 24px 56px;
         font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
         color: #222;
         background: #f4f4f2;
@@ -16,90 +16,116 @@
       }
       main { max-width: 1040px; margin: 0 auto; }
       h1 { font-size: 24px; margin: 0 0 4px; }
-      p { color: #555; margin: 0 0 24px; max-width: 60ch; }
-      /* Two of them side by side where there is room, one above the other
-         where there is not -- the embed itself takes whatever width it is
-         handed. The height is given as a ratio rather than a number of
-         pixels, so a narrow column does not leave the board floating in a
-         frame built for a wide one. */
-      .embeds {
+      h2 { font-size: 17px; margin: 40px 0 4px; }
+      p { color: #555; margin: 0 0 24px; max-width: 64ch; }
+      code { font-size: 0.95em; }
+
+      /* Side by side where there is room, one above the other where there is
+         not. Each frame is given a ratio rather than a number of pixels, so a
+         narrow column does not leave the board floating in a frame built for
+         a wide one. */
+      .pair {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
         gap: 24px;
       }
-      figure { margin: 0; }
+
+      /* Sizes a page might actually hand it: a narrow column beside an
+         article, a phone-width column, and a wide box short enough that the
+         height is what limits the board rather than the width. Each frame
+         keeps the size written on it, so the figures wrap instead of
+         shrinking. */
+      .sizes { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
+      .sizes figure { flex: 0 0 auto; max-width: 100%; }
+
+      figure { margin: 0; min-width: 0; }
       figcaption { font-size: 13px; color: #666; margin-bottom: 8px; }
       iframe {
-        width: 100%;
-        aspect-ratio: 4 / 5;
+        max-width: 100%;
         border: 1px solid #d7d7d2;
         border-radius: 10px;
         background: #fffdf2;
       }
-      h2 { font-size: 17px; margin: 40px 0 4px; }
-      /* Sizes a host page might actually give it: a narrow column beside an
-         article, a phone-width column, and a wide box that is short enough
-         that the height is what limits the board rather than the width. Each
-         one is the frame's real size, capped so the page itself still fits a
-         phone. */
-      .sizes { display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start; }
-      /* Each frame keeps the size written on it -- the point of this row --
-         so the figures neither grow nor shrink; they wrap instead. */
-      .sizes figure { flex: 0 0 auto; max-width: 100%; }
-      /* The width:100% and the ratio above are for the responsive pair. Here
-         each frame's own size is the whole point, so it is written inline --
-         an attribute would lose to the rule above. */
-      .sizes iframe { aspect-ratio: auto; max-width: 100%; }
+      /* The markup for the frame above it, built from that frame's own
+         attributes when the page loads -- so what is shown is what is
+         running, address and all, and can be copied as it stands. */
       pre {
-        margin: 32px 0 0;
-        padding: 12px 14px;
+        margin: 8px 0 0;
+        padding: 10px 12px;
         overflow-x: auto;
-        font-size: 13px;
+        font-size: 12px;
+        line-height: 1.45;
+        color: #333;
         background: #fff;
         border: 1px solid #d7d7d2;
-        border-radius: 10px;
+        border-radius: 8px;
       }
     </style>
   </head>
   <body>
     <main>
       <h1>Embed demo</h1>
-      <p>Two problems, each an iframe of <code>/embed?id=&lt;YACPDB id&gt;</code> and nothing else.</p>
+      <p>Each of these is an iframe of <code>/embed?id=&lt;YACPDB id&gt;</code> and nothing
+        else — the board, and what it takes to solve it. The markup under each one is the
+        markup that draws it.</p>
 
-      <div class="embeds">
+      <div class="pair">
         <figure>
-          <figcaption>Helpmate in 2 — /embed?id=338114</figcaption>
-          <iframe src="/embed/?id=338114" title="Helpmate in 2" loading="lazy"></iframe>
+          <figcaption>Helpmate in 2</figcaption>
+          <iframe src="/embed/?id=338114" title="Helpmate in 2"
+                  style="width:100%; aspect-ratio:4/5"></iframe>
+          <pre></pre>
         </figure>
         <figure>
-          <figcaption>Mate in 2 — /embed?id=632615</figcaption>
-          <iframe src="/embed/?id=632615" title="Mate in 2" loading="lazy"></iframe>
+          <figcaption>Mate in 2</figcaption>
+          <iframe src="/embed/?id=632615" title="Mate in 2"
+                  style="width:100%; aspect-ratio:4/5"></iframe>
+          <pre></pre>
         </figure>
       </div>
 
       <h2>Other sizes</h2>
-      <p>The same embed in frames of different shapes. The board takes the width it is
-        given, or the height left over once the lines around it have taken theirs —
-        whichever is the smaller — and none of them scrolls.</p>
+      <p>The board takes the width it is given, or the height left over once the lines
+        around it have taken theirs — whichever is smaller. None of these scrolls.</p>
 
       <div class="sizes">
         <figure>
           <figcaption>280 × 420 — narrow column</figcaption>
-          <iframe src="/embed/?id=632615" title="Mate in 2" style="width:280px;height:420px" loading="lazy"></iframe>
+          <iframe src="/embed/?id=632615" title="Mate in 2"
+                  style="width:280px; height:420px"></iframe>
+          <pre></pre>
         </figure>
         <figure>
           <figcaption>360 × 560 — phone width</figcaption>
-          <iframe src="/embed/?id=338114" title="Helpmate in 2" style="width:360px;height:560px" loading="lazy"></iframe>
+          <iframe src="/embed/?id=338114" title="Helpmate in 2"
+                  style="width:360px; height:560px"></iframe>
+          <pre></pre>
         </figure>
         <figure>
           <figcaption>640 × 380 — wide and short</figcaption>
-          <iframe src="/embed/?id=632615" title="Mate in 2" style="width:640px;height:380px" loading="lazy"></iframe>
+          <iframe src="/embed/?id=632615" title="Mate in 2"
+                  style="width:640px; height:380px"></iframe>
+          <pre></pre>
         </figure>
       </div>
-
-      <pre>&lt;iframe src="https://arcade.chessproblem.org/embed?id=338114"
-        style="width:100%; aspect-ratio:4/5; border:0"
-        title="Chess problem"&gt;&lt;/iframe&gt;</pre>
     </main>
+
+    <script>
+      for (const figure of document.querySelectorAll('figure')) {
+        const frame = figure.querySelector('iframe');
+        const pre = figure.querySelector('pre');
+        if (!frame || !pre) continue;
+        // The address as someone else would write it: this site's origin, and
+        // the tidy /embed?id= form rather than the directory the dev server
+        // wants.
+        const url = new URL(frame.getAttribute('src'), location.href);
+        const src = location.origin + '/embed?' + url.searchParams.toString();
+        const style = frame.getAttribute('style').replace(/\s+/g, ' ').trim();
+        pre.textContent =
+          '<iframe src="' + src + '"\n'
+          + '        style="' + style + '; border:0"\n'
+          + '        title="' + frame.getAttribute('title') + '"></iframe>';
+      }
+    </script>
   </body>
 </html>
