@@ -1,10 +1,24 @@
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+const __dirname = dirname(fileURLToPath(import.meta.url))
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: './',
+  build: {
+    rollupOptions: {
+      // Two pages out of one project: the site, and the board on its own for
+      // embedding in someone else's page (dist/embed/index.html -> /embed).
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        embed: resolve(__dirname, 'embed/index.html'),
+      },
+    },
+  },
   server: {
     port: 5183,
     host: true,
