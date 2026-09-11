@@ -45,7 +45,8 @@ import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parse
 import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, RATED_GENRES, type RatedGenre, type SyncReviewCard, type SearchResult, fetchMySnapshot, type MySnapshot } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { Glicko2Rating } from './utils/glicko2';
-import { buildHandoffUrl, consumeHandoffCode, hasLocalAccountData, isHandoffRequest } from './utils/domainHandoff';
+import { buildHandoffUrl, buildRequestUrl, consumeHandoff, isHandoffRequest,
+  markHandoffTried, shouldAutoHandoff } from './utils/domainHandoff';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import { flipDuplexRoots, mainLinePlays } from './utils/duplex';
@@ -1964,20 +1965,31 @@ export default function App() {
   useEffect(() => {
     if (handoffRef.current) return;
     handoffRef.current = true;
-    // On the old address: a player at the new one pressed "restore my rating"
-    // and was sent here to fetch it. Hand the session id straight back. Nobody
-    // is moved without this in the fragment.
+    // On the old address: someone at the new one is asking for their account.
+    // Hand the session id straight back. Nobody is moved without the request in
+    // the fragment.
     if (isHandoffRequest()) {
       window.location.replace(buildHandoffUrl(getSessionId()));
       return;
     }
-    const code = consumeHandoffCode();
-    if (!code) return;
-    if (code === getSessionId()) return;
-    if (hasLocalAccountData()) return;
-    fetchMySnapshot(code)
-      .then(snapshot => { if (snapshot) applySnapshotToDevice(code, snapshot); })
-      .catch(() => { /* the player keeps this device's fresh account */ });
+    // The return leg. consumeHandoff has already put the address bar back to
+    // where the player was headed, so applying and reloading lands there.
+    const handoff = consumeHandoff();
+    if (handoff) {
+      markHandoffTried();
+      if (handoff.code === getSessionId()) return;
+      fetchMySnapshot(handoff.code)
+        .then(snapshot => { if (snapshot) applySnapshotToDevice(handoff.code, snapshot); })
+        .catch(() => { /* the player keeps this device's fresh account */ });
+      return;
+    }
+    // Nothing of their own on this device, inside the migration window: go and
+    // ask. Marked as tried before leaving, so a trip that never comes back is
+    // not repeated on the next load.
+    if (shouldAutoHandoff()) {
+      markHandoffTried();
+      window.location.replace(buildRequestUrl());
+    }
   }, [applySnapshotToDevice]);
 
   useEffect(() => {
