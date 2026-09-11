@@ -14,11 +14,26 @@
 
 const origin = (process.argv[2] || 'https://chess-problems.pages.dev').replace(/\/$/, '');
 
+/* Cheap routes only. The check is on the content type, so any /api/* route
+   proves the same thing -- that the Functions shipped -- and these three cost
+   a handful of rows between them.
+
+   /api/stats used to be the first of them. On production it is normally warm
+   and costs one row, but staging keeps its cache in its own database, where
+   it is nearly always cold: every staging deploy rebuilt the whole genre
+   summary, a little over a million rows a time. Six deploys in half an hour
+   on 2026-09-11 spent the account's daily read allowance and took the live
+   site's problem pages down until the quota reset. The check was never worth
+   that, and it still runs against stats below where it is cheap. */
 const ROUTES = [
-  '/api/stats?genre=direct',
+  '/api/problems/3684',
   '/api/daily',
   '/api/problems/ids?genre=retro',
 ];
+
+/* Production's stats cache is warm, so this one is a row and worth keeping:
+   it is the only route here that exercises functions/api/stats.ts. */
+if (!origin.includes('staging')) ROUTES.push('/api/stats?genre=direct');
 
 let failed = 0;
 
