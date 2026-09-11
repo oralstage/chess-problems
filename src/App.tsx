@@ -42,9 +42,10 @@ function currentBuild(): string {
 import { DailyHistoryPage } from './components/DailyHistoryPage';
 import { useSolveStats, SolveStatsModal } from './components/SolveStatsPanel';
 import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parseTwins, extractSolutionNotes } from './services/solutionParser';
-import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, RATED_GENRES, type RatedGenre, type SyncReviewCard, type SearchResult } from './services/api';
+import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, RATED_GENRES, type RatedGenre, type SyncReviewCard, type SearchResult, fetchMySnapshot, type MySnapshot } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { Glicko2Rating } from './utils/glicko2';
+import { consumeHandoffCode, hasLocalAccountData } from './utils/domainHandoff';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import { flipDuplexRoots, mainLinePlays } from './utils/duplex';
@@ -1919,6 +1920,59 @@ export default function App() {
       browser: navigator.userAgent,
     });
   }, [problem, currentGenre, activeTwinId, isRatedMode, isReviewMode, isDaily, isWcsc]);
+
+  // Become the account the code belongs to. Used by the Sync modal, where the
+  // player pastes a code and confirms, and by the handoff from the old address,
+  // where the code arrives in the fragment. Everything is replaced wholesale —
+  // there is no merging a second account into the one already here.
+  const applySnapshotToDevice = useCallback((code: string, snapshot: MySnapshot) => {
+    // Replace sessionId so future events go to the recovered account
+    try { localStorage.setItem('cp-session-id', code); } catch { /* ignore */ }
+    // Apply each pool's rating. `ratings` is the per-genre map; `rating`
+    // (singular) is the direct pool, kept for snapshots written before the
+    // genres were split. Pools the account never played reset to default.
+    const restored: Partial<Record<RatedGenre, Glicko2Rating>> = {};
+    for (const g of RATED_GENRES) {
+      const r = snapshot.ratings?.[g] ?? (g === 'direct' ? snapshot.rating : undefined);
+      if (r) restored[g] = { rating: r.rating, rd: r.rd, vol: r.vol };
+    }
+    restoreRating(code, restored);
+    try {
+      localStorage.setItem('cp-progress', JSON.stringify(snapshot.progress));
+      localStorage.setItem('cp-timestamps', JSON.stringify(snapshot.timestamps));
+      localStorage.setItem('cp-bookmarks', JSON.stringify(snapshot.bookmarks));
+      localStorage.setItem('cp-review-queue', JSON.stringify(snapshot.reviewQueue));
+      // Restore the exact rated-problem set (restoreRating cleared it) so
+      // isRated() works immediately and the review queue only seeds from
+      // problems actually played in Rated Mode
+      localStorage.setItem('cp-rated-ids', JSON.stringify(snapshot.ratedIds || []));
+      // Drop transient session/cache state that belonged to the old identity
+      localStorage.removeItem('cp-review-session');
+      localStorage.removeItem('cp-cached-problem');
+      // Force the migration flag back on so we don't re-upload the just-restored data
+      localStorage.setItem('cp-sync-migrated', '1');
+    } catch { /* ignore */ }
+    // Reload so every component re-reads from localStorage
+    window.location.reload();
+  }, [restoreRating]);
+
+  // The handoff from chess-problems.pages.dev: a session id in the fragment,
+  // put there by the old address so the player does not land here as a stranger.
+  // It runs before the hash router sees anything, and only on a device with no
+  // account of its own — see domainHandoff.ts.
+  const handoffRef = useRef(false);
+  useEffect(() => {
+    if (handoffRef.current) return;
+    handoffRef.current = true;
+    const code = consumeHandoffCode();
+    if (!code) return;
+    if (code === getSessionId()) return;
+    if (hasLocalAccountData()) return;
+    fetchMySnapshot(code)
+      .then(snapshot => { if (snapshot) applySnapshotToDevice(code, snapshot); })
+      .catch(() => { /* the player keeps this device's fresh account */ });
+  }, [applySnapshotToDevice]);
+
   useEffect(() => {
     if (hashRestoredRef.current) return;
     hashRestoredRef.current = true;
@@ -3445,37 +3499,8 @@ export default function App() {
         onClose={() => setShowRatingSync(false)}
         currentRating={playerRating}
         onRestore={(code, snapshot) => {
-          // Replace sessionId so future events go to the recovered account
-          try { localStorage.setItem('cp-session-id', code); } catch { /* ignore */ }
-          // Apply each pool's rating. `ratings` is the per-genre map; `rating`
-          // (singular) is the direct pool, kept for snapshots written before the
-          // genres were split. Pools the account never played reset to default.
-          const restored: Partial<Record<RatedGenre, Glicko2Rating>> = {};
-          for (const g of RATED_GENRES) {
-            const r = snapshot.ratings?.[g] ?? (g === 'direct' ? snapshot.rating : undefined);
-            if (r) restored[g] = { rating: r.rating, rd: r.rd, vol: r.vol };
-          }
-          restoreRating(code, restored);
-          // Mirror the rest into localStorage. We replace wholesale (no merging) — the user
-          // explicitly confirmed they want this device to become the synced account.
-          try {
-            localStorage.setItem('cp-progress', JSON.stringify(snapshot.progress));
-            localStorage.setItem('cp-timestamps', JSON.stringify(snapshot.timestamps));
-            localStorage.setItem('cp-bookmarks', JSON.stringify(snapshot.bookmarks));
-            localStorage.setItem('cp-review-queue', JSON.stringify(snapshot.reviewQueue));
-            // Restore the exact rated-problem set (restoreRating cleared it) so
-            // isRated() works immediately and the review queue only seeds from
-            // problems actually played in Rated Mode
-            localStorage.setItem('cp-rated-ids', JSON.stringify(snapshot.ratedIds || []));
-            // Drop transient session/cache state that belonged to the old identity
-            localStorage.removeItem('cp-review-session');
-            localStorage.removeItem('cp-cached-problem');
-            // Force the migration flag back on so we don't re-upload the just-restored data
-            localStorage.setItem('cp-sync-migrated', '1');
-          } catch { /* ignore */ }
           setShowRatingSync(false);
-          // Reload so every component re-reads from localStorage
-          window.location.reload();
+          applySnapshotToDevice(code, snapshot);
         }}
       />
 
