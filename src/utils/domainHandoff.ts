@@ -36,10 +36,15 @@ export const OLD_HOST = 'chess-problems.pages.dev';
  * of the code once the date has passed** — a crawler renders JavaScript and
  * arrives with a clean profile every time, so while this is live the new
  * address's home page can look to it like a redirect back to the old one, which
- * is the opposite of what the move is for. If the move goes live later than
- * planned, push this date rather than shortening the window.
+ * is the opposite of what the move is for.
+ *
+ * A longer window buys less than it looks. One visit anywhere inside it is
+ * enough — the trip runs, the account is restored, and this device never needs
+ * it again — and Safari deletes script-written storage after seven days without
+ * a visit, so someone who stays away for months has nothing left at the old
+ * address to fetch. The window is sized for the people who come back at all.
  */
-export const AUTO_HANDOFF_UNTIL = '2026-10-31';
+export const AUTO_HANDOFF_UNTIL = '2026-12-31';
 
 /** Set before leaving, never after: a trip that fails must not be retried. */
 const TRIED_KEY = 'cp-handoff-tried';

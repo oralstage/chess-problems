@@ -293,6 +293,42 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         )} */}
       </div>
 
+      {/* Above the daily card, which is the first thing on the page. It used to
+          sit over the rated pools, on the reasoning that the ~800 printed there
+          is what sends this player away — but the pools are below the fold, and
+          someone who never scrolls that far never sees the way back at all.
+          Held to the daily card's own width so the two read as one column. */}
+      {showMovedNotice && (
+        <div className="px-5 mb-4">
+          <div className="nb-panel flex items-start gap-3 px-3 py-2.5 mx-auto" style={{ maxWidth: 320 }}>
+          {/* The button goes to the old address rather than opening Sync.
+              Sync asks for a code, which means finding it on the other site
+              and carrying it back; this way the old address hands the
+              account over by itself and the player is returned here with it
+              already applied. One press, nothing to copy. */}
+          <p className="text-xs sm:text-sm font-semibold text-[var(--ink)] leading-snug">
+            Played at chess-problems.pages.dev before? Your rating, history and
+            bookmarks are still yours —{' '}
+            <button
+              onClick={() => { window.location.href = buildRequestUrl(); }}
+              className="underline underline-offset-2 font-extrabold"
+            >
+              click to bring them over
+            </button>.
+          </p>
+          <button
+            onClick={dismissMovedNotice}
+            className="nb-icon shrink-0 w-6 h-6 ml-auto"
+            aria-label="Dismiss"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Daily Problem ── */}
       {/* Brought onto the sister site's shape. It used to be a caption floating
           on the check, a board plate, and an ink bar welded under it — three
@@ -461,37 +497,6 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
               </svg>
             </span>
           </div>
-          {/* Above the pools, not below: the ~800 on those cards is what sends
-              this player away, and a way back printed underneath it arrives
-              after the decision. */}
-          {showMovedNotice && (
-            <div className="nb-panel flex items-start gap-3 px-3 py-2.5 mb-3">
-              {/* The button goes to the old address rather than opening Sync.
-                  Sync asks for a code, which means finding it on the other site
-                  and carrying it back; this way the old address hands the
-                  account over by itself and the player is returned here with it
-                  already applied. One press, nothing to copy. */}
-              <p className="text-xs sm:text-sm font-semibold text-[var(--ink)] leading-snug">
-                Played at the old site?{' '}
-                <button
-                  onClick={() => { window.location.href = buildRequestUrl(); }}
-                  className="underline underline-offset-2 font-extrabold"
-                >
-                  Click to restore your rating
-                </button>
-                {' '}— history and bookmarks come with it.
-              </p>
-              <button
-                onClick={dismissMovedNotice}
-                className="nb-icon shrink-0 w-6 h-6 ml-auto"
-                aria-label="Dismiss"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          )}
           {/* Three across, all the same size. Drawing direct big and the other
               two small was tried and put back: the pools are peers — separate
               ratings, separate matchmaking — and sizing one of them up made the
