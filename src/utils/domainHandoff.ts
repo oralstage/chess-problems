@@ -46,8 +46,12 @@ const TRIED_KEY = 'cp-handoff-tried';
 
 const HANDOFF_PREFIX = '#sync=';
 /* What the new address sends to the old one to ask for the account. It is a
-   request, not a redirect: the old address hands nothing over without it. */
-const REQUEST_HASH = '#handoff';
+   request, not a redirect: the old address hands nothing over without it.
+   It rides in the query string, not the fragment, because the old address now
+   answers `/` with a 301 — and a fragment never reaches a server, so a marker
+   hidden there could not be exempted from the redirect. The marker is not a
+   secret; the session id still travels only in the fragment, on the way back. */
+const REQUEST_PARAM = 'handoff';
 /* Where to land once the trip is done, so a link to one problem still opens
    that problem. The app routes on the fragment, which the id is using. */
 const ROUTE_PARAM = 'r';
@@ -132,10 +136,10 @@ export function buildRequestUrl(route?: string): string {
   if (hash === undefined) {
     try { hash = window.location.hash; } catch { hash = ''; }
   }
-  const query = hash && hash !== '#'
-    ? `?${ROUTE_PARAM}=${encodeURIComponent(hash)}`
+  const back = hash && hash !== '#'
+    ? `&${ROUTE_PARAM}=${encodeURIComponent(hash)}`
     : '';
-  return `https://${OLD_HOST}/${query}${REQUEST_HASH}`;
+  return `https://${OLD_HOST}/?${REQUEST_PARAM}=1${back}`;
 }
 
 /**
@@ -146,7 +150,7 @@ export function buildRequestUrl(route?: string): string {
 export function isHandoffRequest(): boolean {
   try {
     return window.location.hostname === OLD_HOST
-      && window.location.hash === REQUEST_HASH;
+      && new URLSearchParams(window.location.search).has(REQUEST_PARAM);
   } catch {
     return false;
   }

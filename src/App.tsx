@@ -3709,7 +3709,7 @@ export default function App() {
                     supposed to see yet. */}
                 <div>
                   <span className="text-[var(--faint)] font-semibold">Diagram: </span>
-                  <a href={`https://similar-chess-problems.pages.dev/#id=${p.id}`} target="_blank" rel="noopener noreferrer"
+                  <a href={`https://similar.chessproblem.org/#id=${p.id}`} target="_blank" rel="noopener noreferrer"
                     className="text-[var(--ink)] font-bold underline decoration-2 underline-offset-2">
                     Similar problems ↗
                   </a>

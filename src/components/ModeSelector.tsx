@@ -608,7 +608,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
 
         {/* Sister site — same card, but it leaves. */}
         <a
-          href="https://fairy-chess-problems.pages.dev"
+          href="https://fairy.chessproblem.org"
           target="_blank"
           rel="noopener noreferrer"
           className={CARD}
@@ -739,7 +739,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
           the width of every other tile instead of a banner. */}
       <div className="grid grid-cols-3 gap-2.5 px-4">
         <a
-          href="https://similar-chess-problems.pages.dev"
+          href="https://similar.chessproblem.org"
           target="_blank"
           rel="noopener noreferrer"
           className={CARD}
