@@ -307,8 +307,9 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
               account over by itself and the player is returned here with it
               already applied. One press, nothing to copy. */}
           <p className="text-xs sm:text-sm font-semibold text-[var(--ink)] leading-snug">
-            Played at chess-problems.pages.dev before? Your rating, history and
-            bookmarks are still yours —{' '}
+            This site moved from{' '}
+            <span className="whitespace-nowrap">chess-problems.pages.dev</span>.
+            Played there? Your rating, history and bookmarks are still yours —{' '}
             <button
               onClick={() => { window.location.href = buildRequestUrl(); }}
               className="underline underline-offset-2 font-extrabold"
