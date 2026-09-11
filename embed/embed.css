@@ -17,7 +17,12 @@ body {
 
 #root { height: 100%; }
 
+/* One size for every word on the page. Nothing here is a heading or a
+   footnote -- the composer, the stipulation, the count and the buttons are
+   all just the page talking -- and a spread of sizes only made it look like
+   an interface. */
 .emb-root {
+  --emb-text: 1rem;
   box-sizing: border-box;
   height: 100%;
   padding: 8px;
@@ -58,7 +63,7 @@ body {
 
 .emb-credit {
   min-height: 1.5rem;
-  font-size: 1rem;
+  font-size: var(--emb-text);
   font-weight: 700;
   line-height: 1.3;
   color: var(--ink);
@@ -75,14 +80,14 @@ body {
 }
 
 .emb-stip {
-  font-size: 1.15rem;
+  font-size: var(--emb-text);
   font-weight: 800;
   color: var(--ink);
 }
 
 .emb-pieces {
   font-family: var(--font-mono), monospace;
-  font-size: 1.05rem;
+  font-size: var(--emb-text);
   font-weight: 700;
   color: var(--muted);
 }
@@ -90,25 +95,25 @@ body {
 .emb-status {
   color: var(--ink);
   font-weight: 700;
-  font-size: 0.82rem;
+  font-size: var(--emb-text);
   margin-right: auto;
 }
 
 .emb-btn {
   padding: 4px 12px;
-  font-size: 0.8rem;
+  font-size: var(--emb-text);
   line-height: 1.35;
 }
 
 .emb-nav {
   padding: 2px 9px;
-  font-size: 0.85rem;
+  font-size: var(--emb-text);
   font-family: var(--font-mono), monospace;
 }
 
 .emb-count {
   font-family: var(--font-mono), monospace;
-  font-size: 0.78rem;
+  font-size: var(--emb-text);
   color: var(--muted);
   font-weight: 700;
   min-width: 2.6rem;
