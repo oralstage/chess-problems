@@ -76,6 +76,16 @@ body {
    count below, no chrome around any of it. The stipulation is a statement of
    the task, not a control, so it wears no pill. */
 
+/* Which day this board belongs to, on its own line above the credit's, so
+   that the one arriving never takes the other away. */
+.emb-date {
+  font-size: var(--emb-text);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--faint);
+  text-align: center;
+}
+
 .emb-credit {
   min-height: 1.5rem;
   font-size: var(--emb-text);

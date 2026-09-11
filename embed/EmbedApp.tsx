@@ -171,15 +171,17 @@ export function EmbedApp() {
      height either way so the board does not jump when the name arrives. */
   const credit = p ? [composerLine(p.authors), [p.sourceName, p.sourceYear].filter(Boolean).join(', ')]
     .filter(Boolean).join(' — ') : '';
-  /* The daily problem says which day it is, in the line the credit will take
-     over once the solve is decided: a board that changes every morning has to
-     say which morning, and that is not a clue to anything. */
-  const heading = decided ? credit : (dailyDate ? `Daily — ${dayLabel(dailyDate)}` : '');
+  /* The daily problem says which day it is, on a line of its own. It had been
+     sharing the credit's line and standing down when the credit arrived --
+     but which morning this board belongs to is not a thing to take away from
+     someone the moment they have solved it. Both lines are held open from the
+     start, so the diagram does not move when the credit appears. */
 
   return (
     <div className="emb-root" ref={rootRef}>
       <div className="emb-stack" ref={stackRef} style={boardSize ? { width: boardSize } : undefined}>
-      <div className="emb-credit">{heading}</div>
+      {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
+      <div className="emb-credit">{decided ? credit : ''}</div>
 
       <div className="emb-slot" ref={slotRef} style={{ height: boardSize }}>
         <div className="emb-slot-inner">
