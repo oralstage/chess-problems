@@ -18,6 +18,12 @@
  * already uses, so a prefix of any generated form ("tkach", "tschern") hits.
  */
 
+// Shared with the search endpoint: the query has to be broken into words
+// and folded by exactly the same rules the index is built with.
+import { asciiFold, hasCyrillic, nameWords } from '../functions/api/name-normalize.ts';
+
+export { asciiFold, hasCyrillic };
+
 /**
  * Per-letter readings, commonest first. Accented forms (ž, š, č) are kept
  * because asciiFold() turns them into the bare Serbian/Croatian spellings
@@ -137,16 +143,6 @@ function readingsOf(word: string): string[] {
   return [...new Set([...profileForms(word), ...crossForms(word)])];
 }
 
-export function hasCyrillic(s: string): boolean {
-  return /[\u0400-\u04FF\u0500-\u052F]/.test(s);
-}
-
-/** Strip diacritics so "Vukčević" is also reachable as "vukcevic". */
-export function asciiFold(s: string): string {
-  return s.normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[đĐ]/g, 'd').replace(/ø/g, 'o').replace(/ß/g, 'ss');
-}
-
 /** Every plausible Latin reading of one Cyrillic word. */
 export function latinFormsOfWord(word: string): string[] {
   const w = word.toLowerCase();
@@ -208,8 +204,7 @@ export function extraSearchParts(name: string): { surname: string; other: string
     const add = (w: string) => {
       if (w && !taken.has(w)) { taken.add(w); out.push(w); }
     };
-    for (const w of part.toLowerCase().split(/[^\p{L}\p{N}]+/u)) {
-      if (!w) continue;
+    for (const w of nameWords(part)) {
       add(w);
       add(asciiFold(w).replace(/[^a-z0-9]/g, ''));
       for (const f of latinFormsOfWord(w)) add(f);

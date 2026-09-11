@@ -1,4 +1,5 @@
 import { addFairyExclusion } from './fairy-filter';
+import { nameWords, searchKey } from './name-normalize';
 import { dataCacheKey, DATA_CACHE_CONTROL } from './data-cache';
 
 /**
@@ -115,11 +116,22 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'Rate limited' }, { status: 429 });
   }
 
-  // Split search terms by space and require all to match (AND).
-  // Escape LIKE metacharacters so user input can't act as wildcards.
-  // Six bindings per term below, against D1's limit of 100.
-  const terms = author.split(/\s+/).filter(t => t.length > 0).slice(0, 12);
-  const likePatterns = terms.map(t => `%${t.replace(/[\\%_]/g, c => '\\' + c)}%`);
+  // Break the query into bare words exactly the way the index breaks a name
+  // (see functions/api/name-normalize.ts): a reader pastes the name as it is
+  // printed — "Visocka, Jūlija", "Winter-Wood" — and splitting on spaces
+  // alone left the comma or the hyphen inside the term, which matched nothing
+  // at all. Every term must match (AND). Five bindings per term below,
+  // against D1's limit of 100.
+  const terms = nameWords(author).slice(0, 12);
+  if (terms.length === 0) {
+    return Response.json({ error: 'author param required (min 2 chars)' }, { status: 400 });
+  }
+  // What to look for in the alias columns: the ASCII-folded word, which is
+  // the form the index always holds. Spelling a name properly used to find
+  // less than misspelling it — "Kovačević" nothing, "Kovacevic" 495.
+  const keys = terms.map(searchKey);
+  const esc = (t: string) => t.replace(/[\\%_]/g, c => '\\' + c);
+  const likePatterns = terms.map(t => `%${esc(t)}%`);
 
   // Indexed path: scan the ~30k-row author_search table (name → pre-sorted
   // problem ids) instead of LIKE-scanning all ~580k problems. Cuts a novel
@@ -127,6 +139,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   // index table is missing (see scripts/build-author-index.ts — rebuild it
   // after every import).
   let indexedIds: number[] | null = null;
+  // How well each id's author answered the query, to order the list by.
+  const tierOf = new Map<number, number>();
   try {
     const lowered = likePatterns.map(p => p.toLowerCase());
     const onName = terms.map(() => `name_lower LIKE ? ESCAPE '\\'`).join(' AND ');
@@ -142,22 +156,33 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     // of 448,993 — where one convention writes a leading cluster the reader's
     // convention drops (Tschobanjan for Chobanjan). Prefixes are unaffected,
     // which is what a reader actually types: "tada", "yama", "tkach", "zalok".
-    const anchored = terms.map(t => `% ${t.replace(/[\\%_]/g, c => '\\' + c).toLowerCase()}%`);
-    const onSurname = terms.map(() => `(' ' || aliases) LIKE ? ESCAPE '\\'`).join(' AND ');
+    const prefix = keys.map(k => `% ${esc(k)}%`);
+    const whole = keys.map(k => `% ${esc(k)} %`);
     const onAnyPart = terms.map(
       () => `((' ' || aliases) LIKE ? ESCAPE '\\' OR (' ' || alias_other) LIKE ? ESCAPE '\\')`
     ).join(' AND ');
-    // A surname hit outranks a given-name or patronymic one, and the weaker
-    // rows are dropped whenever any surname matched at all — otherwise "Bron"
-    // spends the page on the patronymic in Згерский, Геннадий Брониславович
-    // and never reaches Брон, Владимир Акимович.
+    // Relevance, not a filter. A word the term matches whole beats one it only
+    // begins, and a surname beats a given name or patronymic at equal
+    // precision. Both halves are needed: the surname rule alone is what keeps
+    // "Bron" on Брон, Владимир Акимович (589 problems) instead of on the
+    // patronymic in Згерский, Геннадий Брониславович, and the whole-word rule
+    // is what puts Ковачевић, Марјан (495) ahead of Марјановић when the term
+    // is his given name. The weaker rows used to be dropped rather than
+    // ranked, so "Marjan" returned 131 problems by three other people and not
+    // one of his.
+    const tierExpr = terms.map(() =>
+      `(CASE WHEN (' ' || aliases || ' ') LIKE ? ESCAPE '\\' THEN 3
+             WHEN (' ' || alias_other || ' ') LIKE ? ESCAPE '\\' THEN 2
+             WHEN (' ' || aliases) LIKE ? ESCAPE '\\' THEN 1 ELSE 0 END)`);
+    // A row is only as good as its weakest term.
+    const tierSql = tierExpr.length === 1 ? tierExpr[0] : `MIN(${tierExpr.join(', ')})`;
     const bind: string[] = [];
-    for (const a of anchored) bind.push(a);
-    for (const a of anchored) bind.push(a, a);
+    for (let i = 0; i < terms.length; i++) bind.push(whole[i], whole[i], prefix[i]);
+    for (const p of prefix) bind.push(p, p);
     let rows;
     try {
       rows = await context.env.DB.prepare(
-        `SELECT problem_ids, (CASE WHEN ${onSurname} THEN 1 ELSE 0 END) AS tier
+        `SELECT problem_ids, ${tierSql} AS tier
          FROM author_search WHERE ${onAnyPart}
          ORDER BY tier DESC, length(problem_ids) DESC LIMIT 100`
       ).bind(...bind).all();
@@ -169,25 +194,34 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       ).bind(...lowered).all();
     }
     const all = rows.results as { problem_ids: string; tier: number }[];
-    const named = all.filter(r => r.tier > 0);
-    const lists: number[][] = [];
-    for (const r of (named.length > 0 ? named : all)) {
+    const byTier = new Map<number, number[][]>();
+    for (const r of all) {
       try {
         const ids = JSON.parse(r.problem_ids).filter((id: unknown) => Number.isInteger(id));
-        if (ids.length > 0) lists.push(ids);
+        if (ids.length === 0) continue;
+        const t = r.tier ?? 0;
+        const group = byTier.get(t);
+        if (group) group.push(ids); else byTier.set(t, [ids]);
       } catch { /* skip malformed row */ }
     }
     indexedIds = [];
     const CAP = 5000;
-    for (let round = 0; indexedIds.length < CAP; round++) {
-      let took = false;
-      for (const list of lists) {
-        if (round < list.length && indexedIds.length < CAP) {
-          indexedIds.push(list[round]);
-          took = true;
+    // Round-robin within a tier, so no one author's newest problems bury the
+    // others equally good; tiers in turn, so the cap falls on the weakest.
+    for (const tier of [...byTier.keys()].sort((a, b) => b - a)) {
+      const lists = byTier.get(tier)!;
+      for (let round = 0; indexedIds.length < CAP; round++) {
+        let took = false;
+        for (const list of lists) {
+          if (round < list.length && indexedIds.length < CAP) {
+            const id = list[round];
+            indexedIds.push(id);
+            if (!tierOf.has(id)) tierOf.set(id, tier);
+            took = true;
+          }
         }
+        if (!took) break;
       }
-      if (!took) break;
     }
   } catch {
     indexedIds = null; // table missing — take the legacy path
@@ -227,10 +261,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     rowsForQuery = result.results as Record<string, unknown>[];
   }
 
-  // Newest first, oldest of a year's problems being the easiest — the order
-  // the list has always come back in. The client re-sorts for its other two
-  // orders without asking again.
+  // Best match first, and newest within it — oldest of a year's problems
+  // being the easiest. The client re-sorts for its other two orders without
+  // asking again. Only a query that reaches several people has more than one
+  // tier, and there the closer match is what the reader is looking for.
   rowsForQuery.sort((a, b) => {
+    const ta = tierOf.get(a.id as number) ?? 0, tb = tierOf.get(b.id as number) ?? 0;
+    if (ta !== tb) return tb - ta;
     const ya = a.source_year as number | null, yb = b.source_year as number | null;
     if (ya == null && yb == null) return (a.difficulty_score as number) - (b.difficulty_score as number);
     if (ya == null) return 1;

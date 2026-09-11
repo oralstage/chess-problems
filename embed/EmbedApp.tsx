@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Board } from '../src/components/Board';
 import { useProblem } from '../src/hooks/useProblem';
 import { getPromotionForMove } from '../src/services/moveInput';
-import { fetchProblem, metaToChessProblem } from '../src/services/api';
+import { fetchProblem, fetchDailyByDate, metaToChessProblem } from '../src/services/api';
 import { pieceCounts } from '../src/utils/pieceCount';
 import { stipulationPhrase } from '../src/utils/stipulationColor';
 import { composerLine } from '../src/utils/composerName';
@@ -10,27 +10,43 @@ import { CATEGORY_DEFS } from '../src/types';
 import type { ChessProblem } from '../src/types';
 import { ensureSolution } from './ensureSolution';
 
-/* Shown when the host page names no problem. A two-mover, so that an embed
-   pasted in without parameters is still a problem someone can solve. */
-const FALLBACK_ID = 3684;
-
-function problemIdFromUrl(): number {
+/* Which problem the host page asked for, if it asked for one at all. Pasted
+   without parameters the embed carries the site's daily problem, so a page
+   that wants one board on it for good has a board that is worth coming back
+   to. */
+function problemIdFromUrl(): number | null {
   const raw = new URLSearchParams(window.location.search).get('id');
   const id = raw ? Number(raw) : NaN;
-  return Number.isInteger(id) && id > 0 ? id : FALLBACK_ID;
+  return Number.isInteger(id) && id > 0 ? id : null;
 }
 
-/* The same problem on the site it came from. The origin is the one serving
-   the embed, so a staging embed points at staging and the live one at the
-   live site without either being written down. The category slug comes off
-   CATEGORY_DEFS rather than a second copy of the move-count ranges; a move
-   count in no category (a #1) falls back to the bare genre slug, which the
-   app also accepts. */
-function siteUrl(p: ChessProblem): string {
+/** Today where the reader is. The daily problem turns over by their calendar,
+ *  not by UTC, which is the date the site's own daily page is keyed on. */
+function localDate(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+/* The site the link names. Written down rather than taken from wherever the
+   embed happens to be served: an embed on staging, or on the old pages.dev
+   address, still has only one place to send a reader who wants the rest of
+   it. The problems themselves are fetched from the serving origin's own API
+   -- same database either way -- so only this one address is fixed. */
+const SITE = 'https://arcade.chessproblem.org';
+
+/* The same problem on the site. The category slug comes off CATEGORY_DEFS
+   rather than a second copy of the move-count ranges; a move count in no
+   category (a #1) falls back to the bare genre slug, which the app also
+   accepts. */
+function siteUrl(p: ChessProblem, dailyDate: string | null): string {
+  // The daily problem has a page of its own, with the days either side of it.
+  // Sending its reader to the plain problem page instead would lose the one
+  // thing they came with: that this is today's.
+  if (dailyDate) return `${SITE}/#/daily/${dailyDate}`;
   const def = CATEGORY_DEFS.find(d => d.genre === p.genre
     && (d.minMoves == null || p.moveCount >= d.minMoves)
     && (d.maxMoves == null || d.maxMoves === 0 || p.moveCount <= d.maxMoves));
-  return `${window.location.origin}/#/${def?.category ?? p.genre}/yacpdb/${p.id}`;
+  return `${SITE}/#/${def?.category ?? p.genre}/yacpdb/${p.id}`;
 }
 
 /* How big the diagram can be: the width it is given, or the height left once
@@ -94,6 +110,7 @@ function useBoardSize(
 export function EmbedApp() {
   const problem = useProblem();
   const [error, setError] = useState<string | null>(null);
+  const [dailyDate, setDailyDate] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
@@ -102,14 +119,17 @@ export function EmbedApp() {
   const loadProblem = problem.loadProblem;
   useEffect(() => {
     const id = problemIdFromUrl();
+    const date = id === null ? localDate() : null;
     let cancelled = false;
     (async () => {
       try {
-        const full = await fetchProblem(id);
+        const full = date ? await fetchDailyByDate(date) : await fetchProblem(id!);
         const ready = await ensureSolution(metaToChessProblem(full, full.solutionText));
-        if (!cancelled) loadProblem(ready);
+        if (cancelled) return;
+        setDailyDate(date);
+        loadProblem(ready);
       } catch {
-        if (!cancelled) setError(`Problem ${id} could not be loaded.`);
+        if (!cancelled) setError(date ? 'The daily problem could not be loaded.' : `Problem ${id} could not be loaded.`);
       }
     })();
     return () => { cancelled = true; };
@@ -229,7 +249,7 @@ export function EmbedApp() {
 
       <div className="emb-link-row">
         {p && (
-          <a className="emb-link" href={siteUrl(p)} target="_blank" rel="noopener noreferrer">
+          <a className="emb-link" href={siteUrl(p, dailyDate)} target="_blank" rel="noopener noreferrer">
             Open on Chess Problem Arcade ↗
           </a>
         )}
