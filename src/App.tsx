@@ -45,7 +45,7 @@ import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parse
 import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, fetchDaily, fetchDailyByDate, fetchStats, metaToChessProblem, fixCastlingRights, submitSolveEvent, submitRatingEvent, fetchRatedProblem, fetchProblemRating, trackEvent, fetchMyProgress, getSessionId, fetchSiteStats, pushBookmark, pushPlayerRating, uploadLocalSyncData, RATED_GENRES, type RatedGenre, type SyncReviewCard, type SearchResult, fetchMySnapshot, type MySnapshot } from './services/api';
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { Glicko2Rating } from './utils/glicko2';
-import { buildHandoffUrl, buildRequestUrl, consumeHandoff, isHandoffRequest,
+import { buildHandoffUrl, buildRequestUrl, consumeHandoff, hasLocalAccountData, isHandoffRequest,
   markHandoffReturned, markHandoffTried, shouldAutoHandoff } from './utils/domainHandoff';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
@@ -1961,6 +1961,9 @@ export default function App() {
   // put there by the old address so the player does not land here as a stranger.
   // It runs before the hash router sees anything, and only on a device with no
   // account of its own — see domainHandoff.ts.
+  /** A fetched account waiting on the player's word, because taking it would
+   *  replace what this device already has. */
+  const [pendingHandoff, setPendingHandoff] = useState<{ code: string; snapshot: MySnapshot } | null>(null);
   const handoffRef = useRef(false);
   useEffect(() => {
     if (handoffRef.current) return;
@@ -1980,7 +1983,14 @@ export default function App() {
       markHandoffReturned();
       if (handoff.code === getSessionId()) return;
       fetchMySnapshot(handoff.code)
-        .then(snapshot => { if (snapshot) applySnapshotToDevice(handoff.code, snapshot); })
+        .then(snapshot => {
+          if (!snapshot) return;
+          // A handoff replaces this device wholesale. On a device with nothing
+          // of its own that is free; on one that has been played at, it would
+          // throw that away, so it is put to the player instead of taken.
+          if (hasLocalAccountData()) setPendingHandoff({ code: handoff.code, snapshot });
+          else applySnapshotToDevice(handoff.code, snapshot);
+        })
         .catch(() => { /* the player keeps this device's fresh account */ });
       return;
     }
@@ -3513,6 +3523,45 @@ export default function App() {
         }}
         ratingSyncSeen={ratingSyncSeen}
       />
+
+      {/* The account from the old address, held at the door. Reached by a device
+          that has been played at here — the automatic trip never touches one of
+          those, so this is someone who pressed the notice — and what comes over
+          replaces what is here, which is not something to do quietly. */}
+      {pendingHandoff && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-[var(--ink)]/45">
+          <div className="nb-card nb-shadow-nudge w-full max-w-md px-6 py-5">
+            <h2 className="text-xl font-extrabold tracking-tight text-[var(--ink)] mb-2">
+              Bring over your old account?
+            </h2>
+            <p className="text-sm font-medium text-[var(--muted)] leading-snug mb-1">
+              Found an account at chess-problems.pages.dev: {(() => {
+                const p = pendingHandoff.snapshot;
+                const solved = Object.values(p.progress || {}).reduce((n, g) => n + Object.keys(g).length, 0);
+                const marks = Object.values(p.bookmarks || {}).reduce((n, g) => n + g.length, 0);
+                return `${solved} problem${solved === 1 ? '' : 's'} played, ${marks} bookmark${marks === 1 ? '' : 's'}`;
+              })()}.
+            </p>
+            <p className="text-sm font-medium text-[var(--bad)] leading-snug mb-5">
+              What you have done at this address will be replaced and cannot be recovered.
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { applySnapshotToDevice(pendingHandoff.code, pendingHandoff.snapshot); }}
+                className="nb-btn nb-btn-key px-4 py-2 text-sm"
+              >
+                Bring it over
+              </button>
+              <button
+                onClick={() => setPendingHandoff(null)}
+                className="nb-btn px-4 py-2 text-sm"
+              >
+                Keep what is here
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <RatingSyncModal
         open={showRatingSync}

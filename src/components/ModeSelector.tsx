@@ -5,7 +5,7 @@ import type { Category, ChessProblem, ProblemProgress } from '../types';
 import { CategoryMark } from './CategoryMark';
 import { loadRatedDifficulty, loadRatedProblem as loadRatedProblemSlot } from '../utils/ratedDifficulty';
 import type { RatedGenre } from '../services/api';
-import { buildRequestUrl, handoffAnswered, hasLocalAccountData } from '../utils/domainHandoff';
+import { buildRequestUrl, handoffAnswered } from '../utils/domainHandoff';
 // import { fetchSiteStats, type SiteStats } from '../services/api';
 
 
@@ -135,12 +135,12 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
     try {
       if (localStorage.getItem('cp-moved-notice-seen') === '1') return false;
     } catch { return false; }
-    // Nothing to say to someone the old address has already answered: either
-    // their account came back and is here, or there was none to begin with.
-    // What is left is the trip that never returned, and the visitor who
-    // arrives after the automatic trip has stopped running.
-    if (handoffAnswered()) return false;
-    return !hasLocalAccountData();
+    // The only question is whether the old address has answered yet. Once it
+    // has, there is nothing to say: the account either came back and is here,
+    // or there was none. Until it has, say it — including to a device that
+    // already has records of its own, which is the case the automatic trip
+    // refuses to touch and which therefore has no other way back.
+    return !handoffAnswered();
   });
   const dismissMovedNotice = () => {
     setShowMovedNotice(false);
