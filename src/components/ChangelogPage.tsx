@@ -4,6 +4,17 @@ interface ChangelogPageProps {
 
 const CHANGELOG = [
   {
+    date: '2026-09-11',
+    sections: [
+      {
+        title: 'New',
+        items: [
+          'The site is now Chess Problem Arcade, at arcade.chessproblem.org. Old links and bookmarks still work \u2014 they bring you here, and your rating, history and bookmarks come with you.',
+        ],
+      },
+    ],
+  },
+  {
     date: '2026-09-08',
     sections: [
       {
