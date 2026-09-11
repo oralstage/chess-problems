@@ -109,7 +109,8 @@ body {
   color: var(--ink);
   font-weight: 700;
   font-size: var(--emb-text);
-  margin-right: auto;
+  margin-left: auto;
+  text-align: right;
 }
 
 .emb-btn {

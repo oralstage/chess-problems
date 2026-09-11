@@ -181,14 +181,6 @@ export function EmbedApp() {
 
       {p && (
         <div className="emb-bar">
-          <span className="emb-status">
-            {problem.status === 'correct' ? 'Solved!'
-              : problem.status === 'viewing' ? 'Solution'
-              : problem.totalSolutions > 1
-                ? `Found ${problem.foundSolutionCount}/${problem.totalSolutions}. ${problem.feedback}`
-                : problem.feedback}
-          </span>
-
           {/* While solving: the three things a solver needs and nothing else. */}
           {problem.status === 'solving' && !problem.waitingForAutoPlay && (
             <>
@@ -222,6 +214,16 @@ export function EmbedApp() {
               <button className="nb-btn nb-btn-key emb-btn" onClick={problem.resetProblem}>Try again</button>
             </>
           )}
+
+          {/* What the board is saying, at the far end of the row: the buttons
+              are what a hand goes to, so they take the edge it starts from. */}
+          <span className="emb-status">
+            {problem.status === 'correct' ? 'Solved!'
+              : problem.status === 'viewing' ? 'Solution'
+              : problem.totalSolutions > 1
+                ? `Found ${problem.foundSolutionCount}/${problem.totalSolutions}. ${problem.feedback}`
+                : problem.feedback}
+          </span>
         </div>
       )}
 
