@@ -20,6 +20,18 @@ function problemIdFromUrl(): number | null {
   return Number.isInteger(id) && id > 0 ? id : null;
 }
 
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** "September 11" -- the day the problem belongs to. The month is named
+ *  rather than numbered because 9/11 and 11/9 are the same day to different
+ *  readers, and spelled out in the site's own language rather than the
+ *  reader's, so that the order cannot change under it either. */
+function dayLabel(date: string): string {
+  const [, m, d] = date.split('-').map(Number);
+  return `${MONTHS[m - 1]} ${d}`;
+}
+
 /** Today where the reader is. The daily problem turns over by their calendar,
  *  not by UTC, which is the date the site's own daily page is keyed on. */
 function localDate(): string {
@@ -159,11 +171,15 @@ export function EmbedApp() {
      height either way so the board does not jump when the name arrives. */
   const credit = p ? [composerLine(p.authors), [p.sourceName, p.sourceYear].filter(Boolean).join(', ')]
     .filter(Boolean).join(' — ') : '';
+  /* The daily problem says which day it is, in the line the credit will take
+     over once the solve is decided: a board that changes every morning has to
+     say which morning, and that is not a clue to anything. */
+  const heading = decided ? credit : (dailyDate ? `Daily — ${dayLabel(dailyDate)}` : '');
 
   return (
     <div className="emb-root" ref={rootRef}>
       <div className="emb-stack" ref={stackRef} style={boardSize ? { width: boardSize } : undefined}>
-      <div className="emb-credit">{decided ? credit : ''}</div>
+      <div className="emb-credit">{heading}</div>
 
       <div className="emb-slot" ref={slotRef} style={{ height: boardSize }}>
         <div className="emb-slot-inner">
