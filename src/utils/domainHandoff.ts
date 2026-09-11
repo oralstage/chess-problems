@@ -48,6 +48,10 @@ export const AUTO_HANDOFF_UNTIL = '2026-12-31';
 
 /** Set before leaving, never after: a trip that fails must not be retried. */
 const TRIED_KEY = 'cp-handoff-tried';
+/** Set on arrival back. Separate from TRIED_KEY, which is set on the way out
+ *  and so cannot tell a trip that found nothing from one that never returned —
+ *  and those two want opposite things from the notice. */
+const RETURNED_KEY = 'cp-handoff-returned';
 
 const HANDOFF_PREFIX = '#sync=';
 /* What the new address sends to the old one to ask for the account. It is a
@@ -117,6 +121,23 @@ export function handoffAlreadyTried(): boolean {
 
 export function markHandoffTried(): void {
   try { localStorage.setItem(TRIED_KEY, '1'); } catch { /* ignore */ }
+}
+
+export function markHandoffReturned(): void {
+  try { localStorage.setItem(RETURNED_KEY, '1'); } catch { /* ignore */ }
+}
+
+/**
+ * Whether the old address has already been asked and answered on this device.
+ * True means there was nothing to fetch — the account either came back and is
+ * here, or never existed — and the notice about the move has nobody to talk to.
+ */
+export function handoffAnswered(): boolean {
+  try {
+    return localStorage.getItem(RETURNED_KEY) === '1';
+  } catch {
+    return false;
+  }
 }
 
 /**

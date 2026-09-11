@@ -46,7 +46,7 @@ import { fetchAllProblems, fetchProblemsPage, fetchProblem, fetchProblemIndex, f
 import { usePlayerRating } from './hooks/usePlayerRating';
 import type { Glicko2Rating } from './utils/glicko2';
 import { buildHandoffUrl, buildRequestUrl, consumeHandoff, isHandoffRequest,
-  markHandoffTried, shouldAutoHandoff } from './utils/domainHandoff';
+  markHandoffReturned, markHandoffTried, shouldAutoHandoff } from './utils/domainHandoff';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
 import { flipDuplexRoots, mainLinePlays } from './utils/duplex';
@@ -1977,6 +1977,7 @@ export default function App() {
     const handoff = consumeHandoff();
     if (handoff) {
       markHandoffTried();
+      markHandoffReturned();
       if (handoff.code === getSessionId()) return;
       fetchMySnapshot(handoff.code)
         .then(snapshot => { if (snapshot) applySnapshotToDevice(handoff.code, snapshot); })
