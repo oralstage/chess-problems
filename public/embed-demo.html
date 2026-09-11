@@ -40,11 +40,7 @@
 
       figure { margin: 0; min-width: 0; }
       figcaption { margin-bottom: 8px; }
-      /* The credit belongs to the page, not to the diagram: the embed holds
-         it back until the solve is decided, the way a solving tourney does,
-         so a page that wants it in sight puts it here. */
-      .credit { display: block; font-size: 14px; font-weight: 600; color: #333; }
-      .note { display: block; font-size: 12px; color: #777; }
+      .note { display: block; font-size: 13px; color: #666; }
       iframe {
         max-width: 100%;
         border: 1px solid #d7d7d2;
@@ -74,18 +70,36 @@
         else — the board, and what it takes to solve it. The markup under each one is the
         markup that draws it.</p>
       <p>Inside the frame the composer and the source stay out of sight until the solve is
-        decided, as a solving tourney's diagram sheet does. A page that would rather have
-        them in view writes them beside the diagram, as here.</p>
+        decided, as a solving tourney's diagram sheet does.</p>
+      <p>The frames on this page are running from the staging copy until the embed is live
+        on the site. The markup under each one carries the address to use,
+        <code>arcade.chessproblem.org</code>.</p>
+
+      <h2>Today's problem</h2>
+      <p>With no <code>id</code> at all, the frame carries the site's daily problem — the
+        same one the front page is showing — so a page can be pasted once and have
+        something new on it every day.</p>
 
       <div class="pair">
         <figure>
-          <figcaption><span class="credit">Jūlija Visocka — The Problemist Supplement, 2012</span></figcaption>
+          <figcaption><span class="note">Daily — /embed, no id</span></figcaption>
+          <iframe src="/embed/" title="Today's chess problem"
+                  style="width:100%; aspect-ratio:4/5"></iframe>
+          <pre></pre>
+        </figure>
+      </div>
+
+      <h2>A problem by id</h2>
+
+      <div class="pair">
+        <figure>
+          <figcaption><span class="note">Helpmate in 2 — /embed?id=338114</span></figcaption>
           <iframe src="/embed/?id=338114" title="Helpmate in 2"
                   style="width:100%; aspect-ratio:4/5"></iframe>
           <pre></pre>
         </figure>
         <figure>
-          <figcaption><span class="credit">Марјан Ковачевић — ЮК Уральский проблемист - 30, 2023</span></figcaption>
+          <figcaption><span class="note">Mate in 2 — /embed?id=632615</span></figcaption>
           <iframe src="/embed/?id=632615" title="Mate in 2"
                   style="width:100%; aspect-ratio:4/5"></iframe>
           <pre></pre>
@@ -98,19 +112,19 @@
 
       <div class="sizes">
         <figure>
-          <figcaption><span class="credit">Марјан Ковачевић — ЮК Уральский проблемист - 30, 2023</span><span class="note">280 × 420 — narrow column</span></figcaption>
+          <figcaption><span class="note">280 × 420 — narrow column</span></figcaption>
           <iframe src="/embed/?id=632615" title="Mate in 2"
                   style="width:280px; height:420px"></iframe>
           <pre></pre>
         </figure>
         <figure>
-          <figcaption><span class="credit">Jūlija Visocka — The Problemist Supplement, 2012</span><span class="note">360 × 560 — phone width</span></figcaption>
+          <figcaption><span class="note">360 × 560 — phone width</span></figcaption>
           <iframe src="/embed/?id=338114" title="Helpmate in 2"
                   style="width:360px; height:560px"></iframe>
           <pre></pre>
         </figure>
         <figure>
-          <figcaption><span class="credit">Марјан Ковачевић — ЮК Уральский проблемист - 30, 2023</span><span class="note">640 × 380 — wide and short</span></figcaption>
+          <figcaption><span class="note">640 × 380 — wide and short</span></figcaption>
           <iframe src="/embed/?id=632615" title="Mate in 2"
                   style="width:640px; height:380px"></iframe>
           <pre></pre>
@@ -119,6 +133,8 @@
     </main>
 
     <script>
+      const SITE = 'https://arcade.chessproblem.org';
+
       for (const figure of document.querySelectorAll('figure')) {
         const frame = figure.querySelector('iframe');
         const pre = figure.querySelector('pre');
@@ -127,7 +143,10 @@
         // the tidy /embed?id= form rather than the directory the dev server
         // wants.
         const url = new URL(frame.getAttribute('src'), location.href);
-        const src = location.origin + '/embed?' + url.searchParams.toString();
+        const query = url.searchParams.toString();
+        // The address to copy is the site's own, whatever this page happens to
+        // be served from: arcade.chessproblem.org is where the embed belongs.
+        const src = SITE + '/embed' + (query ? '?' + query : '');
         const style = frame.getAttribute('style').replace(/\s+/g, ' ').trim();
         pre.textContent =
           '<iframe src="' + src + '"\n'
