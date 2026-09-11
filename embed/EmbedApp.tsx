@@ -84,11 +84,10 @@ export function EmbedApp() {
   const decided = problem.status === 'correct' || problem.status === 'viewing';
   const phrase = p ? stipulationPhrase(p.stipulation, p.genre, p.moveCount) : '';
 
-  /* The way out to the site, on the page from the first moment. What it
-     offers changes with the solve -- the full page answers a move that did
-     not work or a solve given up, and has the next problem for one that is
-     finished -- but the line itself does not come and go, so the diagram is
-     never resized by it. */
+  /* The way out to the site, on the page from the first moment and worded the
+     same throughout -- the form every embed uses to name where it came from
+     ("Watch on YouTube", "Open in Lichess"). It never comes and goes, so the
+     diagram is never resized by it. */
 
   /* A printed diagram carries the composer above it and the stipulation with
      the material count below. The credit is held back until the solve is
@@ -184,7 +183,7 @@ export function EmbedApp() {
       <div className="emb-link-row">
         {p && (
           <a className="emb-link" href={siteUrl(p)} target="_blank" rel="noopener noreferrer">
-            {problem.status === 'correct' ? 'Solve another problem ↗' : 'See the full solution ↗'}
+            Solve on Chess Problem Arcade ↗
           </a>
         )}
       </div>
