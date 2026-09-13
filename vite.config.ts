@@ -16,6 +16,9 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         embed: resolve(__dirname, 'embed/index.html'),
+        // The same board with no name on it, for a page that wants to put its
+        // own problem on it (dist/board/index.html -> /board).
+        board: resolve(__dirname, 'board/index.html'),
       },
     },
   },

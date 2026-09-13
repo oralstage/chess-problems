@@ -268,7 +268,17 @@ function useBoardLayout(
 
   return layout;
 }
-export function EmbedApp() {
+/* Two doors onto the same board.
+
+   'arcade' is this site's own embed: the type this site is set in, and a line
+   out to the problem's page here when it has one.
+
+   'plain' is the door for somebody else's page. It carries no name and no way
+   out — a federation putting its own problem on a board should keep the reader
+   it brought — and it is set in the host's type, not in ours. */
+export type EmbedVariant = 'arcade' | 'plain';
+
+export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}) {
   const problem = useProblem();
   const [error, setError] = useState<string | null>(null);
   const [dailyDate, setDailyDate] = useState<string | null>(null);
@@ -342,7 +352,7 @@ export function EmbedApp() {
      start, so the diagram does not move when the credit appears. */
 
   return (
-    <div className="emb-root" ref={rootRef}>
+    <div className="emb-root" data-type={variant === 'plain' ? 'host' : undefined} ref={rootRef}>
       <div className="emb-stack" ref={stackRef} style={blockWidth ? { width: blockWidth } : undefined}>
       {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
       <div className="emb-credit">{decided ? credit : ''}</div>
@@ -432,7 +442,7 @@ export function EmbedApp() {
       {/* Only for a problem that is on the site. One handed over in the
           address has no page here to open, and a page that put its own
           problem on this board should not be sending its readers away. */}
-      {p && p.id > 0 && (
+      {p && p.id > 0 && variant === 'arcade' && (
         <div className="emb-link-row">
           <a className="emb-link" href={siteUrl(p, dailyDate)} target="_blank" rel="noopener noreferrer">
             Open on Chess Problem Arcade ↗
