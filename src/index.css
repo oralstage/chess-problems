@@ -86,6 +86,14 @@
 
   /* The diagram's own squares, unchanged from the green board this site has
      always used — now as tokens so the ground can be mixed from them. */
+  /* What the board says about a move: the wash under the square it was played
+     on, and the disc that carries the tick. Tokens because a frame served into
+     somebody else's page may be on a board these colours do not sit on --
+     nothing on this site changes, these being what it already used. */
+  --mark-ok: rgba(34, 197, 94, 0.5);
+  --mark-ok-solid: rgb(34, 197, 94);
+  --mark-bad: rgba(239, 68, 68, 0.45);
+
   --board-l: #edeed1;
   --board-d: #779952;
 

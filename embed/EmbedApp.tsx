@@ -179,6 +179,7 @@ function useBoardLayout(
   root: React.RefObject<HTMLDivElement | null>,
   stack: React.RefObject<HTMLDivElement | null>,
   slot: React.RefObject<HTMLDivElement | null>,
+  bar: React.RefObject<HTMLDivElement | null>,
 ): { size: number; blockWidth: number } {
   const [layout, setLayout] = useState({ size: 0, blockWidth: 0 });
 
@@ -202,6 +203,13 @@ function useBoardLayout(
          so what the board is told has no way back into the measurement. */
       const linesAt = (width: number) => {
         stackEl.style.width = `${width}px`;
+        // The row of controls is held open at the height of its fullest state
+        // before anything is added up, so that state arriving later costs the
+        // board nothing. The twin is out of the flow, so it is measured at this
+        // width without being part of what is measured.
+        const barEl = bar.current;
+        const ghost = barEl?.firstElementChild as HTMLElement | null;
+        if (barEl) barEl.style.minHeight = ghost ? `${Math.ceil(ghost.getBoundingClientRect().height)}px` : '';
         return stackEl.getBoundingClientRect().height - slotEl.getBoundingClientRect().height;
       };
 
@@ -264,7 +272,7 @@ function useBoardLayout(
     ro.observe(rootEl);
     ro.observe(stackEl);
     return () => ro.disconnect();
-  }, [root, stack, slot]);
+  }, [root, stack, slot, bar]);
 
   return layout;
 }
@@ -286,7 +294,8 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
   const rootRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
-  const { size: boardSize, blockWidth } = useBoardLayout(rootRef, stackRef, slotRef);
+  const barRef = useRef<HTMLDivElement>(null);
+  const { size: boardSize, blockWidth } = useBoardLayout(rootRef, stackRef, slotRef, barRef);
 
   const loadProblem = problem.loadProblem;
   useEffect(() => {
@@ -406,7 +415,21 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
       )}
 
       {p && (
-        <div className="emb-bar">
+        <div className="emb-bar" ref={barRef}>
+          {/* The fullest this row ever gets, drawn out of the flow and never
+              seen: five playback buttons, the counter and Try again. The row is
+              held at that height from the first moment, so the board gives up
+              nothing when Reset appears on the first move, or when the solve is
+              decided and the playback controls arrive. Measured rather than
+              guessed: how many of these fit on a line depends on the frame. */}
+          <div className="emb-bar-ghost" aria-hidden="true">
+            <button className="nb-btn emb-nav" tabIndex={-1}>|◀</button>
+            <button className="nb-btn emb-nav" tabIndex={-1}>◀</button>
+            <span className="emb-count">0/0</span>
+            <button className="nb-btn emb-nav" tabIndex={-1}>▶</button>
+            <button className="nb-btn emb-nav" tabIndex={-1}>▶|</button>
+            <button className="nb-btn emb-btn" tabIndex={-1}>Try again</button>
+          </div>
           {/* While solving: the three things a solver needs and nothing else. */}
           {problem.status === 'solving' && !problem.waitingForAutoPlay && (
             <>

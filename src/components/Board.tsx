@@ -114,12 +114,12 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     if (feedbackSquare && feedbackType === 'correct' && lastMove?.to === feedbackSquare) {
       styles[feedbackSquare] = {
         ...styles[feedbackSquare],
-        backgroundColor: 'rgba(34, 197, 94, 0.5)',
+        backgroundColor: 'var(--mark-ok)',
       };
     } else if (feedbackSquare && feedbackType === 'incorrect') {
       styles[feedbackSquare] = {
         ...styles[feedbackSquare],
-        backgroundColor: 'rgba(239, 68, 68, 0.45)',
+        backgroundColor: 'var(--mark-bad)',
       };
     }
     // Hint highlighting
@@ -326,7 +326,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
           style={{ left: iconPos.x, top: iconPos.y, zIndex: 50 }}
         >
           {feedbackType === 'correct' ? (
-            <div className="w-5 h-5 rounded-full bg-green-500 border-2 border-white shadow flex items-center justify-center">
+            <div className="w-5 h-5 rounded-full border-2 border-white shadow flex items-center justify-center" style={{ background: 'var(--mark-ok-solid)' }}>
               <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>

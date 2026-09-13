@@ -73,11 +73,27 @@ body {
 }
 
 .emb-bar {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 0.5em;
   flex-wrap: wrap;
   min-height: 1.9em;
+}
+
+/* Never seen, never clicked, never part of the flow: it is here to be measured,
+   so the row can be held at the height it will eventually need. */
+.emb-bar-ghost {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  flex-wrap: wrap;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 /* The board's own box. It holds the space; the diagram inside is positioned
@@ -247,4 +263,11 @@ body {
 .emb-root[data-board='brown'] {
   --board-l: #f0d9b5;
   --board-d: #b58863;
+  /* The green the site marks a correct move with is a stranger on a wooden
+     board, and it sat a square away from the yellow the replay uses, so one
+     move was lit in two unrelated colours. Here the mark is the same gold the
+     replay is, a shade deeper so the square just played still stands out from
+     the square it came from. */
+  --mark-ok: rgba(214, 158, 30, 0.55);
+  --mark-ok-solid: #b8860b;
 }
