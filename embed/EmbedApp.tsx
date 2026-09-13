@@ -430,9 +430,12 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
 
           {/* What the board is saying, at the far end of the row: the buttons
               are what a hand goes to, so they take the edge it starts from. */}
+          {/* Nothing is said for a solve that was given up: the replay controls
+              are already standing there, and a reader looking at them does not
+              need the word "Solution" to know what they are looking at. */}
           <span className="emb-status">
             {problem.status === 'correct' ? 'Solved!'
-              : problem.status === 'viewing' ? 'Solution'
+              : problem.status === 'viewing' ? ''
               : problem.totalSolutions > 1
                 ? `Found ${problem.foundSolutionCount}/${problem.totalSolutions}. ${problem.feedback}`
                 : problem.feedback}
