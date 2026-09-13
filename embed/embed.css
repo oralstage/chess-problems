@@ -201,12 +201,14 @@ body {
    panel reads as part of the page it is in. The faces come from that page's
    own entry (board/index.html); this site's embed never fetches them. */
 .emb-root[data-type='host'] {
-  /* One face for the whole panel, the composer's line included. The host's
-     pages set their headings in a serif, but a diagram is not a page: the
-     composer, the stipulation and the material count are one caption, and
-     splitting them across two faces made the caption look assembled out of
-     parts. */
-  --emb-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* The host's own body text, which on the WFCC site is the reader's system
+     font -- not the Inter of its navigation, and not the Source Serif 4 of its
+     headings. A caption under a diagram belongs with the prose around it.
+
+     One face for all of it, the composer's line included: the composer, the
+     stipulation and the material count are one caption, and splitting them
+     across two faces made it look assembled out of parts. */
+  --emb-sans: -apple-system, system-ui, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
   --emb-serif: var(--emb-sans);
   --emb-num: var(--emb-sans);
 }
