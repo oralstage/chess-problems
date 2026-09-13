@@ -338,7 +338,13 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
      it opens is one page holding the variations, the notes and the way on to
      the next problem, and naming any one of those would send the other two to
      the wrong place. It never comes and goes, so the diagram is never resized
-     by it. */
+     by it.
+
+     The site is named by its address rather than by "Chess Problem Arcade",
+     which wrapped onto a second line in a narrow frame. An abbreviation would
+     have been shorter still and would have named nothing: a reader meeting
+     "CPA" for the first time learns where the board came from only if the
+     words mean something, and a domain is a name they can type. */
 
   /* A printed diagram carries the composer above it and the stipulation with
      the material count below. The credit is held back until the solve is
@@ -449,7 +455,7 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
       {p && p.id > 0 && variant === 'arcade' && (
         <div className="emb-link-row">
           <a className="emb-link" href={siteUrl(p, dailyDate)} target="_blank" rel="noopener noreferrer">
-            Open on Chess Problem Arcade ↗
+            Open on chessproblem.org ↗
           </a>
         </div>
       )}
