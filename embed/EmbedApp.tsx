@@ -349,12 +349,11 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
     return problem.tryMove(source, target, promotion);
   }, [problem]);
 
-  /* A page can ask for a wooden board instead of the site's green one, so the
-     diagram sits in its colours rather than ours. Named rather than a pair of
-     hex values: a host wants "the brown one", not a colour-picking exercise,
-     and a named set is one word to put in the address. */
-  const boardColours = new URLSearchParams(window.location.search).get('board') === 'brown'
-    ? 'brown' : undefined;
+  /* The board is wooden unless the page asks for the site's green one. Named
+     rather than a pair of hex values: a host wants "the green one", not a
+     colour-picking exercise, and a name is one word to put in the address. */
+  const boardColours = new URLSearchParams(window.location.search).get('board') === 'green'
+    ? 'green' : undefined;
 
   const p = problem.problem;
   const playback = problem.playback;

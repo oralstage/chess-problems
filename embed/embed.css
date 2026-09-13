@@ -284,14 +284,26 @@ body {
 /* The wooden board. The squares are the pair a printed diagram and every
    wooden set have settled on, so it reads as a board rather than as a colour
    scheme, and it sits quietly on a page whose own palette is not ours. */
-.emb-root[data-board='brown'] {
+/* The wooden board is what a frame shows unless it is told otherwise. The
+   site's green belongs to the site; a diagram dropped into somebody else's
+   page has no claim on their palette, and the pair below is the one printed
+   diagrams and wooden sets have long settled on, so it reads as a board
+   rather than as a colour scheme.
+
+   The mark on a played move goes gold with it. The site's green was a stranger
+   on wood, and it sat a square away from the yellow the replay uses, so one
+   move was lit in two unrelated colours. */
+.emb-root {
   --board-l: #f0d9b5;
   --board-d: #b58863;
-  /* The green the site marks a correct move with is a stranger on a wooden
-     board, and it sat a square away from the yellow the replay uses, so one
-     move was lit in two unrelated colours. Here the mark is the same gold the
-     replay is, a shade deeper so the square just played still stands out from
-     the square it came from. */
   --mark-ok: rgba(214, 158, 30, 0.55);
   --mark-ok-solid: #b8860b;
+}
+
+/* ?board=green for a page that would rather have the site's own board. */
+.emb-root[data-board='green'] {
+  --board-l: #edeed1;
+  --board-d: #779952;
+  --mark-ok: rgba(34, 197, 94, 0.5);
+  --mark-ok-solid: rgb(34, 197, 94);
 }
