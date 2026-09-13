@@ -7,7 +7,7 @@ import { createServer } from 'vite';
 
 const execFileAsync = promisify(execFile);
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const SITE_URL = process.env.DAILY_POST_SITE_URL || 'https://chess-problems.pages.dev';
+const SITE_URL = process.env.DAILY_POST_SITE_URL || 'https://arcade.chessproblem.org';
 const OUTPUT_ROOT = resolve(process.env.DAILY_POST_OUTPUT_DIR || 'daily-posts');
 const CHROME_PATH = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
