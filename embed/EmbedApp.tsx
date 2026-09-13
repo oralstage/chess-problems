@@ -66,6 +66,26 @@ function siteUrl(p: ChessProblem, dailyDate: string | null): string {
    to run past the bottom of a frame that was never going to hold it. */
 const MIN_BOARD = 120;
 
+/* The type is set to the frame, not left at one size for every frame. Held at
+   one size the lines take the same 150-odd pixels whether the frame is 700
+   tall or 350, which is half the height of a small one gone before the
+   diagram gets any -- and the rows that no longer fit on one line wrap, which
+   takes more still. Set to the frame, a small embed reads as a small diagram
+   with small print rather than a large one squeezed into a corner.
+
+   Keyed on the frame's shorter side, and on nothing else. Keyed on the board
+   it would close the same circle the measurement above was written to open:
+   type sets the lines, the lines set the board, and the board would be back
+   to setting the type. */
+const TEXT_MIN = 11, TEXT_MAX = 16;
+const FRAME_MIN = 240, FRAME_MAX = 520;
+
+function textSizeFor(width: number, height: number): number {
+  const frame = Math.min(width, height);
+  const t = Math.min(1, Math.max(0, (frame - FRAME_MIN) / (FRAME_MAX - FRAME_MIN)));
+  return Math.round((TEXT_MIN + t * (TEXT_MAX - TEXT_MIN)) * 10) / 10;
+}
+
 /* How big the diagram can be: the width it is given, or the height left once
    the lines around it have taken theirs, whichever is smaller.
 
@@ -108,6 +128,10 @@ function useBoardLayout(
       const padY = parseFloat(rootStyle.paddingTop) + parseFloat(rootStyle.paddingBottom);
       const availableW = Math.max(0, rootEl.clientWidth - padX);
       const availableH = Math.max(0, rootEl.clientHeight - padY);
+
+      // Before anything is measured, because every line's height is downstream
+      // of it. The frame is what it reads, so this does not feed back.
+      rootEl.style.setProperty('--emb-text', `${textSizeFor(rootEl.clientWidth, rootEl.clientHeight)}px`);
 
       /* Everything in the block that is not the board, gaps and all, taken as
          one figure at the given width. The board's own box drops out of it,
