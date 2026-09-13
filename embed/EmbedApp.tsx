@@ -180,6 +180,7 @@ function useBoardLayout(
   stack: React.RefObject<HTMLDivElement | null>,
   slot: React.RefObject<HTMLDivElement | null>,
   bar: React.RefObject<HTMLDivElement | null>,
+  head: React.RefObject<HTMLDivElement | null>,
 ): { size: number; blockWidth: number } {
   const [layout, setLayout] = useState({ size: 0, blockWidth: 0 });
 
@@ -210,6 +211,17 @@ function useBoardLayout(
         const barEl = bar.current;
         const ghost = barEl?.firstElementChild as HTMLElement | null;
         if (barEl) barEl.style.minHeight = ghost ? `${Math.ceil(ghost.getBoundingClientRect().height)}px` : '';
+        // The line above the diagram takes whichever of the day and the credit
+        // is taller -- they are never shown together -- so neither of them can
+        // move the board by arriving.
+        const headEl = head.current;
+        const twins = headEl?.firstElementChild?.children;
+        if (headEl) {
+          const tallest = twins
+            ? Math.max(0, ...[...twins].map(c => c.getBoundingClientRect().height))
+            : 0;
+          headEl.style.minHeight = `${Math.ceil(tallest)}px`;
+        }
         return stackEl.getBoundingClientRect().height - slotEl.getBoundingClientRect().height;
       };
 
@@ -272,7 +284,7 @@ function useBoardLayout(
     ro.observe(rootEl);
     ro.observe(stackEl);
     return () => ro.disconnect();
-  }, [root, stack, slot, bar]);
+  }, [root, stack, slot, bar, head]);
 
   return layout;
 }
@@ -295,7 +307,8 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
   const stackRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
-  const { size: boardSize, blockWidth } = useBoardLayout(rootRef, stackRef, slotRef, barRef);
+  const headRef = useRef<HTMLDivElement>(null);
+  const { size: boardSize, blockWidth } = useBoardLayout(rootRef, stackRef, slotRef, barRef, headRef);
 
   const loadProblem = problem.loadProblem;
   useEffect(() => {
@@ -377,8 +390,23 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
   return (
     <div className="emb-root" data-board={boardColours} ref={rootRef}>
       <div className="emb-stack" ref={stackRef} style={blockWidth ? { width: blockWidth } : undefined}>
-      {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
-      <div className="emb-credit">{decided ? credit : ''}</div>
+      {/* One line above the diagram, and it is held at the height of whichever
+          of the two wants more. Before the solve it says which day this board
+          belongs to; after it, who composed the problem and where it appeared,
+          which is when the day has done its work. The twin below is the same
+          text, drawn out of the flow, so a composer's name that runs to two
+          lines -- a pair of names, a Cyrillic patronymic -- has its room taken
+          before the reader ever gets there, and the board does not move when
+          the name arrives. */}
+      <div className="emb-head" ref={headRef}>
+        <div className="emb-head-ghost" aria-hidden="true">
+          {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
+          <div className="emb-credit">{credit}</div>
+        </div>
+        {decided
+          ? <div className="emb-credit">{credit}</div>
+          : dailyDate ? <div className="emb-date">Daily — {dayLabel(dailyDate)}</div> : null}
+      </div>
 
       <div className="emb-slot" ref={slotRef} style={{ height: boardSize }}>
         <div className="emb-slot-inner">

@@ -128,6 +128,30 @@ body {
   text-align: center;
 }
 
+/* The day, then the composer: the same piece of the page, so it is measured
+   once for both and never changes height under the reader. */
+.emb-head {
+  position: relative;
+}
+
+.emb-head-ghost {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Stacked on top of each other rather than one after the other: what is wanted
+   is the taller of the two, not the two of them. */
+.emb-head-ghost > * {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+}
+
 .emb-credit {
   min-height: 1.5em;
   font-family: var(--emb-serif);
