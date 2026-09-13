@@ -290,12 +290,19 @@ body {
    diagrams and wooden sets have long settled on, so it reads as a board
    rather than as a colour scheme.
 
-   The marks on a move do not follow it. Green for right and red for wrong is
-   not a colour scheme, it is what those two colours mean, and a solver reads
-   them before they read the board. */
+   The squares keep out of it. A move that was played is lit the way any move
+   that was played is lit, in the replay's yellow, and whether it was the right
+   one is said by the tick or the cross standing on it -- green for right, red
+   for wrong, which is not a colour scheme but what those two colours mean. A
+   wash under the square as well was the board answering in a second voice, and
+   on wood it was a stranger's voice at that. */
 .emb-root {
   --board-l: #f0d9b5;
   --board-d: #b58863;
+  /* Exactly the yellow the square already had, so the mark adds a tick and
+     changes nothing underneath it. */
+  --mark-ok: rgba(255, 255, 0, 0.4);
+  --mark-bad: transparent;
 }
 
 /* ?board=green for a page that would rather have the site's own board. */
