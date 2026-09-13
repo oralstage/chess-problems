@@ -3,7 +3,6 @@ import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parse
 import { fetchProblem, metaToChessProblem, fixCastlingRights } from '../src/services/api';
 import { flipDuplexRoots, mainLinePlays } from '../src/utils/duplex';
 import { DUPLEX_IDS } from '../src/data/duplexIds';
-import { isCookedLine } from '../src/utils/cookMarker';
 import type { ChessProblem } from '../src/types';
 
 /* Turning a problem as it comes out of the database into one the solver can
@@ -170,15 +169,6 @@ export async function ensureSolution(p: ChessProblem): Promise<ChessProblem> {
   // Fix castling rights if solution contains O-O but FEN has none
   p.fen = fixCastlingRights(p.fen, p.solutionText);
   fixEnPassantFen(p);
-  // A line YACPDB records as a cook is an unintended extra solution, not one
-  // the problem asks for. Counting it made the site demand more than the
-  // problem has — reported twice from the site in September 2026 on D508450
-  // and D390457, both "another move also solves it". The line stays in
-  // fullSolutionTree (and the Cooked badge stays) so it is still on show.
-  if (p.genre === 'help' && p.solutionTree.length > 1) {
-    const sound = p.solutionTree.filter(root => !isCookedLine(root));
-    if (sound.length > 0) p.solutionTree = sound;
-  }
   // Helpmates count their solutions and ask for every one, so only lines
   // the solver can actually play through on this board are counted (user
   // decision, 2026-09-02: err on the safe side). Lines that cannot be

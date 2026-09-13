@@ -53,7 +53,7 @@ import { flipDuplexRoots, mainLinePlays } from './utils/duplex';
 import { DUPLEX_IDS } from './data/duplexIds';
 import { matchesAwardFilter, type AwardFilter } from './utils/award';
 import { moveFreely, pieceAt } from './utils/freeBoard';
-import { isCookedProblem, isCookedLine } from './utils/cookMarker';
+import { isCookedProblem } from './utils/cookMarker';
 import {
   type RatedDifficulty,
   RATED_DIFFICULTY_OFFSET,
@@ -908,15 +908,6 @@ export default function App() {
     // Fix castling rights if solution contains O-O but FEN has none
     p.fen = fixCastlingRights(p.fen, p.solutionText);
     fixEnPassantFen(p);
-    // A line YACPDB records as a cook is an unintended extra solution, not one
-    // the problem asks for. Counting it made the site demand more than the
-    // problem has — reported twice from the site in September 2026 on D508450
-    // and D390457, both "another move also solves it". The line stays in
-    // fullSolutionTree (and the Cooked badge stays) so it is still on show.
-    if (p.genre === 'help' && p.solutionTree.length > 1) {
-      const sound = p.solutionTree.filter(root => !isCookedLine(root));
-      if (sound.length > 0) p.solutionTree = sound;
-    }
     // Helpmates count their solutions and ask for every one, so only lines
     // the solver can actually play through on this board are counted (user
     // decision, 2026-09-02: err on the safe side). Lines that cannot be

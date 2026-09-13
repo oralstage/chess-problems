@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { Chess } from 'chess.js';
 import { moveSanLenient } from '../utils/sanResolve';
+import { isCookedLine } from '../utils/cookMarker';
 import type { ChessProblem, SolutionNode, Genre } from '../types';
 import { trackEvent } from '../services/api';
 
@@ -72,7 +73,15 @@ interface ProblemState {
  *  parser noise. Capped so a mangled tree can't demand twenty. */
 function countSolutions(genre: string, roots: SolutionNode[]): number {
   if (genre !== 'help') return 1;
-  return roots.length >= 2 && roots.length <= 8 ? roots.length : 1;
+  // A line YACPDB records as a cook is not one of the solutions the problem
+  // asks for, so it is not counted — asking a solver to find the database's
+  // own flaw is what the September 2026 reports were about. It stays in the
+  // tree and stays playable: it mates in the stipulated number of moves, and
+  // whoever plays it has solved the position. If every line is a cook, the
+  // count falls back to all of them rather than to nothing to find.
+  const asked = roots.filter(r => !isCookedLine(r));
+  const n = asked.length > 0 ? asked.length : roots.length;
+  return n >= 2 && n <= 8 ? n : 1;
 }
 
 // Timing constants
@@ -419,6 +428,59 @@ function matchMoveToTree(
   }
   for (const node of threat) {
     if (matchNode(node)) return node;
+  }
+  return null;
+}
+
+/**
+ * Find the attempted move in a solution line other than the one being walked.
+ *
+ * Two solutions that open with the same moves are separate roots carrying the
+ * same prefix, so the first move pins one of them and the other is shut out:
+ * D390457's second line only parts from the first at White's third move, and
+ * playing it used to flash red. That is worst for the lines YACPDB records as
+ * cooks — they mate, and the solver who finds one has solved the position —
+ * but it is the same for two lines the composer intended.
+ *
+ * Walks each root down to the depth already played, keeps the ones that reach
+ * the position on the board, and looks for the move among that node's
+ * children. Only ever called on a move that is otherwise wrong, so it can turn
+ * a refusal into a solution and never the other way round.
+ */
+function findMoveInOtherLines(
+  initialFen: string,
+  currentFen: string,
+  plies: number,
+  roots: SolutionNode[],
+  skipRoot: (rootIndex: number) => boolean,
+  from: string,
+  to: string,
+  moveSan: string,
+  movePromotion: string | undefined,
+  movedColor: 'w' | 'b',
+): { node: SolutionNode; rootIndex: number } | null {
+  // Clocks differ when the same position is reached by another order; the
+  // placement, the side to move, castling and en passant are what matter.
+  const place = (fen: string) => fen.split(' ').slice(0, 4).join(' ');
+  const target = place(currentFen);
+
+  for (let i = 0; i < roots.length; i++) {
+    if (skipRoot(i)) continue;
+    let found: SolutionNode | null = null;
+    const walk = (node: SolutionNode, fen: string, depth: number) => {
+      if (found) return;
+      const chess = new Chess(fen);
+      if (!tryExecuteNode(chess, node)) return;
+      if (depth + 1 >= plies) {
+        if (place(chess.fen()) !== target) return;
+        found = matchMoveToTree(chess.fen(), from, to, moveSan, movePromotion,
+          node.children.filter(c => c.color === movedColor));
+        return;
+      }
+      for (const child of node.children) walk(child, chess.fen(), depth + 1);
+    };
+    walk(roots[i], initialFen, 0);
+    if (found) return { node: found, rootIndex: i };
   }
   return null;
 }
@@ -932,7 +994,23 @@ export function useProblem(stockfish?: StockfishApi) {
     // SOLUTION TREE path (all genres)
     // ══════════════════════════════════════════════
     const validNodes = currentNodes.filter(n => n.color === movedColor);
-    const matchingNode = matchMoveToTree(state.fen, from, to, move.san, move.promotion, validNodes);
+    let matchingNode = matchMoveToTree(state.fen, from, to, move.san, move.promotion, validNodes);
+    // Nothing in the line being walked — but the solver may have stepped into
+    // a different recorded line that opens the same way (see
+    // findMoveInOtherLines). Solutions already found are left out: replaying
+    // one of those has its own answer further down.
+    let switchedRoot: number | null = null;
+    if (!matchingNode && state.moveHistory.length > 0 && activeTree.length > 1) {
+      const elsewhere = findMoveInOtherLines(
+        state.initialFen, state.fen, state.moveHistory.length, activeTree,
+        i => state.foundSolutions.includes(i),
+        from, to, move.san, move.promotion, movedColor,
+      );
+      if (elsewhere) {
+        matchingNode = elsewhere.node;
+        switchedRoot = elsewhere.rootIndex;
+      }
+    }
 
     if (matchingNode) {
       emitMoveCorrect();
@@ -956,7 +1034,7 @@ export function useProblem(stockfish?: StockfishApi) {
         // A solution line ended without a mate on the board (truncated data).
         // Same accounting as the checkmate path above.
         const rootIdxHere = activeTree.indexOf(matchingNode);
-        const rootIdx = state.currentRootIndex ?? (rootIdxHere >= 0 ? rootIdxHere : -(state.foundSolutions.length + 1));
+        const rootIdx = switchedRoot ?? state.currentRootIndex ?? (rootIdxHere >= 0 ? rootIdxHere : -(state.foundSolutions.length + 1));
         const newFound = state.foundSolutions.includes(rootIdx)
           ? state.foundSolutions
           : [...state.foundSolutions, rootIdx];
@@ -1023,7 +1101,9 @@ export function useProblem(stockfish?: StockfishApi) {
         const rootIdxHere = activeTree.indexOf(matchingNode);
         setState(prev => ({
           ...prev,
-          currentRootIndex: prev.currentRootIndex ?? (rootIdxHere >= 0 ? rootIdxHere : null),
+          // A switch replaces the line being walked, so it wins over the root
+          // remembered from the moves before it.
+          currentRootIndex: switchedRoot ?? prev.currentRootIndex ?? (rootIdxHere >= 0 ? rootIdxHere : null),
           fen: newFen,
           moveHistory: newHistory,
           currentNodes: matchingNode.children,
@@ -1397,10 +1477,18 @@ export function useProblem(stockfish?: StockfishApi) {
     // Always use solution tree (works for all genres, no Stockfish dependency).
     // Multi-solution helpmate: show a solution the solver has NOT found yet —
     // replaying the one they already played would answer nothing.
+    // …and a line the problem asks for rather than a cook, which is playable
+    // but is not what the composer left to find. With no cook in the tree the
+    // pool is the tree, so nothing changes for the problems that have none.
+    const asked = activeTree.filter(r => !isCookedLine(r));
+    const pool = asked.length > 0 ? asked : activeTree;
     const remaining = state.totalSolutions > 1
-      ? activeTree.filter((_, i) => !state.foundSolutions.includes(i))
+      ? pool.filter(r => !state.foundSolutions.includes(activeTree.indexOf(r)))
       : [];
-    let pb = startPlayback(initialFen, remaining.length > 0 ? [remaining[0]] : activeTree);
+    const showFrom = remaining.length > 0 ? [remaining[0]]
+      : pool.length < activeTree.length ? [pool[0]]
+      : activeTree;
+    let pb = startPlayback(initialFen, showFrom);
     if (pb && pb.positions.length > 1) {
       pb.moveIndex = 0;
     }
