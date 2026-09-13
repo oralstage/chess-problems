@@ -50,6 +50,24 @@
       /* The markup for the frame above it, built from that frame's own
          attributes when the page loads -- so what is shown is what is
          running, address and all, and can be copied as it stands. */
+      table { border-collapse: collapse; margin: 0 0 24px; font-size: 14px; }
+      th, td { text-align: left; vertical-align: top; padding: 6px 18px 6px 0; border-bottom: 1px solid #e4e4de; }
+      th { font-weight: 600; white-space: nowrap; }
+      td code { white-space: nowrap; }
+
+      /* The builder: paste what Popeye printed, take away the markup. Plain
+         fields, because the page is a worked example and not an application. */
+      .builder { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; align-items: start; }
+      .builder label { display: block; margin: 0 0 10px; font-size: 13px; color: #555; }
+      .builder input, .builder textarea {
+        display: block; width: 100%; box-sizing: border-box; margin-top: 3px;
+        padding: 6px 8px; border: 1px solid #cfcfc8; border-radius: 4px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #fff;
+      }
+      .builder textarea { height: 132px; resize: vertical; white-space: pre; }
+      .row { display: flex; gap: 12px; }
+      .row label { flex: 1 1 0; }
+
       pre {
         margin: 8px 0 0;
         padding: 10px 12px;
@@ -110,10 +128,37 @@
         position and the solution in the address instead of a database id, so a page can
         put up a problem that is not in YACPDB at all — an original, an award entry,
         whatever it is writing about that week.</p>
-      <p>The solution goes in <strong>exactly as Popeye prints it</strong>. No conversion,
-        no JSON, no list of moves: <code>&amp;fen=</code>, <code>&amp;stip=</code>,
-        <code>&amp;sol=</code>, and optionally <code>&amp;author=</code>,
-        <code>&amp;source=</code>, <code>&amp;year=</code>.</p>
+      <p>The solution goes in <strong>exactly as Popeye prints it</strong> — no conversion,
+        no JSON, no list of moves. This is what Popeye says about the first of the two
+        problems below, and the whole of it is what goes in the address:</p>
+
+      <pre>   1.Sa1-c2 ! threat:
+          2.Sc2-b4 #
+      1...b3*c2
+          2.Bg8*f7 #</pre>
+
+      <table>
+        <tr><th><code>fen</code></th>
+            <td>The diagram. The placement alone is enough — <code>6B1/5p2/8/8/8/1p6/kB6/N1K5</code> —
+                and the side to move is taken as White unless the FEN says otherwise.
+                A helpmate wants <code>… b</code> on the end.</td></tr>
+        <tr><th><code>stip</code></th>
+            <td><code>#2</code>, <code>h#3</code>, <code>s#2</code>, or <code>+</code> / <code>=</code>
+                for a study. Write <code>%23</code> where you mean <code>#</code>, or let the builder
+                below do it.</td></tr>
+        <tr><th><code>sol</code></th>
+            <td>Popeye's solution, copied out as it stands. Line breaks and indentation and all —
+                the indentation is what says which defence belongs to which move.</td></tr>
+        <tr><th><code>author</code></th>
+            <td>The composer. Two or more, separated by <code>;</code>. Shown under the diagram
+                once the solve is decided, never before.</td></tr>
+        <tr><th><code>source</code>, <code>year</code></th>
+            <td>Where it was published, and when. Shown on the same line as the composer.</td></tr>
+      </table>
+
+      <p>Everything after <code>?</code> has to be percent-encoded, which is no fun to do by
+        hand for a solution with line breaks in it. Paste the pieces into the builder at the
+        bottom of this page and it writes the markup for you.</p>
 
       <div class="pair">
         <figure>
@@ -154,6 +199,42 @@
           <pre></pre>
         </figure>
       </div>
+
+      <h2>Make one</h2>
+      <p>Paste what Popeye printed. The frame on the right is live, and the markup under it
+        is ready to paste into a page.</p>
+
+      <div class="builder">
+        <div>
+          <label>Position (FEN)
+            <input id="b-fen" value="6B1/5p2/8/8/8/1p6/kB6/N1K5 w - - 0 1" spellcheck="false" />
+          </label>
+          <div class="row">
+            <label>Stipulation
+              <input id="b-stip" value="#2" spellcheck="false" />
+            </label>
+            <label>Year
+              <input id="b-year" value="1999" spellcheck="false" />
+            </label>
+          </div>
+          <label>Composer
+            <input id="b-author" value="Robert A. Lincoln" spellcheck="false" />
+          </label>
+          <label>Source
+            <input id="b-source" value="Chess Life" spellcheck="false" />
+          </label>
+          <label>Popeye's solution
+            <textarea id="b-sol" spellcheck="false">   1.Sa1-c2 ! threat:
+          2.Sc2-b4 #
+      1...b3*c2
+          2.Bg8*f7 #</textarea>
+          </label>
+        </div>
+        <div>
+          <iframe id="b-frame" title="Your problem" style="width:100%; aspect-ratio:4/5"></iframe>
+          <pre id="b-markup"></pre>
+        </div>
+      </div>
     </main>
 
     <script>
@@ -178,6 +259,41 @@
           + '        style="' + style + '; border:0"\n'
           + '        title="' + frame.getAttribute('title') + '"></iframe>';
       }
+
+      // The builder. The preview points at whatever origin this page is served
+      // from, so it shows the board that is actually running here; the markup
+      // names the site, because that is the address to paste somewhere else.
+      const fields = ['fen', 'stip', 'sol', 'author', 'source', 'year'];
+      const bFrame = document.getElementById('b-frame');
+      const bMarkup = document.getElementById('b-markup');
+
+      function buildQuery() {
+        const q = new URLSearchParams();
+        for (const name of fields) {
+          const value = document.getElementById('b-' + name).value;
+          if (value.trim()) q.set(name, value);
+        }
+        return q.toString();
+      }
+
+      function refresh() {
+        const query = buildQuery();
+        const next = '/board/?' + query;
+        if (bFrame.getAttribute('src') !== next) bFrame.setAttribute('src', next);
+        bMarkup.textContent =
+          '<iframe src="' + SITE + '/board?' + query + '"\n'
+          + '        style="width:100%; aspect-ratio:4/5; border:0"\n'
+          + '        title="Chess problem"></iframe>';
+      }
+
+      let pending;
+      for (const name of fields) {
+        document.getElementById('b-' + name).addEventListener('input', () => {
+          clearTimeout(pending);
+          pending = setTimeout(refresh, 400);
+        });
+      }
+      refresh();
     </script>
   </body>
 </html>
