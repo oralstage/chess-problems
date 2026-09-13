@@ -201,9 +201,14 @@ body {
    panel reads as part of the page it is in. The faces come from that page's
    own entry (board/index.html); this site's embed never fetches them. */
 .emb-root[data-type='host'] {
+  /* One face for the whole panel, the composer's line included. The host's
+     pages set their headings in a serif, but a diagram is not a page: the
+     composer, the stipulation and the material count are one caption, and
+     splitting them across two faces made the caption look assembled out of
+     parts. */
   --emb-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --emb-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
-  --emb-num: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --emb-serif: var(--emb-sans);
+  --emb-num: var(--emb-sans);
 }
 
 .emb-root[data-type='host'] .emb-pieces,

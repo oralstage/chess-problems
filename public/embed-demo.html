@@ -66,9 +66,10 @@
   <body>
     <main>
       <h1>Embed demo</h1>
-      <p>Each of these is an iframe of <code>/embed?id=&lt;YACPDB id&gt;</code> and nothing
-        else — the board, and what it takes to solve it. The markup under each one is the
-        markup that draws it.</p>
+      <p>Each of these is one iframe and nothing else — the board, and what it takes to
+        solve it. The markup under each one is the markup that draws it.
+        <code>/embed</code> shows a problem from this site's database;
+        <code>/board</code> shows one you bring yourself.</p>
       <p>Inside the frame the composer and the source stay out of sight until the solve is
         decided, as a solving tourney's diagram sheet does.</p>
 
@@ -98,6 +99,32 @@
         <figure>
           <figcaption><span class="note">Mate in 2 — /embed?id=632615</span></figcaption>
           <iframe src="/embed/?id=632615" title="Mate in 2"
+                  style="width:100%; aspect-ratio:4/5"></iframe>
+          <pre></pre>
+        </figure>
+      </div>
+
+      <h2>A problem of your own</h2>
+      <p><code>/board</code> is the same board with no name on it: no link back here, no
+        branding, and set in the host page's type rather than this site's. It takes the
+        position and the solution in the address instead of a database id, so a page can
+        put up a problem that is not in YACPDB at all — an original, an award entry,
+        whatever it is writing about that week.</p>
+      <p>The solution goes in <strong>exactly as Popeye prints it</strong>. No conversion,
+        no JSON, no list of moves: <code>&amp;fen=</code>, <code>&amp;stip=</code>,
+        <code>&amp;sol=</code>, and optionally <code>&amp;author=</code>,
+        <code>&amp;source=</code>, <code>&amp;year=</code>.</p>
+
+      <div class="pair">
+        <figure>
+          <figcaption><span class="note">Mate in 2 — /board, from a FEN and Popeye's output</span></figcaption>
+          <iframe src="/board/?fen=6B1%2F5p2%2F8%2F8%2F8%2F1p6%2FkB6%2FN1K5+w+-+-+0+1&amp;stip=%232&amp;sol=+++1.Sa1-c2+%21+threat%3A%0A++++++++++2.Sc2-b4+%23%0A++++++1...b3%2Ac2%0A++++++++++2.Bg8%2Af7+%23&amp;author=Robert+A.+Lincoln&amp;source=Chess+Life&amp;year=1999" title="Mate in 2"
+                  style="width:100%; aspect-ratio:4/5"></iframe>
+          <pre></pre>
+        </figure>
+        <figure>
+          <figcaption><span class="note">Helpmate in 2 — two solutions, same way</span></figcaption>
+          <iframe src="/board/?fen=8%2F3b4%2F1k6%2F5R2%2Fq4nRK%2F8%2Fr6B%2F7B+b+-+-+0+1&amp;stip=h%232&amp;sol=++1.Sf4-e2+Rg4-e4+++2.Kb6-c6+Re4-b4+%23%0A++1.Sf4-e6+Bh2-e5+++2.Kb6-c5+Be5-c7+%23&amp;author=J%C5%ABlija+Visocka&amp;source=The+Problemist+Supplement&amp;year=2012" title="Helpmate in 2"
                   style="width:100%; aspect-ratio:4/5"></iframe>
           <pre></pre>
         </figure>
@@ -137,13 +164,14 @@
         const pre = figure.querySelector('pre');
         if (!frame || !pre) continue;
         // The address as someone else would write it: this site's origin, and
-        // the tidy /embed?id= form rather than the directory the dev server
-        // wants.
+        // the tidy /embed?id= (or /board?fen=) form rather than the directory
+        // the dev server wants.
         const url = new URL(frame.getAttribute('src'), location.href);
         const query = url.searchParams.toString();
         // The address to copy is the site's own, whatever this page happens to
         // be served from: arcade.chessproblem.org is where the embed belongs.
-        const src = SITE + '/embed' + (query ? '?' + query : '');
+        const page = url.pathname.replace(/\/$/, '') || '/embed';
+        const src = SITE + page + (query ? '?' + query : '');
         const style = frame.getAttribute('style').replace(/\s+/g, ' ').trim();
         pre.textContent =
           '<iframe src="' + src + '"\n'
