@@ -240,3 +240,11 @@ body {
 .emb-root .emb-status { font-weight: 600; }
 .emb-root .emb-stip { font-weight: 600; }
 .emb-root .emb-credit { font-weight: 600; }
+
+/* The wooden board. The squares are the pair a printed diagram and every
+   wooden set have settled on, so it reads as a board rather than as a colour
+   scheme, and it sits quietly on a page whose own palette is not ours. */
+.emb-root[data-board='brown'] {
+  --board-l: #f0d9b5;
+  --board-d: #b58863;
+}

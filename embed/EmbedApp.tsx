@@ -327,6 +327,13 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
     return problem.tryMove(source, target, promotion);
   }, [problem]);
 
+  /* A page can ask for a wooden board instead of the site's green one, so the
+     diagram sits in its colours rather than ours. Named rather than a pair of
+     hex values: a host wants "the brown one", not a colour-picking exercise,
+     and a named set is one word to put in the address. */
+  const boardColours = new URLSearchParams(window.location.search).get('board') === 'brown'
+    ? 'brown' : undefined;
+
   const p = problem.problem;
   const playback = problem.playback;
   const decided = problem.status === 'correct' || problem.status === 'viewing';
@@ -359,7 +366,7 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
      start, so the diagram does not move when the credit appears. */
 
   return (
-    <div className="emb-root" ref={rootRef}>
+    <div className="emb-root" data-board={boardColours} ref={rootRef}>
       <div className="emb-stack" ref={stackRef} style={blockWidth ? { width: blockWidth } : undefined}>
       {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
       <div className="emb-credit">{decided ? credit : ''}</div>
