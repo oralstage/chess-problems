@@ -61,25 +61,42 @@ function siteUrl(p: ChessProblem, dailyDate: string | null): string {
   return `${SITE}/#/${def?.category ?? p.genre}/yacpdb/${p.id}`;
 }
 
+/* A diagram small enough that the pieces stop being pieces is not worth the
+   room it saves, so the board stops shrinking here and the block is allowed
+   to run past the bottom of a frame that was never going to hold it. */
+const MIN_BOARD = 120;
+
 /* How big the diagram can be: the width it is given, or the height left once
    the lines around it have taken theirs, whichever is smaller.
 
-   The board is then that square exactly, and the lines are set to its width,
-   so the whole thing is one block with the stipulation and the material count
-   sitting on the board's own edges. Slack goes outside that block -- above and
-   below it -- rather than opening a gap between the diagram and its caption,
-   which is what made a tall frame look stretched.
+   The lines are measured across the whole frame, never across the board.
+   That is the whole of it: the board's size sets the block's width, the
+   block's width decides where the credit, the caption, the buttons and the
+   link break, and where they break decides how much height is left for the
+   board. Measured at the board's own width, that circle closes -- pressing
+   Hint lengthens a button, the row wraps, the board shrinks, the narrower
+   block wraps two more lines, and the board shrinks again; pressing Give up
+   brings the credit, five playback buttons and the verdict at once, and on a
+   small frame there is no size that holds still, so it swings between a
+   squeezed board and none at all, which is the flicker. Measured at the
+   frame's width the number the board is given depends only on the frame and
+   on what the lines say, so it settles on the first pass.
 
-   Measured from the frame and the lines rather than from the board, so that
-   the board's own size can never feed back into the number. The 2px deadband
-   is for the one place it still could: a credit line that wraps differently at
-   the new width would otherwise be able to trade places with itself forever. */
-function useBoardSize(
+   From that size the block is drawn in onto the board -- so the stipulation
+   and the material count sit on the board's own edges, as they do in print --
+   and if the narrower block wraps a line, the walk takes the smaller board
+   that follows and tries again. It only ever goes down, so it stops; and it
+   goes down inside the single measurement, so none of it is drawn. On a frame
+   with no size that holds, it stops at MIN_BOARD instead of walking to
+   nothing, and there the lines keep the frame's width, where they wrap least,
+   and the board is centred in them. A caption reaching wider than the diagram
+   is a blemish; on a frame that small it is the price of the frame. */
+function useBoardLayout(
   root: React.RefObject<HTMLDivElement | null>,
   stack: React.RefObject<HTMLDivElement | null>,
   slot: React.RefObject<HTMLDivElement | null>,
-): number {
-  const [size, setSize] = useState(0);
+): { size: number; blockWidth: number } {
+  const [layout, setLayout] = useState({ size: 0, blockWidth: 0 });
 
   useEffect(() => {
     const rootEl = root.current, stackEl = stack.current, slotEl = slot.current;
@@ -89,14 +106,59 @@ function useBoardSize(
       const rootStyle = getComputedStyle(rootEl);
       const padX = parseFloat(rootStyle.paddingLeft) + parseFloat(rootStyle.paddingRight);
       const padY = parseFloat(rootStyle.paddingTop) + parseFloat(rootStyle.paddingBottom);
-      // Everything in the block that is not the board, gaps and all, taken as
-      // one figure: it stays the same when the board's own box changes, so the
-      // number the board is given can never chase itself.
-      const lines = stackEl.getBoundingClientRect().height - slotEl.getBoundingClientRect().height;
-      const availableW = rootEl.clientWidth - padX;
-      const availableH = rootEl.clientHeight - padY - lines;
-      const next = Math.max(0, Math.floor(Math.min(availableW, availableH)));
-      setSize(prev => (Math.abs(prev - next) < 2 ? prev : next));
+      const availableW = Math.max(0, rootEl.clientWidth - padX);
+      const availableH = Math.max(0, rootEl.clientHeight - padY);
+
+      /* Everything in the block that is not the board, gaps and all, taken as
+         one figure at the given width. The board's own box drops out of it,
+         so what the board is told has no way back into the measurement. */
+      const linesAt = (width: number) => {
+        stackEl.style.width = `${width}px`;
+        return stackEl.getBoundingClientRect().height - slotEl.getBoundingClientRect().height;
+      };
+
+      const fits = (width: number) =>
+        Math.floor(Math.min(availableW, availableH - linesAt(width)));
+
+      // The largest the board could be if the lines never wrapped any harder
+      // than they do across the whole frame. Everything below starts here and
+      // only ever goes down, so one pass settles it.
+      let size = fits(availableW);
+      let blockWidth = availableW;
+
+      if (size < availableW && size >= MIN_BOARD) {
+        /* Room to spare on the width, so the block can be drawn in to the
+           board's own edges. Narrowing it may cost a wrapped line, and that
+           line costs the board some height, which draws the block in further
+           -- but each step is smaller than the last and the walk stops at the
+           first width that pays for itself. Descending inside the one
+           measurement is what keeps this off the screen: nothing is drawn
+           until it has come to rest, and where it rests depends only on the
+           frame. */
+        for (let i = 0; i < 4; i += 1) {
+          const next = fits(size);
+          if (next >= size) break;
+          if (next < MIN_BOARD) { size = -1; break; }
+          size = next;
+        }
+        if (size > 0) blockWidth = size;
+      }
+
+      if (size < MIN_BOARD) {
+        // Nothing this narrow was ever going to hold both a diagram and its
+        // lines. The lines keep the frame's width, where they wrap least, and
+        // the board takes the smallest size still worth looking at.
+        size = Math.max(MIN_BOARD, fits(availableW));
+        blockWidth = availableW;
+      }
+
+      // Leave the block at what was decided rather than handing it back bare:
+      // React writes the same number on its next render, and nothing is
+      // painted at the frame's width in between.
+      stackEl.style.width = `${blockWidth}px`;
+      setLayout(prev => (prev.size === size && prev.blockWidth === blockWidth
+        ? prev
+        : { size, blockWidth }));
     };
 
     if (typeof ResizeObserver === 'undefined') {
@@ -116,9 +178,8 @@ function useBoardSize(
     return () => ro.disconnect();
   }, [root, stack, slot]);
 
-  return size;
+  return layout;
 }
-
 export function EmbedApp() {
   const problem = useProblem();
   const [error, setError] = useState<string | null>(null);
@@ -126,7 +187,7 @@ export function EmbedApp() {
   const rootRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
   const slotRef = useRef<HTMLDivElement>(null);
-  const boardSize = useBoardSize(rootRef, stackRef, slotRef);
+  const { size: boardSize, blockWidth } = useBoardLayout(rootRef, stackRef, slotRef);
 
   const loadProblem = problem.loadProblem;
   useEffect(() => {
@@ -179,7 +240,7 @@ export function EmbedApp() {
 
   return (
     <div className="emb-root" ref={rootRef}>
-      <div className="emb-stack" ref={stackRef} style={boardSize ? { width: boardSize } : undefined}>
+      <div className="emb-stack" ref={stackRef} style={blockWidth ? { width: blockWidth } : undefined}>
       {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
       <div className="emb-credit">{decided ? credit : ''}</div>
 

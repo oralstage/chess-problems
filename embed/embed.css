@@ -4,7 +4,8 @@
 
    The height belongs to the host: the iframe is given whatever it is given,
    so the board is sized to the room left between the two bars rather than the
-   other way round, and nothing here ever scrolls. */
+   other way round, and on any frame with room for a diagram nothing scrolls.
+   A frame with less room than that scrolls rather than losing its buttons. */
 
 html, body { height: 100%; }
 
@@ -32,8 +33,14 @@ body {
   padding: 8px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
   align-items: center;
+  /* A frame too short for the smallest usable board can be scrolled rather
+     than having its buttons cut off at the bottom. The block is centred by
+     its own auto margins instead of by justify-content, because auto margins
+     go to nothing when the content overflows -- centring it would push the
+     top of the diagram above the scrollable area, where nothing can reach
+     it. */
+  overflow-y: auto;
 }
 
 /* The diagram and its lines are one block, as wide as the board itself, so
@@ -41,6 +48,11 @@ body {
    the frame has over that goes above and below the block. */
 .emb-stack {
   width: 100%;
+  /* Never shrunk to fit: a block squeezed by the flex container would report
+     a height smaller than its lines really take, and the board would be sized
+     from a number that was already a lie. */
+  flex: none;
+  margin: auto 0;
   display: flex;
   flex-direction: column;
   gap: 6px;
