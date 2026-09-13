@@ -180,6 +180,17 @@ function extractMoveStrings(text: string): string[] {
 
 // ── Segment parsing ─────────────────────────────────────
 
+/** A line YACPDB marks as a cook: a "Cook:" / "Cooks 1.Sd7!" label at the head
+ *  of the line, or a {…} note on it that says cook. The colon-or-move-number is
+ *  what keeps a composer named Cook from matching. Both forms are the editor
+ *  saying "this line is an unintended second solution", so both are kept out of
+ *  the solutions a helpmate asks the solver to find. */
+const COOK_LABEL = /^cooks?\b[ \t]*(:|\d+[ \t]*\.)/i;
+const COOK_NOTE = /\bcooks?\b/i;
+/** A twin label ("b)", "+c)") opens a new diagram, so a cook heading above it
+ *  says nothing about what follows. */
+const TWIN_LABEL = /^\+?[a-h]\)/i;
+
 interface Segment {
   indent: number;
   lineIndex: number;
@@ -191,6 +202,8 @@ interface Segment {
   isTry: boolean;
   isThreat: boolean;
   hasThreatLabel: boolean; // "threat:" label — children are threats, not this segment itself
+  /** The line this segment came from is marked as a cook (see COOK_LINE). */
+  isCook: boolean;
   annotation: string;
   afterBlankLine: boolean; // preceded by a blank line (section break)
   /** The indent as written. `indent` is overwritten with a virtual one when the
@@ -480,6 +493,10 @@ function parseSegments(solutionText: string): Segment[] {
 
   let lineIndex = 0;
   let lastLineWasBlank = false;
+  // "Cooks:" written on a line of its own is a heading: the lines under it are
+  // the cooks (D655577, D537792). A twin label starts a new diagram and clears
+  // it again.
+  let inCookBlock = false;
   for (const line of lines) {
     const lineIndent = line.length - line.trimStart().length;
     const trimmed = line.trimStart();
@@ -507,6 +524,14 @@ function parseSegments(solutionText: string): Segment[] {
       lineThreatTexts.push(inner);
       return '';
     });
+
+    // Whether this line is a recorded cook. The {…} notes are collected above,
+    // so both spellings are visible here — the label sits at the head of the
+    // line, the note can sit on any move of it.
+    if (TWIN_LABEL.test(trimmed)) inCookBlock = false;
+    const lineHasCookNote = COOK_LABEL.test(trimmed) || lineAnnotations.some(a => COOK_NOTE.test(a));
+    const lineIsCook = lineHasCookNote || inCookBlock;
+    const segmentsBeforeLine = segments.length;
 
     // Split on move number patterns
     const parts = trimmedClean.split(/(?<!\d)(?=\d+\.)/); // lookbehind: never split inside a number ("12." must not become "1"+"2.")
@@ -575,6 +600,7 @@ function parseSegments(solutionText: string): Segment[] {
         isTry,
         isThreat,
         hasThreatLabel,
+        isCook: lineIsCook,
         annotation,
         afterBlankLine: segIndex === 0 && lastLineWasBlank,
         sourceIndent: lineIndent,
@@ -607,6 +633,7 @@ function parseSegments(solutionText: string): Segment[] {
           isTry: false,
           isThreat: true,
           hasThreatLabel: false,
+          isCook: lineIsCook,
           annotation: '',
           afterBlankLine: false,
           sourceIndent: lineIndent,
@@ -614,6 +641,10 @@ function parseSegments(solutionText: string): Segment[] {
         segIndex++;
       }
     }
+
+    // The note carried no moves of its own — it was a heading for the lines
+    // that follow, not a mark on this one.
+    if (lineHasCookNote && segments.length === segmentsBeforeLine) inCookBlock = true;
 
     lastLineWasBlank = false;
     lineIndex++;
@@ -707,11 +738,11 @@ function assignVirtualIndents(segments: Segment[], firstMoveColor: 'w' | 'b'): v
 
 // ── Build solution tree ─────────────────────────────────
 
-function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isTry: boolean, isThreat: boolean, annotation: string): SolutionNode {
+function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isTry: boolean, isThreat: boolean, annotation: string, isCook = false): SolutionNode {
   const isMate = moveText.includes('#');
   const isCheck = moveText.includes('+') && !isMate;
 
-  return {
+  const node: SolutionNode = {
     move: moveText.replace(/[!?]+/g, '').trim(),
     moveUci: yacpdbToUci(moveText),
     moveSan: yacpdbToSanApprox(moveText),
@@ -724,6 +755,9 @@ function makeNode(moveText: string, color: 'w' | 'b', isKey: boolean, isTry: boo
     children: [],
     color,
   };
+  // Set only when true: every other node stays the shape it had before.
+  if (isCook) node.isCook = true;
+  return node;
 }
 
 /**
@@ -1519,6 +1553,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
         i === 0 ? seg.isTry : false,
         isNodeThreat,
         i === 0 ? seg.annotation : '',
+        seg.isCook,
       );
       if (i === 0) node.moveNum = seg.moveNum;
 

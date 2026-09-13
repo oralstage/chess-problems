@@ -12,6 +12,15 @@
  * cooked. Both forms mean the same thing, so both drive the same badge.
  */
 
+import type { SolutionNode } from '../types';
+
+/** Does this solution line carry a cook mark anywhere along it? The parser
+ *  flags every move of a line it reads as a cook, so the root of a line is
+ *  enough in practice; the walk covers a note left deeper down a branch. */
+export function isCookedLine(node: SolutionNode): boolean {
+  return !!node.isCook || node.children.some(isCookedLine);
+}
+
 /** A `cook` mention inside a {…} annotation: {(Cook)}, {cook}, {cook!}, {cook JU}… */
 const BRACE_COOK = /\{[^}]{0,60}\bcooks?\b/i;
 

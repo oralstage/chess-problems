@@ -45,6 +45,11 @@ export interface SolutionNode {
    *  broken-mainline fragments (e.g. a leaked "10. Ke5") out of the accepted
    *  solving roots. */
   moveNum?: number | null;
+  /** This move sits on a line YACPDB records as a cook — "{(Cook)}" written
+   *  inside the line, or a "Cook:" / "Cooks 1.…" label at its head. The line
+   *  is still parsed and shown; it is simply not one of the solutions the
+   *  problem asks for. */
+  isCook?: boolean;
 }
 
 export interface ChessProblem {
