@@ -208,3 +208,42 @@ body {
 
 .emb-root[data-type='host'] .emb-pieces,
 .emb-root[data-type='host'] .emb-count { font-variant-numeric: tabular-nums; }
+
+/* And it does not shout. The buttons on this site are drawn to be pressed for
+   fun -- thick outline, pill, a shadow that moves under the finger. On a
+   federation's page that reads as a toy dropped into a reference work. Here
+   they are ordinary controls: a hairline, a small radius, no shadow, and the
+   answer's button distinguished by its weight rather than by colour. */
+.emb-root[data-type='host'] .nb-btn {
+  border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent);
+  border-radius: 5px;
+  box-shadow: none;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--ink) 82%, transparent);
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.emb-root[data-type='host'] .nb-btn:hover:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  border-color: color-mix(in srgb, var(--ink) 55%, transparent);
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+}
+
+.emb-root[data-type='host'] .nb-btn:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: color-mix(in srgb, var(--ink) 9%, var(--surface));
+}
+
+.emb-root[data-type='host'] .nb-btn-key {
+  background: var(--surface);
+  border-color: color-mix(in srgb, var(--ink) 55%, transparent);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.emb-root[data-type='host'] .emb-date,
+.emb-root[data-type='host'] .emb-status { font-weight: 600; }
+.emb-root[data-type='host'] .emb-stip { font-weight: 600; }
+.emb-root[data-type='host'] .emb-credit { font-weight: 600; }
