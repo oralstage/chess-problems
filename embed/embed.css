@@ -28,12 +28,14 @@ body {
      of what is being said, and it is set a step down so it does not read as
      another control. */
   --emb-aside: 0.875em;
-  /* This site's own type by default. A page that wants the panel to belong to
-     it asks for another set (see [data-type] below); nothing here changes for
-     an embed that does not. */
-  --emb-sans: var(--font-sans);
-  --emb-serif: var(--font-sans);
-  --emb-num: var(--font-mono), monospace;
+  /* The reader's system font, one face for the whole panel. A diagram put on
+     someone else's page should read as part of that page, and the composer,
+     the stipulation and the material count are one caption -- splitting them
+     across two faces made it look assembled out of parts. It arrives with the
+     page rather than after it, there being no webfont to wait for. */
+  --emb-sans: -apple-system, system-ui, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  --emb-serif: var(--emb-sans);
+  --emb-num: var(--emb-sans);
   font-family: var(--emb-sans);
   /* Every length below is in em, so the whole panel -- gaps, button padding,
      the room held for the credit -- comes down with the type on a small
@@ -197,31 +199,15 @@ body {
 
 .emb-link:hover { color: var(--ink); }
 
-/* The plain door is set in the host's type rather than this site's, so the
-   panel reads as part of the page it is in. The faces come from that page's
-   own entry (board/index.html); this site's embed never fetches them. */
-.emb-root[data-type='host'] {
-  /* The host's own body text, which on the WFCC site is the reader's system
-     font -- not the Inter of its navigation, and not the Source Serif 4 of its
-     headings. A caption under a diagram belongs with the prose around it.
+.emb-root .emb-pieces,
+.emb-root .emb-count { font-variant-numeric: tabular-nums; }
 
-     One face for all of it, the composer's line included: the composer, the
-     stipulation and the material count are one caption, and splitting them
-     across two faces made it look assembled out of parts. */
-  --emb-sans: -apple-system, system-ui, 'Segoe UI', Roboto, Oxygen-Sans, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
-  --emb-serif: var(--emb-sans);
-  --emb-num: var(--emb-sans);
-}
-
-.emb-root[data-type='host'] .emb-pieces,
-.emb-root[data-type='host'] .emb-count { font-variant-numeric: tabular-nums; }
-
-/* And it does not shout. The buttons on this site are drawn to be pressed for
-   fun -- thick outline, pill, a shadow that moves under the finger. On a
-   federation's page that reads as a toy dropped into a reference work. Here
-   they are ordinary controls: a hairline, a small radius, no shadow, and the
-   answer's button distinguished by its weight rather than by colour. */
-.emb-root[data-type='host'] .nb-btn {
+/* And it does not shout. The site's own buttons are drawn to be pressed for
+   fun -- thick outline, pill, a shadow that moves under the finger. Dropped
+   into somebody's reference pages that reads as a toy, so in the frame they
+   are ordinary controls: a hairline, a small radius, no shadow, and the
+   answer's button told apart by its weight rather than by colour. */
+.emb-root .nb-btn {
   border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent);
   border-radius: 5px;
   box-shadow: none;
@@ -230,27 +216,27 @@ body {
   transition: background-color 0.12s ease, border-color 0.12s ease;
 }
 
-.emb-root[data-type='host'] .nb-btn:hover:not(:disabled) {
+.emb-root .nb-btn:hover:not(:disabled) {
   transform: none;
   box-shadow: none;
   border-color: color-mix(in srgb, var(--ink) 55%, transparent);
   background: color-mix(in srgb, var(--ink) 4%, var(--surface));
 }
 
-.emb-root[data-type='host'] .nb-btn:active:not(:disabled) {
+.emb-root .nb-btn:active:not(:disabled) {
   transform: none;
   box-shadow: none;
   background: color-mix(in srgb, var(--ink) 9%, var(--surface));
 }
 
-.emb-root[data-type='host'] .nb-btn-key {
+.emb-root .nb-btn-key {
   background: var(--surface);
   border-color: color-mix(in srgb, var(--ink) 55%, transparent);
   color: var(--ink);
   font-weight: 600;
 }
 
-.emb-root[data-type='host'] .emb-date,
-.emb-root[data-type='host'] .emb-status { font-weight: 600; }
-.emb-root[data-type='host'] .emb-stip { font-weight: 600; }
-.emb-root[data-type='host'] .emb-credit { font-weight: 600; }
+.emb-root .emb-date,
+.emb-root .emb-status { font-weight: 600; }
+.emb-root .emb-stip { font-weight: 600; }
+.emb-root .emb-credit { font-weight: 600; }

@@ -273,9 +273,10 @@ function useBoardLayout(
    'arcade' is this site's own embed: the type this site is set in, and a line
    out to the problem's page here when it has one.
 
-   'plain' is the door for somebody else's page. It carries no name and no way
-   out — a federation putting its own problem on a board should keep the reader
-   it brought — and it is set in the host's type, not in ours. */
+   'plain' is the door for somebody else's page: it carries no name and no way
+   out, a federation putting its own problem on a board having every right to
+   keep the reader it brought. The two look the same — the panel is set for
+   the page it lands in either way. */
 export type EmbedVariant = 'arcade' | 'plain';
 
 export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}) {
@@ -352,7 +353,7 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
      start, so the diagram does not move when the credit appears. */
 
   return (
-    <div className="emb-root" data-type={variant === 'plain' ? 'host' : undefined} ref={rootRef}>
+    <div className="emb-root" ref={rootRef}>
       <div className="emb-stack" ref={stackRef} style={blockWidth ? { width: blockWidth } : undefined}>
       {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
       <div className="emb-credit">{decided ? credit : ''}</div>
