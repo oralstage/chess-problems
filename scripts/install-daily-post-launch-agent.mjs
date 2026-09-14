@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 
 const LABEL = 'com.chess-problems.daily-post';
-const time = process.argv[2] || '22:00';
+const time = process.argv[2] || '20:30';
 const match = time.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
 
 if (!match) {
