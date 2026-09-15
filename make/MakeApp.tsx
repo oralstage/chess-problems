@@ -400,32 +400,39 @@ export function MakeApp() {
             <input type="checkbox" checked={showTries} onChange={e => setAsked(setShowTries, e.target.checked)} />
             Tries
           </label>
-          {solving && <span className="text-sm font-bold text-[var(--muted)]">Solving…</span>}
+          {solving && <span className="text-sm font-semibold text-[var(--muted)]">Solving…</span>}
           {!stipulation.trim()
             ? <span className="text-sm text-[var(--muted)]">Say what is asked of the position first.</span>
-            : !hasKings && <span className="text-sm text-[var(--muted)]">Both sides need a king.</span>}
+            : !hasKings
+              ? <span className="text-sm text-[var(--muted)]">Both sides need a king.</span>
+              /* Not marked "required" -- it is a button, not a field -- but it
+                 is the step nothing downstream can happen without, so the
+                 reason it has to be pressed is said in the colour the required
+                 fields are marked in. */
+              : !solving && !solution && <span className="text-sm text-[var(--bad)]">Without the solution there is nothing to take away.</span>}
         </div>
 
         {note && (
           <pre className="nb-plate mt-3 p-3 text-xs whitespace-pre-wrap text-[var(--ink)]">{note}</pre>
         )}
 
-        <details
-          className="mt-4"
-          open={solutionOpen}
-          onToggle={e => setSolutionOpen((e.currentTarget as HTMLDetailsElement).open)}
-        >
-          <summary className="cursor-pointer text-xs text-[var(--muted)]">
+        <label className="block mt-4">
+          <span className="text-xs text-[var(--muted)]">
             Solution — Popeye's own output. Edit it if you want, or paste one you already had.
-          </summary>
+          </span>
+          {/* One line high until it is wanted, as the precedent finder's own
+              solution box is: a dozen lines of notation held open permanently
+              push everything that matters off the screen. Going into it opens
+              it, and so does a solve landing -- a page that answered by
+              changing nothing visible would look as if it had not answered. */}
           <textarea
             value={solution}
             onChange={e => setSolution(e.target.value)}
+            onFocus={() => setSolutionOpen(true)}
             spellCheck={false}
-            rows={8}
-            className="nb-plate w-full mt-1 px-3 py-2 text-xs font-mono whitespace-pre bg-[var(--surface)] text-[var(--ink)]"
+            className={`nb-plate w-full mt-1 px-3 py-2 text-xs font-mono whitespace-pre overflow-auto bg-[var(--surface)] text-[var(--ink)] transition-[height] ${solutionOpen ? 'h-40' : 'h-9'}`}
           />
-        </details>
+        </label>
 
         {/* Nothing to take until there is a solution, and a heading over an
             explanation of why the thing below it is missing is furniture for
