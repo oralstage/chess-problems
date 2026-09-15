@@ -196,6 +196,7 @@ export function MakeApp() {
   const [source0, setSource0] = useState('');
   const [looking, setLooking] = useState(false);
   const topRef = useRef<HTMLInputElement>(null);
+  const outRef = useRef<HTMLDivElement>(null);
   // The position as it stands, for the setter below, which has to read it
   // without taking it as a dependency.
   const fenRef = useRef(fen);
@@ -491,9 +492,36 @@ export function MakeApp() {
   };
 
   const ready = missing.length === 0;
+
+  /* Pressing Generate at the foot of the form puts what it made below the
+     fold, which on a phone is a button that appears to do nothing. The page
+     goes to it. */
+  const generated = wanted && ready;
   const width = `${frameWidth.trim() || '100'}${frameUnit}`;
+
+  useEffect(() => {
+    if (generated) outRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [generated]);
   const frameStyle = `width:${width}; aspect-ratio:4/5; border:0`;
   const markup = `<iframe src="${SITE}/board?${boardQuery}"\n        style="${frameStyle}"\n        title="Chess problem"></iframe>`;
+
+  /* The last thing on the form, because it is the last thing done: the page is
+     filled in downwards and what it produces appears directly under the press.
+     It sat beside the position at the top, which is where the finder puts
+     Search -- but there the field is the whole question, and here it is the
+     first of several. At the foot of the settings rather than under both
+     columns: the board's column is the taller of the two, and a button placed
+     below the pair of them sat at the bottom of a hand's width of nothing. */
+  const generateButton = (
+    <div className="flex justify-end mt-4">
+      <button
+        onClick={() => { setComplaint(missing.length ? missing : null); setWanted(missing.length === 0); }}
+        className="nb-btn nb-btn-key py-2 px-5 font-semibold"
+      >
+        Generate
+      </button>
+    </div>
+  );
 
   return (
     <div className="sober min-h-dvh">
@@ -833,23 +861,15 @@ export function MakeApp() {
               Turn the first two off and the problem can only be solved. <code>100%</code> follows the column
               it lands in, <code>50%</code> half of it; pixels are a fixed size.
             </p>
+            {generateButton}
           </div>
           )}
         </div>
 
-        {/* The last thing on the form, because it is the last thing done: the
-            page is filled in downwards and what it produces appears directly
-            under the press. It sat beside the position at the top, which is
-            where the finder puts Search -- but there the field is the whole
-            question, and here it is the first of several. */}
-        <div className="mt-6 flex flex-col items-end gap-1.5">
-          <button
-            onClick={() => { setComplaint(missing.length ? missing : null); setWanted(missing.length === 0); }}
-            className="nb-btn nb-btn-key py-2 px-5 font-semibold"
-          >
-            Generate
-          </button>
-        </div>
+        {/* On a page with nothing on it yet the column that holds the button
+            is not there, so it goes under the board instead -- pressing it is
+            how you find out what is still wanted. */}
+        {!started && <div className="mt-4">{generateButton}</div>}
 
         {/* Nothing to take until the button has been pressed and there is
             something to take: a heading over an explanation of why the thing
@@ -860,8 +880,8 @@ export function MakeApp() {
             column they read as one long form, and the two addresses -- the
             things this page exists to hand over -- end up looking like two
             more fields. */}
-        {wanted && ready && (
-          <div className="nb-plate mt-4 p-4 bg-[var(--surface-2)]">
+        {generated && (
+          <div ref={outRef} className="nb-plate mt-4 p-4 bg-[var(--surface-2)] scroll-mt-4">
             <h2 className="text-base font-semibold text-[var(--ink)]">Take it away</h2>
 
             {/* Two things, side by side and each the width of what it holds.
