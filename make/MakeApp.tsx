@@ -739,11 +739,14 @@ export function MakeApp() {
             )}
           </div>
 
+          {/* Not on an empty page. None of it changes the problem, none of it
+              has to be filled in, and a page that opens by offering to dress a
+              board that has nothing on it is answering a question nobody has
+              asked yet. Said once, over the lot, rather than tagged onto every
+              field: a column of "optional" reads as a form nagging about
+              things it does not need. */}
+          {started && (
           <div className="flex-1 min-w-0 mt-4 sm:mt-0">
-            {/* None of this changes the problem, and none of it has to be
-                filled in. Said once, over the lot, rather than tagged onto
-                every field: a column of "optional" reads as a form nagging
-                about things it does not need. */}
             <h2 className="text-sm font-semibold text-[var(--ink)]">Appearance</h2>
             <p className="text-xs text-[var(--faint)] mt-0.5 mb-2">
               How the board is dressed and what it offers. Leave it all alone and the board still works.
@@ -808,6 +811,7 @@ export function MakeApp() {
               it lands in, <code>50%</code> half of it; pixels are a fixed size.
             </p>
           </div>
+          )}
         </div>
 
         {/* Nothing to take until the button has been pressed and there is
