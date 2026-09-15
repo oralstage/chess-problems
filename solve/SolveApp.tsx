@@ -58,6 +58,7 @@ export function SolveApp() {
   const params = new URLSearchParams(window.location.search);
   const offerHint = params.get('hint') !== '0';
   const offerGiveUp = params.get('giveup') !== '0';
+  const creditsUpFront = params.get('credits') === '1';
 
   const [error, setError] = useState<string | null>(null);
   const [dailyDate, setDailyDate] = useState<string | null>(null);
@@ -263,7 +264,7 @@ export function SolveApp() {
                   <span>{pieceCounts(p.fen)}</span>
                 </div>
                 <div className="min-h-[2.5rem] flex flex-col justify-center">
-                  {decided ? (
+                  {decided || creditsUpFront ? (
                     <>
                       <div className="text-base font-semibold text-[var(--ink)] leading-tight break-words">
                         {composerLine(p.authors)}

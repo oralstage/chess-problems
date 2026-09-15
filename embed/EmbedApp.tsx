@@ -302,6 +302,13 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
   const offerHint = params.get('hint') !== '0';
   const offerGiveUp = params.get('giveup') !== '0';
 
+  /* Who composed it, from the first moment rather than after the solve. The
+     holding back is a solving tourney's manner and the right one for a board
+     set as an exercise; a board illustrating an article is the other case,
+     where the credit is part of what is being shown and withholding it until
+     someone solves is withholding the caption. */
+  const creditsUpFront = params.get('credits') === '1';
+
   const p = problem.problem;
   const playback = problem.playback;
   const decided = problem.status === 'correct' || problem.status === 'viewing';
@@ -350,22 +357,29 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
           not move when the name arrives. */}
       <div className="emb-head" ref={headRef}>
         <div className="emb-head-ghost" aria-hidden="true">
-          <div className="emb-head-swap">
-            <div>
+          {/* With the credit held back the block has two states, and it is
+              held at the taller. With the credit up front the credit is in
+              both, so it is simply one of the lines and the room for all of
+              them is taken at once. */}
+          {creditsUpFront ? (
+            <>
               {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
+              <div className="emb-credit">{credit}</div>
               <div className="emb-invite">{INVITE}</div>
+            </>
+          ) : (
+            <div className="emb-head-swap">
+              <div>
+                {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
+                <div className="emb-invite">{INVITE}</div>
+              </div>
+              <div className="emb-credit">{credit}</div>
             </div>
-            <div className="emb-credit">{credit}</div>
-          </div>
+          )}
         </div>
-        {decided ? (
-          <div className="emb-credit">{credit}</div>
-        ) : (
-          <>
-            {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
-            {p && <div className="emb-invite">{INVITE}</div>}
-          </>
-        )}
+        {dailyDate && (decided ? creditsUpFront : true) && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
+        {(decided || creditsUpFront) && <div className="emb-credit">{credit}</div>}
+        {!decided && p && <div className="emb-invite">{INVITE}</div>}
       </div>
 
       <div className="emb-slot" ref={slotRef} style={{ height: boardSize }}>

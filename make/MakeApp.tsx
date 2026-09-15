@@ -153,34 +153,41 @@ export function MakeApp() {
   const [tool, setTool] = useState<Tool>({ kind: 'place', piece: 'K' });
   const [showTries, setShowTries] = useState(false);
 
-  /* The size of the frame where it lands. "100%" follows the column it is
+  /* How wide the frame is where it lands. "100%" follows the column it is
      dropped into, which is what an article wants and what keeps it inside a
-     phone; a number is a fixed size, for a sidebar or a slide. Left without a
-     height it keeps the printed diagram's proportion, so a frame that follows
-     its column has a sensible height at every width without anyone working
-     one out. */
+     phone; a bare number is a fixed width, for a sidebar or a slide. There is
+     no height to give: the frame keeps a printed diagram's proportion, and a
+     frame given both in pixels stops matching its column the moment the
+     column changes. */
   const [frameWidth, setFrameWidth] = useState('100%');
-  const [frameHeight, setFrameHeight] = useState('');
 
   /* A board set as an exercise is not one to be given up on. */
   const [offerHint, setOfferHint] = useState(true);
   const [offerGiveUp, setOfferGiveUp] = useState(true);
 
+  /* A solving tourney holds the composer's name back until the round is over,
+     and a board set as an exercise does the same. A board illustrating an
+     article is the other case: the credit is part of what is being shown, and
+     withholding it until someone solves is withholding the caption. */
+  const [creditsUpFront, setCreditsUpFront] = useState(false);
+
   const [solution, setSolution] = useState('');
-  /* Folded away, like the note under the stipulation: Popeye's output is a
-     dozen lines of notation, and what most people want to do with it is
-     nothing at all. It opens itself when a solve lands, because that is the
-     one moment it is worth reading -- and because a page that answered by
-     changing nothing visible would look as if it had not answered. */
+  /* Folded away and left that way. Popeye's output runs to a dozen lines and
+     more for a long helpmate, and it is not what anyone came to read: it goes
+     in when a solve lands, and it opens only if someone goes into it. */
   const [solutionOpen, setSolutionOpen] = useState(false);
   const [solving, setSolving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [boardWidth, setBoardWidth] = useState(() => Math.min(window.innerWidth - 32, 420));
+  /* Small. This board is a field being filled in, not a diagram being read --
+     the reading happens on the page it makes -- and at full width it pushed
+     everything that has to be typed below the fold. */
+  const boardSize = () => Math.min(window.innerWidth - 48, 300);
+  const [boardWidth, setBoardWidth] = useState(boardSize);
   useEffect(() => {
-    const onResize = () => setBoardWidth(Math.min(window.innerWidth - 32, 420));
+    const onResize = () => setBoardWidth(boardSize());
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
@@ -253,7 +260,6 @@ export function MakeApp() {
       const text = cleanOutput(data.out);
       if (!text) { setNote('Popeye found no solution to this position.'); return; }
       setSolution(text);
-      setSolutionOpen(true);
     };
 
     worker.onerror = () => { stopWorker(); setNote('Popeye could not be started.'); };
@@ -291,15 +297,13 @@ export function MakeApp() {
     const q = new URLSearchParams(query);
     if (!offerHint) q.set('hint', '0');
     if (!offerGiveUp) q.set('giveup', '0');
+    if (creditsUpFront) q.set('credits', '1');
     return q.toString();
-  }, [query, offerHint, offerGiveUp]);
+  }, [query, offerHint, offerGiveUp, creditsUpFront]);
 
   const ready = solution !== '';
   const width = asLength(frameWidth) || '100%';
-  const height = asLength(frameHeight);
-  const frameStyle = height
-    ? `width:${width}; height:${height}; border:0`
-    : `width:${width}; aspect-ratio:4/5; border:0`;
+  const frameStyle = `width:${width}; aspect-ratio:4/5; border:0`;
   const markup = `<iframe src="${SITE}/board?${boardQuery}"\n        style="${frameStyle}"\n        title="Chess problem"></iframe>`;
 
   return (
@@ -420,6 +424,40 @@ export function MakeApp() {
           </label>
         </div>
 
+        {/* Still the input side: what the reader of the finished board will be
+            given, and how wide it sits. These decide what comes out, so they
+            are asked for before it is made rather than offered afterwards
+            beside the thing they would change. */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4">
+          <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+            <input type="checkbox" checked={offerHint} onChange={e => setOfferHint(e.target.checked)} />
+            Offer Hint
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+            <input type="checkbox" checked={offerGiveUp} onChange={e => setOfferGiveUp(e.target.checked)} />
+            Offer Give up
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+            <input type="checkbox" checked={creditsUpFront} onChange={e => setCreditsUpFront(e.target.checked)} />
+            Show the composer from the start
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+            <span>Width</span>
+            <input
+              value={frameWidth}
+              onChange={e => setFrameWidth(e.target.value)}
+              spellCheck={false}
+              className="nb-plate w-24 px-2 py-1 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
+            />
+          </label>
+        </div>
+        <p className="text-xs text-[var(--faint)] mt-1">
+          Turn the first two off and the problem can only be solved — for a column, a class, or a set to be
+          handed in. Left as it is, the composer's name arrives when the solve does, the way a solving
+          tourney's diagram sheet does it. A bare width is pixels; <code>100%</code> follows the column the
+          board is dropped into, and the height comes off a printed diagram's proportion.
+        </p>
+
         <div className="flex flex-wrap items-center gap-2 mt-4">
           {solving ? (
             <button onClick={stopWorker} className="nb-btn py-1.5 px-3 font-bold">Stop</button>
@@ -472,10 +510,16 @@ export function MakeApp() {
 
         {/* Nothing to take until there is a solution, and a heading over an
             explanation of why the thing below it is missing is furniture for
-            an absence. */}
+            an absence.
+
+            In a panel of its own, because everything above it is a question
+            being asked and everything in it is the answer. Run together in one
+            column they read as one long form, and the two addresses -- the
+            things this page exists to hand over -- end up looking like two
+            more fields. */}
         {ready && (
-          <>
-            <h2 className="text-base font-semibold text-[var(--ink)] mt-6">Take it away</h2>
+          <div className="nb-plate mt-6 p-4 bg-[var(--surface-2)]">
+            <h2 className="text-base font-semibold text-[var(--ink)]">Take it away</h2>
             {/* The page is what most people came for, so it is a door and not a
                 footnote: the two blocks below are for putting the problem
                 somewhere else, which is the rarer thing to want. */}
@@ -491,63 +535,19 @@ export function MakeApp() {
 
             <Copyable label="The address of that page" text={`${SITE}/solve?${boardQuery}`} />
 
-            {/* Above both addresses, because they govern both: a set of
-                problems that withholds the answer in the frame and hands it
-                over on the page the frame links to has withheld nothing. */}
-            <div className="flex flex-wrap items-center gap-4 mt-4">
-              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-                <input type="checkbox" checked={offerHint} onChange={e => setOfferHint(e.target.checked)} />
-                Offer Hint
-              </label>
-              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-                <input type="checkbox" checked={offerGiveUp} onChange={e => setOfferGiveUp(e.target.checked)} />
-                Offer Give up
-              </label>
-            </div>
-            <p className="text-xs text-[var(--faint)] mt-1">
-              Turn both off and the problem can only be solved — for a column, a class, or a set to be handed in.
-            </p>
-
             <p className="text-sm font-semibold text-[var(--muted)] mt-6">Or put the board in a page of yours</p>
 
-            <div className="flex flex-wrap items-end gap-3 mt-2">
-              <label className="block w-28">
-                <span className="text-xs text-[var(--muted)]">Width</span>
-                <input
-                  value={frameWidth}
-                  onChange={e => setFrameWidth(e.target.value)}
-                  spellCheck={false}
-                  className="nb-plate w-full mt-1 px-3 py-1.5 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
-                />
-              </label>
-              <label className="block w-28">
-                <span className="text-xs text-[var(--muted)]">Height</span>
-                <input
-                  value={frameHeight}
-                  onChange={e => setFrameHeight(e.target.value)}
-                  spellCheck={false}
-                  className="nb-plate w-full mt-1 px-3 py-1.5 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
-                />
-              </label>
-            </div>
-            <p className="text-xs text-[var(--faint)] mt-1">
-              A bare number is pixels. <code>100%</code> follows the column the board is dropped into, which
-              keeps it inside a phone; leave the height empty and it takes the proportion of a printed diagram.
-            </p>
-
-            {/* The frame itself, at the shape it is being given. Reading the
+            {/* The frame itself, at the width it is being given. Reading the
                 markup tells you what it says; this tells you what it does. */}
             <iframe
               src={`/board/?${boardQuery}`}
               title="What the frame shows"
-              style={height
-              ? { width, height, border: '1px solid var(--hairline)', borderRadius: 8 }
-              : { width, aspectRatio: '4/5', border: '1px solid var(--hairline)', borderRadius: 8 }}
-              className="mt-3 max-w-full"
+              style={{ width, aspectRatio: '4/5', border: '1px solid var(--hairline)', borderRadius: 8, background: 'var(--surface)' }}
+              className="mt-2 max-w-full"
             />
 
             <Copyable label="The markup that draws it" text={markup} />
-          </>
+          </div>
         )}
       </div>
     </div>
