@@ -9,15 +9,7 @@ import { composerLine } from '../src/utils/composerName';
 import { CATEGORY_DEFS } from '../src/types';
 import type { ChessProblem } from '../src/types';
 import { ensureSolution } from './ensureSolution';
-import { BadRequest, problemFromParams, problemIdFromUrl } from './problemParams';
-
-/* Said once, above the diagram, and only until the solve is decided. A
-   diagram is a picture to most of the people who will meet one on somebody
-   else's page, and a picture is not something you reach for -- so the board
-   says that it can be played rather than waiting to be found out. Worded as
-   an invitation to solve: the alternative is that the first thing a reader
-   learns about the board is that it has a Give up button on it. */
-const INVITE = 'Solve by moving pieces on the board';
+import { BadRequest, INVITE, problemFromParams, problemIdFromUrl } from './problemParams';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];

@@ -4,6 +4,8 @@ import type { Piece } from 'react-chessboard/dist/chessboard/types';
 import { Board } from '../src/components/Board';
 import { useTheme } from '../src/hooks/useTheme';
 import { moveFreely, pieceAt } from '../src/utils/freeBoard';
+import { stipulationPhrase } from '../src/utils/stipulationColor';
+import { INVITE, readStipulation } from '../embed/problemParams';
 import { buildInput, cleanOutput, inputComplaints, outputIsComplete, splitFen } from './popeye';
 
 /* Putting a problem of your own on a board.
@@ -193,6 +195,14 @@ export function MakeApp() {
   }, []);
 
   const men = countMen(fen);
+
+  /* The line under the diagram, said the way the finished board says it: "Mate
+     in 2" rather than "#2" while there is enough to say it with, and whatever
+     has been typed so far while there is not. */
+  const read = readStipulation(stipulation);
+  const caption = read
+    ? stipulationPhrase(stipulation, read.genre, read.moveCount)
+    : stipulation.trim();
   const hasKings = /K/.test(splitFen(fen).placement) && /k/.test(splitFen(fen).placement);
 
   const stopWorker = useCallback(() => {
@@ -279,6 +289,9 @@ export function MakeApp() {
     return true;
   }, [fen, setPosition]);
 
+  const credit = [author.trim(), [source.trim(), year.trim()].filter(Boolean).join(', ')]
+    .filter(Boolean).join(' — ');
+
   const query = useMemo(() => {
     const q = new URLSearchParams();
     q.set('fen', fen);
@@ -325,16 +338,63 @@ export function MakeApp() {
             column of fields can be read in, they go back to one. */}
         <div className="sm:flex sm:items-start sm:gap-5">
         <div className="shrink-0">
-        <div className="flex justify-center">
-          <Board
-            fen={fen}
-            onPieceDrop={handleDrop}
-            width={boardWidth}
-            orientation="white"
-            freeMove={editing}
-            disabled={!editing}
-            onSquareTool={editing && tool.kind !== 'move' ? handleSquare : undefined}
-          />
+        {/* One board, in two states. Being set up, it is the board itself,
+            with the men picked up and put down on it; the rest of the time the
+            lines a reader will meet are drawn around it, so that what the
+            switches beside it do can be seen being done -- turn Give up off
+            and the button goes, name the composer up front and the name
+            appears above the diagram.
+
+            Drawn here rather than by running the real thing in a frame. A
+            frame would be the real thing, and would therefore refuse a
+            position that is still being typed: no stipulation yet, no
+            solution yet, and what it shows is an error message where the
+            board should be. This is a picture of the finished board, and a
+            picture can be of something not finished. */}
+        <div style={{ width: boardWidth }}>
+          {!editing && (
+            <>
+              {/* Typed, so shown. Where it will be shown is above the diagram
+                  either way; when it is being held back for the solve it is
+                  drawn faintly, because that is the state the reader meets
+                  first and the name is not in it yet. */}
+              {credit && (
+                <p
+                  className={`text-xs text-center text-[var(--ink)] ${creditsUpFront ? '' : 'opacity-40'}`}
+                  title={creditsUpFront ? undefined : 'Shown once the problem is solved'}
+                >
+                  {credit}
+                </p>
+              )}
+              <p className="text-xs text-center text-[var(--faint)] min-h-[1.25rem]">{INVITE}</p>
+            </>
+          )}
+          <div className="flex justify-center">
+            <Board
+              fen={fen}
+              onPieceDrop={handleDrop}
+              width={boardWidth}
+              orientation="white"
+              freeMove={editing}
+              disabled={!editing}
+              onSquareTool={editing && tool.kind !== 'move' ? handleSquare : undefined}
+            />
+          </div>
+          {!editing && (
+            <>
+              <div className="flex items-baseline justify-between text-xs text-[var(--muted)] mt-1">
+                <span>{caption}</span>
+                <span>{men.white}+{men.black}</span>
+              </div>
+              <div className="flex items-center gap-1 mt-1.5">
+                {offerHint && <span className="nb-btn px-2 py-0.5 text-xs">Hint</span>}
+                {offerGiveUp && <span className="nb-btn px-2 py-0.5 text-xs">Give up</span>}
+              </div>
+              <p className="text-right text-[11px] text-[var(--faint)] underline mt-1.5">
+                Open on chessproblem.org ↗
+              </p>
+            </>
+          )}
         </div>
 
         {/* A position usually arrives already written down -- out of Popeye,
@@ -353,7 +413,10 @@ export function MakeApp() {
               Clear
             </button>
           )}
-          <span className="text-sm font-bold text-[var(--muted)] ml-auto">{men.white}+{men.black}</span>
+          {/* Only while the men are being moved. The rest of the time the
+              picture of the finished board is carrying the same count in the
+              place a diagram carries it. */}
+          {editing && <span className="text-sm font-bold text-[var(--muted)] ml-auto">{men.white}+{men.black}</span>}
         </div>
 
         {editing && (
@@ -462,11 +525,8 @@ export function MakeApp() {
           </label>
         </div>
         <p className="text-xs text-[var(--faint)] mt-1">
-          Turn the first two off and the problem can only be solved — for a column, a class, or a set to be
-          handed in. Left as it is, the composer's name arrives when the solve does, the way a solving
-          tourney's diagram sheet does it. A bare width is pixels; <code>100%</code> follows the column the
-          board is dropped into &mdash; <code>50%</code> half of it, for a board beside the text rather than
-          across it &mdash; and the height comes off a printed diagram's proportion.
+          Turn the first two off and the problem can only be solved. A bare width is pixels;
+          <code> 100%</code> follows the column it lands in, <code>50%</code> half of it.
         </p>
 
         <div className="flex flex-wrap items-center gap-2 mt-4">
@@ -534,39 +594,40 @@ export function MakeApp() {
           <div className="nb-plate mt-6 p-4 bg-[var(--surface-2)]">
             <h2 className="text-base font-semibold text-[var(--ink)]">Take it away</h2>
 
-            {/* Two things come out of this page, not three. One is a page, and
-                what you take is its address; the other is a board for somebody
-                else's page, and what you take is the markup -- with the board
-                itself standing above it as the picture of what that markup
-                draws, inside the same block, so it is not read as a third
-                thing on offer. */}
-            <section className="mt-4">
-              <h3 className="text-sm font-semibold text-[var(--ink)]">1 &middot; A page of its own</h3>
-              <p className="text-xs text-[var(--muted)] mt-0.5">
-                The board, every variation and the engine, at one address you can send to anybody.
-              </p>
-              <a
-                className="nb-btn nb-btn-key block text-center mt-2 py-2.5 px-4 text-base font-semibold"
-                href={`/solve/?${boardQuery}`} target="_blank" rel="noopener noreferrer"
-              >
-                Open the page →
-              </a>
-              <Copyable label="Its address" text={`${SITE}/solve?${boardQuery}`} />
-            </section>
+            {/* The same two sides as the form above: what it looks like on one,
+                what to take away on the other. Two things come out of this
+                page, not three -- the board is the picture of what the markup
+                draws, not a third thing on offer, so it stands beside them
+                rather than between them.
 
-            <section className="mt-6 pt-5 border-t border-[var(--hairline)]">
-              <h3 className="text-sm font-semibold text-[var(--ink)]">2 &middot; The same board in a page of yours</h3>
-              <p className="text-xs text-[var(--muted)] mt-0.5">
-                What a reader of that page sees, and the markup that puts it there.
-              </p>
-              <iframe
-                src={`/board/?${boardQuery}`}
-                title="What the frame shows"
-                style={{ width, aspectRatio: '4/5', border: '1px solid var(--hairline)', borderRadius: 8, background: 'var(--surface)' }}
-                className="mt-2 max-w-full"
-              />
-              <Copyable label="Its markup" text={markup} />
-            </section>
+                The column it stands in is a stand-in for the column it will
+                land in, which is what makes a width of 50% legible: half of
+                something, rather than a number. */}
+            <div className="mt-4">
+              <div>
+                <section>
+                  <h3 className="text-sm font-semibold text-[var(--ink)]">A page of its own</h3>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    The board, every variation and the engine, at one address you can send to anybody.
+                  </p>
+                  <a
+                    className="nb-btn nb-btn-key block text-center mt-2 py-2.5 px-4 text-base font-semibold"
+                    href={`/solve/?${boardQuery}`} target="_blank" rel="noopener noreferrer"
+                  >
+                    Open the page →
+                  </a>
+                  <Copyable label="Its address" text={`${SITE}/solve?${boardQuery}`} />
+                </section>
+
+                <section className="mt-5 pt-4 border-t border-[var(--hairline)]">
+                  <h3 className="text-sm font-semibold text-[var(--ink)]">The board in a page of yours</h3>
+                  <p className="text-xs text-[var(--muted)] mt-0.5">
+                    The markup that draws the board above, wherever you paste it.
+                  </p>
+                  <Copyable label="Its markup" text={markup} />
+                </section>
+              </div>
+            </div>
           </div>
         )}
       </div>

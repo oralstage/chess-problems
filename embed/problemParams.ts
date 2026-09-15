@@ -80,3 +80,11 @@ export function problemFromParams(q: URLSearchParams): ChessProblem {
     award: '',
   };
 }
+
+/* Said above the diagram until the solve is decided. A diagram is a picture to
+   most of the people who meet one on somebody else's page, and a picture is
+   not something you reach for -- so the board says that it can be played
+   rather than waiting to be found out. Here rather than beside the board that
+   prints it, because the page that builds a board draws a picture of one and
+   has to letter it with the same words. */
+export const INVITE = 'Solve by moving pieces on the board';
