@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChessboardDnDProvider, SparePiece } from 'react-chessboard';
+import type { Piece } from 'react-chessboard/dist/chessboard/types';
 import { Board } from '../src/components/Board';
 import { useTheme } from '../src/hooks/useTheme';
 import { moveFreely, pieceAt } from '../src/utils/freeBoard';
@@ -32,10 +34,12 @@ type Tool = { kind: 'move' } | { kind: 'place'; piece: string } | { kind: 'erase
    FEN; the board draws them from the same letters. */
 const PALETTE = ['K', 'Q', 'R', 'B', 'N', 'P', 'k', 'q', 'r', 'b', 'n', 'p'];
 
-const GLYPH: Record<string, string> = {
-  K: '♔', Q: '♕', R: '♖', B: '♗', N: '♘', P: '♙',
-  k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟',
-};
+/* The board's own men, not the Unicode chess characters. Those are text: they
+   are drawn by whichever font the reader has, they do not match the pieces on
+   the board beside them, and on some systems they arrive as emoji. The
+   palette is showing what will be put down, so it shows the same drawing. */
+const pieceCode = (fenChar: string): Piece =>
+  ((fenChar === fenChar.toUpperCase() ? 'w' : 'b') + fenChar.toUpperCase()) as Piece;
 
 /** Put a man on a square, or take the one that is there off. The placement
  *  field is edited directly, because a position under construction passes
@@ -272,32 +276,38 @@ export function MakeApp() {
         </div>
 
         {editing && (
-          <div className="flex flex-wrap items-center gap-1 mt-2">
-            <button
-              onClick={() => setTool({ kind: 'move' })}
-              className={`nb-btn py-1 px-2.5 text-sm font-bold ${tool.kind === 'move' ? 'nb-btn-key' : ''}`}
-              title="Drag a man to another square"
-            >
-              Move
-            </button>
-            {PALETTE.map(piece => (
+          <ChessboardDnDProvider>
+            <div className="flex flex-wrap items-center gap-1 mt-2">
               <button
-                key={piece}
-                onClick={() => setTool({ kind: 'place', piece })}
-                className={`nb-btn w-9 h-9 text-xl leading-none ${tool.kind === 'place' && tool.piece === piece ? 'nb-btn-key' : ''}`}
-                title={`Put a ${piece === piece.toUpperCase() ? 'white' : 'black'} man on a square`}
+                onClick={() => setTool({ kind: 'move' })}
+                className={`nb-btn py-1 px-2.5 text-sm font-bold ${tool.kind === 'move' ? 'nb-btn-key' : ''}`}
+                title="Drag a man to another square"
               >
-                {GLYPH[piece]}
+                Move
               </button>
-            ))}
-            <button
-              onClick={() => setTool({ kind: 'erase' })}
-              className={`nb-btn py-1 px-2.5 text-sm font-bold ${tool.kind === 'erase' ? 'nb-btn-key' : ''}`}
-              title="Tap a man to take it off"
-            >
-              Erase
-            </button>
-          </div>
+              {PALETTE.map(piece => (
+                <button
+                  key={piece}
+                  onClick={() => setTool({ kind: 'place', piece })}
+                  className={`nb-btn w-9 h-9 flex items-center justify-center ${tool.kind === 'place' && tool.piece === piece ? 'nb-btn-key' : ''}`}
+                  title={`Put a ${piece === piece.toUpperCase() ? 'white' : 'black'} man on a square`}
+                >
+                  {/* The drawing takes no pointer of its own: this is a button
+                      to choose with, not a man to drag. */}
+                  <span className="pointer-events-none">
+                    <SparePiece piece={pieceCode(piece)} width={26} dndId="palette" />
+                  </span>
+                </button>
+              ))}
+              <button
+                onClick={() => setTool({ kind: 'erase' })}
+                className={`nb-btn py-1 px-2.5 text-sm font-bold ${tool.kind === 'erase' ? 'nb-btn-key' : ''}`}
+                title="Tap a man to take it off"
+              >
+                Erase
+              </button>
+            </div>
+          </ChessboardDnDProvider>
         )}
 
         <label className="block mt-3">
