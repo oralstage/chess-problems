@@ -37,8 +37,8 @@ type Tool = { kind: 'move' } | { kind: 'place'; piece: string } | { kind: 'erase
    FEN; the board draws them from the same letters. */
 const PALETTE = ['K', 'Q', 'R', 'B', 'N', 'P', 'k', 'q', 'r', 'b', 'n', 'p'];
 
-/** A problem already in the database, named however it came to hand: a bare
- *  number, the D/H/S/E/R form the site prints, or an address with one in it.
+/** A YACPDB id, named however it came to hand: the bare number, the D/H/S/E/R
+ *  form this site prints in front of it, or an address with one in it.
  *  Anything with a slash in it is a position, not an id. */
 function readProblemId(text: string): number | null {
   const t = text.trim();
@@ -195,6 +195,7 @@ export function MakeApp() {
      it read. */
   const [source0, setSource0] = useState('');
   const [looking, setLooking] = useState(false);
+  const topRef = useRef<HTMLInputElement>(null);
   const [solving, setSolving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -348,6 +349,24 @@ export function MakeApp() {
     return () => clearTimeout(t);
   }, [source0, lookUp]);
 
+  /* Back to an empty page. The field is where the problem came from, so
+     emptying it empties what came with it -- otherwise the board keeps a
+     position that nothing on the page still names. */
+  const clearAll = useCallback(() => {
+    setSource0('');
+    setFen(EMPTY_FEN);
+    setStipulation('');
+    setAuthor('');
+    setSource('');
+    setYear('');
+    setSolution('');
+    setSolutionOpen(false);
+    setNote(null);
+    setComplaint(null);
+    setWanted(false);
+    topRef.current?.focus();
+  }, []);
+
   const handleSquare = useCallback((square: string) => {
     if (tool.kind === 'place') { setPosition(prev => setSquare(prev, square, tool.piece)); return; }
     if (tool.kind === 'erase') { setPosition(prev => setSquare(prev, square, null)); return; }
@@ -420,13 +439,43 @@ export function MakeApp() {
             it. */}
         <div className="mt-2">
           <div className="flex gap-2">
-            <input
-              value={source0}
-              onChange={e => readTop(e.target.value)}
-              placeholder=""
-              spellCheck={false}
-              className="nb-plate flex-1 min-w-0 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
-            />
+            <div className="relative flex-1 min-w-0">
+              <input
+                ref={topRef}
+                value={source0}
+                onChange={e => readTop(e.target.value)}
+                placeholder="FEN or YACPDB ID"
+                spellCheck={false}
+                className={`nb-plate w-full px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)] ${source0 ? 'pr-8' : ''}`}
+              />
+              {/* Inside the field, at the end of what it holds: starting again
+                  is a thing you do to the field, not a thing beside it. */}
+              {source0 && (
+                <button
+                  onClick={clearAll}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 rounded text-[var(--faint)] hover:text-[var(--ink)] text-base leading-none"
+                  title="Clear"
+                  aria-label="Clear the input"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+            {/* A FEN is a long line of punctuation that arrives from somewhere
+                else, and on a phone the clipboard is easier to reach from a
+                button than from a long press. Only while the field is empty:
+                once it holds something, pasting over it is not the next thing
+                anyone wants. */}
+            {!source0 && (
+              <button
+                onClick={async () => {
+                  try { const t = await navigator.clipboard.readText(); if (t.trim()) readTop(t.trim()); } catch { /* denied */ }
+                }}
+                className="nb-btn shrink-0 py-2 px-3"
+              >
+                Paste
+              </button>
+            )}
             <button
               onClick={() => { setComplaint(missing.length ? missing : null); setWanted(missing.length === 0); }}
               className="nb-btn nb-btn-key shrink-0 py-2 px-4 font-semibold"
@@ -436,7 +485,7 @@ export function MakeApp() {
           </div>
           <span className="block text-xs text-[var(--faint)] mt-0.5">
             {looking ? 'Looking it up…'
-              : 'FEN · a problem number from this site (D3684) — nothing you type here is sent anywhere'}
+              : 'FEN · YACPDB ID or URL — nothing you type here is sent anywhere'}
           </span>
         </div>
 
