@@ -128,10 +128,15 @@ body {
   text-align: center;
 }
 
-/* The day, then the composer: the same piece of the page, so it is measured
-   once for both and never changes height under the reader. */
+/* The day with its invitation, and then the credit that replaces the pair of
+   them: the same piece of the page, so it is measured once for both states and
+   never changes height under the reader. The credit, alone in a box held open
+   for two lines, is centred in it rather than left sitting on top of a gap. */
 .emb-head {
   position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .emb-head-ghost {
@@ -143,13 +148,31 @@ body {
   pointer-events: none;
 }
 
-/* Stacked on top of each other rather than one after the other: what is wanted
-   is the taller of the two, not the two of them. */
-.emb-head-ghost > * {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
+/* The day with the invitation under it, and the credit -- the two states of
+   this block. They are never on the page together, so they are stacked in a
+   single cell and the taller of them is what the block is held at. */
+.emb-head-swap {
+  display: grid;
+}
+
+.emb-head-swap > * {
+  grid-area: 1 / 1;
+}
+
+/* What to do with the board, for a reader who has met a diagram before but not
+   one that can be played. It stands down when the solve is decided and the
+   composer's name takes the line, which is the moment it has done its work.
+
+   Set exactly as the day above it is, and as everything else on this panel is:
+   one size, one face, one weight. A line that is typeset differently from its
+   neighbours is a line claiming to be a different kind of thing, and this one
+   is not. */
+.emb-invite {
+  font-size: var(--emb-text);
+  font-weight: 700;
+  line-height: 1.3;
+  color: var(--faint);
+  text-align: center;
 }
 
 .emb-credit {
@@ -277,6 +300,7 @@ body {
 }
 
 .emb-root .emb-date,
+.emb-root .emb-invite,
 .emb-root .emb-status { font-weight: 600; }
 .emb-root .emb-stip { font-weight: 600; }
 .emb-root .emb-credit { font-weight: 600; }

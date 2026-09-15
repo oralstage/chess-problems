@@ -84,6 +84,14 @@ function problemFromParams(q: URLSearchParams): ChessProblem {
   };
 }
 
+/* Said once, above the diagram, and only until the solve is decided. A
+   diagram is a picture to most of the people who will meet one on somebody
+   else's page, and a picture is not something you reach for -- so the board
+   says that it can be played rather than waiting to be found out. Worded as
+   an invitation to solve: the alternative is that the first thing a reader
+   learns about the board is that it has a Give up button on it. */
+const INVITE = 'Solve by moving pieces on the board';
+
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -211,16 +219,15 @@ function useBoardLayout(
         const barEl = bar.current;
         const ghost = barEl?.firstElementChild as HTMLElement | null;
         if (barEl) barEl.style.minHeight = ghost ? `${Math.ceil(ghost.getBoundingClientRect().height)}px` : '';
-        // The line above the diagram takes whichever of the day and the credit
-        // is taller -- they are never shown together -- so neither of them can
-        // move the board by arriving.
+        // The lines above the diagram are held at their fullest in the same
+        // way: the day, which stays, plus whichever of the invitation and the
+        // credit is taller -- those two are never on the page together. So
+        // neither the credit nor its arriving can move the board.
         const headEl = head.current;
-        const twins = headEl?.firstElementChild?.children;
+        const headGhost = headEl?.firstElementChild as HTMLElement | null;
         if (headEl) {
-          const tallest = twins
-            ? Math.max(0, ...[...twins].map(c => c.getBoundingClientRect().height))
-            : 0;
-          headEl.style.minHeight = `${Math.ceil(tallest)}px`;
+          headEl.style.minHeight = headGhost
+            ? `${Math.ceil(headGhost.getBoundingClientRect().height)}px` : '';
         }
         return stackEl.getBoundingClientRect().height - slotEl.getBoundingClientRect().height;
       };
@@ -389,22 +396,36 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
   return (
     <div className="emb-root" data-board={boardColours} ref={rootRef}>
       <div className="emb-stack" ref={stackRef} style={blockWidth ? { width: blockWidth } : undefined}>
-      {/* One line above the diagram, and it is held at the height of whichever
-          of the two wants more. Before the solve it says which day this board
-          belongs to; after it, who composed the problem and where it appeared,
-          which is when the day has done its work. The twin below is the same
-          text, drawn out of the flow, so a composer's name that runs to two
-          lines -- a pair of names, a Cyrillic patronymic -- has its room taken
-          before the reader ever gets there, and the board does not move when
-          the name arrives. */}
+      {/* Above the diagram, and it is held at the height of whichever state
+          wants more. Until the solve is decided: which day this board belongs
+          to, and under it the one thing a reader cannot tell from a picture of
+          a position -- that the pieces on it move. After it: who composed the
+          problem and where it appeared, which is when both of those have done
+          their work.
+
+          The twin below is the same text, drawn out of the flow, so the taller
+          of the two states -- the day with its invitation, or a composer's name
+          that runs to two lines, a pair of names, a Cyrillic patronymic -- has
+          its room taken before the reader ever gets there, and the board does
+          not move when the name arrives. */}
       <div className="emb-head" ref={headRef}>
         <div className="emb-head-ghost" aria-hidden="true">
-          {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
-          <div className="emb-credit">{credit}</div>
+          <div className="emb-head-swap">
+            <div>
+              {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
+              <div className="emb-invite">{INVITE}</div>
+            </div>
+            <div className="emb-credit">{credit}</div>
+          </div>
         </div>
-        {decided
-          ? <div className="emb-credit">{credit}</div>
-          : dailyDate ? <div className="emb-date">Daily — {dayLabel(dailyDate)}</div> : null}
+        {decided ? (
+          <div className="emb-credit">{credit}</div>
+        ) : (
+          <>
+            {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
+            {p && <div className="emb-invite">{INVITE}</div>}
+          </>
+        )}
       </div>
 
       <div className="emb-slot" ref={slotRef} style={{ height: boardSize }}>
@@ -456,6 +477,12 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
             <button className="nb-btn emb-nav" tabIndex={-1}>▶</button>
             <button className="nb-btn emb-nav" tabIndex={-1}>▶|</button>
             <button className="nb-btn emb-btn" tabIndex={-1}>Try again</button>
+            {/* The verdict sits at the far end of the row, so on a narrow frame
+                it is pushed onto a second line -- and that line costs the gap
+                above it whether anything is written on it or not. Empty here
+                on purpose: what the row has to be told about is the wrap, not
+                the words, which are not the same length twice. */}
+            <span className="emb-status" />
           </div>
           {/* While solving: the three things a solver needs and nothing else. */}
           {problem.status === 'solving' && !problem.waitingForAutoPlay && (
