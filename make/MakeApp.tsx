@@ -520,33 +520,40 @@ export function MakeApp() {
         {ready && (
           <div className="nb-plate mt-6 p-4 bg-[var(--surface-2)]">
             <h2 className="text-base font-semibold text-[var(--ink)]">Take it away</h2>
-            {/* The page is what most people came for, so it is a door and not a
-                footnote: the two blocks below are for putting the problem
-                somewhere else, which is the rarer thing to want. */}
-            <a
-              className="nb-btn nb-btn-key block text-center mt-3 py-3 px-4 text-base font-extrabold"
-              href={`/solve/?${boardQuery}`} target="_blank" rel="noopener noreferrer"
-            >
-              Open the page →
-            </a>
-            <p className="text-xs text-[var(--muted)] mt-1.5">
-              The board, every variation and the engine, at one address you can send to anybody.
-            </p>
 
-            <Copyable label="The address of that page" text={`${SITE}/solve?${boardQuery}`} />
+            {/* Two things come out of this page, not three. One is a page, and
+                what you take is its address; the other is a board for somebody
+                else's page, and what you take is the markup -- with the board
+                itself standing above it as the picture of what that markup
+                draws, inside the same block, so it is not read as a third
+                thing on offer. */}
+            <section className="mt-4">
+              <h3 className="text-sm font-semibold text-[var(--ink)]">1 &middot; A page of its own</h3>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
+                The board, every variation and the engine, at one address you can send to anybody.
+              </p>
+              <a
+                className="nb-btn nb-btn-key block text-center mt-2 py-2.5 px-4 text-base font-semibold"
+                href={`/solve/?${boardQuery}`} target="_blank" rel="noopener noreferrer"
+              >
+                Open the page →
+              </a>
+              <Copyable label="Its address" text={`${SITE}/solve?${boardQuery}`} />
+            </section>
 
-            <p className="text-sm font-semibold text-[var(--muted)] mt-6">Or put the board in a page of yours</p>
-
-            {/* The frame itself, at the width it is being given. Reading the
-                markup tells you what it says; this tells you what it does. */}
-            <iframe
-              src={`/board/?${boardQuery}`}
-              title="What the frame shows"
-              style={{ width, aspectRatio: '4/5', border: '1px solid var(--hairline)', borderRadius: 8, background: 'var(--surface)' }}
-              className="mt-2 max-w-full"
-            />
-
-            <Copyable label="The markup that draws it" text={markup} />
+            <section className="mt-6 pt-5 border-t border-[var(--hairline)]">
+              <h3 className="text-sm font-semibold text-[var(--ink)]">2 &middot; The same board in a page of yours</h3>
+              <p className="text-xs text-[var(--muted)] mt-0.5">
+                What a reader of that page sees, and the markup that puts it there.
+              </p>
+              <iframe
+                src={`/board/?${boardQuery}`}
+                title="What the frame shows"
+                style={{ width, aspectRatio: '4/5', border: '1px solid var(--hairline)', borderRadius: 8, background: 'var(--surface)' }}
+                className="mt-2 max-w-full"
+              />
+              <Copyable label="Its markup" text={markup} />
+            </section>
           </div>
         )}
       </div>
