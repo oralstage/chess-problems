@@ -50,6 +50,12 @@ const SITE = 'https://arcade.chessproblem.org';
    category (a #1) falls back to the bare genre slug, which the app also
    accepts. */
 function siteUrl(p: ChessProblem, dailyDate: string | null): string {
+  /* A problem handed over in the address is in no database and has no page on
+     the site -- so it gets one made out of the same address it arrived in.
+     Everything the frame was given goes on: the position, what is asked, the
+     solution, the credit, and whether Hint and Give up were offered, so a
+     board set as an exercise is still one when it is opened full size. */
+  if (p.id === 0) return `${SITE}/solve${window.location.search}`;
   // The daily problem has a page of its own, with the days either side of it.
   // Sending its reader to the plain problem page instead would lose the one
   // thing they came with: that this is today's.
@@ -286,8 +292,15 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
   /* The board is wooden unless the page asks for the site's green one. Named
      rather than a pair of hex values: a host wants "the green one", not a
      colour-picking exercise, and a name is one word to put in the address. */
-  const boardColours = new URLSearchParams(window.location.search).get('board') === 'green'
-    ? 'green' : undefined;
+  const params = new URLSearchParams(window.location.search);
+  const boardColours = params.get('board') === 'green' ? 'green' : undefined;
+
+  /* A board set as an exercise -- a column in a magazine, a round in a class,
+     a problem set to be handed in -- is not one to be given up on, and a hint
+     is the wrong help when the point is to find it yourself. Both are on
+     unless the page says otherwise, because most boards are not exercises. */
+  const offerHint = params.get('hint') !== '0';
+  const offerGiveUp = params.get('giveup') !== '0';
 
   const p = problem.problem;
   const playback = problem.playback;
@@ -414,15 +427,17 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
           {/* While solving: the three things a solver needs and nothing else. */}
           {problem.status === 'solving' && !problem.waitingForAutoPlay && (
             <>
-              {problem.hintSquares ? (
+              {offerHint && (problem.hintSquares ? (
                 <button className="nb-btn emb-btn" onClick={problem.hideHint}>Hide hint</button>
               ) : (
                 <button className="nb-btn emb-btn" onClick={problem.showHint}>Hint</button>
-              )}
+              ))}
               {problem.moveHistory.length > 0 && (
                 <button className="nb-btn emb-btn" onClick={problem.resetProblem}>Reset</button>
               )}
-              <button className="nb-btn emb-btn" onClick={problem.showSolution}>Give up</button>
+              {offerGiveUp && (
+                <button className="nb-btn emb-btn" onClick={problem.showSolution}>Give up</button>
+              )}
             </>
           )}
 
@@ -460,10 +475,11 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
         </div>
       )}
 
-      {/* Only for a problem that is on the site. One handed over in the
-          address has no page here to open, and a page that put its own
-          problem on this board should not be sending its readers away. */}
-      {p && p.id > 0 && variant === 'arcade' && (
+      {/* The way out. A problem on the site has a page here already; one
+          handed over in the address now gets the same page built from that
+          address, which is the only place its variations, its tries and the
+          engine can be reached from a frame this size. */}
+      {p && (p.id > 0 ? variant === 'arcade' : true) && (
         <div className="emb-link-row">
           <a className="emb-link" href={siteUrl(p, dailyDate)} target="_blank" rel="noopener noreferrer">
             Open on chessproblem.org ↗

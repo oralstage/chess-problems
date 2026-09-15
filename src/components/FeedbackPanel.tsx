@@ -40,6 +40,10 @@ interface FeedbackPanelProps {
   hideHintUntilWrong?: boolean;
   /** No hint to give: the solution cannot be played on this board. */
   hideHint?: boolean;
+  /** A board set as an exercise — a column, a class, a set to be handed in —
+      is not one to be given up on. Off by default: most boards are not
+      exercises, and the site's own never withholds it. */
+  hideGiveUp?: boolean;
   wrongMoveCount?: number;
   onBackToRated?: () => void;
   reviewNextDays?: number;
@@ -101,6 +105,7 @@ export function FeedbackPanel({
   problemRatingDelta,
   hideHintUntilWrong,
   hideHint,
+  hideGiveUp,
   wrongMoveCount = 0,
   onBackToRated,
   reviewNextDays,
@@ -339,7 +344,7 @@ export function FeedbackPanel({
               Reset
             </button>
           )}
-          {!classicBoard && !solutionLoading && (
+          {!classicBoard && !solutionLoading && !hideGiveUp && (
             <button
               onClick={onShowSolution}
               className="nb-btn px-3 py-1.5 text-xs"

@@ -51,6 +51,14 @@ export function SolveApp() {
   stockfishRef.current = stockfish;
   const problem = useProblem(stockfish);
 
+  /* A board set as an exercise carries the same two switches the embedded one
+     does -- the page is where the address sends a solver, and a set that
+     withholds the answer on the board and hands it over on the page is not
+     withholding it at all. */
+  const params = new URLSearchParams(window.location.search);
+  const offerHint = params.get('hint') !== '0';
+  const offerGiveUp = params.get('giveup') !== '0';
+
   const [error, setError] = useState<string | null>(null);
   const [dailyDate, setDailyDate] = useState<string | null>(null);
   const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
@@ -351,6 +359,8 @@ export function SolveApp() {
                   onShowSolution={problem.showSolution}
                   onShowHint={problem.showHint}
                   onHideHint={problem.hideHint}
+                  hideHint={!offerHint}
+                  hideGiveUp={!offerGiveUp}
                   onAnalyze={handleAnalyze}
                   analyzing={analyzing}
                   analysisResult={analysisResult}

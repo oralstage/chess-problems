@@ -34,6 +34,14 @@ type Tool = { kind: 'move' } | { kind: 'place'; piece: string } | { kind: 'erase
    FEN; the board draws them from the same letters. */
 const PALETTE = ['K', 'Q', 'R', 'B', 'N', 'P', 'k', 'q', 'r', 'b', 'n', 'p'];
 
+/** A bare number means pixels. Nobody writing "360" in a box marked Width
+ *  means anything else, and a CSS length without a unit is simply dropped. */
+function asLength(value: string): string {
+  const v = value.trim();
+  if (!v) return '';
+  return /^\d+(\.\d+)?$/.test(v) ? `${v}px` : v;
+}
+
 /* The board's own men, not the Unicode chess characters. Those are text: they
    are drawn by whichever font the reader has, they do not match the pieces on
    the board beside them, and on some systems they arrive as emoji. The
@@ -144,6 +152,19 @@ export function MakeApp() {
   const [editing, setEditing] = useState(false);
   const [tool, setTool] = useState<Tool>({ kind: 'place', piece: 'K' });
   const [showTries, setShowTries] = useState(false);
+
+  /* The size of the frame where it lands. "100%" follows the column it is
+     dropped into, which is what an article wants and what keeps it inside a
+     phone; a number is a fixed size, for a sidebar or a slide. Left without a
+     height it keeps the printed diagram's proportion, so a frame that follows
+     its column has a sensible height at every width without anyone working
+     one out. */
+  const [frameWidth, setFrameWidth] = useState('100%');
+  const [frameHeight, setFrameHeight] = useState('');
+
+  /* A board set as an exercise is not one to be given up on. */
+  const [offerHint, setOfferHint] = useState(true);
+  const [offerGiveUp, setOfferGiveUp] = useState(true);
 
   const [solution, setSolution] = useState('');
   /* Folded away, like the note under the stipulation: Popeye's output is a
@@ -263,8 +284,23 @@ export function MakeApp() {
     return q.toString();
   }, [fen, stipulation, solution, author, source, year]);
 
+  /* Both addresses carry the switches. A set of problems that withholds the
+     answer in the frame and hands it over on the page it links to has not
+     withheld anything. */
+  const boardQuery = useMemo(() => {
+    const q = new URLSearchParams(query);
+    if (!offerHint) q.set('hint', '0');
+    if (!offerGiveUp) q.set('giveup', '0');
+    return q.toString();
+  }, [query, offerHint, offerGiveUp]);
+
   const ready = solution !== '';
-  const markup = `<iframe src="${SITE}/board?${query}"\n        style="width:100%; aspect-ratio:4/5; border:0"\n        title="Chess problem"></iframe>`;
+  const width = asLength(frameWidth) || '100%';
+  const height = asLength(frameHeight);
+  const frameStyle = height
+    ? `width:${width}; height:${height}; border:0`
+    : `width:${width}; aspect-ratio:4/5; border:0`;
+  const markup = `<iframe src="${SITE}/board?${boardQuery}"\n        style="${frameStyle}"\n        title="Chess problem"></iframe>`;
 
   return (
     <div className="sober min-h-dvh">
@@ -445,7 +481,7 @@ export function MakeApp() {
                 somewhere else, which is the rarer thing to want. */}
             <a
               className="nb-btn nb-btn-key block text-center mt-3 py-3 px-4 text-base font-extrabold"
-              href={`/solve/?${query}`} target="_blank" rel="noopener noreferrer"
+              href={`/solve/?${boardQuery}`} target="_blank" rel="noopener noreferrer"
             >
               Open the page →
             </a>
@@ -453,8 +489,64 @@ export function MakeApp() {
               The board, every variation and the engine, at one address you can send to anybody.
             </p>
 
-            <Copyable label="The address of that page" text={`${SITE}/solve?${query}`} />
-            <Copyable label="Or put the board in a page of yours" text={markup} />
+            <Copyable label="The address of that page" text={`${SITE}/solve?${boardQuery}`} />
+
+            {/* Above both addresses, because they govern both: a set of
+                problems that withholds the answer in the frame and hands it
+                over on the page the frame links to has withheld nothing. */}
+            <div className="flex flex-wrap items-center gap-4 mt-4">
+              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                <input type="checkbox" checked={offerHint} onChange={e => setOfferHint(e.target.checked)} />
+                Offer Hint
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                <input type="checkbox" checked={offerGiveUp} onChange={e => setOfferGiveUp(e.target.checked)} />
+                Offer Give up
+              </label>
+            </div>
+            <p className="text-xs text-[var(--faint)] mt-1">
+              Turn both off and the problem can only be solved — for a column, a class, or a set to be handed in.
+            </p>
+
+            <p className="text-sm font-semibold text-[var(--muted)] mt-6">Or put the board in a page of yours</p>
+
+            <div className="flex flex-wrap items-end gap-3 mt-2">
+              <label className="block w-28">
+                <span className="text-xs text-[var(--muted)]">Width</span>
+                <input
+                  value={frameWidth}
+                  onChange={e => setFrameWidth(e.target.value)}
+                  spellCheck={false}
+                  className="nb-plate w-full mt-1 px-3 py-1.5 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
+                />
+              </label>
+              <label className="block w-28">
+                <span className="text-xs text-[var(--muted)]">Height</span>
+                <input
+                  value={frameHeight}
+                  onChange={e => setFrameHeight(e.target.value)}
+                  spellCheck={false}
+                  className="nb-plate w-full mt-1 px-3 py-1.5 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
+                />
+              </label>
+            </div>
+            <p className="text-xs text-[var(--faint)] mt-1">
+              A bare number is pixels. <code>100%</code> follows the column the board is dropped into, which
+              keeps it inside a phone; leave the height empty and it takes the proportion of a printed diagram.
+            </p>
+
+            {/* The frame itself, at the shape it is being given. Reading the
+                markup tells you what it says; this tells you what it does. */}
+            <iframe
+              src={`/board/?${boardQuery}`}
+              title="What the frame shows"
+              style={height
+              ? { width, height, border: '1px solid var(--hairline)', borderRadius: 8 }
+              : { width, aspectRatio: '4/5', border: '1px solid var(--hairline)', borderRadius: 8 }}
+              className="mt-3 max-w-full"
+            />
+
+            <Copyable label="The markup that draws it" text={markup} />
           </>
         )}
       </div>
