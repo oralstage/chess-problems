@@ -38,7 +38,14 @@ export function getStipulationToastClasses(stipulation: string, genre: Genre): s
 export function stipulationPhrase(stipulation: string, genre: Genre, moveCount: number): string {
   const noun = genre === 'help' ? 'Helpmate' : genre === 'self' ? 'Selfmate' : 'Mate';
   if (genre === 'study' || genre === 'retro') return stipulation;
-  return `${noun} in ${moveCount}`;
+  /* A half move belongs in the phrase: an h#2.5 is a helpmate in two and a
+     half, and calling it a helpmate in two names a different problem. The
+     move count cannot carry it (it is a whole number), so it is read off the
+     stipulation, which is where it was written. Nothing in the database has
+     one -- fractional stipulations have never been imported -- so this reads
+     false for every problem on the site. */
+  const half = /\.5$/.test(stipulation.replace(/\s+/g, '')) ? '.5' : '';
+  return `${noun} in ${moveCount}${half}`;
 }
 
 export function getStipulationTextColorClasses(stipulation: string, genre: Genre): string {

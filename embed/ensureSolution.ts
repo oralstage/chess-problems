@@ -4,6 +4,7 @@ import { fetchProblem, metaToChessProblem, fixCastlingRights } from '../src/serv
 import { flipDuplexRoots, mainLinePlays } from '../src/utils/duplex';
 import { DUPLEX_IDS } from '../src/data/duplexIds';
 import type { ChessProblem } from '../src/types';
+import { opensOffNumber } from './problemParams';
 
 /* Turning a problem as it comes out of the database into one the solver can
    play: the solution text parsed into a tree, the twin applied, and the FEN
@@ -24,7 +25,7 @@ function fixEnPassantFen(p: ChessProblem): void {
 
   // Determine first move color from FEN turn
   const fenTurn = p.fen.split(' ')[1] as 'w' | 'b';
-  const firstColor = p.genre === 'help' ? 'b'
+  const firstColor = p.genre === 'help' ? (opensOffNumber(p.stipulation) ? 'w' : 'b')
     : (p.genre === 'retro' && p.stipulation?.startsWith('h#')) ? 'b'
     : fenTurn;
   const firstNodes = p.solutionTree.filter(n => n.color === firstColor);
@@ -117,9 +118,19 @@ export async function ensureSolution(p: ChessProblem): Promise<ChessProblem> {
     || /^\d+\.{3}/.test(solutionStart)
     || /^\d+\.\s+\.{2,}/.test(solutionStart)
   );
-  // Logical first color: who moves first in this problem
+  /* Two different things, and for an h#N.5 they differ.
+
+     `firstColor` is the side the numbering belongs to, which is what the
+     parser is told: a helpmate's moves are numbered from Black, so "1..." is
+     White's -- the opening half-move of an h#2.5 as much as the set play of an
+     h#2.
+
+     `rootColor` is the side that actually opens, which is what the solutions
+     are filtered by. The same for every problem the database holds; White for
+     a stipulation carrying a half move. */
   const firstColor = (p.genre === 'help' || (p.genre === 'retro' && p.stipulation.startsWith('h#'))) ? 'b'
     : isRetroBlack ? 'b' : 'w';
+  const rootColor = p.genre === 'help' && opensOffNumber(p.stipulation) ? 'w' : firstColor;
   // Parser color: for solutions with "..." notation, the dots already encode colors,
   // so parser should use 'w' to avoid double-flip
   const solutionHasDots = /\.{3}/.test(p.solutionText) || /\.\s+\.{2}/.test(p.solutionText);
@@ -153,13 +164,13 @@ export async function ensureSolution(p: ChessProblem): Promise<ChessProblem> {
   const duplexTagged = p.genre === 'help' && (DUPLEX_IDS.has(p.id) || (p.keywords ?? []).includes('Duplex'));
   flipDuplexRoots(allNodes, fixCastlingRights(p.fen, p.solutionText), duplexTagged ? ['Duplex'] : [], p.genre);
   p.fullSolutionTree = allNodes;
-  p.solutionTree = filterKeyMoves(allNodes, firstColor);
+  p.solutionTree = filterKeyMoves(allNodes, rootColor);
   // Helpmate set play ("1...Sd5-b6 ...": what would happen if White were
   // to move) is now coloured White by the parser. It is shown after the
   // solve, but it is not a solution to find — only a duplex asks for a
   // White-to-play line. Keep the tree if nothing else would be left.
   if (p.genre === 'help' && !duplexTagged) {
-    const own = p.solutionTree.filter(n => n.color === firstColor);
+    const own = p.solutionTree.filter(n => n.color === rootColor);
     if (own.length > 0) p.solutionTree = own;
   }
   // Generate twin data for twin problems
@@ -177,6 +188,15 @@ export async function ensureSolution(p: ChessProblem): Promise<ChessProblem> {
   if (p.genre === 'help' && p.solutionTree.length > 1) {
     const playable = p.solutionTree.filter(root => mainLinePlays(p.fen, root));
     if (playable.length > 0) p.solutionTree = playable;
+  }
+  /* An h#N.5 opens with White. A Popeye position is commonly written with
+     Black to move -- it is the side the numbering belongs to -- and the board
+     takes the side to move from the FEN, so the opening half-move would be
+     asked of the wrong side: the moves still go in (a helpmate's solver moves
+     both sides) but the replay afterwards cannot rebuild the line from a
+     position it does not start at, and it came out empty. */
+  if (p.genre === 'help' && opensOffNumber(p.stipulation) && p.fen.includes(' b ')) {
+    p.fen = p.fen.replace(' b ', ' w ');
   }
   // Retro: flip FEN turn to black if Black to move
   if (isRetroBlack && p.fen.includes(' w ')) {

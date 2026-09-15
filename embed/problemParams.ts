@@ -28,17 +28,26 @@ export function problemIdFromUrl(q: URLSearchParams): number | null {
    used was written against exactly that text. */
 export class BadRequest extends Error {}
 
-/** `#2` / `h#3` / `s#2` / `+` / `=` -- which board this is and how long. */
-export function readStipulation(stip: string): { genre: ChessProblem['genre']; moveCount: number } | null {
+/** `#2` / `h#3` / `h#2.5` / `s#2` / `+` / `=` -- which board this is, how long,
+ *  and whether the side that does not own the numbering opens. */
+export function readStipulation(stip: string):
+  { genre: ChessProblem['genre']; moveCount: number; half: boolean } | null {
   const s = stip.replace(/\s+/g, '');
-  if (/^[+=]$/.test(s)) return { genre: 'study', moveCount: 0 };
+  if (/^[+=]$/.test(s)) return { genre: 'study', moveCount: 0, half: false };
   const m = /^(h|s)?#(\d+)(\.5)?$/i.exec(s);
   if (!m) return null;
-  // A half move means the other side opens, which this site's helpmates do not
-  // do. Better to say so than to hand back a board that cannot be played.
-  if (m[3]) return null;
   const genre = m[1] ? (m[1].toLowerCase() === 'h' ? 'help' : 'self') : 'direct';
-  return { genre, moveCount: Number(m[2]) };
+  /* A half move means the other side opens: an h#2.5 is White to play, and
+     runs five half-moves rather than four. Only helpmates are asked for one
+     here -- a selfmate or a direct mate with a half move is a different animal
+     and the board has no reading for it. */
+  if (m[3] && genre !== 'help') return null;
+  return { genre, moveCount: Number(m[2]), half: !!m[3] };
+}
+
+/** Does the side that does not own the numbering open? True for an h#N.5. */
+export function opensOffNumber(stipulation: string | undefined): boolean {
+  return /\.5$/.test((stipulation || '').replace(/\s+/g, ''));
 }
 
 /** The placement alone is a position too -- Popeye users often have no more

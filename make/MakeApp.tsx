@@ -124,12 +124,15 @@ function solutionFits(fen: string, stipulation: string, solution: string): boole
   const read = readStipulation(stipulation);
   if (!read) return true;                       // refused earlier, by playable()
   const board = fixCastlingRights(fen, solution);
-  // The side the numbering belongs to, as the solver reads it: Black in a
-  // helpmate, White everywhere else.
-  const first = read.genre === 'help' ? 'b' : 'w';
+  /* The side the numbering belongs to, as the solver reads it: Black in a
+     helpmate, White everywhere else. Which side opens is another matter -- an
+     h#2.5 is numbered from Black and played from White -- so the roots are
+     filtered by that. */
+  const numbered = read.genre === 'help' ? 'b' : 'w';
+  const opens = read.half ? 'w' : numbered;
   let keys;
   try {
-    keys = filterKeyMoves(parseSolution(solution, first), first);
+    keys = filterKeyMoves(parseSolution(solution, numbered), opens);
   } catch {
     return false;
   }

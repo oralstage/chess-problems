@@ -110,7 +110,12 @@ const TRY_REFUTATION_DELAY = 400;
 const TRY_REFUTATION_HOLD = 1800;
 
 function getFirstMoveColor(genre: Genre, stipulation?: string): 'w' | 'b' {
-  if (genre === 'help') return 'b';
+  /* A half move in the stipulation means the side that does not own the
+     numbering opens: an h#2.5 is White to play, where an h#2 is Black. Nothing
+     in the database carries one -- the fetch script has never taken a
+     fractional stipulation -- so this can only be reached by a position handed
+     over in an address, and the site's own problems go on as before. */
+  if (genre === 'help') return /\.5$/.test((stipulation || '').replace(/\s+/g, '')) ? 'w' : 'b';
   if (genre === 'retro' && stipulation?.startsWith('h#')) return 'b';
   return 'w';
 }
@@ -1621,7 +1626,14 @@ export function useProblem(stockfish?: StockfishApi) {
     }
   }
 
-  const duplexCounts = state.problem?.genre === 'help' && state.activeTree.some(n => n.color === 'w')
+  /* A White root in a helpmate means the diagram is solved from both sides --
+     unless the stipulation says White opens it. An h#2.5 has nothing but
+     White roots and is not a duplex: it is one solution, played from the side
+     the half move names. (Nothing in the database carries a half move, so this
+     reads false for every problem on the site.) */
+  const halfMove = /\.5$/.test((state.problem?.stipulation || '').replace(/\s+/g, ''));
+  const duplexCounts = state.problem?.genre === 'help' && !halfMove
+    && state.activeTree.some(n => n.color === 'w')
     ? { black: state.activeTree.filter(n => n.color === 'b').length, white: state.activeTree.filter(n => n.color === 'w').length }
     : null;
 
