@@ -231,9 +231,12 @@ export function MakeApp() {
      board by hand, or in the middle of being put there. */
   const started = source0.trim() !== '' || !boardIsEmpty(fen) || editing;
 
-  /* A problem fetched by its number arrives finished: the position, what is
-     asked of it and the solution all came together. Asking for them again
-     would be asking the reader to supply what is already on the page. */
+  /* A problem fetched by its number arrives finished -- position, stipulation,
+     credit and solution together -- but the fields it filled stay on the page
+     rather than standing down, because the next thing somebody may do is move
+     a man on it. Editing the board drops the solution, since it belongs to the
+     position that was fetched and not to the one now on the board, and the
+     stipulation and the solve have to be there to get a new one. */
   const fromId = readProblemId(source0) !== null;
 
   const hasKings = /K/.test(splitFen(fen).placement) && /k/.test(splitFen(fen).placement);
@@ -415,8 +418,7 @@ export function MakeApp() {
      the stipulation is empty: the three questions below were never asked of
      somebody who typed an id, so answering them is not what is missing. */
   const missing = looking ? ['Looking it up…']
-    : fromId ? (boardIsEmpty(fen) || !solution.trim()
-        ? [note || `No problem ${readProblemId(source0)} in YACPDB.`] : [])
+    : fromId && boardIsEmpty(fen) ? [note || `No problem ${readProblemId(source0)} in YACPDB.`]
     : [
       boardIsEmpty(fen) && 'Set the position up — press Edit position and place the men, or paste a FEN.',
       !stipulation.trim() && 'Enter the stipulation (e.g. #2, h#3, s#4) — it is what the board will ask.',
@@ -512,7 +514,6 @@ export function MakeApp() {
           </p>
         ) : (
         <>
-        {!fromId && (
         <div className="flex flex-wrap items-start gap-2 mt-3">
           <label className="block w-28">
             <span className="text-xs font-semibold text-[var(--muted)]">Stipulation</span>
@@ -562,15 +563,13 @@ export function MakeApp() {
           </div>
         </div>
 
-        )}
-
         {/* Plain red under the row it is about, as the finder says the same
             thing: a sentence, not a boxed notice. */}
         {complaint?.filter(line => line !== note).map(line => (
           <p key={line} className="text-sm text-[var(--bad)] mt-1.5">{line}</p>
         ))}
 
-        {!fromId && solutionOpen && (
+        {solutionOpen && (
           <textarea
             value={solution}
             onChange={e => { setSolution(e.target.value); setComplaint(null); }}
