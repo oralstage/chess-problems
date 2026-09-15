@@ -96,7 +96,7 @@ function FieldLabel({ children, need }: { children: React.ReactNode; need: 'requ
   return (
     <span className="flex items-baseline gap-1.5">
       <span className="text-xs font-semibold text-[var(--muted)]">{children}</span>
-      <span className={`text-xs ${need === 'required' ? 'text-[var(--muted)]' : 'text-[var(--faint)]'}`}>
+      <span className={`text-xs ${need === 'required' ? 'text-[var(--bad)] font-semibold' : 'text-[var(--faint)]'}`}>
         {need}
       </span>
     </span>
@@ -341,10 +341,12 @@ export function MakeApp() {
           <input
             value={boardIsEmpty(fen) ? '' : fen}
             onChange={e => setPosition(e.target.value.trim() ? e.target.value : EMPTY_FEN)}
-            placeholder="Paste a FEN, or press Edit position and set the men out"
             spellCheck={false}
             className="nb-plate w-full mt-1 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
           />
+          <span className="block text-xs text-[var(--faint)] mt-0.5">
+            Paste one, or press Edit position and set the men out
+          </span>
         </label>
 
         <div className="flex flex-wrap gap-3 mt-3">
@@ -353,7 +355,6 @@ export function MakeApp() {
             <input
               value={stipulation}
               onChange={e => setAsked(setStipulation, e.target.value)}
-              placeholder="#2"
               spellCheck={false}
               className="nb-plate w-full mt-1 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
             />
