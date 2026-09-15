@@ -140,10 +140,20 @@ export function MakeApp() {
 
   useEffect(() => stopWorker, [stopWorker]);
 
-  /* The position changed, so whatever Popeye said about the old one is no
-     longer about what is on the board. Better to have nothing than a solution
-     belonging to a different diagram. */
-  useEffect(() => { setSolution(''); setNote(null); }, [fen, stipulation, showTries]);
+  /* Anything that changes what Popeye would be asked drops what it said last
+     time: a solution belonging to a different diagram is worse than none, and
+     the board downstream would play it against a position it does not fit. */
+  const setPosition = useCallback((next: string | ((prev: string) => string)) => {
+    setFen(next);
+    setSolution('');
+    setNote(null);
+  }, []);
+
+  const setAsked = useCallback(<T,>(set: (v: T) => void, value: T) => {
+    set(value);
+    setSolution('');
+    setNote(null);
+  }, []);
 
   const solve = useCallback(() => {
     stopWorker();
@@ -192,18 +202,18 @@ export function MakeApp() {
   }, [fen, stipulation, showTries, stopWorker]);
 
   const handleSquare = useCallback((square: string) => {
-    if (tool.kind === 'place') { setFen(prev => setSquare(prev, square, tool.piece)); return; }
-    if (tool.kind === 'erase') { setFen(prev => setSquare(prev, square, null)); return; }
-  }, [tool]);
+    if (tool.kind === 'place') { setPosition(prev => setSquare(prev, square, tool.piece)); return; }
+    if (tool.kind === 'erase') { setPosition(prev => setSquare(prev, square, null)); return; }
+  }, [tool, setPosition]);
 
   /* Move mode is the board's own free dragging: pick a man up, put it down,
      nothing checked. Placing and erasing are taps, which the board hands over
      without deciding anything. */
   const handleDrop = useCallback((from: string, to: string): boolean => {
     if (!pieceAt(fen, from)) return false;
-    setFen(moveFreely(fen, from, to));
+    setPosition(moveFreely(fen, from, to));
     return true;
-  }, [fen]);
+  }, [fen, setPosition]);
 
   const query = useMemo(() => {
     const q = new URLSearchParams();
@@ -254,7 +264,7 @@ export function MakeApp() {
             {editing ? 'Done' : 'Edit position'}
           </button>
           {editing && (
-            <button onClick={() => setFen(EMPTY_FEN)} className="nb-btn py-1 px-2.5 text-sm font-bold" title="Take everything off">
+            <button onClick={() => setPosition(EMPTY_FEN)} className="nb-btn py-1 px-2.5 text-sm font-bold" title="Take everything off">
               Clear
             </button>
           )}
@@ -294,7 +304,7 @@ export function MakeApp() {
           <span className="text-xs font-bold text-[var(--muted)]">Position (FEN)</span>
           <input
             value={fen}
-            onChange={e => setFen(e.target.value)}
+            onChange={e => setPosition(e.target.value)}
             spellCheck={false}
             className="nb-plate w-full mt-1 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
           />
@@ -305,7 +315,7 @@ export function MakeApp() {
             <span className="text-xs font-bold text-[var(--muted)]">Stipulation</span>
             <input
               value={stipulation}
-              onChange={e => setStipulation(e.target.value)}
+              onChange={e => setAsked(setStipulation, e.target.value)}
               spellCheck={false}
               className="nb-plate w-full mt-1 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
             />
@@ -340,7 +350,7 @@ export function MakeApp() {
             </button>
           )}
           <label className="flex items-center gap-1.5 text-sm font-bold text-[var(--muted)]">
-            <input type="checkbox" checked={showTries} onChange={e => setShowTries(e.target.checked)} />
+            <input type="checkbox" checked={showTries} onChange={e => setAsked(setShowTries, e.target.checked)} />
             Tries
           </label>
           {solving && <span className="text-sm font-bold text-[var(--muted)]">Solving…</span>}
