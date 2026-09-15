@@ -149,6 +149,23 @@ export function SolveApp() {
     });
   }, []);
 
+  /* Back to solving -- Try again, or a helpmate's next solution -- and the
+     engine goes quiet. It is left switched on across a reset otherwise, and
+     what it draws on a board being solved again is an arrow along the key. */
+  const solving = problem.status === 'solving';
+  useEffect(() => {
+    if (!solving) return;
+    setAnalysisActive(prev => {
+      if (!prev) return prev;
+      analysisActiveRef.current = false;
+      stockfishRef.current.stop();
+      return false;
+    });
+    setAnalyzing(false);
+    setAnalysisResult(null);
+    setAnalysisArrow(null);
+  }, [solving]);
+
   const fen = problem.fen;
   useEffect(() => {
     if (!analysisActive || !fen) return;
@@ -189,9 +206,17 @@ export function SolveApp() {
   }, [fen, analysisActive]);
 
   const decided = problem.status === 'correct' || problem.status === 'viewing';
-  // An empty array, never undefined: react-chessboard leaves the last arrows
-  // it was given on the board when the prop goes away.
-  const boardArrows: [string, string][] = analysisActive && analysisArrow ? [analysisArrow] : [];
+  /* The hook already hands back the position the walk is standing on -- and
+     the wrong move being held up, and the variation being explored -- as its
+     fen, so the board takes that as it stands. */
+  const playback = problem.playback;
+  /* The engine's move, in the blue the site draws it in -- pale enough to read
+     the piece it starts from through. An empty array, never undefined:
+     react-chessboard leaves the last arrows it was given on the board when the
+     prop goes away. */
+  const boardArrows: [string, string, string][] = analysisActive && analysisArrow
+    ? [[analysisArrow[0], analysisArrow[1], 'rgba(59, 130, 246, 0.8)']]
+    : [];
 
   if (error) {
     return (
@@ -251,6 +276,57 @@ export function SolveApp() {
                     allowAnyColor={p.genre === 'retro' || problem.anyColorAllowed}
                   />
                 </div>
+
+                {/* Walking the solution, directly under the board, where the
+                    site puts it. The keyboard reaches the same four through
+                    the solution tree: Home, arrows, End. */}
+                {playback && playback.positions.length > 1 && decided && (
+                  <div className="flex items-center justify-center">
+                    <button
+                      onClick={problem.playbackFirst}
+                      disabled={playback.moveIndex <= -1 && !playback.exploring}
+                      className="nb-icon w-10 h-10"
+                      title="First (Home)"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={problem.playbackPrev}
+                      disabled={playback.moveIndex <= -1 && !playback.exploring}
+                      className="nb-icon w-10 h-10"
+                      title="Previous (←)"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    <span className="w-16 text-xs text-gray-400 text-center">
+                      {playback.exploring ? '?' : playback.moveIndex + 1}/{playback.positions.length - 1}
+                    </span>
+                    <button
+                      onClick={problem.playbackNext}
+                      disabled={playback.moveIndex >= playback.positions.length - 2 && !playback.exploring}
+                      className="nb-icon w-10 h-10"
+                      title="Next (→)"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={problem.playbackLast}
+                      disabled={playback.moveIndex >= playback.positions.length - 2 && !playback.exploring}
+                      className="nb-icon w-10 h-10"
+                      title="Last (End)"
+                    >
+                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M4.293 15.707a1 1 0 010-1.414L8.586 10 4.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0zm6 0a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="px-3">
