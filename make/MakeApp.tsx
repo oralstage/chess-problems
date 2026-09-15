@@ -647,6 +647,15 @@ export function MakeApp() {
                 yet -- and show an error where the board should be. This is a
                 picture of the finished board, and a picture can be of
                 something not finished. */}
+            {/* Said, because it looks exactly like the thing it is a picture
+                of: press Hint on it and nothing happens, follow the link and
+                nothing opens, and without a word here that reads as broken
+                rather than as a drawing. */}
+            {!editing && (
+              <p className="text-xs text-[var(--faint)] mb-1" style={{ width: boardWidth }}>
+                Preview — the finished board will look like this. Nothing in it works here.
+              </p>
+            )}
             <div className={editing ? '' : 'nb-plate p-2'} style={{ width: boardWidth }}>
               {!editing && (
                 <>
