@@ -338,8 +338,8 @@ export function MakeApp() {
         <header className="py-3">
           <h1 className="text-lg font-semibold text-[var(--ink)]">Put a problem on a board</h1>
           <p className="text-sm text-[var(--muted)] mt-1">
-            Set the position up, say what is asked of it, and Popeye solves it here in your browser.
-            Then take away a board to put in a page of yours, or a page of its own.
+            Turn a chess problem into an interactive diagram people can actually solve — embedded in your
+            own page, or at an address you can send.
           </p>
         </header>
 
@@ -660,6 +660,17 @@ export function MakeApp() {
             </div>
           </div>
         )}
+        {/* Named where it is used, not only in the licence list. It is a
+            GPL program running on this page, and the offer of its source has
+            to be findable from the page it runs on. */}
+        <p className="text-xs text-[var(--faint)] mt-8">
+          Solving is done in your browser by{' '}
+          <a className="underline" href="https://github.com/thomas-maeder/popeye" target="_blank" rel="noopener noreferrer">Popeye</a>
+          {' '}4.103, the chess problem solving program, under the{' '}
+          <a className="underline" href="/popeye/COPYING.txt">GNU GPL v2</a> —{' '}
+          <a className="underline" href="/licenses">source and build</a>.
+          Nothing you type here is sent anywhere.
+        </p>
       </div>
     </div>
   );
