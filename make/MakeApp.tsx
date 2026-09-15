@@ -629,9 +629,12 @@ export function MakeApp() {
             value={solution}
             onChange={e => { setSolution(e.target.value); setComplaint(null); }}
             spellCheck={false}
-            rows={8}
+            /* Three lines. What it is there to say is that something arrived;
+               a reader who wants to look at all of it has a corner to drag,
+               and one who does not should not have to scroll past it. */
+            rows={3}
             placeholder="Popeye's output, as it printed it"
-            className="nb-plate w-full mt-2 px-3 py-2 text-xs font-mono whitespace-pre bg-[var(--surface)] text-[var(--ink)]"
+            className="nb-plate w-full mt-2 px-3 py-2 text-xs font-mono whitespace-pre resize-y bg-[var(--surface)] text-[var(--ink)]"
           />
         )}
 
