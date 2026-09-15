@@ -200,6 +200,13 @@ export function MakeApp() {
   // without taking it as a dependency.
   const fenRef = useRef(fen);
   fenRef.current = fen;
+  /* The board as it stood when the men were first picked up, so that Cancel
+     has something to put back -- and a flag the position setter reads, because
+     while the board is being worked on the top field must not be rewritten:
+     what is on the diagram is provisional until Done. */
+  const editRef = useRef<{ fen: string; named: string; solution: string } | null>(null);
+  const editingRef = useRef(false);
+  editingRef.current = editing;
   const [solving, setSolving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -264,7 +271,7 @@ export function MakeApp() {
        problem. What is on it now has no name but its own, so the field that
        was holding the number holds the position instead -- and the page stops
        claiming a provenance the diagram no longer has. */
-    setSource0(cur => (readProblemId(cur) !== null ? value : cur));
+    if (!editingRef.current) setSource0(cur => (readProblemId(cur) !== null ? value : cur));
     setSolution('');
     setNote(null);
     setComplaint(null);
@@ -383,6 +390,34 @@ export function MakeApp() {
     setComplaint(null);
     setWanted(false);
     topRef.current?.focus();
+  }, []);
+
+  const startEditing = useCallback(() => {
+    editRef.current = { fen: fenRef.current, named: source0, solution };
+    setEditing(true);
+  }, [source0, solution]);
+
+  /* Done is where the board becomes the position: the field gives up the
+     number it was holding, because the diagram is no longer that problem. */
+  const doneEditing = useCallback(() => {
+    const before = editRef.current;
+    setEditing(false);
+    editRef.current = null;
+    if (before && before.fen !== fenRef.current && readProblemId(source0) !== null) {
+      setSource0(fenRef.current);
+    }
+  }, [source0]);
+
+  const cancelEditing = useCallback(() => {
+    const before = editRef.current;
+    setEditing(false);
+    editRef.current = null;
+    if (!before) return;
+    setFen(before.fen);
+    setSource0(before.named);
+    setSolution(before.solution);
+    setNote(null);
+    setComplaint(null);
   }, []);
 
   const handleSquare = useCallback((square: string) => {
@@ -520,7 +555,7 @@ export function MakeApp() {
         {!started ? (
           <p className="text-sm text-[var(--muted)] mt-4">
             Paste a position or a problem number above, or{' '}
-            <button onClick={() => setEditing(true)} className="underline font-semibold">set one up on a board</button>.
+            <button onClick={startEditing} className="underline font-semibold">set one up on a board</button>.
           </p>
         ) : (
         <>
@@ -651,19 +686,14 @@ export function MakeApp() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2 mt-3">
-              <button
-                onClick={() => setEditing(v => !v)}
-                className={`nb-btn py-1 px-2.5 text-sm ${editing ? 'nb-btn-key' : ''}`}
-              >
-                {editing ? 'Done' : 'Edit position'}
-              </button>
-              {editing && (
+              {editing ? (
                 <>
-                  <button onClick={() => setPosition(EMPTY_FEN)} className="nb-btn py-1 px-2.5 text-sm" title="Take everything off">
-                    Clear
-                  </button>
+                  <button onClick={doneEditing} className="nb-btn nb-btn-key py-1 px-2.5 text-sm">Done</button>
+                  <button onClick={cancelEditing} className="nb-btn py-1 px-2.5 text-sm">Cancel</button>
                   <span className="text-sm text-[var(--muted)] ml-auto">{men.white}+{men.black}</span>
                 </>
+              ) : (
+                <button onClick={startEditing} className="nb-btn py-1 px-2.5 text-sm">Edit position</button>
               )}
             </div>
 
@@ -697,6 +727,13 @@ export function MakeApp() {
                     title="Tap a man to take it off"
                   >
                     Erase
+                  </button>
+                  <button
+                    onClick={() => setPosition(EMPTY_FEN)}
+                    className="nb-btn py-1 px-2.5 text-sm"
+                    title="Take everything off"
+                  >
+                    Clear
                   </button>
                 </div>
               </ChessboardDnDProvider>
