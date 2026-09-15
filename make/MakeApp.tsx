@@ -394,8 +394,14 @@ export function MakeApp() {
                 Solve with Popeye
               </button>
             )}
-            {/* Beside the solve, and the same size: the two ways the solution
-                can get here. Its own label is the state it is in -- dashed and
+            {/* A setting for the solve, so it stands with the solve rather
+                than after the other way of getting a solution in. */}
+            <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+              <input type="checkbox" checked={showTries} onChange={e => setAsked(setShowTries, e.target.checked)} />
+              Tries
+            </label>
+            {/* The other way a solution gets here, and the same size as the
+                solve. Its own label is the state it is in -- dashed and
                 inviting while there is nothing in it, counting the lines it
                 holds once there are. */}
             <button
@@ -406,10 +412,6 @@ export function MakeApp() {
                 : solution.trim() ? `Solution · ${solutionLines} lines ▸`
                 : 'Enter a solution yourself ▸'}
             </button>
-            <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-              <input type="checkbox" checked={showTries} onChange={e => setAsked(setShowTries, e.target.checked)} />
-              Tries
-            </label>
             {solving && <span className="text-sm text-[var(--muted)]">Solving…</span>}
             {!solving && stipulation.trim() && !hasKings && (
               <span className="text-sm text-[var(--muted)]">Both sides need a king.</span>
