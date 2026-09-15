@@ -158,8 +158,9 @@ export function MakeApp() {
   const [creditsUpFront, setCreditsUpFront] = useState(false);
 
   const [solution, setSolution] = useState('');
-  /* Folded, and it folds back: Popeye's output runs to a dozen lines and more
-     for a long helpmate, and it is not what anyone came to read. */
+  /* Shut to begin with, opened by a solve so its result can be read, and shut
+     again from the same button: Popeye's output runs to a dozen lines and more
+     for a long helpmate, and it should not sit there once it has been seen. */
   const [solutionOpen, setSolutionOpen] = useState(false);
 
   /* Pressed, rather than arrived at. The addresses could appear the moment a
@@ -274,6 +275,9 @@ export function MakeApp() {
       if (!text) { setNote('Popeye found no solution to this position.'); return; }
       setSolution(text);
       setComplaint(null);
+      // Opened, so that what was found can be read. It folds away again from
+      // the same button, which is the part that was missing before.
+      setSolutionOpen(true);
     };
 
     worker.onerror = () => { stopWorker(); setNote('Popeye could not be started.'); };
