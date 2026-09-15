@@ -122,7 +122,7 @@ function boardIsEmpty(fen: string): boolean {
  */
 function solutionFits(fen: string, stipulation: string, solution: string): boolean {
   const read = readStipulation(stipulation);
-  if (!read) return true;                       // not a stipulation this page can judge
+  if (!read) return true;                       // refused earlier, by playable()
   const board = fixCastlingRights(fen, solution);
   // The side the numbering belongs to, as the solver reads it: Black in a
   // helpmate, White everywhere else.
@@ -511,6 +511,12 @@ export function MakeApp() {
       boardIsEmpty(fen) && { field: 'position', text: 'Set the position up — press Edit position and place the men, or paste a FEN.' },
       !stipulation.trim() && { field: 'stipulation', text: 'Enter the stipulation (e.g. #2, h#3, s#4) — it is what the board will ask.' },
       !solution.trim() && { field: 'solution', text: 'Press Solve with Popeye, or enter a solution yourself — the board plays against it.' },
+      /* Popeye solves more than this board plays. It will answer an h#2.5 or
+         an h= without complaint, and the address that came out of here then
+         opened on a board refusing the stipulation -- so what cannot be played
+         is refused where it was typed, not where it was published. */
+      stipulation.trim() && !readStipulation(stipulation)
+        && { field: 'stipulation', text: `“${stipulation.trim()}” is not a stipulation this board can play — #N, h#N, s#N, + or =.` },
       /* Only worth asking once there is something to ask it of, and only of a
          solution somebody brought: Popeye's own answer to this position plays
          on it by construction. */
