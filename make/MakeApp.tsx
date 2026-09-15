@@ -336,7 +336,7 @@ export function MakeApp() {
     <div className="sober min-h-dvh">
       <div className="nb-sheet max-w-3xl mx-2 sm:mx-auto my-3 sm:my-5 px-4 pb-10">
         <header className="py-3">
-          <h1 className="text-lg font-semibold text-[var(--ink)]">Put a problem on a board</h1>
+          <h1 className="text-lg font-semibold text-[var(--ink)]">Make a solvable diagram</h1>
           <p className="text-sm text-[var(--muted)] mt-1">
             Turn a chess problem into an interactive diagram people can actually solve — embedded in your
             own page, or at an address you can send.
