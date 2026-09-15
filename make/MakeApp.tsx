@@ -539,12 +539,6 @@ export function MakeApp() {
                 Paste
               </button>
             )}
-            <button
-              onClick={() => { setComplaint(missing.length ? missing : null); setWanted(missing.length === 0); }}
-              className="nb-btn nb-btn-key shrink-0 py-2 px-4 font-semibold"
-            >
-              Generate
-            </button>
           </div>
           <span className="block text-xs text-[var(--faint)] mt-0.5">
             {looking ? 'Looking it up…'
@@ -606,12 +600,6 @@ export function MakeApp() {
         </div>
 
         )}
-
-        {/* Plain red under the row it is about, as the finder says the same
-            thing: a sentence, not a boxed notice. */}
-        {complaint?.filter(line => line !== note).map(line => (
-          <p key={line} className="text-sm text-[var(--bad)] mt-1.5">{line}</p>
-        ))}
 
         {solutionOpen && (
           <textarea
@@ -821,6 +809,25 @@ export function MakeApp() {
             </p>
           </div>
           )}
+        </div>
+
+        {/* The last thing on the form, because it is the last thing done: the
+            page is filled in downwards and what it produces appears directly
+            under the press. It sat beside the position at the top, which is
+            where the finder puts Search -- but there the field is the whole
+            question, and here it is the first of several. */}
+        <div className="mt-6 flex flex-col items-end gap-1.5">
+          <button
+            onClick={() => { setComplaint(missing.length ? missing : null); setWanted(missing.length === 0); }}
+            className="nb-btn nb-btn-key py-2 px-5 font-semibold"
+          >
+            Generate
+          </button>
+          {/* Beside the press. Said up where each was missing from, they were
+              off the screen by the time the button was reached. */}
+          {complaint?.filter(line => line !== note).map(line => (
+            <p key={line} className="text-sm text-[var(--bad)] text-right">{line}</p>
+          ))}
         </div>
 
         {/* Nothing to take until the button has been pressed and there is
