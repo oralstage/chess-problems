@@ -36,13 +36,12 @@ type Tool = { kind: 'move' } | { kind: 'place'; piece: string } | { kind: 'erase
    FEN; the board draws them from the same letters. */
 const PALETTE = ['K', 'Q', 'R', 'B', 'N', 'P', 'k', 'q', 'r', 'b', 'n', 'p'];
 
-/** A bare number means pixels. Nobody writing "360" in a box marked Width
- *  means anything else, and a CSS length without a unit is simply dropped. */
-function asLength(value: string): string {
-  const v = value.trim();
-  if (!v) return '';
-  return /^\d+(\.\d+)?$/.test(v) ? `${v}px` : v;
-}
+/* The unit is picked, not typed. A box that turns a bare number into pixels
+   turns "50" from somebody who meant half the column into a board fifty
+   pixels wide, and the mistake only shows up on the page they pasted it
+   into. */
+const UNITS = ['%', 'px'] as const;
+type Unit = typeof UNITS[number];
 
 /* The board's own men, not the Unicode chess characters. Those are text: they
    are drawn by whichever font the reader has, they do not match the pieces on
@@ -161,7 +160,8 @@ export function MakeApp() {
      no height to give: the frame keeps a printed diagram's proportion, and a
      frame given both in pixels stops matching its column the moment the
      column changes. */
-  const [frameWidth, setFrameWidth] = useState('100%');
+  const [frameWidth, setFrameWidth] = useState('100');
+  const [frameUnit, setFrameUnit] = useState<Unit>('%');
 
   /* A board set as an exercise is not one to be given up on. */
   const [offerHint, setOfferHint] = useState(true);
@@ -174,9 +174,8 @@ export function MakeApp() {
   const [creditsUpFront, setCreditsUpFront] = useState(false);
 
   const [solution, setSolution] = useState('');
-  /* Folded away and left that way. Popeye's output runs to a dozen lines and
-     more for a long helpmate, and it is not what anyone came to read: it goes
-     in when a solve lands, and it opens only if someone goes into it. */
+  /* Folded, and it folds back: Popeye's output runs to a dozen lines and more
+     for a long helpmate, and it is not what anyone came to read. */
   const [solutionOpen, setSolutionOpen] = useState(false);
   const [solving, setSolving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -195,6 +194,8 @@ export function MakeApp() {
   }, []);
 
   const men = countMen(fen);
+  // How much is in there, said on the button rather than by opening it.
+  const solutionLines = solution.split('\n').filter(l => /\d\./.test(l)).length;
 
   /* The line under the diagram, said the way the finished board says it: "Mate
      in 2" rather than "#2" while there is enough to say it with, and whatever
@@ -203,6 +204,10 @@ export function MakeApp() {
   const caption = read
     ? stipulationPhrase(stipulation, read.genre, read.moveCount)
     : stipulation.trim();
+
+  const credit = [author.trim(), [source.trim(), year.trim()].filter(Boolean).join(', ')]
+    .filter(Boolean).join(' — ');
+
   const hasKings = /K/.test(splitFen(fen).placement) && /k/.test(splitFen(fen).placement);
 
   const stopWorker = useCallback(() => {
@@ -289,9 +294,6 @@ export function MakeApp() {
     return true;
   }, [fen, setPosition]);
 
-  const credit = [author.trim(), [source.trim(), year.trim()].filter(Boolean).join(', ')]
-    .filter(Boolean).join(' — ');
-
   const query = useMemo(() => {
     const q = new URLSearchParams();
     q.set('fen', fen);
@@ -315,13 +317,13 @@ export function MakeApp() {
   }, [query, offerHint, offerGiveUp, creditsUpFront]);
 
   const ready = solution !== '';
-  const width = asLength(frameWidth) || '100%';
+  const width = `${frameWidth.trim() || '100'}${frameUnit}`;
   const frameStyle = `width:${width}; aspect-ratio:4/5; border:0`;
   const markup = `<iframe src="${SITE}/board?${boardQuery}"\n        style="${frameStyle}"\n        title="Chess problem"></iframe>`;
 
   return (
     <div className="sober min-h-dvh">
-      <div className="nb-sheet max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-4 pb-10">
+      <div className="nb-sheet max-w-3xl mx-2 sm:mx-auto my-3 sm:my-5 px-4 pb-10">
         <header className="py-3">
           <h1 className="text-lg font-semibold text-[var(--ink)]">Put a problem on a board</h1>
           <p className="text-sm text-[var(--muted)] mt-1">
@@ -330,133 +332,11 @@ export function MakeApp() {
           </p>
         </header>
 
-        {/* The diagram on one side and what is being said about it on the
-            other, the way the precedent finder sets out the same pair. Stacked
-            full width, the board pushed every field that has to be typed off
-            the bottom of the screen, and a diagram three hundred pixels wide
-            with nothing beside it is a lot of empty page. Below the width a
-            column of fields can be read in, they go back to one. */}
-        <div className="sm:flex sm:items-start sm:gap-5">
-        <div className="shrink-0">
-        {/* One board, in two states. Being set up, it is the board itself,
-            with the men picked up and put down on it; the rest of the time the
-            lines a reader will meet are drawn around it, so that what the
-            switches beside it do can be seen being done -- turn Give up off
-            and the button goes, name the composer up front and the name
-            appears above the diagram.
-
-            Drawn here rather than by running the real thing in a frame. A
-            frame would be the real thing, and would therefore refuse a
-            position that is still being typed: no stipulation yet, no
-            solution yet, and what it shows is an error message where the
-            board should be. This is a picture of the finished board, and a
-            picture can be of something not finished. */}
-        <div style={{ width: boardWidth }}>
-          {!editing && (
-            <>
-              {/* Typed, so shown. Where it will be shown is above the diagram
-                  either way; when it is being held back for the solve it is
-                  drawn faintly, because that is the state the reader meets
-                  first and the name is not in it yet. */}
-              {credit && (
-                <p
-                  className={`text-xs text-center text-[var(--ink)] ${creditsUpFront ? '' : 'opacity-40'}`}
-                  title={creditsUpFront ? undefined : 'Shown once the problem is solved'}
-                >
-                  {credit}
-                </p>
-              )}
-              <p className="text-xs text-center text-[var(--faint)] min-h-[1.25rem]">{INVITE}</p>
-            </>
-          )}
-          <div className="flex justify-center">
-            <Board
-              fen={fen}
-              onPieceDrop={handleDrop}
-              width={boardWidth}
-              orientation="white"
-              freeMove={editing}
-              disabled={!editing}
-              onSquareTool={editing && tool.kind !== 'move' ? handleSquare : undefined}
-            />
-          </div>
-          {!editing && (
-            <>
-              <div className="flex items-baseline justify-between text-xs text-[var(--muted)] mt-1">
-                <span>{caption}</span>
-                <span>{men.white}+{men.black}</span>
-              </div>
-              <div className="flex items-center gap-1 mt-1.5">
-                {offerHint && <span className="nb-btn px-2 py-0.5 text-xs">Hint</span>}
-                {offerGiveUp && <span className="nb-btn px-2 py-0.5 text-xs">Give up</span>}
-              </div>
-              <p className="text-right text-[11px] text-[var(--faint)] underline mt-1.5">
-                Open on chessproblem.org ↗
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* A position usually arrives already written down -- out of Popeye,
-            out of a magazine, out of another program -- so the address is what
-            the page opens with, and the board is there to be looked at. Setting
-            one up by hand is the other way round, and it is asked for. */}
-        <div className="flex flex-wrap items-center gap-2 mt-3">
-          <button
-            onClick={() => setEditing(v => !v)}
-            className={`nb-btn py-1 px-2.5 text-sm font-bold ${editing ? 'nb-btn-key' : ''}`}
-          >
-            {editing ? 'Done' : 'Edit position'}
-          </button>
-          {editing && (
-            <button onClick={() => setPosition(EMPTY_FEN)} className="nb-btn py-1 px-2.5 text-sm font-bold" title="Take everything off">
-              Clear
-            </button>
-          )}
-          {/* Only while the men are being moved. The rest of the time the
-              picture of the finished board is carrying the same count in the
-              place a diagram carries it. */}
-          {editing && <span className="text-sm font-bold text-[var(--muted)] ml-auto">{men.white}+{men.black}</span>}
-        </div>
-
-        {editing && (
-          <ChessboardDnDProvider>
-            <div className="flex flex-wrap items-center gap-1 mt-2">
-              <button
-                onClick={() => setTool({ kind: 'move' })}
-                className={`nb-btn py-1 px-2.5 text-sm font-bold ${tool.kind === 'move' ? 'nb-btn-key' : ''}`}
-                title="Drag a man to another square"
-              >
-                Move
-              </button>
-              {PALETTE.map(piece => (
-                <button
-                  key={piece}
-                  onClick={() => setTool({ kind: 'place', piece })}
-                  className={`nb-btn w-9 h-9 flex items-center justify-center ${tool.kind === 'place' && tool.piece === piece ? 'nb-btn-key' : ''}`}
-                  title={`Put a ${piece === piece.toUpperCase() ? 'white' : 'black'} man on a square`}
-                >
-                  {/* The drawing takes no pointer of its own: this is a button
-                      to choose with, not a man to drag. */}
-                  <span className="pointer-events-none">
-                    <SparePiece piece={pieceCode(piece)} width={26} dndId="palette" />
-                  </span>
-                </button>
-              ))}
-              <button
-                onClick={() => setTool({ kind: 'erase' })}
-                className={`nb-btn py-1 px-2.5 text-sm font-bold ${tool.kind === 'erase' ? 'nb-btn-key' : ''}`}
-                title="Tap a man to take it off"
-              >
-                Erase
-              </button>
-            </div>
-          </ChessboardDnDProvider>
-        )}
-        </div>
-
-        <div className="flex-1 min-w-0">
-        <label className="block mt-3 sm:mt-0">
+        {/* The three that are the problem, across the top and in the order they
+            are settled: where the men are, what is asked of them, and the
+            solution -- which is asked of Popeye rather than of the reader. The
+            precedent finder puts the same three in the same place. */}
+        <label className="block mt-2">
           <FieldLabel need="required">Position (FEN)</FieldLabel>
           <input
             value={boardIsEmpty(fen) ? '' : fen}
@@ -465,120 +345,249 @@ export function MakeApp() {
             className="nb-plate w-full mt-1 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
           />
           <span className="block text-xs text-[var(--faint)] mt-0.5">
-            Paste one, or press Edit position and set the men out
+            Paste one, or press Edit position and set the men out — nothing here is sent anywhere
           </span>
         </label>
 
-        <div className="flex flex-wrap gap-3 mt-3">
-          <label className="block w-32">
+        <div className="flex flex-wrap items-start gap-2 mt-3">
+          <label className="block w-28">
             <FieldLabel need="required">Stipulation</FieldLabel>
             <input
               value={stipulation}
               onChange={e => setAsked(setStipulation, e.target.value)}
               spellCheck={false}
-              className="nb-plate w-full mt-1 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
+              className="nb-plate w-full mt-1 px-3 py-1.5 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
             />
             <span className="block text-xs text-[var(--faint)] mt-0.5">e.g. #2 h#3 s#2 + =</span>
           </label>
-          <label className="block flex-1 min-w-[10rem]">
-            <FieldLabel need="optional">Composer</FieldLabel>
-            <input value={author} onChange={e => setAuthor(e.target.value)}
-              className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
-          </label>
-          <label className="block flex-1 min-w-[10rem]">
-            <FieldLabel need="optional">Source</FieldLabel>
-            <input value={source} onChange={e => setSource(e.target.value)}
-              className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
-          </label>
-          <label className="block w-24">
-            <FieldLabel need="optional">Year</FieldLabel>
-            <input value={year} onChange={e => setYear(e.target.value)} spellCheck={false}
-              className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
-          </label>
-        </div>
 
-        {/* Still the input side: what the reader of the finished board will be
-            given, and how wide it sits. These decide what comes out, so they
-            are asked for before it is made rather than offered afterwards
-            beside the thing they would change. */}
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4">
-          <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-            <input type="checkbox" checked={offerHint} onChange={e => setOfferHint(e.target.checked)} />
-            Offer Hint
-          </label>
-          <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-            <input type="checkbox" checked={offerGiveUp} onChange={e => setOfferGiveUp(e.target.checked)} />
-            Offer Give up
-          </label>
-          <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-            <input type="checkbox" checked={creditsUpFront} onChange={e => setCreditsUpFront(e.target.checked)} />
-            Show the composer from the start
-          </label>
-          <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-            <span>Width</span>
-            <input
-              value={frameWidth}
-              onChange={e => setFrameWidth(e.target.value)}
-              spellCheck={false}
-              className="nb-plate w-24 px-2 py-1 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
-            />
-          </label>
-        </div>
-        <p className="text-xs text-[var(--faint)] mt-1">
-          Turn the first two off and the problem can only be solved. A bare width is pixels;
-          <code> 100%</code> follows the column it lands in, <code>50%</code> half of it.
-        </p>
-
-        <div className="flex flex-wrap items-center gap-2 mt-4">
-          {solving ? (
-            <button onClick={stopWorker} className="nb-btn py-1.5 px-3 font-bold">Stop</button>
-          ) : (
+          <div className="flex flex-wrap items-center gap-2 pt-[1.35rem]">
+            {solving ? (
+              <button onClick={stopWorker} className="nb-btn py-1.5 px-3 font-semibold">Stop</button>
+            ) : (
+              <button
+                onClick={solve}
+                disabled={!hasKings || !stipulation.trim()}
+                className="nb-btn nb-btn-key py-1.5 px-3 font-semibold disabled:opacity-50"
+              >
+                Solve with Popeye
+              </button>
+            )}
+            {/* Beside the solve, and the same size: the two ways the solution
+                can get here. Its own label is the state it is in -- dashed and
+                inviting while there is nothing in it, counting the lines it
+                holds once there are. */}
             <button
-              onClick={solve}
-              disabled={!hasKings || !stipulation.trim()}
-              className="nb-btn nb-btn-key py-1.5 px-3 font-bold disabled:opacity-50"
+              onClick={() => setSolutionOpen(v => !v)}
+              className={`nb-btn py-1.5 px-3 ${solutionOpen || solution.trim() ? '' : 'border-dashed'}`}
             >
-              Solve with Popeye
+              {solutionOpen ? 'Solution ▾'
+                : solution.trim() ? `Solution · ${solutionLines} lines ▸`
+                : 'Enter a solution yourself ▸'}
             </button>
-          )}
-          <label className="flex items-center gap-1.5 text-sm font-bold text-[var(--muted)]">
-            <input type="checkbox" checked={showTries} onChange={e => setAsked(setShowTries, e.target.checked)} />
-            Tries
-          </label>
-          {solving && <span className="text-sm font-semibold text-[var(--muted)]">Solving…</span>}
-          {!stipulation.trim()
-            ? <span className="text-sm text-[var(--muted)]">Say what is asked of the position first.</span>
-            : !hasKings
-              ? <span className="text-sm text-[var(--muted)]">Both sides need a king.</span>
-              /* Not marked "required" -- it is a button, not a field -- but it
-                 is the step nothing downstream can happen without, so the
-                 reason it has to be pressed is said in the colour the required
-                 fields are marked in. */
-              : !solving && !solution && <span className="text-sm text-[var(--bad)]">Without the solution there is nothing to take away.</span>}
+            <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+              <input type="checkbox" checked={showTries} onChange={e => setAsked(setShowTries, e.target.checked)} />
+              Tries
+            </label>
+            {solving && <span className="text-sm text-[var(--muted)]">Solving…</span>}
+            {!stipulation.trim()
+              ? <span className="text-sm text-[var(--muted)]">Say what is asked of the position first.</span>
+              : !hasKings
+                ? <span className="text-sm text-[var(--muted)]">Both sides need a king.</span>
+                /* Not marked "required" -- it is a button, not a field -- but
+                   nothing downstream can happen without it, so the reason is
+                   said in the colour the required fields are marked in. */
+                : !solving && !solution && (
+                  <span className="text-sm text-[var(--bad)]">Without the solution there is nothing to take away.</span>
+                )}
+          </div>
         </div>
+
+        {solutionOpen && (
+          <textarea
+            value={solution}
+            onChange={e => setSolution(e.target.value)}
+            spellCheck={false}
+            rows={8}
+            placeholder="Popeye's output, as it printed it"
+            className="nb-plate w-full mt-2 px-3 py-2 text-xs font-mono whitespace-pre bg-[var(--surface)] text-[var(--ink)]"
+          />
+        )}
 
         {note && (
           <pre className="nb-plate mt-3 p-3 text-xs whitespace-pre-wrap text-[var(--ink)]">{note}</pre>
         )}
 
-        <label className="block mt-4">
-          <span className="text-xs text-[var(--muted)]">
-            Solution — Popeye's own output. Edit it if you want, or paste one you already had.
-          </span>
-          {/* One line high until it is wanted, as the precedent finder's own
-              solution box is: a dozen lines of notation held open permanently
-              push everything that matters off the screen. Going into it opens
-              it, and so does a solve landing -- a page that answered by
-              changing nothing visible would look as if it had not answered. */}
-          <textarea
-            value={solution}
-            onChange={e => setSolution(e.target.value)}
-            onFocus={() => setSolutionOpen(true)}
-            spellCheck={false}
-            className={`nb-plate w-full mt-1 px-3 py-2 text-xs font-mono whitespace-pre overflow-auto bg-[var(--surface)] text-[var(--ink)] transition-[height] ${solutionOpen ? 'h-40' : 'h-9'}`}
-          />
-        </label>
-        </div>
+        {/* Below the line: the board as it will be met, and everything a board
+            can do without. The position, what is asked of it and the solution
+            are the problem; a name, a source and how the frame is dressed are
+            what is said about it. */}
+        <hr className="mt-6 mb-4 border-0 border-t border-[var(--hairline)]" />
+
+        <div className="sm:flex sm:items-start sm:gap-5">
+          <div className="shrink-0">
+            {/* One board, in two states. Being set up, it is the board itself,
+                with the men picked up and put down on it; the rest of the time
+                the lines a reader will meet are drawn around it, so that what
+                the switches beside it do can be seen being done.
+
+                Drawn here rather than by running the real thing in a frame. A
+                frame would be the real thing, and would therefore refuse a
+                position still being typed -- no stipulation yet, no solution
+                yet -- and show an error where the board should be. This is a
+                picture of the finished board, and a picture can be of
+                something not finished. */}
+            <div className={editing ? '' : 'nb-plate p-2'} style={{ width: boardWidth }}>
+              {!editing && (
+                <>
+                  {creditsUpFront && credit && (
+                    <p className="text-xs text-center text-[var(--ink)]">{credit}</p>
+                  )}
+                  <p className="text-xs text-center text-[var(--faint)] min-h-[1.25rem]">{INVITE}</p>
+                </>
+              )}
+              <div className="flex justify-center">
+                <Board
+                  fen={fen}
+                  onPieceDrop={handleDrop}
+                  width={editing ? boardWidth : boardWidth - 16}
+                  orientation="white"
+                  freeMove={editing}
+                  disabled={!editing}
+                  onSquareTool={editing && tool.kind !== 'move' ? handleSquare : undefined}
+                />
+              </div>
+              {!editing && (
+                <>
+                  <div className="flex items-baseline justify-between text-xs text-[var(--muted)] mt-1">
+                    <span>{caption}</span>
+                    <span>{men.white}+{men.black}</span>
+                  </div>
+                  <div className="flex items-center gap-1 mt-1.5">
+                    {offerHint && <span className="nb-btn px-2 py-0.5 text-xs">Hint</span>}
+                    {offerGiveUp && <span className="nb-btn px-2 py-0.5 text-xs">Give up</span>}
+                  </div>
+                  <p className="text-right text-[11px] text-[var(--faint)] underline mt-1.5">
+                    Open on chessproblem.org ↗
+                  </p>
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <button
+                onClick={() => setEditing(v => !v)}
+                className={`nb-btn py-1 px-2.5 text-sm ${editing ? 'nb-btn-key' : ''}`}
+              >
+                {editing ? 'Done' : 'Edit position'}
+              </button>
+              {editing && (
+                <>
+                  <button onClick={() => setPosition(EMPTY_FEN)} className="nb-btn py-1 px-2.5 text-sm" title="Take everything off">
+                    Clear
+                  </button>
+                  <span className="text-sm text-[var(--muted)] ml-auto">{men.white}+{men.black}</span>
+                </>
+              )}
+            </div>
+
+            {editing && (
+              <ChessboardDnDProvider>
+                <div className="flex flex-wrap items-center gap-1 mt-2" style={{ width: boardWidth }}>
+                  <button
+                    onClick={() => setTool({ kind: 'move' })}
+                    className={`nb-btn py-1 px-2.5 text-sm ${tool.kind === 'move' ? 'nb-btn-key' : ''}`}
+                    title="Drag a man to another square"
+                  >
+                    Move
+                  </button>
+                  {PALETTE.map(piece => (
+                    <button
+                      key={piece}
+                      onClick={() => setTool({ kind: 'place', piece })}
+                      className={`nb-btn w-9 h-9 flex items-center justify-center ${tool.kind === 'place' && tool.piece === piece ? 'nb-btn-key' : ''}`}
+                      title={`Put a ${piece === piece.toUpperCase() ? 'white' : 'black'} man on a square`}
+                    >
+                      {/* The drawing takes no pointer of its own: this is a
+                          button to choose with, not a man to drag. */}
+                      <span className="pointer-events-none">
+                        <SparePiece piece={pieceCode(piece)} width={26} dndId="palette" />
+                      </span>
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setTool({ kind: 'erase' })}
+                    className={`nb-btn py-1 px-2.5 text-sm ${tool.kind === 'erase' ? 'nb-btn-key' : ''}`}
+                    title="Tap a man to take it off"
+                  >
+                    Erase
+                  </button>
+                </div>
+              </ChessboardDnDProvider>
+            )}
+          </div>
+
+          <div className="flex-1 min-w-0 mt-4 sm:mt-0">
+            <div className="flex flex-wrap gap-3">
+              <label className="block flex-1 min-w-[10rem]">
+                <FieldLabel need="optional">Composer</FieldLabel>
+                <input value={author} onChange={e => setAuthor(e.target.value)}
+                  className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
+              </label>
+              <label className="block w-24">
+                <FieldLabel need="optional">Year</FieldLabel>
+                <input value={year} onChange={e => setYear(e.target.value)} spellCheck={false}
+                  className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
+              </label>
+              <label className="block w-full">
+                <FieldLabel need="optional">Source</FieldLabel>
+                <input value={source} onChange={e => setSource(e.target.value)}
+                  className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
+              </label>
+            </div>
+
+            <div className="mt-4 space-y-2">
+              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                <input type="checkbox" checked={offerHint} onChange={e => setOfferHint(e.target.checked)} />
+                Offer Hint
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                <input type="checkbox" checked={offerGiveUp} onChange={e => setOfferGiveUp(e.target.checked)} />
+                Offer Give up
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                <input type="checkbox" checked={creditsUpFront} onChange={e => setCreditsUpFront(e.target.checked)} />
+                Show the composer from the start
+              </label>
+              {/* The unit is picked, not typed: a box that turns a bare number
+                  into pixels turns "50" from somebody who meant half the
+                  column into a board fifty pixels wide, and the mistake only
+                  shows up on the page they pasted it into. */}
+              <span className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                <span>Width</span>
+                <input
+                  value={frameWidth}
+                  onChange={e => setFrameWidth(e.target.value.replace(/[^\d.]/g, ''))}
+                  inputMode="numeric"
+                  spellCheck={false}
+                  className="nb-plate w-16 px-2 py-1 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
+                />
+                {UNITS.map(u => (
+                  <button
+                    key={u}
+                    onClick={() => setFrameUnit(u)}
+                    className={`nb-btn px-2 py-1 text-sm font-mono ${frameUnit === u ? 'nb-btn-key' : ''}`}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </span>
+            </div>
+            <p className="text-xs text-[var(--faint)] mt-2">
+              Turn the first two off and the problem can only be solved. <code>100%</code> follows the column
+              it lands in, <code>50%</code> half of it; pixels are a fixed size.
+            </p>
+          </div>
         </div>
 
         {/* Nothing to take until there is a solution, and a heading over an
