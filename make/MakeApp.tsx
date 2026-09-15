@@ -72,12 +72,35 @@ function setSquare(fen: string, square: string, piece: string | null): string {
   return [placement, ...parts.slice(1)].join(' ');
 }
 
+/** Nothing on it yet. The address of an empty board is still a FEN, and
+ *  printing it in the field on arrival makes a page that has been filled in
+ *  already out of one that has not been started. */
+function boardIsEmpty(fen: string): boolean {
+  return !/[a-zA-Z]/.test(splitFen(fen).placement);
+}
+
 function countMen(fen: string): { white: number; black: number } {
   const placement = splitFen(fen).placement.replace(/[^a-zA-Z]/g, '');
   return {
     white: placement.replace(/[^A-Z]/g, '').length,
     black: placement.replace(/[^a-z]/g, '').length,
   };
+}
+
+/* Which fields have to be filled in, said on every one of them rather than on
+   some of them. A form that marks only what is required leaves the reader to
+   work out that the unmarked ones are not -- and the unmarked ones here are
+   the composer's name and where the problem appeared, which plenty of people
+   would rather not put on a page at all. */
+function FieldLabel({ children, need }: { children: React.ReactNode; need: 'required' | 'optional' }) {
+  return (
+    <span className="flex items-baseline gap-1.5">
+      <span className="text-xs font-semibold text-[var(--muted)]">{children}</span>
+      <span className={`text-xs ${need === 'required' ? 'text-[var(--muted)]' : 'text-[var(--faint)]'}`}>
+        {need}
+      </span>
+    </span>
+  );
 }
 
 /* Copying is the point of the two blocks at the bottom: what is in them is
@@ -111,7 +134,10 @@ export function MakeApp() {
   useTheme();
 
   const [fen, setFen] = useState(EMPTY_FEN);
-  const [stipulation, setStipulation] = useState('#2');
+  /* Empty, both of them. What is asked of a position is the composer's to say
+     -- offering "#2" would have most of them publishing a two-mover by not
+     noticing -- and the board has nothing on it yet either. */
+  const [stipulation, setStipulation] = useState('');
   const [author, setAuthor] = useState('');
   const [source, setSource] = useState('');
   const [year, setYear] = useState('');
@@ -311,37 +337,40 @@ export function MakeApp() {
         )}
 
         <label className="block mt-3">
-          <span className="text-xs font-bold text-[var(--muted)]">Position (FEN)</span>
+          <FieldLabel need="required">Position (FEN)</FieldLabel>
           <input
-            value={fen}
-            onChange={e => setPosition(e.target.value)}
+            value={boardIsEmpty(fen) ? '' : fen}
+            onChange={e => setPosition(e.target.value.trim() ? e.target.value : EMPTY_FEN)}
+            placeholder="Paste a FEN, or press Edit position and set the men out"
             spellCheck={false}
             className="nb-plate w-full mt-1 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
           />
         </label>
 
         <div className="flex flex-wrap gap-3 mt-3">
-          <label className="block w-28">
-            <span className="text-xs font-bold text-[var(--muted)]">Stipulation</span>
+          <label className="block w-32">
+            <FieldLabel need="required">Stipulation</FieldLabel>
             <input
               value={stipulation}
               onChange={e => setAsked(setStipulation, e.target.value)}
+              placeholder="#2"
               spellCheck={false}
               className="nb-plate w-full mt-1 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
             />
+            <span className="block text-xs text-[var(--faint)] mt-0.5">e.g. #2 h#3 s#2 + =</span>
           </label>
           <label className="block flex-1 min-w-[10rem]">
-            <span className="text-xs font-bold text-[var(--muted)]">Composer</span>
+            <FieldLabel need="optional">Composer</FieldLabel>
             <input value={author} onChange={e => setAuthor(e.target.value)}
               className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
           </label>
           <label className="block flex-1 min-w-[10rem]">
-            <span className="text-xs font-bold text-[var(--muted)]">Source</span>
+            <FieldLabel need="optional">Source</FieldLabel>
             <input value={source} onChange={e => setSource(e.target.value)}
               className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
           </label>
           <label className="block w-24">
-            <span className="text-xs font-bold text-[var(--muted)]">Year</span>
+            <FieldLabel need="optional">Year</FieldLabel>
             <input value={year} onChange={e => setYear(e.target.value)} spellCheck={false}
               className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
           </label>
@@ -364,7 +393,9 @@ export function MakeApp() {
             Tries
           </label>
           {solving && <span className="text-sm font-bold text-[var(--muted)]">Solving…</span>}
-          {!hasKings && <span className="text-sm text-[var(--muted)]">Both sides need a king.</span>}
+          {!stipulation.trim()
+            ? <span className="text-sm text-[var(--muted)]">Say what is asked of the position first.</span>
+            : !hasKings && <span className="text-sm text-[var(--muted)]">Both sides need a king.</span>}
         </div>
 
         {note && (
