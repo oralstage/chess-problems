@@ -96,22 +96,6 @@ function countMen(fen: string): { white: number; black: number } {
   };
 }
 
-/* Which fields have to be filled in, said on every one of them rather than on
-   some of them. A form that marks only what is required leaves the reader to
-   work out that the unmarked ones are not -- and the unmarked ones here are
-   the composer's name and where the problem appeared, which plenty of people
-   would rather not put on a page at all. */
-function FieldLabel({ children, need }: { children: React.ReactNode; need: 'required' | 'optional' }) {
-  return (
-    <span className="flex items-baseline gap-1.5">
-      <span className="text-xs font-semibold text-[var(--muted)]">{children}</span>
-      <span className={`text-xs ${need === 'required' ? 'text-[var(--bad)] font-semibold' : 'text-[var(--faint)]'}`}>
-        {need}
-      </span>
-    </span>
-  );
-}
-
 /* Copying is the point of the two blocks at the bottom: what is in them is
    meant to end up in somebody's page or somebody's address bar, and selecting
    a wrapped line of text by hand is a poor way to get it there. */
@@ -177,6 +161,18 @@ export function MakeApp() {
   /* Folded, and it folds back: Popeye's output runs to a dozen lines and more
      for a long helpmate, and it is not what anyone came to read. */
   const [solutionOpen, setSolutionOpen] = useState(false);
+
+  /* Pressed, rather than arrived at. The addresses could appear the moment a
+     solution lands, but then the page decides when it is finished and the
+     appearance below is offered after the thing it changes -- so the last
+     word is a button, and what is missing is said when it is pressed rather
+     than written against every field that could be. */
+  const [wanted, setWanted] = useState(false);
+  /* What was missing when the button was last pressed. It is an answer to a
+     press, not a running commentary: a page that lists what it is still
+     waiting for while you are typing it is scolding you for not having
+     finished. Cleared the moment anything it named is touched. */
+  const [complaint, setComplaint] = useState<string[] | null>(null);
   const [solving, setSolving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -226,12 +222,14 @@ export function MakeApp() {
     setFen(next);
     setSolution('');
     setNote(null);
+    setComplaint(null);
   }, []);
 
   const setAsked = useCallback(<T,>(set: (v: T) => void, value: T) => {
     set(value);
     setSolution('');
     setNote(null);
+    setComplaint(null);
   }, []);
 
   const solve = useCallback(() => {
@@ -275,6 +273,7 @@ export function MakeApp() {
       const text = cleanOutput(data.out);
       if (!text) { setNote('Popeye found no solution to this position.'); return; }
       setSolution(text);
+      setComplaint(null);
     };
 
     worker.onerror = () => { stopWorker(); setNote('Popeye could not be started.'); };
@@ -316,7 +315,15 @@ export function MakeApp() {
     return q.toString();
   }, [query, offerHint, offerGiveUp, creditsUpFront]);
 
-  const ready = solution !== '';
+  /* Said when the button is pressed, in the order the page asks for them, and
+     worded as the thing to do rather than as a list of what is absent. */
+  const missing = [
+    boardIsEmpty(fen) && 'Set the position up — press Edit position and place the men, or paste a FEN.',
+    !stipulation.trim() && 'Enter the stipulation (e.g. #2, h#3, s#4) — it is what the board will ask.',
+    !solution.trim() && 'Press Solve with Popeye, or enter a solution yourself — the board plays against it.',
+  ].filter(Boolean) as string[];
+
+  const ready = missing.length === 0;
   const width = `${frameWidth.trim() || '100'}${frameUnit}`;
   const frameStyle = `width:${width}; aspect-ratio:4/5; border:0`;
   const markup = `<iframe src="${SITE}/board?${boardQuery}"\n        style="${frameStyle}"\n        title="Chess problem"></iframe>`;
@@ -336,22 +343,32 @@ export function MakeApp() {
             are settled: where the men are, what is asked of them, and the
             solution -- which is asked of Popeye rather than of the reader. The
             precedent finder puts the same three in the same place. */}
-        <label className="block mt-2">
-          <FieldLabel need="required">Position (FEN)</FieldLabel>
-          <input
-            value={boardIsEmpty(fen) ? '' : fen}
-            onChange={e => setPosition(e.target.value.trim() ? e.target.value : EMPTY_FEN)}
-            spellCheck={false}
-            className="nb-plate w-full mt-1 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
-          />
+        {/* The position across the top with the button that finishes the job
+            at the end of it, where the finder puts Search. */}
+        <div className="mt-2">
+          <span className="text-xs font-semibold text-[var(--muted)]">Position (FEN)</span>
+          <div className="flex gap-2 mt-1">
+            <input
+              value={boardIsEmpty(fen) ? '' : fen}
+              onChange={e => setPosition(e.target.value.trim() ? e.target.value : EMPTY_FEN)}
+              spellCheck={false}
+              className="nb-plate flex-1 min-w-0 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
+            />
+            <button
+              onClick={() => { setComplaint(missing.length ? missing : null); setWanted(missing.length === 0); }}
+              className="nb-btn nb-btn-key shrink-0 py-2 px-4 font-semibold"
+            >
+              Generate
+            </button>
+          </div>
           <span className="block text-xs text-[var(--faint)] mt-0.5">
             Paste one, or press Edit position and set the men out — nothing here is sent anywhere
           </span>
-        </label>
+        </div>
 
         <div className="flex flex-wrap items-start gap-2 mt-3">
           <label className="block w-28">
-            <FieldLabel need="required">Stipulation</FieldLabel>
+            <span className="text-xs font-semibold text-[var(--muted)]">Stipulation</span>
             <input
               value={stipulation}
               onChange={e => setAsked(setStipulation, e.target.value)}
@@ -368,7 +385,7 @@ export function MakeApp() {
               <button
                 onClick={solve}
                 disabled={!hasKings || !stipulation.trim()}
-                className="nb-btn nb-btn-key py-1.5 px-3 font-semibold disabled:opacity-50"
+                className="nb-btn py-1.5 px-3 font-semibold disabled:opacity-50"
               >
                 Solve with Popeye
               </button>
@@ -390,23 +407,22 @@ export function MakeApp() {
               Tries
             </label>
             {solving && <span className="text-sm text-[var(--muted)]">Solving…</span>}
-            {!stipulation.trim()
-              ? <span className="text-sm text-[var(--muted)]">Say what is asked of the position first.</span>
-              : !hasKings
-                ? <span className="text-sm text-[var(--muted)]">Both sides need a king.</span>
-                /* Not marked "required" -- it is a button, not a field -- but
-                   nothing downstream can happen without it, so the reason is
-                   said in the colour the required fields are marked in. */
-                : !solving && !solution && (
-                  <span className="text-sm text-[var(--bad)]">Without the solution there is nothing to take away.</span>
-                )}
+            {!solving && stipulation.trim() && !hasKings && (
+              <span className="text-sm text-[var(--muted)]">Both sides need a king.</span>
+            )}
           </div>
         </div>
+
+        {/* Plain red under the row it is about, as the finder says the same
+            thing: a sentence, not a boxed notice. */}
+        {complaint?.map(line => (
+          <p key={line} className="text-sm text-[var(--bad)] mt-1.5">{line}</p>
+        ))}
 
         {solutionOpen && (
           <textarea
             value={solution}
-            onChange={e => setSolution(e.target.value)}
+            onChange={e => { setSolution(e.target.value); setComplaint(null); }}
             spellCheck={false}
             rows={8}
             placeholder="Popeye's output, as it printed it"
@@ -528,19 +544,27 @@ export function MakeApp() {
           </div>
 
           <div className="flex-1 min-w-0 mt-4 sm:mt-0">
+            {/* None of this changes the problem, and none of it has to be
+                filled in. Said once, over the lot, rather than tagged onto
+                every field: a column of "optional" reads as a form nagging
+                about things it does not need. */}
+            <h2 className="text-sm font-semibold text-[var(--ink)]">Appearance</h2>
+            <p className="text-xs text-[var(--faint)] mt-0.5 mb-2">
+              How the board is dressed and what it offers. Leave it all alone and the board still works.
+            </p>
             <div className="flex flex-wrap gap-3">
               <label className="block flex-1 min-w-[10rem]">
-                <FieldLabel need="optional">Composer</FieldLabel>
+                <span className="text-xs text-[var(--muted)]">Composer</span>
                 <input value={author} onChange={e => setAuthor(e.target.value)}
                   className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
               </label>
               <label className="block w-24">
-                <FieldLabel need="optional">Year</FieldLabel>
+                <span className="text-xs text-[var(--muted)]">Year</span>
                 <input value={year} onChange={e => setYear(e.target.value)} spellCheck={false}
                   className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
               </label>
               <label className="block w-full">
-                <FieldLabel need="optional">Source</FieldLabel>
+                <span className="text-xs text-[var(--muted)]">Source</span>
                 <input value={source} onChange={e => setSource(e.target.value)}
                   className="nb-plate w-full mt-1 px-3 py-2 text-sm bg-[var(--surface)] text-[var(--ink)]" />
               </label>
@@ -590,52 +614,45 @@ export function MakeApp() {
           </div>
         </div>
 
-        {/* Nothing to take until there is a solution, and a heading over an
-            explanation of why the thing below it is missing is furniture for
-            an absence.
+        {/* Nothing to take until the button has been pressed and there is
+            something to take: a heading over an explanation of why the thing
+            below it is missing is furniture for an absence.
 
             In a panel of its own, because everything above it is a question
             being asked and everything in it is the answer. Run together in one
             column they read as one long form, and the two addresses -- the
             things this page exists to hand over -- end up looking like two
             more fields. */}
-        {ready && (
-          <div className="nb-plate mt-6 p-4 bg-[var(--surface-2)]">
+        {wanted && ready && (
+          <div className="nb-plate mt-4 p-4 bg-[var(--surface-2)]">
             <h2 className="text-base font-semibold text-[var(--ink)]">Take it away</h2>
 
-            {/* The same two sides as the form above: what it looks like on one,
-                what to take away on the other. Two things come out of this
-                page, not three -- the board is the picture of what the markup
-                draws, not a third thing on offer, so it stands beside them
-                rather than between them.
+            {/* Two things, side by side and each the width of what it holds.
+                Stacked, with the door across the whole panel, the block was
+                mostly air: a button as wide as a paragraph reads as a banner
+                rather than as something to press. */}
+            <div className="mt-3 sm:flex sm:gap-6">
+              <section className="sm:flex-1 min-w-0">
+                <h3 className="text-sm font-semibold text-[var(--ink)]">A page of its own</h3>
+                <p className="text-xs text-[var(--muted)] mt-0.5">
+                  The board, every variation and the engine, at one address.
+                </p>
+                <a
+                  className="nb-btn nb-btn-key inline-block mt-2 py-1.5 px-3 text-sm font-semibold"
+                  href={`/solve/?${boardQuery}`} target="_blank" rel="noopener noreferrer"
+                >
+                  Open the page →
+                </a>
+                <Copyable label="Its address" text={`${SITE}/solve?${boardQuery}`} />
+              </section>
 
-                The column it stands in is a stand-in for the column it will
-                land in, which is what makes a width of 50% legible: half of
-                something, rather than a number. */}
-            <div className="mt-4">
-              <div>
-                <section>
-                  <h3 className="text-sm font-semibold text-[var(--ink)]">A page of its own</h3>
-                  <p className="text-xs text-[var(--muted)] mt-0.5">
-                    The board, every variation and the engine, at one address you can send to anybody.
-                  </p>
-                  <a
-                    className="nb-btn nb-btn-key block text-center mt-2 py-2.5 px-4 text-base font-semibold"
-                    href={`/solve/?${boardQuery}`} target="_blank" rel="noopener noreferrer"
-                  >
-                    Open the page →
-                  </a>
-                  <Copyable label="Its address" text={`${SITE}/solve?${boardQuery}`} />
-                </section>
-
-                <section className="mt-5 pt-4 border-t border-[var(--hairline)]">
-                  <h3 className="text-sm font-semibold text-[var(--ink)]">The board in a page of yours</h3>
-                  <p className="text-xs text-[var(--muted)] mt-0.5">
-                    The markup that draws the board above, wherever you paste it.
-                  </p>
-                  <Copyable label="Its markup" text={markup} />
-                </section>
-              </div>
+              <section className="sm:flex-1 min-w-0 mt-5 pt-4 border-t border-[var(--hairline)] sm:mt-0 sm:pt-0 sm:border-t-0 sm:border-l sm:pl-6">
+                <h3 className="text-sm font-semibold text-[var(--ink)]">The board in a page of yours</h3>
+                <p className="text-xs text-[var(--muted)] mt-0.5">
+                  The markup that draws it, wherever you paste it.
+                </p>
+                <Copyable label="Its markup" text={markup} />
+              </section>
             </div>
           </div>
         )}
