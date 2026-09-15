@@ -187,7 +187,7 @@ export function MakeApp() {
      press, not a running commentary: a page that lists what it is still
      waiting for while you are typing it is scolding you for not having
      finished. Cleared the moment anything it named is touched. */
-  const [complaint, setComplaint] = useState<string[] | null>(null);
+  const [complaint, setComplaint] = useState<{ field: 'position' | 'stipulation' | 'solution' | null; text: string }[] | null>(null);
 
   /* What was typed in the top field, kept as typed. It is a position most of
      the time, but an id is a shorter thing to have to hand and the site prints
@@ -466,13 +466,29 @@ export function MakeApp() {
      A number that found nothing has one thing wrong with it and it is not that
      the stipulation is empty: the three questions below were never asked of
      somebody who typed an id, so answering them is not what is missing. */
-  const missing = looking ? ['Looking it up…']
-    : fromId && boardIsEmpty(fen) ? [note || `No problem ${readProblemId(source0)} in YACPDB.`]
+  type Missing = { field: 'position' | 'stipulation' | 'solution' | null; text: string };
+  const missing: Missing[] = looking ? [{ field: null, text: 'Looking it up…' }]
+    : fromId && boardIsEmpty(fen)
+      ? [{ field: 'position', text: note || `No problem ${readProblemId(source0)} in YACPDB.` }]
     : [
-      boardIsEmpty(fen) && 'Set the position up — press Edit position and place the men, or paste a FEN.',
-      !stipulation.trim() && 'Enter the stipulation (e.g. #2, h#3, s#4) — it is what the board will ask.',
-      !solution.trim() && 'Press Solve with Popeye, or enter a solution yourself — the board plays against it.',
-    ].filter(Boolean) as string[];
+      boardIsEmpty(fen) && { field: 'position', text: 'Set the position up — press Edit position and place the men, or paste a FEN.' },
+      !stipulation.trim() && { field: 'stipulation', text: 'Enter the stipulation (e.g. #2, h#3, s#4) — it is what the board will ask.' },
+      !solution.trim() && { field: 'solution', text: 'Press Solve with Popeye, or enter a solution yourself — the board plays against it.' },
+    ].filter(Boolean) as Missing[];
+
+  /* Which fields the last press found empty, so that the message and the box
+     it is about say the same thing: a list of sentences at the foot of a form
+     leaves the reader to work out which of six boxes each one means. */
+  const flagged = (field: Missing['field']) => complaint?.some(m => m.field === field) ?? false;
+  const RING = '!border-2 !border-[var(--bad)]';
+
+  /* Each sentence under the box it is about. Gathered at the button they were
+     a list the reader had to match to six fields by hand; the box is red and
+     the reason is under it, which is one thing said in one place. */
+  const says = (field: Missing['field']) => {
+    const m = complaint?.find(x => x.field === field && x.text !== note);
+    return m ? <p className="text-sm text-[var(--bad)] mt-1">{m.text}</p> : null;
+  };
 
   const ready = missing.length === 0;
   const width = `${frameWidth.trim() || '100'}${frameUnit}`;
@@ -509,7 +525,7 @@ export function MakeApp() {
                 onChange={e => readTop(e.target.value)}
                 placeholder="FEN or YACPDB ID"
                 spellCheck={false}
-                className={`nb-plate w-full px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)] ${source0 ? 'pr-8' : ''}`}
+                className={`nb-plate w-full px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)] ${source0 ? 'pr-8' : ''} ${flagged('position') ? RING : ''}`}
               />
               {/* Inside the field, at the end of what it holds: starting again
                   is a thing you do to the field, not a thing beside it. */}
@@ -544,6 +560,7 @@ export function MakeApp() {
             {looking ? 'Looking it up…'
               : 'FEN · YACPDB ID or URL — nothing you type here is sent anywhere'}
           </span>
+          {says('position')}
         </div>
 
         {/* What is asked of the position, once there is a position to ask it
@@ -557,10 +574,14 @@ export function MakeApp() {
               value={stipulation}
               onChange={e => setAsked(setStipulation, e.target.value)}
               spellCheck={false}
-              className="nb-plate w-full mt-1 px-3 py-1.5 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
+              className={`nb-plate w-full mt-1 px-3 py-1.5 text-sm font-mono bg-[var(--surface)] text-[var(--ink)] ${flagged('stipulation') ? RING : ''}`}
             />
             <span className="block text-xs text-[var(--faint)] mt-0.5">e.g. #2 h#3 s#2 + =</span>
           </label>
+          {/* Only when there is something to say: an empty full-width item in
+              a wrapping row still breaks the line, and the solve would sit on
+              its own row for the rest of the page's life. */}
+          {flagged('stipulation') && <div className="basis-full order-last">{says('stipulation')}</div>}
 
           <div className="flex flex-wrap items-center gap-2 pt-[1.35rem]">
             {solving ? (
@@ -586,7 +607,7 @@ export function MakeApp() {
                 holds once there are. */}
             <button
               onClick={() => setSolutionOpen(v => !v)}
-              className={`nb-btn py-1.5 px-3 ${solutionOpen || solution.trim() ? '' : 'border-dashed'}`}
+              className={`nb-btn py-1.5 px-3 ${solutionOpen || solution.trim() ? '' : 'border-dashed'} ${flagged('solution') ? RING : ''}`}
             >
               {solutionOpen ? 'Solution ▾'
                 : solution.trim() ? `Solution · ${solutionLines} lines ▸`
@@ -600,6 +621,8 @@ export function MakeApp() {
         </div>
 
         )}
+
+        {says('solution')}
 
         {solutionOpen && (
           <textarea
@@ -823,11 +846,6 @@ export function MakeApp() {
           >
             Generate
           </button>
-          {/* Beside the press. Said up where each was missing from, they were
-              off the screen by the time the button was reached. */}
-          {complaint?.filter(line => line !== note).map(line => (
-            <p key={line} className="text-sm text-[var(--bad)] text-right">{line}</p>
-          ))}
         </div>
 
         {/* Nothing to take until the button has been pressed and there is
