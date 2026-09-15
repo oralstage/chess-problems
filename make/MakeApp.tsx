@@ -196,6 +196,10 @@ export function MakeApp() {
   const [source0, setSource0] = useState('');
   const [looking, setLooking] = useState(false);
   const topRef = useRef<HTMLInputElement>(null);
+  // The position as it stands, for the setter below, which has to read it
+  // without taking it as a dependency.
+  const fenRef = useRef(fen);
+  fenRef.current = fen;
   const [solving, setSolving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -254,7 +258,13 @@ export function MakeApp() {
      time: a solution belonging to a different diagram is worse than none, and
      the board downstream would play it against a position it does not fit. */
   const setPosition = useCallback((next: string | ((prev: string) => string)) => {
-    setFen(next);
+    const value = typeof next === 'function' ? next(fenRef.current) : next;
+    setFen(value);
+    /* A number names a problem, and the board has just stopped being that
+       problem. What is on it now has no name but its own, so the field that
+       was holding the number holds the position instead -- and the page stops
+       claiming a provenance the diagram no longer has. */
+    setSource0(cur => (readProblemId(cur) !== null ? value : cur));
     setSolution('');
     setNote(null);
     setComplaint(null);
