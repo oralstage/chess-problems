@@ -5,7 +5,7 @@ import { Board } from '../src/components/Board';
 import { useTheme } from '../src/hooks/useTheme';
 import { moveFreely, pieceAt } from '../src/utils/freeBoard';
 import { stipulationPhrase } from '../src/utils/stipulationColor';
-import { INVITE, readStipulation } from '../embed/problemParams';
+import { INVITE, completeFen, readStipulation } from '../embed/problemParams';
 import { fetchProblem, fixCastlingRights } from '../src/services/api';
 import { parseSolution, filterKeyMoves } from '../src/services/solutionParser';
 import { keyPlays, mainLinePlays } from '../src/utils/duplex';
@@ -123,7 +123,12 @@ function boardIsEmpty(fen: string): boolean {
 function solutionFits(fen: string, stipulation: string, solution: string): boolean {
   const read = readStipulation(stipulation);
   if (!read) return true;                       // refused earlier, by playable()
-  const board = fixCastlingRights(fen, solution);
+  /* Completed first, exactly as the board completes it. A position pasted as
+     a placement alone -- which this page invites, and which is how Popeye
+     users have them -- is not a FEN chess.js will read, so the check was
+     failing on the position rather than on the solution and saying so about
+     the solution. */
+  const board = fixCastlingRights(completeFen(fen), solution);
   /* The side the numbering belongs to, as the solver reads it: Black in a
      helpmate, White everywhere else. Which side opens is another matter -- an
      h#2.5 is numbered from Black and played from White -- so the roots are
