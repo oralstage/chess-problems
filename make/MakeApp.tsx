@@ -6,6 +6,7 @@ import { useTheme } from '../src/hooks/useTheme';
 import { moveFreely, pieceAt } from '../src/utils/freeBoard';
 import { stipulationPhrase } from '../src/utils/stipulationColor';
 import { INVITE, readStipulation } from '../embed/problemParams';
+import { fetchProblem } from '../src/services/api';
 import { buildInput, cleanOutput, inputComplaints, outputIsComplete, splitFen } from './popeye';
 
 /* Putting a problem of your own on a board.
@@ -35,6 +36,19 @@ type Tool = { kind: 'move' } | { kind: 'place'; piece: string } | { kind: 'erase
 /* The men, in the order a diagram lists them. Upper case is White, as in a
    FEN; the board draws them from the same letters. */
 const PALETTE = ['K', 'Q', 'R', 'B', 'N', 'P', 'k', 'q', 'r', 'b', 'n', 'p'];
+
+/** A problem already in the database, named however it came to hand: a bare
+ *  number, the D/H/S/E/R form the site prints, or an address with one in it.
+ *  Anything with a slash in it is a position, not an id. */
+function readProblemId(text: string): number | null {
+  const t = text.trim();
+  if (!t || /\s/.test(t.replace(/^[a-zA-Z]+/, '')) ) { /* fall through */ }
+  const bare = /^[DHSER]?(\d{1,7})$/i.exec(t);
+  if (bare) return Number(bare[1]);
+  const inUrl = /(?:yacpdb\.org\/#?\w*\/|\/yacpdb\/|[?&]id=|#\/daily\/)?(?:^|\/)([DHSER]?\d{1,7})\s*$/i.exec(t);
+  if (inUrl && /^https?:|yacpdb|chessproblem/i.test(t)) return Number(inUrl[1].replace(/^[A-Za-z]/, ''));
+  return null;
+}
 
 /* The unit is picked, not typed. A box that turns a bare number into pixels
    turns "50" from somebody who meant half the column into a board fifty
@@ -174,6 +188,13 @@ export function MakeApp() {
      waiting for while you are typing it is scolding you for not having
      finished. Cleared the moment anything it named is touched. */
   const [complaint, setComplaint] = useState<string[] | null>(null);
+
+  /* What was typed in the top field, kept as typed. It is a position most of
+     the time, but an id is a shorter thing to have to hand and the site prints
+     one on every problem it holds -- so the field takes either, and says which
+     it read. */
+  const [source0, setSource0] = useState('');
+  const [looking, setLooking] = useState(false);
   const [solving, setSolving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -204,6 +225,10 @@ export function MakeApp() {
 
   const credit = [author.trim(), [source.trim(), year.trim()].filter(Boolean).join(', ')]
     .filter(Boolean).join(' — ');
+
+  /* Whether anything has been said yet. Typed into the top field, put on the
+     board by hand, or in the middle of being put there. */
+  const started = source0.trim() !== '' || !boardIsEmpty(fen) || editing;
 
   const hasKings = /K/.test(splitFen(fen).placement) && /k/.test(splitFen(fen).placement);
 
@@ -283,6 +308,46 @@ export function MakeApp() {
     worker.onerror = () => { stopWorker(); setNote('Popeye could not be started.'); };
   }, [fen, stipulation, showTries, stopWorker]);
 
+  /* Fetch a problem the site already holds and fill the form in from it --
+     position, what is asked, the credit and the solution, which between them
+     are the whole of what this page asks for. */
+  const lookUp = useCallback(async (id: number) => {
+    setLooking(true);
+    setNote(null);
+    try {
+      const p = await fetchProblem(id);
+      setFen(p.fen);
+      setStipulation(p.stipulation);
+      setAuthor((p.authors || []).join('; '));
+      setSource(p.sourceName || '');
+      setYear(p.sourceYear ? String(p.sourceYear) : '');
+      setSolution(p.solutionText || '');
+      setComplaint(null);
+    } catch {
+      setNote(`No problem ${id} on this site.`);
+    } finally {
+      setLooking(false);
+    }
+  }, []);
+
+  /* Typed into the top field. A position goes straight onto the board; an id
+     is looked up once typing has stopped, so that "3" on the way to "3684"
+     does not fetch three problems. */
+  const readTop = useCallback((text: string) => {
+    setSource0(text);
+    setComplaint(null);
+    const id = readProblemId(text);
+    if (id === null) setPosition(text.trim() ? text : EMPTY_FEN);
+    return id;
+  }, [setPosition]);
+
+  useEffect(() => {
+    const id = readProblemId(source0);
+    if (id === null) return;
+    const t = setTimeout(() => { void lookUp(id); }, 500);
+    return () => clearTimeout(t);
+  }, [source0, lookUp]);
+
   const handleSquare = useCallback((square: string) => {
     if (tool.kind === 'place') { setPosition(prev => setSquare(prev, square, tool.piece)); return; }
     if (tool.kind === 'erase') { setPosition(prev => setSquare(prev, square, null)); return; }
@@ -347,14 +412,18 @@ export function MakeApp() {
             are settled: where the men are, what is asked of them, and the
             solution -- which is asked of Popeye rather than of the reader. The
             precedent finder puts the same three in the same place. */}
-        {/* The position across the top with the button that finishes the job
-            at the end of it, where the finder puts Search. */}
+        {/* The problem across the top with the button that finishes the job at
+            the end of it, where the finder puts Search -- and it takes either
+            way of naming one. A position is the case this page was built for;
+            an id is shorter to have to hand, the site prints one on every
+            problem it holds, and it brings the credit and the solution with
+            it. */}
         <div className="mt-2">
-          <span className="text-xs font-semibold text-[var(--muted)]">Position (FEN)</span>
-          <div className="flex gap-2 mt-1">
+          <div className="flex gap-2">
             <input
-              value={boardIsEmpty(fen) ? '' : fen}
-              onChange={e => setPosition(e.target.value.trim() ? e.target.value : EMPTY_FEN)}
+              value={source0}
+              onChange={e => readTop(e.target.value)}
+              placeholder=""
               spellCheck={false}
               className="nb-plate flex-1 min-w-0 px-3 py-2 text-sm font-mono bg-[var(--surface)] text-[var(--ink)]"
             />
@@ -366,10 +435,22 @@ export function MakeApp() {
             </button>
           </div>
           <span className="block text-xs text-[var(--faint)] mt-0.5">
-            Paste one, or press Edit position and set the men out — nothing here is sent anywhere
+            {looking ? 'Looking it up…'
+              : 'FEN · a problem number from this site (D3684) — nothing you type here is sent anywhere'}
           </span>
         </div>
 
+        {/* Nothing below until there is a problem to say it about. A form that
+            lays all of itself out before anything has been entered is asking
+            eight questions at once; the finder shows the stipulation once its
+            top field has something in it, and so does this. */}
+        {!started ? (
+          <p className="text-sm text-[var(--muted)] mt-4">
+            Paste a position or a problem number above, or{' '}
+            <button onClick={() => setEditing(true)} className="underline font-semibold">set one up on a board</button>.
+          </p>
+        ) : (
+        <>
         <div className="flex flex-wrap items-start gap-2 mt-3">
           <label className="block w-28">
             <span className="text-xs font-semibold text-[var(--muted)]">Stipulation</span>
@@ -629,6 +710,8 @@ export function MakeApp() {
             column they read as one long form, and the two addresses -- the
             things this page exists to hand over -- end up looking like two
             more fields. */}
+        </>
+        )}
         {wanted && ready && (
           <div className="nb-plate mt-4 p-4 bg-[var(--surface-2)]">
             <h2 className="text-base font-semibold text-[var(--ink)]">Take it away</h2>
