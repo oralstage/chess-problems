@@ -68,6 +68,11 @@
       .row { display: flex; gap: 12px; }
       .row label { flex: 1 1 0; }
 
+      .out { margin-top: 18px; }
+      .out h3 { font-size: 13px; font-weight: 600; margin: 0; color: #555; }
+      .out p { font-size: 13px; margin: 2px 0 0; color: #777; }
+      .out a { color: #2c6e49; }
+
       pre {
         margin: 8px 0 0;
         padding: 10px 12px;
@@ -201,8 +206,10 @@
       </div>
 
       <h2>Make one</h2>
-      <p>Paste what Popeye printed. The frame on the right is live, and the markup under it
-        is ready to paste into a page.</p>
+      <p>Paste what Popeye printed. The frame on the right is live, and under it are the two
+        ways to hand the problem on: the markup that puts this board in a page of yours, and
+        the address of a page of its own — full size, with every variation and the engine,
+        for a problem that is in no database and has no page anywhere else.</p>
 
       <div class="builder">
         <div>
@@ -232,7 +239,15 @@
         </div>
         <div>
           <iframe id="b-frame" title="Your problem" style="width:100%; aspect-ratio:4/5"></iframe>
-          <pre id="b-markup"></pre>
+          <div class="out">
+            <h3>In a page of yours</h3>
+            <pre id="b-markup"></pre>
+          </div>
+          <div class="out">
+            <h3>A page of its own</h3>
+            <p><a id="b-open" target="_blank" rel="noopener">Open it →</a></p>
+            <pre id="b-link"></pre>
+          </div>
         </div>
       </div>
     </main>
@@ -266,6 +281,8 @@
       const fields = ['fen', 'stip', 'sol', 'author', 'source', 'year'];
       const bFrame = document.getElementById('b-frame');
       const bMarkup = document.getElementById('b-markup');
+      const bOpen = document.getElementById('b-open');
+      const bLink = document.getElementById('b-link');
 
       function buildQuery() {
         const q = new URLSearchParams();
@@ -284,6 +301,11 @@
           '<iframe src="' + SITE + '/board?' + query + '"\n'
           + '        style="width:100%; aspect-ratio:4/5; border:0"\n'
           + '        title="Chess problem"></iframe>';
+        // The link opens whatever origin this page is served from, so it shows
+        // the page that is actually running here; the address to copy names the
+        // site, because that is the one to send anybody else to.
+        bOpen.setAttribute('href', '/solve/?' + query);
+        bLink.textContent = SITE + '/solve?' + query;
       }
 
       let pending;
