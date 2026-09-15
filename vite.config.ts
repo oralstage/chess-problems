@@ -22,6 +22,9 @@ export default defineConfig({
         // The same problem full size, with the variations and the engine
         // (dist/solve/index.html -> /solve).
         solve: resolve(__dirname, 'solve/index.html'),
+        // Setting one up: a board to place men on, Popeye to solve it, and the
+        // two addresses that come out (dist/make/index.html -> /make).
+        make: resolve(__dirname, 'make/index.html'),
       },
     },
   },

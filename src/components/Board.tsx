@@ -20,6 +20,11 @@ interface BoardProps {
   /** Analysis board: any piece to any square, no legality, no promotion —
       the behaviour of a physical pocket set. */
   freeMove?: boolean;
+  /** Setting a position up rather than playing one: the square goes to the
+      caller and the board decides nothing. What a tap means then depends on
+      the tool in the caller's hand — put a man down, take one off — which is
+      not something the board can know. */
+  onSquareTool?: (square: string) => void;
   printMode?: PrintMode; // Print / e-paper diagram style — see PRINT_MODE_CLASS
 }
 
@@ -32,7 +37,7 @@ const PRINT_MODE_CLASS: Record<PrintMode, string> = {
   bw: 'board-print-bw',          // hatched mono, for the thermal printer
 };
 
-export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, freeMove, printMode = 'off' }: BoardProps) {
+export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'white', width, feedbackSquare, feedbackType, hintSquares, arrows, allowAnyColor, freeMove, onSquareTool, printMode = 'off' }: BoardProps) {
   const [selectedSquare, setSelectedSquare] = useState<string | null>(null);
   // A selection made in one mode must not survive into the other: entering the
   // analysis board with a piece still selected would turn the first tap into
@@ -163,6 +168,9 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
   const handleSquareClick = useCallback((square: string) => {
     if (disabled) return;
 
+    // Being set up, not played: the tap is the caller's to interpret.
+    if (onSquareTool) { onSquareTool(square); return; }
+
     // Free movement: tap any occupied square, tap any destination. The FEN can
     // be unreachable by the rules, so chess.js never parses it here.
     if (freeMove) {
@@ -213,7 +221,7 @@ export function Board({ fen, onPieceDrop, lastMove, disabled, orientation = 'whi
     } catch {
       setSelectedSquare(null);
     }
-  }, [disabled, selectedSquare, legalMoves, fen, onPieceDrop, allowAnyColor, isPromotionMove, freeMove]);
+  }, [disabled, selectedSquare, legalMoves, fen, onPieceDrop, allowAnyColor, isPromotionMove, freeMove, onSquareTool]);
 
   const handlePieceDrop = useCallback((source: string, target: string, piece: string) => {
     setSelectedSquare(null);

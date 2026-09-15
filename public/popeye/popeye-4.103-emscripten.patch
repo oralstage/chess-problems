@@ -1,0 +1,54 @@
+diff --git a/.gitignore b/.gitignore
+index 93a658e63..f4545cf1d 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -4,6 +4,8 @@
+ *.lib
+ *.exe
+ *.zip
++*.js
++*.wasm
+ .project
+ .cproject
+ makefile
+diff --git a/makefile.unx b/makefile.unx
+index 178cf8462..22eff110b 100644
+--- a/makefile.unx
++++ b/makefile.unx
+@@ -366,7 +366,7 @@ clean:	$(NESTEDLIBDIRS:%=%/clean)
+ 	rm -f pymain$(OBJ_SUFFIX)
+ 
+ clobber:	clean
+-		rm -f py$(EXE_SUFFIX) gengmarr$(EXE_SUFFIX) $(STRFILES)
++		rm -f py$(EXE_SUFFIX) gengmarr$(EXE_SUFFIX) $(CLOBBERFILES) $(STRFILES)
+ 
+ FORCE:
+ 
+diff --git a/toolchains/emcc/make.incl b/toolchains/emcc/make.incl
+index fa6339517..d8ed3857a 100644
+--- a/toolchains/emcc/make.incl
++++ b/toolchains/emcc/make.incl
+@@ -14,7 +14,7 @@ include toolchains/gcc/make.incl
+ CCHOST=emcc
+ LDHOST=emcc
+ CCTARGET=emcc
+-LDTARGET=emcc -s EXPORTED_FUNCTIONS="['_main']" --memory-init-file 0 -s ALLOW_MEMORY_GROWTH=1 -s TOTAL_MEMORY=33554432 -s ABORTING_MALLOC=0
++LDTARGET=emcc -sEXPORTED_FUNCTIONS=_main -sEXPORTED_RUNTIME_METHODS=FS,callMain -sWASM=1 -sALLOW_MEMORY_GROWTH=1 -sABORTING_MALLOC=0 -sSTACK_SIZE=8MB -sENVIRONMENT=worker,node -sMIN_SAFARI_VERSION=150000 -sEXPORT_ES6=1
+ EXE_SUFFIX=.js
+ ARCHIVER=emar rv
+ ARCHIVE_INDEXER=emranlib
+@@ -22,5 +22,13 @@ STRIPTARGET=@echo "no need to strip"
+ CCOPTIM=-O3
+ LDOPTIM=-O3
+ EXECUTE=node
+-OSTYPE=asm.js
++OSTYPE=WASM
+ PLATFORM=unix
++CLOBBERFILES=py.wasm gemgmarr.wasm
++
++py.js: toolchains/emcc/make.incl
++
++# emcc's clang is newer than the compilers upstream tests with and rejects
++# "enumerator value which exceeds the range of int" (optimisations/intelligent/proof.c)
++# under -pedantic-errors. Diagnostic only; no codegen difference.
++OTHER+=-Wno-c23-extensions

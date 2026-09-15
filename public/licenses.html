@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Licences &amp; corresponding source — Chess Problems</title>
-  <meta name="description" content="Open-source licences for the software Chess Problems runs on in your browser — Stockfish (GPL-3.0), chess.js, React, react-chessboard and the Cburnett chess piece images — and where to get the corresponding source." />
+  <meta name="description" content="Open-source licences for the software Chess Problems runs on in your browser — Stockfish (GPL-3.0), Popeye (GPL-2.0), chess.js, React, react-chessboard and the Cburnett chess piece images — and where to get the corresponding source." />
   <link rel="canonical" href="https://chess-problems.pages.dev/licenses" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=2" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
@@ -132,6 +132,31 @@
   <p>
     Stockfish is used only for hints, analysis and play against the engine. Whether your solution is correct
     is decided by the composer's published solution, not by the engine.
+  </p>
+
+  <h2>Popeye</h2>
+  <dl>
+    <dt>Licence</dt>
+    <dd>GNU General Public License, version 2 &mdash;
+      <a href="https://www.gnu.org/licenses/old-licenses/gpl-2.0.txt" rel="noopener">full text</a></dd>
+    <dt>Copyright</dt>
+    <dd>Thomas Maeder, Stephen Emmerson, Norbert Geissler, Torsten Linss, Elmar Bartel,
+      Joshua Green, Mu-Tsun Tsai; begun in 1983 by Philippe Schnoebelen</dd>
+    <dt>Distributed files</dt>
+    <dd><code>popeye/py.js</code> and <code>popeye/py.wasm</code> &mdash; Popeye 4.103
+      (tag <code>v4.103</code>) compiled to WebAssembly with Emscripten. The C sources are
+      unmodified; every change made to build it is in
+      <a href="/popeye/popeye-4.103-emscripten.patch">popeye-4.103-emscripten.patch</a>, which touches
+      only the makefile and the build scripts. Built with Emscripten 6.0.9,
+      <code>make -f makefile.unx TOOLCHAIN=emcc</code>.</dd>
+    <dt>Corresponding source</dt>
+    <dd><a href="https://github.com/thomas-maeder/popeye" rel="noopener">thomas-maeder/popeye</a>,
+      tag <code>v4.103</code>, plus the patch above</dd>
+  </dl>
+  <p>
+    Popeye is the chess problem solving program. It runs in your browser on the page that builds a
+    problem, to work out the solution to a position you have set up yourself. It is not used
+    anywhere else on the site.
   </p>
 
   <h2>Chess piece images</h2>
