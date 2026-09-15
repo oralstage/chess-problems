@@ -146,6 +146,12 @@ export function MakeApp() {
   const [showTries, setShowTries] = useState(false);
 
   const [solution, setSolution] = useState('');
+  /* Folded away, like the note under the stipulation: Popeye's output is a
+     dozen lines of notation, and what most people want to do with it is
+     nothing at all. It opens itself when a solve lands, because that is the
+     one moment it is worth reading -- and because a page that answered by
+     changing nothing visible would look as if it had not answered. */
+  const [solutionOpen, setSolutionOpen] = useState(false);
   const [solving, setSolving] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const workerRef = useRef<Worker | null>(null);
@@ -226,6 +232,7 @@ export function MakeApp() {
       const text = cleanOutput(data.out);
       if (!text) { setNote('Popeye found no solution to this position.'); return; }
       setSolution(text);
+      setSolutionOpen(true);
     };
 
     worker.onerror = () => { stopWorker(); setNote('Popeye could not be started.'); };
@@ -403,10 +410,14 @@ export function MakeApp() {
           <pre className="nb-plate mt-3 p-3 text-xs whitespace-pre-wrap text-[var(--ink)]">{note}</pre>
         )}
 
-        <label className="block mt-4">
-          <span className="text-xs font-bold text-[var(--muted)]">
+        <details
+          className="mt-4"
+          open={solutionOpen}
+          onToggle={e => setSolutionOpen((e.currentTarget as HTMLDetailsElement).open)}
+        >
+          <summary className="cursor-pointer text-xs text-[var(--muted)]">
             Solution — Popeye's own output. Edit it if you want, or paste one you already had.
-          </span>
+          </summary>
           <textarea
             value={solution}
             onChange={e => setSolution(e.target.value)}
@@ -414,15 +425,14 @@ export function MakeApp() {
             rows={8}
             className="nb-plate w-full mt-1 px-3 py-2 text-xs font-mono whitespace-pre bg-[var(--surface)] text-[var(--ink)]"
           />
-        </label>
+        </details>
 
-        <h2 className="text-base font-semibold text-[var(--ink)] mt-6">Take it away</h2>
-        {!ready ? (
-          <p className="text-sm text-[var(--muted)] mt-1">
-            Solve the position first — without the solution there is nothing for the board to play against.
-          </p>
-        ) : (
+        {/* Nothing to take until there is a solution, and a heading over an
+            explanation of why the thing below it is missing is furniture for
+            an absence. */}
+        {ready && (
           <>
+            <h2 className="text-base font-semibold text-[var(--ink)] mt-6">Take it away</h2>
             {/* The page is what most people came for, so it is a door and not a
                 footnote: the two blocks below are for putting the problem
                 somewhere else, which is the rarer thing to want. */}
