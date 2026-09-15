@@ -1,88 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Chess } from 'chess.js';
 import { Board } from '../src/components/Board';
 import { useProblem } from '../src/hooks/useProblem';
 import { getPromotionForMove } from '../src/services/moveInput';
-import { fetchProblem, fetchDailyByDate, metaToChessProblem, fixCastlingRights } from '../src/services/api';
-import { pieceCounts, pieceCountParts } from '../src/utils/pieceCount';
+import { fetchProblem, fetchDailyByDate, metaToChessProblem } from '../src/services/api';
+import { pieceCounts } from '../src/utils/pieceCount';
 import { stipulationPhrase } from '../src/utils/stipulationColor';
 import { composerLine } from '../src/utils/composerName';
 import { CATEGORY_DEFS } from '../src/types';
 import type { ChessProblem } from '../src/types';
 import { ensureSolution } from './ensureSolution';
-
-/* Which problem the host page asked for, if it asked for one at all. Pasted
-   without parameters the embed carries the site's daily problem, so a page
-   that wants one board on it for good has a board that is worth coming back
-   to. */
-function problemIdFromUrl(): number | null {
-  const raw = new URLSearchParams(window.location.search).get('id');
-  const id = raw ? Number(raw) : NaN;
-  return Number.isInteger(id) && id > 0 ? id : null;
-}
-
-/* A problem handed over in the address instead of looked up: the position,
-   what is asked of it, and the solution. Nothing here is in the database, so
-   a page can put a problem of its own on a board -- an original, an award
-   entry, anything YACPDB has never seen.
-
-   The solution goes in as Popeye prints it. No conversion, no JSON, no list
-   of moves: YACPDB stores Popeye's output, so the parser this site has always
-   used was written against exactly that text. */
-class BadRequest extends Error {}
-
-/** `#2` / `h#3` / `s#2` / `+` / `=` -- which board this is and how long. */
-function readStipulation(stip: string): { genre: ChessProblem['genre']; moveCount: number } | null {
-  const s = stip.replace(/\s+/g, '');
-  if (/^[+=]$/.test(s)) return { genre: 'study', moveCount: 0 };
-  const m = /^(h|s)?#(\d+)(\.5)?$/i.exec(s);
-  if (!m) return null;
-  // A half move means the other side opens, which this site's helpmates do not
-  // do. Better to say so than to hand back a board that cannot be played.
-  if (m[3]) return null;
-  const genre = m[1] ? (m[1].toLowerCase() === 'h' ? 'help' : 'self') : 'direct';
-  return { genre, moveCount: Number(m[2]) };
-}
-
-/** The placement alone is a position too -- Popeye users often have no more
- *  than that -- so the rest of the fields are filled in as White to move. */
-function completeFen(fen: string): string {
-  const parts = fen.trim().split(/\s+/).filter(Boolean);
-  const tail = ['w', '-', '-', '0', '1'];
-  return [...parts, ...tail.slice(Math.max(0, parts.length - 1))].join(' ');
-}
-
-function problemFromParams(q: URLSearchParams): ChessProblem {
-  const stip = (q.get('stip') || '').trim();
-  const sol = q.get('sol') || '';
-  if (!stip) throw new BadRequest('This board needs a stipulation — add &stip=%232 for #2.');
-  const read = readStipulation(stip);
-  if (!read) throw new BadRequest(`“${stip}” is not a stipulation this board can play.`);
-
-  const fen = fixCastlingRights(completeFen(q.get('fen') || ''), sol);
-  try { new Chess(fen); } catch { throw new BadRequest('That position could not be read.'); }
-
-  const year = Number(q.get('year'));
-  const { white, black } = pieceCountParts(fen);
-  return {
-    id: 0,
-    fen,
-    authors: (q.get('author') || '').split(';').map(a => a.trim()).filter(Boolean),
-    sourceName: (q.get('source') || '').trim(),
-    sourceYear: Number.isInteger(year) && year > 0 ? year : null,
-    stipulation: stip,
-    moveCount: read.moveCount,
-    genre: read.genre,
-    difficulty: '',
-    difficultyScore: 0,
-    pieceCount: white + black,
-    solutionTree: [],
-    fullSolutionTree: [],
-    solutionText: sol,
-    keywords: [],
-    award: '',
-  };
-}
+import { BadRequest, problemFromParams, problemIdFromUrl } from './problemParams';
 
 /* Said once, above the diagram, and only until the solve is decided. A
    diagram is a picture to most of the people who will meet one on somebody
@@ -321,7 +248,7 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const given = params.get('fen');
-    const id = problemIdFromUrl();
+    const id = problemIdFromUrl(params);
     // No problem named at all: the site's daily, so a frame pasted bare is
     // still worth coming back to.
     const date = given || id !== null ? null : localDate();

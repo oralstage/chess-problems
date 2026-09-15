@@ -19,6 +19,9 @@ export default defineConfig({
         // The same board with no name on it, for a page that wants to put its
         // own problem on it (dist/board/index.html -> /board).
         board: resolve(__dirname, 'board/index.html'),
+        // The same problem full size, with the variations and the engine
+        // (dist/solve/index.html -> /solve).
+        solve: resolve(__dirname, 'solve/index.html'),
       },
     },
   },

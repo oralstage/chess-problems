@@ -1,0 +1,307 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Chess } from 'chess.js';
+import { Board } from '../src/components/Board';
+import { ProblemCard } from '../src/components/ProblemCard';
+import { FeedbackPanel } from '../src/components/FeedbackPanel';
+import { SolutionTree } from '../src/components/SolutionTree';
+import { useProblem } from '../src/hooks/useProblem';
+import { useStockfish } from '../src/hooks/useStockfish';
+import { useTheme } from '../src/hooks/useTheme';
+import { getPromotionForMove } from '../src/services/moveInput';
+import { fetchProblem, fetchDailyByDate, metaToChessProblem } from '../src/services/api';
+import { isCookedProblem } from '../src/utils/cookMarker';
+import type { ChessProblem, Genre } from '../src/types';
+import { ensureSolution } from '../embed/ensureSolution';
+import { BadRequest, problemFromParams, problemIdFromUrl } from '../embed/problemParams';
+
+/* One problem, full size, on a page of its own.
+
+   The board that goes in someone else's page is a place to solve; this is the
+   place to read afterwards -- every variation, every try, the engine. It is
+   handed its problem the same way the board is, by id or by position and
+   Popeye text in the address, so a problem that is in no database still has a
+   page somewhere. That is the whole reason this exists: the embedded board
+   can send a reader to the site when the problem is the site's, and had
+   nowhere at all to send them when it was not.
+
+   Built out of the site's own components rather than beside them -- the same
+   card, the same panel, the same solution tree -- so what a solver learns
+   here is what they meet on the site. What is missing is everything that
+   belongs to an account: rating, history, review, the problem list. There is
+   one problem here and no next one. */
+
+/** "September 15". The month is named rather than numbered, because 9/11 and
+ *  11/9 are the same day to different readers, and the locale is named rather
+ *  than left to the reader's, so the order cannot change under it either. */
+function dayLabel(date: string): string {
+  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+}
+
+/** Today where the reader is, the way the daily page is keyed. */
+function localDate(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
+/* Singular: a heading names the kind of problem in front of you. The same
+   words the site's own header uses. */
+const GENRE_NAMES: Record<Genre, string> = {
+  direct: 'Direct mate',
+  help: 'Helpmate',
+  self: 'Selfmate',
+  study: 'Study',
+  retro: 'Retro',
+};
+
+export function SolveApp() {
+  useTheme();
+  const stockfish = useStockfish();
+  const stockfishRef = useRef(stockfish);
+  stockfishRef.current = stockfish;
+  const problem = useProblem(stockfish);
+
+  const [error, setError] = useState<string | null>(null);
+  const [dailyDate, setDailyDate] = useState<string | null>(null);
+  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+
+  /* The engine, on the position in front of the solver. It is the site's own
+     arrangement: a toggle rather than a one-shot button, because the question
+     it answers ("what does Black have here?") is asked of one position after
+     another, and re-arming it every time would be a click per move. */
+  const [analysisActive, setAnalysisActive] = useState(false);
+  const analysisActiveRef = useRef(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [analysisArrow, setAnalysisArrow] = useState<[string, string] | null>(null);
+
+  useEffect(() => {
+    const onResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const boardWidth = windowWidth < 640
+    ? windowWidth
+    : Math.min(windowWidth, 672) - (16 + 8);
+
+  const loadProblem = problem.loadProblem;
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const given = params.get('fen');
+    const id = problemIdFromUrl(params);
+    // Nothing named at all: the site's daily, so the bare address is still a
+    // problem worth opening.
+    const date = given || id !== null ? null : localDate();
+    let cancelled = false;
+    (async () => {
+      try {
+        let base: ChessProblem;
+        if (given) {
+          base = problemFromParams(params);
+        } else {
+          const full = date ? await fetchDailyByDate(date) : await fetchProblem(id!);
+          base = metaToChessProblem(full, full.solutionText);
+        }
+        const ready = await ensureSolution(base);
+        if (cancelled) return;
+        setDailyDate(date);
+        loadProblem(ready);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof BadRequest ? err.message
+          : date ? 'The daily problem could not be loaded.'
+          : `Problem ${id} could not be loaded.`);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [loadProblem]);
+
+  /* The tab carries the problem, because these pages are all the same address
+     with a different position in it -- a row of them open at once is
+     otherwise a row of identical tabs. */
+  const p = problem.problem;
+  useEffect(() => {
+    if (!p) return;
+    const who = p.authors?.length ? ` — ${p.authors[0]}` : '';
+    document.title = `${p.stipulation}${who}`;
+  }, [p]);
+
+  const handlePieceDrop = useCallback((source: string, target: string, piece: string): boolean => {
+    const promotion = getPromotionForMove(problem.fen, source, target, piece);
+    return problem.tryMove(source, target, promotion);
+  }, [problem]);
+
+  /* Stopping has to take effect here, not only in the effect's cleanup: the
+     search in flight can resolve between the state going down and the cleanup
+     running, and its answer would be painted onto a board the reader has
+     already stopped asking about. */
+  const handleAnalyze = useCallback(() => {
+    setAnalysisActive(prev => {
+      const next = !prev;
+      analysisActiveRef.current = next;
+      if (!next) {
+        stockfishRef.current.stop();
+        setAnalyzing(false);
+        setAnalysisResult(null);
+        setAnalysisArrow(null);
+      }
+      return next;
+    });
+  }, []);
+
+  const fen = problem.fen;
+  useEffect(() => {
+    if (!analysisActive || !fen) return;
+    let cancelled = false;
+    setAnalyzing(true);
+    setAnalysisResult('Thinking…');
+    (async () => {
+      try {
+        const board = new Chess(fen);
+        if (board.moves().length === 0) {
+          if (cancelled) return;
+          setAnalysisResult(board.isCheckmate() ? 'Checkmate' : board.isStalemate() ? 'Stalemate' : 'No legal moves');
+          setAnalysisArrow(null);
+          setAnalyzing(false);
+          return;
+        }
+        // Studies turn on ideas a shallow search walks past -- a trapped
+        // piece, a fortress -- and their few pieces search fast, so the depth
+        // is worth buying there. Mate hunting is already exact at 18.
+        const res = await stockfishRef.current.analyze(fen, 18);
+        if (cancelled || !analysisActiveRef.current) return;
+        if (res) {
+          const score = res.mateIn !== null ? `M${res.mateIn}`
+            : `${res.eval > 0 ? '+' : ''}${res.eval.toFixed(1)}`;
+          setAnalysisResult(`Best: ${res.bestMoveSan} (${score})`);
+          setAnalysisArrow([res.bestMove.slice(0, 2), res.bestMove.slice(2, 4)]);
+        } else {
+          setAnalysisResult('No result');
+          setAnalysisArrow(null);
+        }
+      } catch {
+        if (!cancelled) setAnalysisResult('Analysis error');
+      } finally {
+        if (!cancelled) setAnalyzing(false);
+      }
+    })();
+    return () => { cancelled = true; stockfishRef.current.stop(); };
+  }, [fen, analysisActive]);
+
+  const decided = problem.status === 'correct' || problem.status === 'viewing';
+  // An empty array, never undefined: react-chessboard leaves the last arrows
+  // it was given on the board when the prop goes away.
+  const boardArrows: [string, string][] = analysisActive && analysisArrow ? [analysisArrow] : [];
+
+  if (error) {
+    return (
+      <div className="min-h-dvh nb-fine">
+        <div className="nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-4 py-10">
+          <p className="text-center font-bold text-[var(--ink)]">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-dvh nb-fine">
+      <div className="nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-14 overflow-hidden">
+        <header className="flex items-center justify-between py-3 px-4">
+          <h1 className="text-xl font-extrabold tracking-tight text-[var(--ink)]">
+            {p ? GENRE_NAMES[p.genre] : 'Chess problem'}
+          </h1>
+          {dailyDate && (
+            <span className="text-sm font-bold text-[var(--muted)]">Daily — {dayLabel(dailyDate)}</span>
+          )}
+        </header>
+
+        <main className="px-1">
+          {!p ? (
+            <p className="text-center py-16 text-[var(--muted)] font-bold">Loading…</p>
+          ) : (
+            <div className="space-y-3">
+              {/* The composer keeps out of sight until the solve is decided,
+                  as a solving tourney's diagram sheet does, and as the site
+                  and the embedded board both do. */}
+              <div className="px-3">
+                <ProblemCard
+                  problem={p}
+                  showCredits={decided}
+                  solutionsTotal={problem.totalSolutions}
+                  duplex={problem.duplex}
+                  problemNumber={p.id > 0 ? p.id : undefined}
+                  genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[p.genre] || 'D'}
+                />
+              </div>
+
+              <div className="sticky top-0 z-10 bg-[var(--surface)] pb-1">
+                <div className="flex justify-center -mx-1">
+                  <Board
+                    key={`${p.id}:${problem.initialFen}`}
+                    fen={problem.fen}
+                    onPieceDrop={handlePieceDrop}
+                    lastMove={problem.lastMove}
+                    disabled={problem.waitingForAutoPlay}
+                    orientation="white"
+                    width={boardWidth}
+                    feedbackSquare={problem.feedbackSquare}
+                    feedbackType={problem.feedbackType}
+                    hintSquares={problem.hintSquares}
+                    arrows={boardArrows}
+                    allowAnyColor={p.genre === 'retro' || problem.anyColorAllowed}
+                  />
+                </div>
+              </div>
+
+              <div className="px-3">
+                <FeedbackPanel
+                  status={problem.status}
+                  feedback={problem.feedback}
+                  moveHistory={problem.moveHistory}
+                  waitingForAutoPlay={problem.waitingForAutoPlay}
+                  hintActive={problem.hintSquares !== null}
+                  onReset={problem.resetProblem}
+                  onShowSolution={problem.showSolution}
+                  onShowHint={problem.showHint}
+                  onHideHint={problem.hideHint}
+                  onAnalyze={handleAnalyze}
+                  analyzing={analyzing}
+                  analysisResult={analysisResult}
+                  analysisActive={analysisActive}
+                  stockfishLoading={stockfish.readyState === 'loading'}
+                  solutionLoading={!p.solutionText && p.solutionTree.length === 0}
+                  solutionsTotal={problem.totalSolutions}
+                  solutionsFound={problem.foundSolutionCount}
+                  duplex={problem.duplex}
+                  blackToMoveFirst={p.genre !== 'help' && (problem.initialFen.split(' ')[1] === 'b')}
+                />
+              </div>
+
+              {decided && (
+                <div className="px-3">
+                  <SolutionTree
+                    fullNodes={p.fullSolutionTree}
+                    initialFen={problem.initialFen}
+                    solutionText={p.solutionText}
+                    stipulation={p.stipulation}
+                    firstColor={(problem.initialFen.split(' ')[1] || 'w') as 'w' | 'b'}
+                    duplex={problem.duplex != null}
+                    playback={problem.playback}
+                    onGoTo={problem.playbackGoTo}
+                    onFirst={problem.playbackFirst}
+                    onPrev={problem.playbackPrev}
+                    onNext={problem.playbackNext}
+                    onLast={problem.playbackLast}
+                    onExplore={problem.playbackExplore}
+                    onShowLine={problem.playbackShowLine}
+                    isCooked={isCookedProblem(p.keywords, p.solutionText)}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
