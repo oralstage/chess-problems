@@ -371,6 +371,10 @@ export function SolveApp() {
                     onExplore={problem.playbackExplore}
                     onShowLine={problem.playbackShowLine}
                     isCooked={isCookedProblem(p.keywords, p.solutionText)}
+                    /* A problem out of the database carries YACPDB's text; one
+                       handed over in the address carries whatever Popeye
+                       printed for the person who pasted it. */
+                    notationLabel={p.id > 0 ? undefined : 'Popeye output'}
                   />
                 </div>
               )}

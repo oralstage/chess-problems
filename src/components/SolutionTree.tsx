@@ -36,6 +36,11 @@ interface SolutionTreeProps {
   isCooked?: boolean;
   /** Prose comments from the source notation, shown above the moves. */
   notes?: string[];
+  /** What to call the text the tree was built from. The site's problems come
+   *  out of YACPDB, which is what it says; a problem handed over in an address
+   *  arrives as whatever Popeye printed for whoever pasted it, and naming a
+   *  database it was never in would be a lie about where it came from. */
+  notationLabel?: string;
 }
 
 /**
@@ -448,7 +453,7 @@ function BranchView({ node, path, marker, omit, onNodeClick, activeNode, indent 
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation, firstColor = 'w', duplex = false, playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, onShowLine, isCooked, notes }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation, firstColor = 'w', duplex = false, playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, onShowLine, isCooked, notes, notationLabel = 'YACPDB original notation' }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -722,7 +727,7 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
       {/* Raw solution text */}
       <details className="text-xs">
         <summary className="cursor-pointer font-bold text-[var(--muted)] underline decoration-2 underline-offset-2">
-          YACPDB original notation
+          {notationLabel}
         </summary>
         <pre className="nb-plate nb-shadow-room mt-2 p-3 text-[var(--muted)] whitespace-pre-wrap overflow-x-auto">
           {solutionText}
