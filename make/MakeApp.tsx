@@ -184,7 +184,7 @@ export function MakeApp() {
   /* Small. This board is a field being filled in, not a diagram being read --
      the reading happens on the page it makes -- and at full width it pushed
      everything that has to be typed below the fold. */
-  const boardSize = () => Math.min(window.innerWidth - 48, 300);
+  const boardSize = () => Math.min(window.innerWidth - 48, 260);
   const [boardWidth, setBoardWidth] = useState(boardSize);
   useEffect(() => {
     const onResize = () => setBoardWidth(boardSize());
@@ -317,6 +317,14 @@ export function MakeApp() {
           </p>
         </header>
 
+        {/* The diagram on one side and what is being said about it on the
+            other, the way the precedent finder sets out the same pair. Stacked
+            full width, the board pushed every field that has to be typed off
+            the bottom of the screen, and a diagram three hundred pixels wide
+            with nothing beside it is a lot of empty page. Below the width a
+            column of fields can be read in, they go back to one. */}
+        <div className="sm:flex sm:items-start sm:gap-5">
+        <div className="shrink-0">
         <div className="flex justify-center">
           <Board
             fen={fen}
@@ -382,8 +390,10 @@ export function MakeApp() {
             </div>
           </ChessboardDnDProvider>
         )}
+        </div>
 
-        <label className="block mt-3">
+        <div className="flex-1 min-w-0">
+        <label className="block mt-3 sm:mt-0">
           <FieldLabel need="required">Position (FEN)</FieldLabel>
           <input
             value={boardIsEmpty(fen) ? '' : fen}
@@ -455,7 +465,8 @@ export function MakeApp() {
           Turn the first two off and the problem can only be solved — for a column, a class, or a set to be
           handed in. Left as it is, the composer's name arrives when the solve does, the way a solving
           tourney's diagram sheet does it. A bare width is pixels; <code>100%</code> follows the column the
-          board is dropped into, and the height comes off a printed diagram's proportion.
+          board is dropped into &mdash; <code>50%</code> half of it, for a board beside the text rather than
+          across it &mdash; and the height comes off a printed diagram's proportion.
         </p>
 
         <div className="flex flex-wrap items-center gap-2 mt-4">
@@ -507,6 +518,8 @@ export function MakeApp() {
             className={`nb-plate w-full mt-1 px-3 py-2 text-xs font-mono whitespace-pre overflow-auto bg-[var(--surface)] text-[var(--ink)] transition-[height] ${solutionOpen ? 'h-40' : 'h-9'}`}
           />
         </label>
+        </div>
+        </div>
 
         {/* Nothing to take until there is a solution, and a heading over an
             explanation of why the thing below it is missing is furniture for
