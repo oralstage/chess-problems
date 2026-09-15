@@ -113,6 +113,19 @@ html, body {
 
 .sober .nb-btn-key:hover:not(:disabled) { background: #c3cee0; }
 
+/* iOS Safari zooms the page when a field smaller than 16px is focused, and
+   leaves the reader to pinch their way back out. So on a phone every field is
+   16px -- which is also the better size to type into with a thumb -- and the
+   designed sizes come back at the width there is room for them. The precedent
+   finder does the same thing for the same reason. */
+@media (max-width: 639px) {
+  .sober input,
+  .sober textarea,
+  .sober select {
+    font-size: 16px;
+  }
+}
+
 /* The site shouts in eight-hundred weight because a poster has to be read
    across a room. A page being read at arm's length does not. */
 .sober .font-extrabold { font-weight: 600; }
