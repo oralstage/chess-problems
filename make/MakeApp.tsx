@@ -403,10 +403,14 @@ export function MakeApp() {
     const before = editRef.current;
     setEditing(false);
     editRef.current = null;
-    if (before && before.fen !== fenRef.current && readProblemId(source0) !== null) {
+    /* Whatever the field was holding -- a number, an older position, nothing
+       at all -- the board is the position now, so the field says what it is.
+       It is also the one place the FEN of a position built by hand can be
+       copied from. */
+    if (before && before.fen !== fenRef.current && !boardIsEmpty(fenRef.current)) {
       setSource0(fenRef.current);
     }
-  }, [source0]);
+  }, []);
 
   const cancelEditing = useCallback(() => {
     const before = editRef.current;
@@ -548,17 +552,10 @@ export function MakeApp() {
           </span>
         </div>
 
-        {/* Nothing below until there is a problem to say it about. A form that
-            lays all of itself out before anything has been entered is asking
-            eight questions at once; the finder shows the stipulation once its
-            top field has something in it, and so does this. */}
-        {!started ? (
-          <p className="text-sm text-[var(--muted)] mt-4">
-            Paste a position or a problem number above, or{' '}
-            <button onClick={startEditing} className="underline font-semibold">set one up on a board</button>.
-          </p>
-        ) : (
-        <>
+        {/* What is asked of the position, once there is a position to ask it
+            of. The board below is there from the first moment, because setting
+            one up by hand is a way in and not a fallback. */}
+        {started && (
         <div className="flex flex-wrap items-start gap-2 mt-3">
           <label className="block w-28">
             <span className="text-xs font-semibold text-[var(--muted)]">Stipulation</span>
@@ -607,6 +604,8 @@ export function MakeApp() {
             )}
           </div>
         </div>
+
+        )}
 
         {/* Plain red under the row it is about, as the finder says the same
             thing: a sentence, not a boxed notice. */}
@@ -820,8 +819,6 @@ export function MakeApp() {
             column they read as one long form, and the two addresses -- the
             things this page exists to hand over -- end up looking like two
             more fields. */}
-        </>
-        )}
         {wanted && ready && (
           <div className="nb-plate mt-4 p-4 bg-[var(--surface-2)]">
             <h2 className="text-base font-semibold text-[var(--ink)]">Take it away</h2>
