@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Chess } from 'chess.js';
 import { Board } from '../src/components/Board';
-import { ProblemCard } from '../src/components/ProblemCard';
 import { FeedbackPanel } from '../src/components/FeedbackPanel';
+import { composerLine } from '../src/utils/composerName';
+import { pieceCounts } from '../src/utils/pieceCount';
 import { SolutionTree } from '../src/components/SolutionTree';
 import { useProblem } from '../src/hooks/useProblem';
 import { useStockfish } from '../src/hooks/useStockfish';
@@ -10,7 +11,7 @@ import { useTheme } from '../src/hooks/useTheme';
 import { getPromotionForMove } from '../src/services/moveInput';
 import { fetchProblem, fetchDailyByDate, metaToChessProblem } from '../src/services/api';
 import { isCookedProblem } from '../src/utils/cookMarker';
-import type { ChessProblem, Genre } from '../src/types';
+import type { ChessProblem } from '../src/types';
 import { ensureSolution } from '../embed/ensureSolution';
 import { BadRequest, problemFromParams, problemIdFromUrl } from '../embed/problemParams';
 
@@ -42,16 +43,6 @@ function localDate(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
-
-/* Singular: a heading names the kind of problem in front of you. The same
-   words the site's own header uses. */
-const GENRE_NAMES: Record<Genre, string> = {
-  direct: 'Direct mate',
-  help: 'Helpmate',
-  self: 'Selfmate',
-  study: 'Study',
-  retro: 'Retro',
-};
 
 export function SolveApp() {
   useTheme();
@@ -220,43 +211,63 @@ export function SolveApp() {
 
   if (error) {
     return (
-      <div className="min-h-dvh nb-fine">
-        <div className="nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-4 py-10">
-          <p className="text-center font-bold text-[var(--ink)]">{error}</p>
+      <div className="sober min-h-dvh">
+        <div className="nb-sheet max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-4 py-10">
+          <p className="text-center font-semibold text-[var(--ink)]">{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-dvh nb-fine">
-      <div className="nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-14 overflow-hidden">
-        <header className="flex items-center justify-between py-3 px-4">
-          <h1 className="text-xl font-extrabold tracking-tight text-[var(--ink)]">
-            {p ? GENRE_NAMES[p.genre] : 'Chess problem'}
-          </h1>
-          {dailyDate && (
-            <span className="text-sm font-bold text-[var(--muted)]">Daily — {dayLabel(dailyDate)}</span>
-          )}
-        </header>
+    <div className="sober min-h-dvh">
+      <div className="nb-sheet max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-10 overflow-hidden">
+        {/* No heading over the diagram. "Helpmate" in twenty-point type is the
+            arcade announcing which room you are in; here there is one problem
+            on the page, and what it asks is printed under the board, where a
+            diagram has always carried it. */}
+        {dailyDate && (
+          <p className="text-sm text-[var(--faint)] px-4 pt-3">Daily — {dayLabel(dailyDate)}</p>
+        )}
 
-        <main className="px-1">
+        <main className="px-1 pt-3">
           {!p ? (
             <p className="text-center py-16 text-[var(--muted)] font-bold">Loading…</p>
           ) : (
             <div className="space-y-3">
-              {/* The composer keeps out of sight until the solve is decided,
-                  as a solving tourney's diagram sheet does, and as the site
-                  and the embedded board both do. */}
-              <div className="px-3">
-                <ProblemCard
-                  problem={p}
-                  showCredits={decided}
-                  solutionsTotal={problem.totalSolutions}
-                  duplex={problem.duplex}
-                  problemNumber={p.id > 0 ? p.id : undefined}
-                  genrePrefix={({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[p.genre] || 'D'}
-                />
+              {/* Set the way a diagram's caption is set: what is asked and the
+                  material said plainly, no pill round either. The composer
+                  keeps out of sight until the solve is decided, as a solving
+                  tourney's diagram sheet does. */}
+              <div className="px-3 space-y-1 min-w-0">
+                <div className="flex items-baseline gap-2 flex-wrap text-sm text-[var(--muted)]">
+                  {p.id > 0 && (
+                    <span className="tabular-nums">
+                      {({ direct: 'D', help: 'H', self: 'S', study: 'E', retro: 'R' } as Record<string, string>)[p.genre] || 'D'}{p.id}
+                    </span>
+                  )}
+                  <span className="font-semibold text-[var(--ink)]">
+                    {p.stipulation}{problem.duplex ? ' duplex' : ''}
+                  </span>
+                  {!problem.duplex && problem.totalSolutions > 1 && (
+                    <span>{problem.totalSolutions} solutions</span>
+                  )}
+                  <span>{pieceCounts(p.fen)}</span>
+                </div>
+                <div className="min-h-[2.5rem] flex flex-col justify-center">
+                  {decided ? (
+                    <>
+                      <div className="text-base font-semibold text-[var(--ink)] leading-tight break-words">
+                        {composerLine(p.authors)}
+                      </div>
+                      <div className="text-sm text-[var(--faint)] break-words">
+                        {p.sourceName}{p.sourceYear ? `, ${p.sourceYear}` : ''}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-sm text-[var(--faint)]">Composer and source — shown after the solve</div>
+                  )}
+                </div>
               </div>
 
               <div className="sticky top-0 z-10 bg-[var(--surface)] pb-1">

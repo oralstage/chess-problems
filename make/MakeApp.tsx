@@ -230,10 +230,10 @@ export function MakeApp() {
   const markup = `<iframe src="${SITE}/board?${query}"\n        style="width:100%; aspect-ratio:4/5; border:0"\n        title="Chess problem"></iframe>`;
 
   return (
-    <div className="min-h-dvh nb-fine">
-      <div className="nb-sheet nb-sheet-bleed max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-4 pb-14">
+    <div className="sober min-h-dvh">
+      <div className="nb-sheet max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-4 pb-10">
         <header className="py-3">
-          <h1 className="text-xl font-extrabold tracking-tight text-[var(--ink)]">Put a problem on a board</h1>
+          <h1 className="text-lg font-semibold text-[var(--ink)]">Put a problem on a board</h1>
           <p className="text-sm text-[var(--muted)] mt-1">
             Set the position up, say what is asked of it, and Popeye solves it here in your browser.
             Then take away a board to put in a page of yours, or a page of its own.
@@ -374,7 +374,7 @@ export function MakeApp() {
           />
         </label>
 
-        <h2 className="text-base font-extrabold text-[var(--ink)] mt-6">Take it away</h2>
+        <h2 className="text-base font-semibold text-[var(--ink)] mt-6">Take it away</h2>
         {!ready ? (
           <p className="text-sm text-[var(--muted)] mt-1">
             Solve the position first — without the solution there is nothing for the board to play against.

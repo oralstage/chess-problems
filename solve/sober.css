@@ -1,0 +1,128 @@
+/* The quiet pair: the page a problem gets to itself, and the page that makes
+   one. They are not the arcade.
+ *
+ * The site proper is a place to play: a check ground, thick ink outlines, hard
+ * offset shadows, a display face, an acid button asking to be pressed. That is
+ * the right dress for somewhere you go to solve for the fun of it, and the
+ * wrong one for a page a composer sends to a magazine, a judge or a class. So
+ * these two wear the same clothes as the precedent finder next door -- a pale
+ * ground, white panels, one hairline, the reader's own system font, and a
+ * wooden board instead of the site's green.
+ *
+ * Done as an overriding sheet rather than a second set of components: the
+ * card, the panel and the solution tree are the site's, and they should stay
+ * the site's. Nothing here reaches outside `.sober`, so the site proper is
+ * untouched -- these rules are not even loaded on its pages.
+ */
+
+/* The site's ground is a checkerboard the colour of its own board, painted on
+   html as well as body so iOS has nothing white to flash during an
+   over-scroll. Both have to be told, or a green band shows above the page. */
+html, body {
+  background-color: #f5f6f8;
+  background-image: none;
+}
+
+.sober {
+  /* The reader's system font. It arrives with the page rather than after it,
+     and it is what every other sober document on their screen is set in. */
+  --font-display: -apple-system, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  font-family: var(--font-display);
+
+  --surface: #ffffff;
+  --surface-2: #f3f4f6;
+  --ink: #111827;
+  --muted: #4b5563;
+  --faint: #6b7280;
+  --hairline: #d1d5db;
+
+  /* The one thing to press is still worth marking, but in the finder's pale
+     blue rather than in acid: a page like this has no game to start. */
+  --acid: #d3dcea;
+
+  /* No hard shadows. The whole offset-block language goes at once, here, by
+     emptying the variables the site builds it out of. */
+  --hard: none;
+  --hard-lg: none;
+  --soft: none;
+  --soft-xs: none;
+
+  --radius-nb: 10px;
+
+  /* Wood, as the embedded board is. A diagram in a document reads as a
+     diagram, not as the site's colour scheme. */
+  --board-l: #f0d9b5;
+  --board-d: #b58863;
+
+  color: var(--ink);
+}
+
+/* One hairline, small radius, no shadow -- for every panel the site draws. */
+.sober .nb-sheet,
+.sober .nb-card,
+.sober .nb-plate,
+.sober .nb-board,
+.sober .nb-panel {
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  box-shadow: none;
+  background: var(--surface);
+}
+
+.sober .nb-sheet {
+  border-radius: 10px;
+}
+
+/* Buttons that look like buttons in a document: a hairline box that does not
+   move under the cursor. The site's lift-and-drop belongs to the arcade. */
+.sober .nb-btn,
+.sober .nb-icon,
+.sober .nb-disc,
+.sober .nb-chip {
+  border: 1px solid var(--hairline);
+  border-radius: 6px;
+  box-shadow: none;
+  font-weight: 500;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.sober .nb-btn:hover:not(:disabled),
+.sober .nb-icon:hover:not(:disabled),
+.sober .nb-chip:hover {
+  transform: none;
+  box-shadow: none;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.sober .nb-btn:active:not(:disabled),
+.sober .nb-icon:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
+  background: #e5e7eb;
+}
+
+.sober .nb-btn-key,
+.sober .nb-key,
+.sober .nb-chip-on {
+  background: var(--acid);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.sober .nb-btn-key:hover:not(:disabled) { background: #c3cee0; }
+
+/* The site shouts in eight-hundred weight because a poster has to be read
+   across a room. A page being read at arm's length does not. */
+.sober .font-extrabold { font-weight: 600; }
+.sober .font-bold { font-weight: 600; }
+
+/* The solution tree's own furniture, same treatment. */
+.sober summary { font-weight: 600; }
+
+/* The check ground and the sheet's bleed are the site's own scenery. */
+.sober .nb-fine,
+.sober .nb-ground { background-image: none; }
+.sober .nb-sheet-bleed::before,
+.sober .nb-sheet-bleed::after { display: none; }
