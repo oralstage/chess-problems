@@ -330,7 +330,7 @@ export function MakeApp() {
       setSolution(p.solutionText || '');
       setComplaint(null);
     } catch {
-      setNote(`No problem ${id} on this site.`);
+      setNote(`No problem ${id} in YACPDB.`);
     } finally {
       setLooking(false);
     }
@@ -409,12 +409,19 @@ export function MakeApp() {
   }, [query, offerHint, offerGiveUp, creditsUpFront]);
 
   /* Said when the button is pressed, in the order the page asks for them, and
-     worded as the thing to do rather than as a list of what is absent. */
-  const missing = [
-    boardIsEmpty(fen) && 'Set the position up — press Edit position and place the men, or paste a FEN.',
-    !stipulation.trim() && 'Enter the stipulation (e.g. #2, h#3, s#4) — it is what the board will ask.',
-    !solution.trim() && 'Press Solve with Popeye, or enter a solution yourself — the board plays against it.',
-  ].filter(Boolean) as string[];
+     worded as the thing to do rather than as a list of what is absent.
+
+     A number that found nothing has one thing wrong with it and it is not that
+     the stipulation is empty: the three questions below were never asked of
+     somebody who typed an id, so answering them is not what is missing. */
+  const missing = looking ? ['Looking it up…']
+    : fromId ? (boardIsEmpty(fen) || !solution.trim()
+        ? [note || `No problem ${readProblemId(source0)} in YACPDB.`] : [])
+    : [
+      boardIsEmpty(fen) && 'Set the position up — press Edit position and place the men, or paste a FEN.',
+      !stipulation.trim() && 'Enter the stipulation (e.g. #2, h#3, s#4) — it is what the board will ask.',
+      !solution.trim() && 'Press Solve with Popeye, or enter a solution yourself — the board plays against it.',
+    ].filter(Boolean) as string[];
 
   const ready = missing.length === 0;
   const width = `${frameWidth.trim() || '100'}${frameUnit}`;
@@ -559,7 +566,7 @@ export function MakeApp() {
 
         {/* Plain red under the row it is about, as the finder says the same
             thing: a sentence, not a boxed notice. */}
-        {complaint?.map(line => (
+        {complaint?.filter(line => line !== note).map(line => (
           <p key={line} className="text-sm text-[var(--bad)] mt-1.5">{line}</p>
         ))}
 
@@ -575,7 +582,7 @@ export function MakeApp() {
         )}
 
         {note && (
-          <pre className="nb-plate mt-3 p-3 text-xs whitespace-pre-wrap text-[var(--ink)]">{note}</pre>
+          <p className="text-sm text-[var(--bad)] whitespace-pre-wrap mt-1.5">{note}</p>
         )}
 
         {/* Below the line: the board as it will be met, and everything a board
