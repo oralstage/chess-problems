@@ -99,6 +99,20 @@ export function mainLinePlays(fen: string, root: SolutionNode): boolean {
   return pliesPlayable(fen, root.color, root) === length;
 }
 
+/**
+ * Can the first move of this line be played at all?
+ *
+ * Separate from mainLinePlays because a direct mate's main line is not a line
+ * either side alternates along: the key's follow-up is the threat, which is
+ * White's again, so walking the whole thing fails on problems that are
+ * perfectly sound. What can be asked of every genre is whether the key is a
+ * move the position allows -- which is the test scripts/find-unplayable-keys
+ * applies to the whole database.
+ */
+export function keyPlays(fen: string, root: SolutionNode): boolean {
+  return pliesPlayable(fen, root.color, root) >= 1;
+}
+
 /** How many moves of the root's main line play legally when `color` starts. */
 function pliesPlayable(fen: string, color: 'w' | 'b', root: SolutionNode): number {
   let chess: Chess;

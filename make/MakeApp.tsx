@@ -6,7 +6,9 @@ import { useTheme } from '../src/hooks/useTheme';
 import { moveFreely, pieceAt } from '../src/utils/freeBoard';
 import { stipulationPhrase } from '../src/utils/stipulationColor';
 import { INVITE, readStipulation } from '../embed/problemParams';
-import { fetchProblem } from '../src/services/api';
+import { fetchProblem, fixCastlingRights } from '../src/services/api';
+import { parseSolution, filterKeyMoves } from '../src/services/solutionParser';
+import { keyPlays, mainLinePlays } from '../src/utils/duplex';
 import { buildInput, cleanOutput, inputComplaints, outputIsComplete, splitFen } from './popeye';
 
 /* Putting a problem of your own on a board.
@@ -100,6 +102,40 @@ function setSquare(fen: string, square: string, piece: string | null): string {
  *  already out of one that has not been started. */
 function boardIsEmpty(fen: string): boolean {
   return !/[a-zA-Z]/.test(splitFen(fen).placement);
+}
+
+/**
+ * Does this solution belong to this position?
+ *
+ * Nothing checked it before. A FEN is read by chess.js and refused if it is
+ * not a position, but the solution went into the address as typed -- and a
+ * solution that does not fit produces a board that looks finished and accepts
+ * nothing: every move is wrong, Give up replays an empty line, and the reader
+ * has no way of knowing the board is at fault rather than themselves.
+ *
+ * The test is the one the site applies to the database: read the text the way
+ * the solver reads it, and ask whether any key it found can be played. A
+ * helpmate is asked for the whole line -- both sides cooperate, so its line
+ * alternates and playing it through is meaningful -- where a direct mate's
+ * line runs key, threat, both White's, and walking it would fail on sound
+ * problems.
+ */
+function solutionFits(fen: string, stipulation: string, solution: string): boolean {
+  const read = readStipulation(stipulation);
+  if (!read) return true;                       // not a stipulation this page can judge
+  const board = fixCastlingRights(fen, solution);
+  // The side the numbering belongs to, as the solver reads it: Black in a
+  // helpmate, White everywhere else.
+  const first = read.genre === 'help' ? 'b' : 'w';
+  let keys;
+  try {
+    keys = filterKeyMoves(parseSolution(solution, first), first);
+  } catch {
+    return false;
+  }
+  if (keys.length === 0) return false;
+  const plays = read.genre === 'help' ? mainLinePlays : keyPlays;
+  return keys.some(root => plays(board, root));
 }
 
 function countMen(fen: string): { white: number; black: number } {
@@ -475,6 +511,12 @@ export function MakeApp() {
       boardIsEmpty(fen) && { field: 'position', text: 'Set the position up — press Edit position and place the men, or paste a FEN.' },
       !stipulation.trim() && { field: 'stipulation', text: 'Enter the stipulation (e.g. #2, h#3, s#4) — it is what the board will ask.' },
       !solution.trim() && { field: 'solution', text: 'Press Solve with Popeye, or enter a solution yourself — the board plays against it.' },
+      /* Only worth asking once there is something to ask it of, and only of a
+         solution somebody brought: Popeye's own answer to this position plays
+         on it by construction. */
+      !boardIsEmpty(fen) && stipulation.trim() && solution.trim()
+        && !solutionFits(fen, stipulation, solution)
+        && { field: 'solution', text: 'This solution does not play on the position — its first move cannot be made here.' },
     ].filter(Boolean) as Missing[];
 
   /* Which fields the last press found empty, so that the message and the box
