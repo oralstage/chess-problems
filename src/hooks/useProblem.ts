@@ -134,7 +134,7 @@ const AUTO_MOVE_PLACEHOLDER: SolutionNode = {
   isThreat: false, isMate: false, isCheck: false, annotation: '', children: [], color: 'b',
 };
 
-function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
+function getMainLine(nodes: SolutionNode[], fillMissingReplies = true): SolutionNode[] {
   const line: SolutionNode[] = [];
   let current = nodes.find(n => n.isKey) || nodes.find(n => n.color === 'w') || nodes[0];
   if (!current) return line;
@@ -145,6 +145,9 @@ function getMainLine(nodes: SolutionNode[]): SolutionNode[] {
     // If all children are threats, stop here — user can explore via Key variations
     if (nonThreat.length === 0) break;
     const next = nonThreat[0];
+    // Two moves by the same side in a row: the reply between them is missing
+    // from the source, so the replay has to supply one or the board jumps.
+    if (fillMissingReplies && next.color === current.color) line.push(AUTO_MOVE_PLACEHOLDER);
     current = next;
     line.push(current);
   }
@@ -349,10 +352,108 @@ function applyMoveByFen(fen: string, node: SolutionNode): { fen: string; from: s
   return { fen: nextFen, from: from.toLowerCase(), to: to.toLowerCase(), san: node.moveSan || node.move };
 }
 
+/** How many made-up replies one search may try before it gives up looking. */
+const FILLER_BUDGET = 240;
+const FILLER_MAX_PLIES = 12;
+
+/**
+ * Walk the recorded line, supplying a move wherever the source left the reply
+ * out -- a line can be missing more than one ("1.Rg4-g5! 2.Rg7-f7 3.Rf7-f6#" is
+ * three White moves in a row) -- and report whether it can be played to the end
+ * and whether that end is the mate it claims to be.
+ */
+export function playLine(
+  chess: Chess,
+  node: SolutionNode | null,
+  plies: number,
+  budget: { left: number },
+): { plays: boolean; sound: boolean } {
+  if (!node || plies >= FILLER_MAX_PLIES) return { plays: true, sound: true };
+  if (node.color !== chess.turn()) {
+    // The reply before this move is missing. Try them until one lets the rest
+    // of the line stand.
+    let best: { plays: boolean; sound: boolean } = { plays: false, sound: false };
+    for (const reply of chess.moves({ verbose: true })) {
+      if (budget.left <= 0) break;
+      budget.left--;
+      let branch: Chess;
+      try {
+        branch = new Chess(chess.fen());
+        branch.move({ from: reply.from, to: reply.to, promotion: reply.promotion });
+      } catch { continue; }
+      const played = playLine(branch, node, plies + 1, budget);
+      if (played.plays && played.sound) return played;
+      if (played.plays) best = played;
+    }
+    return best;
+  }
+  if (!tryExecuteNode(chess, node)) return { plays: false, sound: false };
+  const onward: SolutionNode[] = node.children.filter(n => !n.isThreat);
+  if (onward.length === 0) {
+    const claimsMate = node.isMate || node.moveSan.includes('#');
+    return { plays: true, sound: !claimsMate || chess.isCheckmate() };
+  }
+  return playLine(chess, onward[0], plies + 1, budget);
+}
+
+/**
+ * Choose a move for the side whose reply the source never wrote. YACPDB puts it
+ * in a comment -- "1.Sb3-d2! {(~)} 2.Sd2-c4#" -- or leaves it out altogether,
+ * and the tree then runs White, White with nothing in between.
+ *
+ * It cannot be just any reply. D642315 is mated by the recorded 2.Sc4# after
+ * seven of Black's ten moves; the other three want 2.Se4#, which that problem
+ * only names inside a comment. So take a reply that leaves the rest of the
+ * recorded line playable to its end, mate included -- otherwise the solver is
+ * handed a position where the only move on record does not work. Ties are
+ * broken at random, so the same problem does not always answer the same way.
+ */
+export function pickReplyFor(
+  fen: string,
+  continuations: SolutionNode[],
+): { from: string; to: string; promotion?: string } | null {
+  let chess: Chess;
+  try { chess = new Chess(fen); } catch { return null; }
+  const legal = chess.moves({ verbose: true });
+  if (legal.length === 0) return null;
+  const order = [...legal];
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  // Second best: the line plays out but does not end in the mate it claims.
+  // Last resort: only its first move can be played at all.
+  let reaching: { from: string; to: string; promotion?: string } | null = null;
+  let movable: { from: string; to: string; promotion?: string } | null = null;
+  for (const reply of order) {
+    const budget = { left: FILLER_BUDGET };
+    let afterFen: string;
+    try {
+      const after = new Chess(fen);
+      after.move({ from: reply.from, to: reply.to, promotion: reply.promotion });
+      afterFen = after.fen();
+    } catch { continue; }
+    for (const node of continuations) {
+      let board: Chess;
+      try { board = new Chess(afterFen); } catch { continue; }
+      const line = playLine(board, node, 1, budget);
+      if (line.plays && line.sound) return reply;
+      if (line.plays && !reaching) reaching = reply;
+      if (!movable) {
+        let probe: Chess;
+        try { probe = new Chess(afterFen); } catch { continue; }
+        if (tryExecuteNode(probe, node)) movable = reply;
+      }
+    }
+  }
+  return reaching || movable || order[0];
+}
+
 function computePositions(initialFen: string, mainLine: SolutionNode[]): PlaybackPosition[] {
   const positions: PlaybackPosition[] = [{ fen: initialFen, lastMove: null, san: '' }];
   let curFen = initialFen;
-  for (const node of mainLine) {
+  for (let mi = 0; mi < mainLine.length; mi++) {
+    const node = mainLine[mi];
     // The position itself may be one chess.js will not load -- after a joke
     // promotion it holds two kings of one colour -- so the engine is optional
     // from here on and the FEN is what carries the line forward.
@@ -378,12 +479,15 @@ function computePositions(initialFen: string, mainLine: SolutionNode[]): Playbac
       if (move) {
         applied = { fen: chess.fen(), from: move.from, to: move.to, san: move.san };
       } else if (node === AUTO_MOVE_PLACEHOLDER || (node.moveSan === '...' && node.moveUci === '')) {
-        // Placeholder for auto-played opponent move — pick first legal move
-        const legalMoves = chess.moves({ verbose: true });
-        if (legalMoves.length === 0) break;
-        const autoMove = legalMoves[0];
-        chess.move(autoMove);
-        applied = { fen: chess.fen(), from: autoMove.from, to: autoMove.to, san: autoMove.san };
+        // Stand-in for a reply the source never wrote. It has to be one the
+        // move after it still answers, or the replay ends on a move that does
+        // not mate.
+        const after = mainLine[mi + 1];
+        const chosen = pickReplyFor(chess.fen(), after ? [after] : []);
+        if (!chosen) break;
+        const played = chess.move({ from: chosen.from, to: chosen.to, promotion: chosen.promotion });
+        if (!played) break;
+        applied = { fen: chess.fen(), from: played.from, to: played.to, san: played.san };
       }
     }
 
@@ -536,6 +640,11 @@ export function useProblem(stockfish?: StockfishApi) {
   // Show Hint have to be refused: the problem is already solved, and either
   // one would file it as a failure.
   const solveHoldRef = useRef(false);
+  /* Retro is deduced, not answered: the solver plays both colours there and
+     working out whose turn it is IS the problem, so nothing may be supplied on
+     the other side's behalf. Held in a ref because startPlayback takes no
+     dependencies. */
+  const genreRef = useRef<Genre | undefined>(undefined);
 
   useEffect(() => {
     return () => {
@@ -585,7 +694,7 @@ export function useProblem(stockfish?: StockfishApi) {
         } else break;
       }
     } else {
-      mainLine = getMainLine(solutionTree);
+      mainLine = getMainLine(solutionTree, genreRef.current !== 'retro');
       positions = computePositions(initialFen, mainLine);
     }
 
@@ -603,6 +712,7 @@ export function useProblem(stockfish?: StockfishApi) {
   const loadProblem = useCallback((problem: ChessProblem) => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
     solveHoldRef.current = false;
+    genreRef.current = problem.genre;
 
     let firstColor = getFirstMoveColor(problem.genre, problem.stipulation);
     let userColor = getUserColor(problem.genre, problem.stipulation);
@@ -1197,10 +1307,16 @@ export function useProblem(stockfish?: StockfishApi) {
         return true;
       }
 
-      // No explicit defenses — check if there are threat children (e.g., "1.Kb3! (2.Rd1#)")
-      // If so, auto-play a random legal opponent move so user can execute the threat
-      const threatChildren = matchingNode.children.filter(n => n.isThreat);
-      if (threatChildren.length > 0) {
+      /* Nothing on record for the opponent, yet the line goes on. Either the
+         continuation is a threat in brackets ("1.Kb3! (2.Rd1#)"), or it is
+         another move by the side that just moved, because the source wrote the
+         reply inside a comment ("1.Sb3-d2! {(~)} 2.Sd2-c4#") or never wrote it
+         at all. In both cases somebody has to move before the solver can play
+         on, and the move is chosen to keep the continuation working. */
+      const continuations = matchingNode.children.filter(
+        n => n.isThreat || (problem.genre !== 'retro' && n.color === movedColor),
+      );
+      if (continuations.length > 0) {
         setState(prev => ({
           ...prev,
           fen: newFen,
@@ -1216,10 +1332,9 @@ export function useProblem(stockfish?: StockfishApi) {
 
         autoPlayTimerRef.current = setTimeout(() => {
           const randomChess = new Chess(newFen);
-          const legalMoves = randomChess.moves({ verbose: true });
-          if (legalMoves.length > 0) {
-            const randomMove = legalMoves[Math.floor(Math.random() * legalMoves.length)];
-            randomChess.move(randomMove);
+          const chosen = pickReplyFor(newFen, continuations);
+          if (chosen) {
+            const randomMove = randomChess.move({ from: chosen.from, to: chosen.to, promotion: chosen.promotion });
             const afterRandomFen = randomChess.fen();
             const randomLastMove = { from: randomMove.from, to: randomMove.to };
 
@@ -1242,10 +1357,10 @@ export function useProblem(stockfish?: StockfishApi) {
                 }));
               }, SOLVED_HOLD);
             } else {
-              // Advance: user should now play the threat move(s)
+              // Advance: user should now play the continuation
               setState(prev => ({
                 ...prev, fen: afterRandomFen, moveHistory: [...newHistory, randomMove.san],
-                currentNodes: threatChildren, feedback: '', lastMove: randomLastMove,
+                currentNodes: continuations, feedback: '', lastMove: randomLastMove,
                 feedbackSquare: null, feedbackType: null, waitingForAutoPlay: false,
                 movesRemaining: movesRemaining - 1,
               }));
