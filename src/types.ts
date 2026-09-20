@@ -71,6 +71,10 @@ export interface ChessProblem {
   award: string;
   _twinApplied?: boolean;
   _originalFen?: string;
+  /** Set once the solution has been parsed: true when the source records
+   *  nothing the solver can play (see utils/noSolution). Undefined means the
+   *  question has not been asked yet, which is not the same as "no". */
+  _noSolution?: boolean;
   twins?: import('./services/solutionParser').TwinData[];
 }
 

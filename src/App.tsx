@@ -49,6 +49,7 @@ import { buildHandoffUrl, buildRequestUrl, consumeHandoff, hasLocalAccountData, 
   markHandoffReturned, markHandoffTried, shouldAutoHandoff } from './utils/domainHandoff';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
+import { hasNoRecordedSolution } from './utils/noSolution';
 import { flipDuplexRoots, mainLinePlays } from './utils/duplex';
 import { DUPLEX_IDS } from './data/duplexIds';
 import { matchesAwardFilter, type AwardFilter } from './utils/award';
@@ -841,7 +842,10 @@ export default function App() {
         p._twinApplied = true;
       }
     }
-    if (p.solutionTree.length > 0) return p; // already has solution
+    if (p.solutionTree.length > 0) {
+      p._noSolution = hasNoRecordedSolution(p);
+      return p; // already has solution
+    }
     if (!p.solutionText) {
       // Fetch solutionText from API
       const full = await fetchProblem(p.id);
@@ -930,6 +934,10 @@ export default function App() {
         && p.solutionTree.length > 0 && p.solutionTree.every(n => n.color === 'b')) {
       p.fen = p.fen.replace(' w ', ' b ');
     }
+    // Last, so it reads the board the solver will actually get: the study
+    // flip just above is what tells a black-to-move study from a problem with
+    // nothing for White to play.
+    p._noSolution = hasNoRecordedSolution(p);
     return p;
   }, []);
 
@@ -955,6 +963,22 @@ export default function App() {
     // Guard: if another problem was loaded while we were fetching, don't overwrite it
     if (loadedProblemIdRef.current !== p.id) return;
     problem.loadProblem(ready);
+    // A problem the source left without a solution never enters the solving
+    // state: there is no move to find, so leaving the board live would only
+    // buy the solver a string of wrong answers and a hint that points
+    // nowhere. Say it once, out loud, and open the material instead. The
+    // toast carries the moment; the notice under the board carries the fact,
+    // for whoever misses it or comes back to the page later.
+    if (ready._noSolution) {
+      problem.showNoSolution();
+      setStipulationToast({
+        label: 'No solution',
+        sub: 'This one cannot be solved — see below.',
+        subSmall: true,
+        stipulation: ready.stipulation, genre: ready.genre, tone: 'bad',
+      });
+      setTimeout(() => setStipulationToast(null), 3500);
+    }
   }, [ensureSolution, problem]);
 
   // ── Hash-based routing with browser history ──
@@ -1911,7 +1935,10 @@ export default function App() {
       ...(twin ? { twin } : {}),
       position: problem.initialFen || p?.fen || '',
       movesPlayed: problem.moveHistory.join(' '),
-      outcome: problem.status === 'correct' ? 'solved' : 'gave up',
+      // Nobody gave up on a problem that had nothing to find: say what the
+      // page actually did, so a report from one of these is not read as a
+      // solver who quit.
+      outcome: problem.status === 'correct' ? 'solved' : p?._noSolution ? 'no solution recorded' : 'gave up',
       wrongMoves: problem.wrongMoveCount,
       hintUsed: hintUsedRef.current,
       mode: isRatedMode ? 'rated' : isReviewMode ? 'review'
@@ -3292,6 +3319,7 @@ export default function App() {
                 waitingForAutoPlay={problem.waitingForAutoPlay}
                 hintActive={!!problem.hintSquares}
                 solutionLoading={!problem.problem?.solutionText && (problem.problem?.solutionTree?.length ?? 0) === 0}
+                hideTryAgain={!!problem.problem?._noSolution}
                 onReset={() => { problem.resetProblem(); setLastRatingDelta(null); analysisActiveRef.current = false; setAnalysisActive(false); setAnalysisResult(null); setAnalysisArrow(null); setAnalyzing(false); }}
                 onShowSolution={handleGiveUp}
                 onNextProblem={(isDaily || isWcsc) ? undefined : isReviewMode ? (problem.status !== 'solving' ? handleReviewNext : undefined) : isRatedMode ? (problem.status !== 'solving' ? (() => {
@@ -3367,6 +3395,20 @@ export default function App() {
                   && (problem.moveHistory.length > 0 || problem.foundSolutionCount > 0)}
                 onReportIssue={openReportSheet}
               />}
+
+              {/* A problem the source never solved. It is put here rather
+                  than left to the solver to discover, because the discovery
+                  costs them the whole problem: every move comes back wrong
+                  with no way to tell a broken problem from a hard one. The
+                  keyword is named only when it is there -- what decides the
+                  notice is the tree, not the tag. */}
+              {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && problem.problem._noSolution && (
+                <div className="nb-plate nb-shadow-room p-3">
+                  <p className="text-xs font-semibold text-[var(--ink)]">
+                    YACPDB records no solution for this problem{(problem.problem.keywords ?? []).some(k => k === 'Unsound' || k === 'No solution') ? ', and marks it unsound' : ''} — there is nothing here to solve. What the source does have is below.
+                  </p>
+                </div>
+              )}
 
               {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && currentGenre === 'retro' && problem.problem.solutionText && (() => {
                 const st = problem.problem.solutionText;
@@ -3450,6 +3492,7 @@ export default function App() {
                   onExplore={problem.playbackExplore}
                   onShowLine={problem.playbackShowLine}
                   isCooked={isCookedProblem(problem.problem.keywords, problem.problem.solutionText)}
+                  showSetPlay={!!problem.problem._noSolution}
                   notes={solutionNotes}
                 />
               )}

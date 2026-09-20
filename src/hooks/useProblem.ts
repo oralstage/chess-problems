@@ -1621,6 +1621,23 @@ export function useProblem(stockfish?: StockfishApi) {
     }));
   }, [state.problem, state.initialFen, state.activeTree, state.totalSolutions, state.foundSolutions, startPlayback]);
 
+  /**
+   * The decided view for a problem whose solution the source never wrote:
+   * the give-up screen without the give-up. No line is replayed, because
+   * there is none to replay -- the roots belong to the other colour, and
+   * walking them would put a black move on the board of a white-to-play
+   * diagram and call it the answer. The caller records nothing either:
+   * nobody failed a problem that had nothing to find.
+   */
+  const showNoSolution = useCallback(() => {
+    if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
+    setState(prev => prev.problem ? {
+      ...prev, status: 'viewing', playback: null,
+      feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null,
+      refutationText: null, refutationArrow: null,
+    } : prev);
+  }, []);
+
   // ── Playback navigation ──
   const playbackGoTo = useCallback((index: number) => {
     setState(prev => {
@@ -1790,6 +1807,7 @@ export function useProblem(stockfish?: StockfishApi) {
     hideHint,
     resetProblem,
     showSolution,
+    showNoSolution,
     playbackGoTo,
     playbackFirst,
     playbackPrev,

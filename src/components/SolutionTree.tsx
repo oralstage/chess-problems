@@ -34,6 +34,12 @@ interface SolutionTreeProps {
       arrows then walk that line. Falls back to onExplore when absent. */
   onShowLine?: (path: SolutionNode[]) => void;
   isCooked?: boolean;
+  /** Surface the source's set play under its own heading. Off by default:
+   *  a problem with a key shows the key, and its prepared play belongs with
+   *  the rest of the virtual play, not beside the answer. On where there is
+   *  no key at all, so the one line the source does record is not left out
+   *  of the page entirely. */
+  showSetPlay?: boolean;
   /** Prose comments from the source notation, shown above the moves. */
   notes?: string[];
   /** What to call the text the tree was built from. The site's problems come
@@ -453,7 +459,7 @@ function BranchView({ node, path, marker, omit, onNodeClick, activeNode, indent 
   );
 }
 
-export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation, firstColor = 'w', duplex = false, playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, onShowLine, isCooked, notes, notationLabel = 'YACPDB original notation' }: SolutionTreeProps) {
+export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation, firstColor = 'w', duplex = false, playback, onGoTo, onFirst, onPrev, onNext, onLast, onExplore, onShowLine, isCooked, showSetPlay = false, notes, notationLabel = 'YACPDB original notation' }: SolutionTreeProps) {
   // Keyboard navigation
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -520,6 +526,21 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
   // what would happen if White were to move.
   const duplexLines = !hasAnyMarkers && firstColor === 'b' ? variations.filter(v => v.rootNode.color === 'w') : [];
   const plainSolutions = hasAnyMarkers ? [] : variations.filter(v => !duplexLines.includes(v));
+  // Roots that are neither key nor try and open with the colour that does
+  // not move first: what the source prepared in case the other side had the
+  // move. Where a key exists these stay folded into the virtual play; where
+  // none does, this is the only line the source actually wrote down.
+  // These roots are folded together, where the roots everywhere else on the
+  // page are not: there the order and the number of roots carry meaning (a
+  // helpmate asks for every one of them), and here the three that come back
+  // are one line the slash expansion copied out of "2.Qd7#/Qxc7#/Qf8#".
+  const setPlayLines = useMemo(() => {
+    if (!showSetPlay || !hasAnyMarkers) return [];
+    const own = merged.filter(n => !n.isKey && !n.isTry && n.color !== firstColor);
+    if (own.length === 0) return [];
+    // A parent to fold under; only its children are read back.
+    return mergeSameMoveChildren({ ...own[0], children: own }).children;
+  }, [showSetPlay, hasAnyMarkers, merged, firstColor]);
 
   const moveIndex = playback?.moveIndex ?? -1;
   const positions = playback?.positions ?? [];
@@ -619,6 +640,25 @@ export function SolutionTree({ fullNodes, initialFen, solutionText, stipulation,
                 key={vi}
                 node={v.rootNode}
                 path={[v.rootNode]}
+                onNodeClick={handleNodeClick}
+                activeNode={activeNode}
+              />
+            ))}
+          </div>
+        </details>
+      )}
+
+      {setPlayLines.length > 0 && (
+        <details className="text-xs" open>
+          <summary className="cursor-pointer text-sm font-bold text-[var(--ink)] underline decoration-2 underline-offset-2">
+            {`Set play (${setPlayLines.length}) — if ${firstColor === 'w' ? 'Black' : 'White'} were to move first`}
+          </summary>
+          <div className="nb-plate nb-shadow-room mt-2 text-sm p-3 space-y-1">
+            {setPlayLines.map((root, vi) => (
+              <BranchView
+                key={vi}
+                node={root}
+                path={[root]}
                 onNodeClick={handleNodeClick}
                 activeNode={activeNode}
               />

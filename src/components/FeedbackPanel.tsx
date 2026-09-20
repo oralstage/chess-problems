@@ -44,6 +44,9 @@ interface FeedbackPanelProps {
       is not one to be given up on. Off by default: most boards are not
       exercises, and the site's own never withholds it. */
   hideGiveUp?: boolean;
+  /** Nothing to try again: the source records no solution, and putting the
+      solver back on the board would only start the wrong answers over. */
+  hideTryAgain?: boolean;
   wrongMoveCount?: number;
   onBackToRated?: () => void;
   reviewNextDays?: number;
@@ -106,6 +109,7 @@ export function FeedbackPanel({
   hideHintUntilWrong,
   hideHint,
   hideGiveUp,
+  hideTryAgain,
   wrongMoveCount = 0,
   onBackToRated,
   reviewNextDays,
@@ -432,12 +436,14 @@ export function FeedbackPanel({
             )}
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={onReset}
-              className="nb-btn px-3 py-1.5 text-xs"
-            >
-              Try Again
-            </button>
+            {!hideTryAgain && (
+              <button
+                onClick={onReset}
+                className="nb-btn px-3 py-1.5 text-xs"
+              >
+                Try Again
+              </button>
+            )}
             {onGoHome ? (
               <>
                 <button
