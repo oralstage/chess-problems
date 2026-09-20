@@ -1632,7 +1632,16 @@ export function useProblem(stockfish?: StockfishApi) {
   const showNoSolution = useCallback(() => {
     if (autoPlayTimerRef.current) clearTimeout(autoPlayTimerRef.current);
     setState(prev => prev.problem ? {
-      ...prev, status: 'viewing', playback: null,
+      ...prev, status: 'viewing',
+      // A playback holding the diagram and nothing else. The strip and the
+      // « ‹ › » bar both ask for more than one position, so neither appears
+      // -- but the moves in the solution view are clicked through this, and
+      // with no playback at all they would be dead text.
+      playback: {
+        positions: [{ fen: prev.initialFen, lastMove: null, san: '' }],
+        mainLine: [], mainLineLength: 0, moveIndex: -1,
+        exploring: false, exploreFen: '', exploreLastMove: null,
+      },
       feedback: '', feedbackSquare: null, feedbackType: null, hintSquares: null,
       refutationText: null, refutationArrow: null,
     } : prev);
