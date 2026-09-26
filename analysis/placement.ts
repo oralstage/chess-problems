@@ -69,11 +69,14 @@ export function kingNotice(placement: string): string | null {
 }
 
 /** A board asked for with a position and nothing to solve: no stipulation and
- *  no solution. /solve and /board then open the analysis board rather than
- *  refusing the address, so a link made from a FEN alone is still a board to
- *  think on -- the same address a problem gets, less the problem. */
+ *  no solution, or analysis=1. /solve and /board then open the analysis board
+ *  rather than refusing the address, so a link made from a FEN alone is still
+ *  a board to think on -- the same address a problem gets, less the problem.
+ *  analysis=1 is how a position keeps what is asked of it (stip=#2) and is
+ *  still handed over as an analysis board: /make's Solvable taken off. */
 export function wantsAnalysis(q: URLSearchParams): boolean {
-  return !!q.get('fen')?.trim() && !q.get('stip')?.trim() && !q.get('sol')?.trim();
+  if (!q.get('fen')?.trim()) return false;
+  return q.get('analysis') === '1' || (!q.get('stip')?.trim() && !q.get('sol')?.trim());
 }
 
 export const asFen = (placement: string) => `${placement} w - - 0 1`;

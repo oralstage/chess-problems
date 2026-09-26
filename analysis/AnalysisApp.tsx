@@ -24,6 +24,9 @@ export function AnalysisApp() {
   const [start] = useState(() => readPlacement(new URLSearchParams(window.location.search).get('fen') || ''));
   const [fen, setFen] = useState(() => asFen(start ?? EMPTY));
   const [credit] = useState(() => creditFromParams(new URLSearchParams(window.location.search)));
+  // What is asked of the position, when the address says (analysis=1 with a
+  // stipulation): it stays on the line where the problem page prints it.
+  const [stip] = useState(() => (new URLSearchParams(window.location.search).get('stip') || '').trim());
   const composer = composerLine(credit.authors);
 
   // The width the board has to fill, measured off the row it sits in.
@@ -44,7 +47,7 @@ export function AnalysisApp() {
   const boardWidth = Math.min(boxWidth, 648);
 
   // The tab says what the page is, as the problem page's says the stipulation.
-  useEffect(() => { document.title = 'Analysis board'; }, []);
+  useEffect(() => { document.title = stip || 'Analysis board'; }, [stip]);
 
   const handleDrop = useCallback((source: string, target: string, piece?: string): boolean => {
     setFen(prev => freeDrop(prev, source, target, piece));
@@ -67,11 +70,11 @@ export function AnalysisApp() {
     <div className="sober min-h-dvh">
       <div className="nb-sheet max-w-2xl mx-2 sm:mx-auto my-3 sm:my-5 px-1 pb-10 overflow-hidden">
         <main className="px-1 pt-3 space-y-3">
-          {/* The problem page's caption line, with "Analysis board" where the
-              stipulation would be. */}
+          {/* The problem page's caption line: the stipulation when there is
+              one, "Analysis board" where there is not. */}
           <div className="px-3 space-y-1 min-w-0">
             <div className="flex items-baseline gap-2 flex-wrap text-sm text-[var(--muted)]">
-              <span className="font-semibold text-[var(--ink)]">Analysis board</span>
+              <span className="font-semibold text-[var(--ink)]">{stip || 'Analysis board'}</span>
               <span>{pieceCounts(asFen(start))}</span>
             </div>
             {/* Set as the problem page sets it once the solve is decided. */}

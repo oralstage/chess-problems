@@ -9,7 +9,7 @@ import { composerLine } from '../src/utils/composerName';
 import { CATEGORY_DEFS } from '../src/types';
 import type { ChessProblem } from '../src/types';
 import { ensureSolution } from './ensureSolution';
-import { BadRequest, INVITE, problemFromParams, problemIdFromUrl } from './problemParams';
+import { BadRequest, INVITE, problemFromParams, problemIdFromUrl, readStipulation } from './problemParams';
 import { asFen, creditFromParams, freeDrop, readPlacement, wantsAnalysis } from '../analysis/placement';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
@@ -281,6 +281,11 @@ function EmbedAnalysis() {
   const { size: boardSize, blockWidth } = useBoardLayout(rootRef, stackRef, slotRef, barRef, headRef);
   const boardColours = params.get('board') === 'green' ? 'green' : undefined;
   const given = creditFromParams(params);
+  // The stipulation said as the problem board says it, when the address keeps
+  // one (analysis=1); "Analysis board" when it does not.
+  const stipText = (params.get('stip') || '').trim();
+  const stipRead = stipText ? readStipulation(stipText) : null;
+  const caption = stipRead ? stipulationPhrase(stipText, stipRead.genre, stipRead.moveCount) : stipText || 'Analysis board';
   const credit = given.show ? [composerLine(given.authors), given.source].filter(Boolean).join(' — ') : '';
 
   const handleDrop = (source: string, target: string, piece?: string): boolean => {
@@ -314,7 +319,7 @@ function EmbedAnalysis() {
 
         {start && (
           <div className="emb-caption">
-            <span className="emb-stip">Analysis board</span>
+            <span className="emb-stip">{caption}</span>
             <span className="emb-pieces">{pieceCounts(asFen(start))}</span>
           </div>
         )}

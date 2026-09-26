@@ -568,10 +568,15 @@ export function MakeApp() {
     const q = new URLSearchParams();
     q.set('fen', fen);
     // An analysis board carries the position and its credit, and nothing to
-    // solve: no stipulation and no solution, which is what makes it one.
+    // solve. What is asked of it stays when it was given (with analysis=1,
+    // which is what then makes it an analysis board); the solution never
+    // goes in.
     if (!analysisOnly) {
       q.set('stip', stipulation);
       if (solution) q.set('sol', solution);
+    } else if (stipulation.trim()) {
+      q.set('stip', stipulation.trim());
+      q.set('analysis', '1');
     }
     if (author.trim()) q.set('author', author.trim());
     if (source.trim()) q.set('source', source.trim());
@@ -928,7 +933,7 @@ export function MakeApp() {
               {!editing && (
                 <>
                   <div className="flex items-baseline justify-between text-xs text-[var(--muted)] mt-1">
-                    <span>{previewAnalysis ? 'Analysis board' : caption}</span>
+                    <span>{previewAnalysis && !stipulation.trim() ? 'Analysis board' : caption}</span>
                     <span>{men.white}+{men.black}</span>
                   </div>
                   <div className="flex items-center gap-1 mt-1.5">
