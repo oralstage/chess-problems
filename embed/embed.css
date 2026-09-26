@@ -137,6 +137,9 @@ body {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  /* Given the frame's width by the layout (wider than the block when the
+     board is narrow), and centred over it. */
+  align-self: center;
 }
 
 .emb-head-ghost {
@@ -225,6 +228,12 @@ body {
   font-size: var(--emb-text);
 }
 
+/* Too narrow for the whole row of replay buttons on one line (the layout
+   says so): the jumps to the first and last move go, the steps stay. */
+.emb-bar[data-compact] .emb-nav-edge {
+  display: none;
+}
+
 .emb-count {
   font-family: var(--emb-num);
   font-size: var(--emb-text);
@@ -249,7 +258,24 @@ body {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 0.75em;
   min-height: 1.25em;
+}
+
+/* The verdict on the way-out line: left, one line, cut short with an ellipsis
+   (the whole of it in the title) rather than wrapped, and always holding its
+   line's height, so neither its arriving nor its length moves the board. */
+.emb-status-below {
+  margin-left: 0;
+  margin-right: auto;
+  text-align: left;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 1.35em;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .emb-link {

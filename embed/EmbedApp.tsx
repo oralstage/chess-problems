@@ -144,6 +144,21 @@ function useBoardLayout(
         // width without being part of what is measured.
         const barEl = bar.current;
         const ghost = barEl?.firstElementChild as HTMLElement | null;
+        /* Where the fullest row does not fit on one line, the first and last
+           of the replay buttons stand down (still a step back and forward),
+           so the row is one line and holds one line's height: two, held open
+           under Hint and Give up from the start, were space the board did
+           not get. Decided at the width being tried, so the walk below stays
+           a function of the frame. */
+        if (barEl && ghost?.classList.contains('emb-bar-ghost')) {
+          delete barEl.dataset.compact;
+          const wraps = () => {
+            const tops = [...ghost.children].filter(c => (c as HTMLElement).offsetParent !== null)
+              .map(c => c.getBoundingClientRect().top);
+            return tops.length > 0 && Math.max(...tops) - Math.min(...tops) > 4;
+          };
+          if (wraps()) barEl.dataset.compact = '';
+        }
         if (barEl) barEl.style.minHeight = ghost ? `${Math.ceil(ghost.getBoundingClientRect().height)}px` : '';
         // The lines above the diagram are held at their fullest in the same
         // way: the day, which stays, plus whichever of the invitation and the
@@ -152,6 +167,12 @@ function useBoardLayout(
         const headEl = head.current;
         const headGhost = headEl?.firstElementChild as HTMLElement | null;
         if (headEl) {
+          /* The lines over the diagram are centred, so they need not stop at
+             the board's edges the way the caption under it does: set at the
+             frame's width they wrap less, and every line they give back is
+             height the board gets (in a 247-wide frame, three lines were
+             two). */
+          headEl.style.width = `${availableW}px`;
           headEl.style.minHeight = headGhost
             ? `${Math.ceil(headGhost.getBoundingClientRect().height)}px` : '';
         }
@@ -391,6 +412,16 @@ function EmbedProblem({ variant }: { variant: EmbedVariant }) {
   const decided = problem.status === 'correct' || problem.status === 'viewing';
   const phrase = p ? stipulationPhrase(p.stipulation, p.genre, p.moveCount) : '';
 
+  /* What the board is saying: Solved!, or how many of several solutions are
+     found. Nothing for a solve that was given up -- the replay controls are
+     already standing there. It goes on the way-out line when there is one. */
+  const verdict = problem.status === 'correct' ? 'Solved!'
+    : problem.status === 'viewing' ? ''
+    : problem.totalSolutions > 1
+      ? `Found ${problem.foundSolutionCount}/${problem.totalSolutions}. ${problem.feedback}`
+      : problem.feedback;
+  const verdictBelow = !!p && (p.id > 0 ? variant === 'arcade' : true);
+
   /* The way out to the site, on the page from the first moment and worded the
      same throughout -- the form every embed uses to name where it came from
      ("Watch on YouTube", "Open in Lichess"). "Open" and not "Solve": the page
@@ -508,18 +539,20 @@ function EmbedProblem({ variant }: { variant: EmbedVariant }) {
               decided and the playback controls arrive. Measured rather than
               guessed: how many of these fit on a line depends on the frame. */}
           <div className="emb-bar-ghost" aria-hidden="true">
-            <button className="nb-btn emb-nav" tabIndex={-1}>|◀</button>
+            <button className="nb-btn emb-nav emb-nav-edge" tabIndex={-1}>|◀</button>
             <button className="nb-btn emb-nav" tabIndex={-1}>◀</button>
             <span className="emb-count">0/0</span>
             <button className="nb-btn emb-nav" tabIndex={-1}>▶</button>
-            <button className="nb-btn emb-nav" tabIndex={-1}>▶|</button>
+            <button className="nb-btn emb-nav emb-nav-edge" tabIndex={-1}>▶|</button>
             <button className="nb-btn emb-btn" tabIndex={-1}>Try again</button>
             {/* The verdict sits at the far end of the row, so on a narrow frame
                 it is pushed onto a second line -- and that line costs the gap
                 above it whether anything is written on it or not. Empty here
                 on purpose: what the row has to be told about is the wrap, not
-                the words, which are not the same length twice. */}
-            <span className="emb-status" />
+                the words, which are not the same length twice. Only when the
+                verdict is here at all: with a way out under the board, it goes
+                on that line instead (below). */}
+            {!verdictBelow && <span className="emb-status" />}
           </div>
           {/* While solving: the three things a solver needs and nothing else. */}
           {problem.status === 'solving' && !problem.waitingForAutoPlay && (
@@ -544,13 +577,13 @@ function EmbedProblem({ variant }: { variant: EmbedVariant }) {
             <>
               {playback && playback.positions.length > 1 && (
                 <>
-                  <button className="nb-btn emb-nav" onClick={problem.playbackFirst} aria-label="First move">|◀</button>
+                  <button className="nb-btn emb-nav emb-nav-edge" onClick={problem.playbackFirst} aria-label="First move">|◀</button>
                   <button className="nb-btn emb-nav" onClick={problem.playbackPrev} aria-label="Previous move">◀</button>
                   <span className="emb-count">
                     {playback.moveIndex + 1}/{playback.positions.length - 1}
                   </span>
                   <button className="nb-btn emb-nav" onClick={problem.playbackNext} aria-label="Next move">▶</button>
-                  <button className="nb-btn emb-nav" onClick={problem.playbackLast} aria-label="Last move">▶|</button>
+                  <button className="nb-btn emb-nav emb-nav-edge" onClick={problem.playbackLast} aria-label="Last move">▶|</button>
                 </>
               )}
               <button className="nb-btn nb-btn-key emb-btn" onClick={problem.resetProblem}>Try again</button>
@@ -562,13 +595,7 @@ function EmbedProblem({ variant }: { variant: EmbedVariant }) {
           {/* Nothing is said for a solve that was given up: the replay controls
               are already standing there, and a reader looking at them does not
               need the word "Solution" to know what they are looking at. */}
-          <span className="emb-status">
-            {problem.status === 'correct' ? 'Solved!'
-              : problem.status === 'viewing' ? ''
-              : problem.totalSolutions > 1
-                ? `Found ${problem.foundSolutionCount}/${problem.totalSolutions}. ${problem.feedback}`
-                : problem.feedback}
-          </span>
+          {!verdictBelow && <span className="emb-status">{verdict}</span>}
         </div>
       )}
 
@@ -576,8 +603,14 @@ function EmbedProblem({ variant }: { variant: EmbedVariant }) {
           handed over in the address now gets the same page built from that
           address, which is the only place its variations, its tries and the
           engine can be reached from a frame this size. */}
-      {p && (p.id > 0 ? variant === 'arcade' : true) && (
+      {p && verdictBelow && (
         <div className="emb-link-row">
+          {/* The verdict, on the left of a line that has room for it: on the
+              row of buttons a narrow frame pushed it onto a line of its own,
+              held empty from the start, and that line was taken from the
+              diagram. One line, cut short rather than wrapped, so that what it
+              says can never move the board. */}
+          <span className="emb-status emb-status-below" title={verdict || undefined}>{verdict}</span>
           <a className="emb-link" href={siteUrl(p, dailyDate)} target="_blank" rel="noopener noreferrer">
             chessproblem.org ↗
           </a>
