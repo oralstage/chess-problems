@@ -217,6 +217,13 @@ export function MakeApp() {
      withholding it until someone solves is withholding the caption. */
   const [creditsUpFront, setCreditsUpFront] = useState(false);
 
+  /* Whether what comes out is the problem -- every move checked against the
+     solution -- or only its position on an analysis board. On unless it is
+     taken off: a solved problem is what this page is for, but a composer
+     sending a position round for comment, or a teacher who wants it looked
+     at before it is solved, wants the board without the answer in it. */
+  const [solvable, setSolvable] = useState(true);
+
   const [solution, setSolution] = useState('');
   /* Shut to begin with, opened by a solve so its result can be read, and shut
      again from the same button: Popeye's output runs to a dozen lines and more
@@ -229,6 +236,9 @@ export function MakeApp() {
      word is a button, and what is missing is said when it is pressed rather
      than written against every field that could be. */
   const [wanted, setWanted] = useState(false);
+  /* Made once already: from then on the button re-makes what is below it
+     from the form as it now stands, and says so. */
+  const [madeOnce, setMadeOnce] = useState(false);
   /* What was missing when the button was last pressed. It is an answer to a
      press, not a running commentary: a page that lists what it is still
      waiting for while you are typing it is scolding you for not having
@@ -445,6 +455,7 @@ export function MakeApp() {
     setNote(null);
     setComplaint(null);
     setWanted(false);
+    setMadeOnce(false);
     setReadError(null);
     setPhoto(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
     topRef.current?.focus();
@@ -542,7 +553,7 @@ export function MakeApp() {
      position alone in them, which /solve and /board open as a free board
      (analysis/placement.ts, wantsAnalysis). A solution with no stipulation is
      still a problem missing its question, and is said so. */
-  const analysisOnly = !stipulation.trim() && !solution.trim();
+  const analysisOnly = !solvable || (!stipulation.trim() && !solution.trim());
   // The preview says so only once there is a position: an empty page is a
   // problem not yet begun, not an analysis board with nothing on it.
   const previewAnalysis = analysisOnly && !boardIsEmpty(fen);
@@ -642,10 +653,18 @@ export function MakeApp() {
   const generateButton = (
     <div className="flex justify-end mt-4">
       <button
-        onClick={() => { setComplaint(missing.length ? missing : null); setWanted(missing.length === 0); }}
+        onClick={() => {
+          setComplaint(missing.length ? missing : null);
+          setWanted(missing.length === 0);
+          if (missing.length === 0) {
+            setMadeOnce(true);
+            // Pressed again with the output already there: go back to it.
+            outRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }}
         className="nb-btn nb-btn-key py-2 px-5 font-semibold"
       >
-        Generate
+        {madeOnce ? 'Update' : 'Generate'}
       </button>
     </div>
   );
@@ -672,6 +691,40 @@ export function MakeApp() {
             problem it holds, and it brings the credit and the solution with
             it. */}
         <div className="mt-2">
+          {/* A position off a photo of a printed diagram, first of the ways
+              in: a row and a marked button of its own, with a camera on it.
+              Beside the field, plain and the size of Paste, it went
+              unnoticed; under the field it was found after the field. Above
+              it rather than to its left, because on a phone a button, the
+              field and Paste in one row leave the field too narrow to read.
+              Always there, since a photo replaces whatever the field holds
+              as surely as a paste does. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-3">
+            <label
+              className={`nb-btn nb-btn-key inline-flex items-center gap-1.5 py-1.5 px-3 text-sm font-semibold cursor-pointer ${reading ? 'opacity-40 pointer-events-none' : ''}`}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
+                <circle cx="12" cy="13.5" r="3.5" />
+              </svg>
+              Read the position from a photo
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                disabled={!!reading}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  e.target.value = ''; // the same photo again is a new choice
+                  if (file) void readPhoto(file);
+                }}
+              />
+            </label>
+            <span className="text-xs text-[var(--faint)]">of a printed diagram — read here, the photo is not sent anywhere</span>
+          </div>
+          {reading && <p className="text-sm text-[var(--muted)] mt-1">{reading}</p>}
+          {readError && <p className="text-sm text-[var(--bad)] mt-1">{readError}</p>}
           <div className="flex gap-2">
             <div className="relative flex-1 min-w-0">
               <input
@@ -695,26 +748,6 @@ export function MakeApp() {
                 </button>
               )}
             </div>
-            {/* The third way a position arrives: off a photo of a printed
-                diagram. Always there, since a photo replaces whatever the
-                field holds as surely as a paste does. */}
-            <label
-              className={`nb-btn shrink-0 py-2 px-3 cursor-pointer ${reading ? 'opacity-40 pointer-events-none' : ''}`}
-              title="Read the position off a photo of a diagram"
-            >
-              Photo
-              <input
-                type="file"
-                accept="image/*"
-                className="sr-only"
-                disabled={!!reading}
-                onChange={e => {
-                  const file = e.target.files?.[0];
-                  e.target.value = ''; // the same photo again is a new choice
-                  if (file) void readPhoto(file);
-                }}
-              />
-            </label>
             {/* A FEN is a long line of punctuation that arrives from somewhere
                 else, and on a phone the clipboard is easier to reach from a
                 button than from a long press. Only while the field is empty:
@@ -733,10 +766,8 @@ export function MakeApp() {
           </div>
           <span className="block text-xs text-[var(--faint)] mt-0.5">
             {looking ? 'Looking it up…'
-              : 'FEN · YACPDB ID or URL · or a photo of a diagram — nothing here is sent anywhere'}
+              : 'FEN · YACPDB ID or URL — nothing you type here is sent anywhere'}
           </span>
-          {reading && <p className="text-sm text-[var(--muted)] mt-1">{reading}</p>}
-          {readError && <p className="text-sm text-[var(--bad)] mt-1">{readError}</p>}
           {says('position')}
         </div>
 
@@ -995,16 +1026,27 @@ export function MakeApp() {
             </div>
 
             <div className="mt-4 space-y-2">
-              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-                <input type="checkbox" checked={offerHint} onChange={e => setOfferHint(e.target.checked)} />
+              <div>
+                <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                  <input type="checkbox" checked={solvable} onChange={e => { setSolvable(e.target.checked); setComplaint(null); }} />
+                  Solvable — each move is checked against the solution
+                </label>
+                <p className="text-xs text-[var(--faint)] ml-5">
+                  Off: an analysis board instead — the position only, any man anywhere, nothing checked.
+                </p>
+              </div>
+              {/* Only a problem has these, so they stand down with it rather
+                  than going: turned back on, the board is as it was set. */}
+              <label className={`flex items-center gap-1.5 text-sm text-[var(--muted)] ${solvable ? '' : 'opacity-40'}`}>
+                <input type="checkbox" checked={offerHint} disabled={!solvable} onChange={e => setOfferHint(e.target.checked)} />
                 Offer Hint
               </label>
-              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-                <input type="checkbox" checked={offerGiveUp} onChange={e => setOfferGiveUp(e.target.checked)} />
+              <label className={`flex items-center gap-1.5 text-sm text-[var(--muted)] ${solvable ? '' : 'opacity-40'}`}>
+                <input type="checkbox" checked={offerGiveUp} disabled={!solvable} onChange={e => setOfferGiveUp(e.target.checked)} />
                 Offer Give up
               </label>
-              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-                <input type="checkbox" checked={creditsUpFront} onChange={e => setCreditsUpFront(e.target.checked)} />
+              <label className={`flex items-center gap-1.5 text-sm text-[var(--muted)] ${solvable ? '' : 'opacity-40'}`}>
+                <input type="checkbox" checked={creditsUpFront} disabled={!solvable} onChange={e => setCreditsUpFront(e.target.checked)} />
                 Show the composer from the start
               </label>
               {/* The unit is picked, not typed: a box that turns a bare number
@@ -1012,9 +1054,10 @@ export function MakeApp() {
                   column into a board fifty pixels wide, and the mistake only
                   shows up on the page they pasted it into. */}
               <span className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
-                <span>Width</span>
+                <span>Embed width</span>
                 <input
                   value={frameWidth}
+                  aria-label="Width of the embedded board"
                   onChange={e => setFrameWidth(e.target.value.replace(/[^\d.]/g, ''))}
                   inputMode="numeric"
                   spellCheck={false}
@@ -1032,8 +1075,9 @@ export function MakeApp() {
               </span>
             </div>
             <p className="text-xs text-[var(--faint)] mt-2">
-              Turn the first two off and the problem can only be solved. <code>100%</code> follows the column
-              it lands in, <code>50%</code> half of it; pixels are a fixed size.
+              Turn Hint and Give up off and the problem can only be solved. Embed width is the width of the
+              board in a page of yours (the markup below): <code>100%</code> follows the column it lands in,
+              <code>50%</code> half of it; pixels are a fixed size. The page of its own always fills the screen.
             </p>
             {generateButton}
           </div>
@@ -1062,8 +1106,9 @@ export function MakeApp() {
                 about why. */}
             {analysisOnly && (
               <p className="text-sm text-[var(--muted)] mt-1">
-                No stipulation, so this is an analysis board — any man anywhere, nothing checked. Enter one
-                and solve with Popeye for a problem to solve.
+                {solvable
+                  ? 'No stipulation, so this is an analysis board — any man anywhere, nothing checked. Enter one and solve with Popeye for a problem to solve.'
+                  : 'Solvable is off, so this is an analysis board — the position only, any man anywhere, nothing checked. The solution is not in either address.'}
               </p>
             )}
 
