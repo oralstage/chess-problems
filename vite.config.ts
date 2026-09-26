@@ -25,6 +25,9 @@ export default defineConfig({
         // Setting one up: a board to place men on, Popeye to solve it, and the
         // two addresses that come out (dist/make/index.html -> /make).
         make: resolve(__dirname, 'make/index.html'),
+        // The analysis board on its own: a position from the address, a pasted
+        // FEN or a photo of a diagram (dist/analysis/index.html -> /analysis).
+        analysis: resolve(__dirname, 'analysis/index.html'),
       },
     },
   },
