@@ -14,6 +14,8 @@ import { isCookedProblem } from '../src/utils/cookMarker';
 import type { ChessProblem } from '../src/types';
 import { ensureSolution } from '../embed/ensureSolution';
 import { BadRequest, problemFromParams, problemIdFromUrl } from '../embed/problemParams';
+import { AnalysisApp } from '../analysis/AnalysisApp';
+import { wantsAnalysis } from '../analysis/placement';
 
 /* One problem, full size, on a page of its own.
 
@@ -44,7 +46,16 @@ function localDate(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
+/* A position and nothing to solve -- no stipulation, no solution -- is an
+   analysis board rather than an address to refuse. The same door the /make
+   page and the embed demo hand out, less the problem: leave the stipulation
+   and Popeye out and what opens is a board to think on. Decided once, before
+   either page's hooks, because the two have none in common. */
 export function SolveApp() {
+  return wantsAnalysis(new URLSearchParams(window.location.search)) ? <AnalysisApp /> : <SolveProblem />;
+}
+
+function SolveProblem() {
   useTheme();
   const stockfish = useStockfish();
   const stockfishRef = useRef(stockfish);

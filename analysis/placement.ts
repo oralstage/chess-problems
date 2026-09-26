@@ -1,4 +1,7 @@
-/* What the analysis board accepts as a position. */
+/* What the analysis board accepts as a position, and the small things done
+   to one. */
+
+import { moveFreely, pieceAt } from '../src/utils/freeBoard';
 
 export const EMPTY = '8/8/8/8/8/8/8/8';
 
@@ -63,4 +66,26 @@ export function kingNotice(placement: string): string | null {
   if (white === 1 && black === 1) return null;
   const count = (n: number, side: string) => (n === 0 ? `no ${side} king` : `${n} ${side} king${n === 1 ? '' : 's'}`);
   return `${count(white, 'white')} and ${count(black, 'black')} — check the kings against the diagram.`;
+}
+
+/** A board asked for with a position and nothing to solve: no stipulation and
+ *  no solution. /solve and /board then open the analysis board rather than
+ *  refusing the address, so a link made from a FEN alone is still a board to
+ *  think on -- the same address a problem gets, less the problem. */
+export function wantsAnalysis(q: URLSearchParams): boolean {
+  return !!q.get('fen')?.trim() && !q.get('stip')?.trim() && !q.get('sol')?.trim();
+}
+
+export const asFen = (placement: string) => `${placement} w - - 0 1`;
+export const placementOf = (fen: string) => fen.split(' ')[0];
+
+/** A move on the analysis board, as the solving view's own does it: a pawn
+ *  reaching its last rank comes with the picker's choice ('wQ', 'bN', ...);
+ *  anything else arrives as a placeholder and moves as it is. */
+export function freeDrop(fen: string, source: string, target: string, piece?: string): string {
+  const mover = pieceAt(fen, source);
+  const isPromo = ((mover === 'P' && target[1] === '8') || (mover === 'p' && target[1] === '1'))
+    && !!piece && /^[wb][QRBN]$/.test(piece);
+  const replaceWith = isPromo ? (piece![0] === 'w' ? piece![1] : piece![1].toLowerCase()) : undefined;
+  return moveFreely(fen, source, target, replaceWith);
 }

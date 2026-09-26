@@ -10,6 +10,7 @@ import { CATEGORY_DEFS } from '../src/types';
 import type { ChessProblem } from '../src/types';
 import { ensureSolution } from './ensureSolution';
 import { BadRequest, INVITE, problemFromParams, problemIdFromUrl } from './problemParams';
+import { asFen, freeDrop, readPlacement, wantsAnalysis } from '../analysis/placement';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
@@ -231,7 +232,86 @@ function useBoardLayout(
    the page it lands in either way. */
 export type EmbedVariant = 'arcade' | 'plain';
 
+/* A position and nothing to solve -- no stipulation, no solution -- is an
+   analysis board: the embed demo's builder and the /make page hand out the
+   same address with the problem in it, and one without it is a board to think
+   on rather than an error in someone's page. Decided before either board's
+   hooks, since the two have none in common. */
 export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}) {
+  return wantsAnalysis(new URLSearchParams(window.location.search))
+    ? <EmbedAnalysis />
+    : <EmbedProblem variant={variant} />;
+}
+
+/* The analysis board in a frame: the diagram laid out as the problem board is
+   (the same measurement, so the two sit the same in a page), any man to any
+   square, Reset, and the way out to the full-size board with the editor.
+   Both doors show the way out, as they do for a problem handed over in the
+   address: it has no page anywhere else. */
+function EmbedAnalysis() {
+  const params = new URLSearchParams(window.location.search);
+  const start = readPlacement(params.get('fen') || '');
+  const [fen, setFen] = useState(() => asFen(start ?? '8/8/8/8/8/8/8/8'));
+  const rootRef = useRef<HTMLDivElement>(null);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const slotRef = useRef<HTMLDivElement>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
+  const { size: boardSize, blockWidth } = useBoardLayout(rootRef, stackRef, slotRef, barRef, headRef);
+  const boardColours = params.get('board') === 'green' ? 'green' : undefined;
+
+  const handleDrop = (source: string, target: string, piece?: string): boolean => {
+    setFen(prev => freeDrop(prev, source, target, piece));
+    return true;
+  };
+
+  const moved = start !== null && fen !== asFen(start);
+
+  return (
+    <div className="emb-root" data-board={boardColours} ref={rootRef}>
+      <div className="emb-stack" ref={stackRef} style={blockWidth ? { width: blockWidth } : undefined}>
+        <div className="emb-head" ref={headRef}>
+          <div className="emb-invite">Move anything anywhere — nothing is checked</div>
+        </div>
+
+        <div className="emb-slot" ref={slotRef} style={{ height: boardSize }}>
+          <div className="emb-slot-inner">
+            {!start ? (
+              <p className="emb-msg">That position could not be read.</p>
+            ) : boardSize === 0 ? (
+              <p className="emb-msg">Loading…</p>
+            ) : (
+              <Board fen={fen} onPieceDrop={handleDrop} orientation="white" width={boardSize} freeMove />
+            )}
+          </div>
+        </div>
+
+        {start && (
+          <div className="emb-caption">
+            <span className="emb-stip">Analysis board</span>
+            <span className="emb-pieces">{pieceCounts(asFen(start))}</span>
+          </div>
+        )}
+
+        {start && (
+          <div className="emb-bar" ref={barRef}>
+            <button className="nb-btn emb-btn" onClick={() => setFen(asFen(start))} disabled={!moved}>Reset</button>
+          </div>
+        )}
+
+        {start && (
+          <div className="emb-link-row">
+            <a className="emb-link" href={`${SITE}/solve${window.location.search}`} target="_blank" rel="noopener noreferrer">
+              Open on chessproblem.org ↗
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EmbedProblem({ variant }: { variant: EmbedVariant }) {
   const problem = useProblem();
   const [error, setError] = useState<string | null>(null);
   const [dailyDate, setDailyDate] = useState<string | null>(null);
