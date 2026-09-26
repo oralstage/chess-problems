@@ -245,7 +245,7 @@ export function EmbedApp({ variant = 'arcade' }: { variant?: EmbedVariant } = {}
 
 /* The analysis board in a frame: the diagram laid out as the problem board is
    (the same measurement, so the two sit the same in a page), any man to any
-   square, Reset, and the way out to the full-size board with the editor.
+   square, Reset, and the way out to the same board full size.
    Both doors show the way out, as they do for a problem handed over in the
    address: it has no page anywhere else. */
 function EmbedAnalysis() {

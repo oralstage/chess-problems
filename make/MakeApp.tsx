@@ -1121,7 +1121,7 @@ export function MakeApp() {
                 <h3 className="text-sm font-semibold text-[var(--ink)]">A page of its own</h3>
                 <p className="text-xs text-[var(--muted)] mt-0.5">
                   {analysisOnly
-                    ? 'The analysis board, with the editor, at one address.'
+                    ? 'The analysis board, full size, at one address.'
                     : 'The board, every variation and the engine, at one address.'}
                 </p>
                 <a
