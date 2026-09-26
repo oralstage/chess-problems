@@ -89,3 +89,15 @@ export function freeDrop(fen: string, source: string, target: string, piece?: st
   const replaceWith = isPromo ? (piece![0] === 'w' ? piece![1] : piece![1].toLowerCase()) : undefined;
   return moveFreely(fen, source, target, replaceWith);
 }
+
+/** The credit an address carries (author=A;B, source, year), and whether it
+ *  is to be shown: credits=1. On a problem that is "from the start rather
+ *  than after the solve"; on an analysis board, with no solve to wait for,
+ *  it is whether the credit is shown at all. */
+export function creditFromParams(q: URLSearchParams) {
+  const authors = (q.get('author') || '').split(';').map(a => a.trim()).filter(Boolean);
+  const year = Number(q.get('year'));
+  const source = [(q.get('source') || '').trim(), Number.isInteger(year) && year > 0 ? String(year) : '']
+    .filter(Boolean).join(', ');
+  return { authors, source, show: q.get('credits') === '1' };
+}

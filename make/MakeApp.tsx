@@ -561,11 +561,12 @@ export function MakeApp() {
   const query = useMemo(() => {
     const q = new URLSearchParams();
     q.set('fen', fen);
-    // The position alone: a board with nothing to solve has no use for the
-    // credit, and the address is the shorter for it.
-    if (analysisOnly) return q.toString();
-    q.set('stip', stipulation);
-    if (solution) q.set('sol', solution);
+    // An analysis board carries the position and its credit, and nothing to
+    // solve: no stipulation and no solution, which is what makes it one.
+    if (!analysisOnly) {
+      q.set('stip', stipulation);
+      if (solution) q.set('sol', solution);
+    }
     if (author.trim()) q.set('author', author.trim());
     if (source.trim()) q.set('source', source.trim());
     if (year.trim()) q.set('year', year.trim());
@@ -577,9 +578,13 @@ export function MakeApp() {
      withheld anything. */
   const boardQuery = useMemo(() => {
     const q = new URLSearchParams(query);
-    if (analysisOnly) return q.toString();
-    if (!offerHint) q.set('hint', '0');
-    if (!offerGiveUp) q.set('giveup', '0');
+    // Hint and Give up are a problem's; the credit up front is either board's
+    // (on an analysis board, where there is no solve to wait for, it is
+    // whether the credit is shown at all).
+    if (!analysisOnly) {
+      if (!offerHint) q.set('hint', '0');
+      if (!offerGiveUp) q.set('giveup', '0');
+    }
     if (creditsUpFront) q.set('credits', '1');
     return q.toString();
   }, [query, offerHint, offerGiveUp, creditsUpFront, analysisOnly]);
@@ -897,7 +902,7 @@ export function MakeApp() {
                     <p className="text-xs text-center text-[var(--ink)]">{credit}</p>
                   )}
                   <p className="text-xs text-center text-[var(--faint)] min-h-[1.25rem]">
-                    {previewAnalysis ? 'Move anything anywhere — nothing is checked' : INVITE}
+                    {previewAnalysis ? '' : INVITE}
                   </p>
                 </>
               )}
@@ -1032,11 +1037,13 @@ export function MakeApp() {
                   Solvable — each move is checked against the solution
                 </label>
                 <p className="text-xs text-[var(--faint)] ml-5">
-                  Off: an analysis board instead — the position only, any man anywhere, nothing checked.
+                  Off: an analysis board of the position instead, without the solution.
                 </p>
               </div>
-              {/* Only a problem has these, so they stand down with it rather
-                  than going: turned back on, the board is as it was set. */}
+              {/* Only a problem has Hint and Give up, so they stand down with it
+                  rather than going: turned back on, the board is as it was set.
+                  The credit is either board's -- on an analysis board, whether
+                  it is shown at all. */}
               <label className={`flex items-center gap-1.5 text-sm text-[var(--muted)] ${solvable ? '' : 'opacity-40'}`}>
                 <input type="checkbox" checked={offerHint} disabled={!solvable} onChange={e => setOfferHint(e.target.checked)} />
                 Offer Hint
@@ -1045,8 +1052,8 @@ export function MakeApp() {
                 <input type="checkbox" checked={offerGiveUp} disabled={!solvable} onChange={e => setOfferGiveUp(e.target.checked)} />
                 Offer Give up
               </label>
-              <label className={`flex items-center gap-1.5 text-sm text-[var(--muted)] ${solvable ? '' : 'opacity-40'}`}>
-                <input type="checkbox" checked={creditsUpFront} disabled={!solvable} onChange={e => setCreditsUpFront(e.target.checked)} />
+              <label className="flex items-center gap-1.5 text-sm text-[var(--muted)]">
+                <input type="checkbox" checked={creditsUpFront} onChange={e => setCreditsUpFront(e.target.checked)} />
                 Show the composer from the start
               </label>
               {/* The unit is picked, not typed: a box that turns a bare number
@@ -1107,8 +1114,8 @@ export function MakeApp() {
             {analysisOnly && (
               <p className="text-sm text-[var(--muted)] mt-1">
                 {solvable
-                  ? 'No stipulation, so this is an analysis board — any man anywhere, nothing checked. Enter one and solve with Popeye for a problem to solve.'
-                  : 'Solvable is off, so this is an analysis board — the position only, any man anywhere, nothing checked. The solution is not in either address.'}
+                  ? 'No stipulation, so this is an analysis board. Enter one and solve with Popeye for a problem to solve.'
+                  : 'Solvable is off, so this is an analysis board of the position. The solution is not in either address.'}
               </p>
             )}
 

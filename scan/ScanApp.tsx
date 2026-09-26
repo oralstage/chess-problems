@@ -149,7 +149,7 @@ export function ScanApp() {
                   <section className="sm:flex-1 min-w-0 mt-5 pt-4 border-t border-[var(--hairline)] sm:mt-0 sm:pt-0 sm:border-t-0 sm:border-l sm:pl-6">
                     <h3 className="text-sm font-semibold text-[var(--ink)]">An analysis board</h3>
                     <p className="text-xs text-[var(--muted)] mt-0.5">
-                      This position on a board of its own: any man anywhere, nothing checked.
+                      This position on an analysis board of its own.
                     </p>
                     <a
                       className="nb-btn nb-btn-key inline-block mt-2 py-1.5 px-3 text-sm font-semibold"

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Board } from '../src/components/Board';
 import { useTheme } from '../src/hooks/useTheme';
 import { pieceCounts } from '../src/utils/pieceCount';
-import { EMPTY, asFen, freeDrop, readPlacement } from './placement';
+import { composerLine } from '../src/utils/composerName';
+import { EMPTY, asFen, creditFromParams, freeDrop, readPlacement } from './placement';
 
 /* The analysis board on a page of its own -- what /solve?fen=… opens when it
    is given a position and nothing to solve. The pocket set the solving view
@@ -22,6 +23,8 @@ export function AnalysisApp() {
   useTheme();
   const [start] = useState(() => readPlacement(new URLSearchParams(window.location.search).get('fen') || ''));
   const [fen, setFen] = useState(() => asFen(start ?? EMPTY));
+  const [credit] = useState(() => creditFromParams(new URLSearchParams(window.location.search)));
+  const composer = composerLine(credit.authors);
 
   // The width the board has to fill, measured off the row it sits in.
   const boardBoxRef = useRef<HTMLDivElement>(null);
@@ -66,9 +69,18 @@ export function AnalysisApp() {
         <main className="px-1 pt-3 space-y-3">
           {/* The problem page's caption line, with "Analysis board" where the
               stipulation would be. */}
-          <div className="px-3 flex items-baseline gap-2 flex-wrap text-sm text-[var(--muted)]">
-            <span className="font-semibold text-[var(--ink)]">Analysis board</span>
-            <span>{pieceCounts(asFen(start))}</span>
+          <div className="px-3 space-y-1 min-w-0">
+            <div className="flex items-baseline gap-2 flex-wrap text-sm text-[var(--muted)]">
+              <span className="font-semibold text-[var(--ink)]">Analysis board</span>
+              <span>{pieceCounts(asFen(start))}</span>
+            </div>
+            {/* Set as the problem page sets it once the solve is decided. */}
+            {credit.show && (composer || credit.source) && (
+              <div>
+                {composer && <div className="text-base font-semibold text-[var(--ink)] leading-tight break-words">{composer}</div>}
+                {credit.source && <div className="text-sm text-[var(--faint)] break-words">{credit.source}</div>}
+              </div>
+            )}
           </div>
 
           {/* Measured one step wider than the column, as the board's own row
@@ -81,8 +93,7 @@ export function AnalysisApp() {
             )}
           </div>
 
-          <div className="px-3 flex items-center gap-2">
-            <p className="flex-1 text-sm text-[var(--muted)]">Move anything anywhere — nothing is checked.</p>
+          <div className="px-3 flex items-center justify-end gap-2">
             <button
               onClick={() => setFen(asFen(start))}
               disabled={!moved}

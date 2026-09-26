@@ -10,7 +10,7 @@ import { CATEGORY_DEFS } from '../src/types';
 import type { ChessProblem } from '../src/types';
 import { ensureSolution } from './ensureSolution';
 import { BadRequest, INVITE, problemFromParams, problemIdFromUrl } from './problemParams';
-import { asFen, freeDrop, readPlacement, wantsAnalysis } from '../analysis/placement';
+import { asFen, creditFromParams, freeDrop, readPlacement, wantsAnalysis } from '../analysis/placement';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'];
@@ -259,6 +259,8 @@ function EmbedAnalysis() {
   const headRef = useRef<HTMLDivElement>(null);
   const { size: boardSize, blockWidth } = useBoardLayout(rootRef, stackRef, slotRef, barRef, headRef);
   const boardColours = params.get('board') === 'green' ? 'green' : undefined;
+  const given = creditFromParams(params);
+  const credit = given.show ? [composerLine(given.authors), given.source].filter(Boolean).join(' — ') : '';
 
   const handleDrop = (source: string, target: string, piece?: string): boolean => {
     setFen(prev => freeDrop(prev, source, target, piece));
@@ -270,8 +272,11 @@ function EmbedAnalysis() {
   return (
     <div className="emb-root" data-board={boardColours} ref={rootRef}>
       <div className="emb-stack" ref={stackRef} style={blockWidth ? { width: blockWidth } : undefined}>
+        {/* No invitation: the problem board's line over the diagram says how
+            to solve, and here there is nothing to solve. The credit, when the
+            address asks for it, as the problem board sets it. */}
         <div className="emb-head" ref={headRef}>
-          <div className="emb-invite">Move anything anywhere — nothing is checked</div>
+          {credit && <div className="emb-credit">{credit}</div>}
         </div>
 
         <div className="emb-slot" ref={slotRef} style={{ height: boardSize }}>
