@@ -307,7 +307,7 @@ function EmbedAnalysis() {
         {start && (
           <div className="emb-link-row">
             <a className="emb-link" href={`${SITE}/solve${window.location.search}`} target="_blank" rel="noopener noreferrer">
-              Open on chessproblem.org ↗
+              chessproblem.org ↗
             </a>
           </div>
         )}
@@ -403,7 +403,13 @@ function EmbedProblem({ variant }: { variant: EmbedVariant }) {
      which wrapped onto a second line in a narrow frame. An abbreviation would
      have been shorter still and would have named nothing: a reader meeting
      "CPA" for the first time learns where the board came from only if the
-     words mean something, and a domain is a name they can type. */
+     words mean something, and a domain is a name they can type.
+
+     The address alone, with the arrow, and no "Open on" in front of it
+     (2026-09-26, the user's call): in a small frame "Open on chessproblem.org"
+     still wrapped onto a second line, and every line the frame gives to words
+     is a line the diagram does not get. A domain with an arrow after it is a
+     link to that place as it stands. */
 
   /* A printed diagram carries the composer above it and the stipulation with
      the material count below. The credit is held back until the solve is
@@ -573,7 +579,7 @@ function EmbedProblem({ variant }: { variant: EmbedVariant }) {
       {p && (p.id > 0 ? variant === 'arcade' : true) && (
         <div className="emb-link-row">
           <a className="emb-link" href={siteUrl(p, dailyDate)} target="_blank" rel="noopener noreferrer">
-            Open on chessproblem.org ↗
+            chessproblem.org ↗
           </a>
         </div>
       )}

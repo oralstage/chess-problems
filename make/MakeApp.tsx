@@ -938,7 +938,7 @@ export function MakeApp() {
                     </>}
                   </div>
                   <p className="text-right text-[11px] text-[var(--faint)] underline mt-1.5">
-                    Open on chessproblem.org ↗
+                    chessproblem.org ↗
                   </p>
                 </>
               )}
