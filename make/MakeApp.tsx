@@ -10,6 +10,8 @@ import { fetchProblem, fixCastlingRights } from '../src/services/api';
 import { parseSolution, filterKeyMoves } from '../src/services/solutionParser';
 import { keyPlays, mainLinePlays } from '../src/utils/duplex';
 import { buildInput, cleanOutput, inputComplaints, outputIsComplete, splitFen } from './popeye';
+import { asFen, kingNotice, rotate180 } from '../analysis/placement';
+import type { DiagramReader } from '../analysis/ocr';
 
 /* Putting a problem of your own on a board.
  *
@@ -239,6 +241,15 @@ export function MakeApp() {
      it read. */
   const [source0, setSource0] = useState('');
   const [looking, setLooking] = useState(false);
+
+  /* A photo of a diagram, read into the position (../analysis/ocr). The
+     reader is made with the first photo -- 51 MB of models, which nobody who
+     types a FEN should fetch -- and kept for the next. What was read goes on
+     the board to be put right, under the diagram as it was cut out. */
+  const readerRef = useRef<Promise<DiagramReader> | null>(null);
+  const [reading, setReading] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
   const topRef = useRef<HTMLInputElement>(null);
   const outRef = useRef<HTMLDivElement>(null);
   // The position as it stands, for the setter below, which has to read it
@@ -434,6 +445,8 @@ export function MakeApp() {
     setNote(null);
     setComplaint(null);
     setWanted(false);
+    setReadError(null);
+    setPhoto(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
     topRef.current?.focus();
   }, []);
 
@@ -469,6 +482,47 @@ export function MakeApp() {
     setComplaint(null);
   }, []);
 
+  /* A photo in: the position read off it goes into the top field as a FEN,
+     as a pasted one would, and the board opens for setting up -- a reading
+     is a draft to be checked square by square against the diagram above it,
+     and Done is where it becomes the position. */
+  const readPhoto = async (file: File) => {
+    setReadError(null);
+    try {
+      setReading('Loading the reader…');
+      const ocr = await import('../analysis/ocr');
+      if (!readerRef.current) {
+        let shown = -1;
+        readerRef.current = ocr.DiagramReader.create('/ocr', (got, total) => {
+          const mb = Math.floor(got / 1e6);
+          if (mb !== shown) { shown = mb; setReading(`Loading the reader — ${mb} of ${Math.round(total / 1e6)} MB (first photo only)`); }
+        });
+      }
+      const reader = await readerRef.current;
+      setReading('Reading the diagram…');
+      await new Promise(res => setTimeout(res, 30)); // let the line be drawn before the work starts
+      const result = await reader.read(await ocr.decodeImage(file));
+      if (!result.fen) {
+        setReadError('No diagram found in that photo.');
+        return;
+      }
+      const url = result.board ? await ocr.toObjectUrl(result.board) : null;
+      setPhoto(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
+      const read = asFen(result.fen);
+      readTop(read);
+      // Cancel goes back to what was read, not to what was there before the
+      // photo: the photo is the position being set up.
+      editRef.current = { fen: read, named: read, solution: '' };
+      setTool({ kind: 'move' });
+      setEditing(true);
+    } catch (err) {
+      readerRef.current = null; // a failed load is tried again on the next photo
+      setReadError(`The photo could not be read (${err instanceof Error ? err.message : String(err)}).`);
+    } finally {
+      setReading(null);
+    }
+  };
+
   const handleSquare = useCallback((square: string) => {
     if (tool.kind === 'place') { setPosition(prev => setSquare(prev, square, tool.piece)); return; }
     if (tool.kind === 'erase') { setPosition(prev => setSquare(prev, square, null)); return; }
@@ -483,27 +537,41 @@ export function MakeApp() {
     return true;
   }, [fen, setPosition]);
 
+  /* Nothing asked of the position and no solution: what comes out is an
+     analysis board rather than a problem -- the same two addresses with the
+     position alone in them, which /solve and /board open as a free board
+     (analysis/placement.ts, wantsAnalysis). A solution with no stipulation is
+     still a problem missing its question, and is said so. */
+  const analysisOnly = !stipulation.trim() && !solution.trim();
+  // The preview says so only once there is a position: an empty page is a
+  // problem not yet begun, not an analysis board with nothing on it.
+  const previewAnalysis = analysisOnly && !boardIsEmpty(fen);
+
   const query = useMemo(() => {
     const q = new URLSearchParams();
     q.set('fen', fen);
+    // The position alone: a board with nothing to solve has no use for the
+    // credit, and the address is the shorter for it.
+    if (analysisOnly) return q.toString();
     q.set('stip', stipulation);
     if (solution) q.set('sol', solution);
     if (author.trim()) q.set('author', author.trim());
     if (source.trim()) q.set('source', source.trim());
     if (year.trim()) q.set('year', year.trim());
     return q.toString();
-  }, [fen, stipulation, solution, author, source, year]);
+  }, [fen, stipulation, solution, author, source, year, analysisOnly]);
 
   /* Both addresses carry the switches. A set of problems that withholds the
      answer in the frame and hands it over on the page it links to has not
      withheld anything. */
   const boardQuery = useMemo(() => {
     const q = new URLSearchParams(query);
+    if (analysisOnly) return q.toString();
     if (!offerHint) q.set('hint', '0');
     if (!offerGiveUp) q.set('giveup', '0');
     if (creditsUpFront) q.set('credits', '1');
     return q.toString();
-  }, [query, offerHint, offerGiveUp, creditsUpFront]);
+  }, [query, offerHint, offerGiveUp, creditsUpFront, analysisOnly]);
 
   /* Said when the button is pressed, in the order the page asks for them, and
      worded as the thing to do rather than as a list of what is absent.
@@ -515,6 +583,9 @@ export function MakeApp() {
   const missing: Missing[] = looking ? [{ field: null, text: 'Looking it up…' }]
     : fromId && boardIsEmpty(fen)
       ? [{ field: 'position', text: note || `No problem ${readProblemId(source0)} in YACPDB.` }]
+    : analysisOnly
+      ? [boardIsEmpty(fen) && { field: 'position', text: 'Set the position up — press Edit position and place the men, or paste a FEN.' }]
+        .filter(Boolean) as Missing[]
     : [
       boardIsEmpty(fen) && { field: 'position', text: 'Set the position up — press Edit position and place the men, or paste a FEN.' },
       !stipulation.trim() && { field: 'stipulation', text: 'Enter the stipulation (e.g. #2, h#3, s#4) — it is what the board will ask.' },
@@ -624,6 +695,26 @@ export function MakeApp() {
                 </button>
               )}
             </div>
+            {/* The third way a position arrives: off a photo of a printed
+                diagram. Always there, since a photo replaces whatever the
+                field holds as surely as a paste does. */}
+            <label
+              className={`nb-btn shrink-0 py-2 px-3 cursor-pointer ${reading ? 'opacity-40 pointer-events-none' : ''}`}
+              title="Read the position off a photo of a diagram"
+            >
+              Photo
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                disabled={!!reading}
+                onChange={e => {
+                  const file = e.target.files?.[0];
+                  e.target.value = ''; // the same photo again is a new choice
+                  if (file) void readPhoto(file);
+                }}
+              />
+            </label>
             {/* A FEN is a long line of punctuation that arrives from somewhere
                 else, and on a phone the clipboard is easier to reach from a
                 button than from a long press. Only while the field is empty:
@@ -642,8 +733,10 @@ export function MakeApp() {
           </div>
           <span className="block text-xs text-[var(--faint)] mt-0.5">
             {looking ? 'Looking it up…'
-              : 'FEN · YACPDB ID or URL — nothing you type here is sent anywhere'}
+              : 'FEN · YACPDB ID or URL · or a photo of a diagram — nothing here is sent anywhere'}
           </span>
+          {reading && <p className="text-sm text-[var(--muted)] mt-1">{reading}</p>}
+          {readError && <p className="text-sm text-[var(--bad)] mt-1">{readError}</p>}
           {says('position')}
         </div>
 
@@ -749,6 +842,18 @@ export function MakeApp() {
                 of: press Hint on it and nothing happens, follow the link and
                 nothing opens, and without a word here that reads as broken
                 rather than as a drawing. */}
+            {editing && photo && (
+              <figure className="mb-2" style={{ width: boardWidth }}>
+                <img src={photo} alt="The diagram as it was cut out of the photo"
+                  className="w-full border border-[var(--hairline)]" />
+                <figcaption className="text-xs text-[var(--muted)] mt-1">
+                  Read off the photo — check it square by square against the board below, then Done.
+                </figcaption>
+                {kingNotice(splitFen(fen).placement) && (
+                  <p className="text-xs font-semibold text-amber-700 mt-1">{kingNotice(splitFen(fen).placement)}</p>
+                )}
+              </figure>
+            )}
             {!editing && (
               <p className="text-xs text-[var(--faint)] mb-1" style={{ width: boardWidth }}>
                 Preview — the finished board will look like this. Nothing in it works here.
@@ -760,7 +865,9 @@ export function MakeApp() {
                   {creditsUpFront && credit && (
                     <p className="text-xs text-center text-[var(--ink)]">{credit}</p>
                   )}
-                  <p className="text-xs text-center text-[var(--faint)] min-h-[1.25rem]">{INVITE}</p>
+                  <p className="text-xs text-center text-[var(--faint)] min-h-[1.25rem]">
+                    {previewAnalysis ? 'Move anything anywhere — nothing is checked' : INVITE}
+                  </p>
                 </>
               )}
               <div className="flex justify-center">
@@ -777,12 +884,14 @@ export function MakeApp() {
               {!editing && (
                 <>
                   <div className="flex items-baseline justify-between text-xs text-[var(--muted)] mt-1">
-                    <span>{caption}</span>
+                    <span>{previewAnalysis ? 'Analysis board' : caption}</span>
                     <span>{men.white}+{men.black}</span>
                   </div>
                   <div className="flex items-center gap-1 mt-1.5">
-                    {offerHint && <span className="nb-btn px-2 py-0.5 text-xs">Hint</span>}
-                    {offerGiveUp && <span className="nb-btn px-2 py-0.5 text-xs">Give up</span>}
+                    {previewAnalysis ? <span className="nb-btn px-2 py-0.5 text-xs">Reset</span> : <>
+                      {offerHint && <span className="nb-btn px-2 py-0.5 text-xs">Hint</span>}
+                      {offerGiveUp && <span className="nb-btn px-2 py-0.5 text-xs">Give up</span>}
+                    </>}
                   </div>
                   <p className="text-right text-[11px] text-[var(--faint)] underline mt-1.5">
                     Open on chessproblem.org ↗
@@ -840,6 +949,15 @@ export function MakeApp() {
                     title="Take everything off"
                   >
                     Clear
+                  </button>
+                  {/* For a diagram printed with Black at the foot. The rights
+                      that went with the men's old squares go with them. */}
+                  <button
+                    onClick={() => setPosition(prev => `${rotate180(splitFen(prev).placement)} ${prev.split(' ')[1] || 'w'} - - 0 1`)}
+                    className="nb-btn py-1 px-2.5 text-sm"
+                    title="Turn the position round, for a diagram printed with Black at the foot"
+                  >
+                    Rotate 180°
                   </button>
                 </div>
               </ChessboardDnDProvider>
@@ -939,6 +1057,15 @@ export function MakeApp() {
         {generated && (
           <div ref={outRef} className="nb-plate mt-4 p-4 bg-[var(--surface-2)] scroll-mt-4">
             <h2 className="text-base font-semibold text-[var(--ink)]">Take it away</h2>
+            {/* Said, because a stipulation left empty by oversight would
+                otherwise come out as a board nobody can solve without a word
+                about why. */}
+            {analysisOnly && (
+              <p className="text-sm text-[var(--muted)] mt-1">
+                No stipulation, so this is an analysis board — any man anywhere, nothing checked. Enter one
+                and solve with Popeye for a problem to solve.
+              </p>
+            )}
 
             {/* Two things, side by side and each the width of what it holds.
                 Stacked, with the door across the whole panel, the block was
@@ -948,7 +1075,9 @@ export function MakeApp() {
               <section className="sm:flex-1 min-w-0">
                 <h3 className="text-sm font-semibold text-[var(--ink)]">A page of its own</h3>
                 <p className="text-xs text-[var(--muted)] mt-0.5">
-                  The board, every variation and the engine, at one address.
+                  {analysisOnly
+                    ? 'The analysis board, with the editor, at one address.'
+                    : 'The board, every variation and the engine, at one address.'}
                 </p>
                 <a
                   className="nb-btn nb-btn-key inline-block mt-2 py-1.5 px-3 text-sm font-semibold"
