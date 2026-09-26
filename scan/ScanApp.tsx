@@ -17,7 +17,7 @@ import { Copyable } from '../analysis/Copyable';
    the photo, and the FEN and the address follow the board as it is put
    right: a reading is a draft to be checked against the page, square by
    square, before it is a position. The reader is ../analysis/ocr.ts, loaded
-   with the first photo (142 MB of models) and kept for the next. */
+   with the first photo (51 MB of models) and kept for the next. */
 
 const SITE = 'https://arcade.chessproblem.org';
 

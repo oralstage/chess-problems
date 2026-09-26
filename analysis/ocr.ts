@@ -11,10 +11,14 @@
    edges, lines and contours -- because a pixel of difference in the corners
    moves the crop, and the squares are read off the crop.
 
-   Loaded only when a photo is chosen: OpenCV.js and the runtime are 27 MB of
-   script and wasm, and the models 142 MB, none of which a reader who pastes a
-   FEN should pay for. The models come in 20 MB parts (public/ocr/, listed in
-   models.json) because Pages will not serve a file over 25 MiB. */
+   Loaded only when a photo is chosen: OpenCV.js and the runtime are 25 MB of
+   script and wasm, and the models 51 MB, none of which a reader who pastes a
+   FEN should pay for. The models are int8 (the fp16 ones were 142 MB and hardly
+   shrink under gzip; int8 read the same position as fp16 on 51 of the 52
+   test diagrams and every book photo), gzipped, and cut into 20 MB parts
+   (public/ocr/, listed in models.json) because Pages will not serve a file
+   over 25 MiB. They are put back together here and unzipped with the
+   browser's own DecompressionStream. */
 
 import * as ort from 'onnxruntime-web/wasm';
 import cvModule from '@techstark/opencv-js';
@@ -27,7 +31,7 @@ const PIECES = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
 const ROTATIONS = [0, 90, 180, 270];
 const QUAD_SIZE = 512;
 const BOARD_SIZE = 256;
-const MODELS = ['quad.fp16.onnx', 'rotation.fp16.onnx', 'position.fp16.onnx'] as const;
+const MODELS = { quad: 'quad.int8.onnx', rotation: 'rotation.int8.onnx', position: 'position.int8.onnx' } as const;
 
 /** RGB bytes, as a PIL "RGB" image holds them. */
 export interface Rgb { w: number; h: number; px: Uint8Array }
@@ -299,41 +303,59 @@ const argmax = (a: ArrayLike<number>, from: number, n: number) => {
 type Sessions = Record<'quad' | 'rotation' | 'position', ort.InferenceSession>;
 
 export class DiagramReader {
-  /** Load OpenCV and the three models. `onProgress` hears the bytes as they come. */
+  /** Load OpenCV and the three models. `onProgress` hears the bytes as they
+   *  come (the zipped bytes -- what is actually fetched). */
   static async create(base: string, onProgress?: (got: number, total: number) => void): Promise<DiagramReader> {
+    const t0 = performance.now();
     let cv: CV = cvModule;
     if (cv instanceof Promise) cv = await cv;
     else if (!cv.Mat) await new Promise<void>(res => { cv.onRuntimeInitialized = () => res(); });
+    const timings = { opencv: performance.now() - t0, fetch: 0, unzip: 0, sessions: 0 };
 
-    const manifest: Record<string, { bytes: number; parts: string[] }> = await (await fetch(`${base}/models.json`)).json();
-    const total = MODELS.reduce((a, m) => a + manifest[m].bytes, 0);
+    const manifest: Record<string, { bytes: number; gzipBytes: number; parts: string[] }> =
+      await (await fetch(`${base}/models.json`)).json();
+    const names = Object.values(MODELS);
+    const total = names.reduce((a, m) => a + manifest[m].gzipBytes, 0);
     let got = 0;
     const load = async (name: string) => {
-      const buf = new Uint8Array(manifest[name].bytes);
+      const { gzipBytes, parts } = manifest[name];
+      let t = performance.now();
+      const packed = new Uint8Array(gzipBytes);
       let o = 0;
-      for (const part of manifest[name].parts) {
+      for (const part of parts) {
         const res = await fetch(`${base}/${part}`);
         if (!res.ok || !res.body) throw new Error(`${part}: ${res.status}`);
         const reader = res.body.getReader();
         for (;;) {
           const { done, value } = await reader.read();
           if (done) break;
-          buf.set(value, o); o += value.length; got += value.length;
+          packed.set(value, o); o += value.length; got += value.length;
           onProgress?.(got, total);
         }
       }
-      return ort.InferenceSession.create(buf, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+      timings.fetch += performance.now() - t; t = performance.now();
+      const model = new Uint8Array(await new Response(
+        new Blob([packed]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+      timings.unzip += performance.now() - t; t = performance.now();
+      const session = await ort.InferenceSession.create(model, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+      timings.sessions += performance.now() - t;
+      return session;
     };
-    const quad = await load('quad.fp16.onnx');
-    const rotation = await load('rotation.fp16.onnx');
-    const position = await load('position.fp16.onnx');
-    return new DiagramReader(cv, { quad, rotation, position });
+    const quad = await load(MODELS.quad);
+    const rotation = await load(MODELS.rotation);
+    const position = await load(MODELS.position);
+    return new DiagramReader(cv, { quad, rotation, position }, timings);
   }
 
+  /** Where the first load's time went, in ms: starting OpenCV, fetching the
+   *  models, unzipping them, and making the sessions. */
+  readonly timings: Record<'opencv' | 'fetch' | 'unzip' | 'sessions', number>;
   private cv: CV;
   private s: Sessions;
 
-  private constructor(cv: CV, sessions: Sessions) { this.cv = cv; this.s = sessions; }
+  private constructor(cv: CV, sessions: Sessions, timings: DiagramReader['timings']) {
+    this.cv = cv; this.s = sessions; this.timings = timings;
+  }
 
   private async run(session: ort.InferenceSession, tensor: Float32Array, size: number) {
     const out = await session.run({ input: new ort.Tensor('float32', tensor, [1, 3, size, size]) });
