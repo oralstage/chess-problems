@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChessboardDnDProvider, SparePiece } from 'react-chessboard';
 import type { Piece } from 'react-chessboard/dist/chessboard/types';
 import { Board } from '../src/components/Board';
 import { moveFreely, pieceAt } from '../src/utils/freeBoard';
 import { EMPTY, kingNotice, readPlacement, rotate180, setSquare } from './placement';
+import type { DiagramReader } from './ocr';
 
 /* The analysis board on a page of its own: a position in, and the pocket set
    the solving view hands out -- any man to any square, nothing checked.
@@ -17,7 +18,12 @@ import { EMPTY, kingNotice, readPlacement, rotate180, setSquare } from './placem
 
    Putting it right is the other half of the page: the /make page's way of
    setting men up (pick a man, tap squares; Erase; Clear), with Done making
-   what is on the board the position to go back to. */
+   what is on the board the position to go back to.
+
+   And the position can come off a photo of a diagram (./ocr). What was read
+   opens in the editor, under the board as it was cut out of the photo, since
+   a reading is a draft to be checked against the page before it is a
+   position to think about. */
 
 const asFen = (placement: string) => `${placement} w - - 0 1`;
 const placementOf = (fen: string) => fen.split(' ')[0];
@@ -56,6 +62,16 @@ export function AnalysisApp() {
      back to. */
   const [editing, setEditing] = useState<string | null>(null);
   const [tool, setTool] = useState<Tool>({ kind: 'move' });
+
+  /* Reading a photo. The reader is made once and kept: it is 142 MB of
+     models, fetched on the first photo and not before. */
+  const readerRef = useRef<Promise<DiagramReader> | null>(null);
+  const [reading, setReading] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const dropPhoto = useCallback(() => {
+    setPhoto(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
+  }, []);
 
   useEffect(() => {
     const onResize = () => setWindowWidth(window.innerWidth);
@@ -113,6 +129,44 @@ export function AnalysisApp() {
     setField(editing === EMPTY ? '' : editing);
     setFieldError(null);
     setEditing(null);
+    dropPhoto();
+  };
+
+  const cancelEditing = () => {
+    setEditing(null);
+    dropPhoto();
+  };
+
+  const readPhoto = async (file: File) => {
+    setReadError(null);
+    try {
+      setReading('Loading the reader…');
+      const ocr = await import('./ocr');
+      if (!readerRef.current) {
+        let shown = -1;
+        readerRef.current = ocr.DiagramReader.create('/ocr', (got, total) => {
+          const mb = Math.floor(got / 1e6);
+          if (mb !== shown) { shown = mb; setReading(`Loading the reader — ${mb} of ${Math.round(total / 1e6)} MB (first photo only)`); }
+        });
+      }
+      const reader = await readerRef.current;
+      setReading('Reading the diagram…');
+      await new Promise(res => setTimeout(res, 30)); // let the line be drawn before the work starts
+      const result = await reader.read(await ocr.decodeImage(file));
+      if (!result.fen) {
+        setReadError('No diagram found in that photo.');
+        return;
+      }
+      const url = result.board ? await ocr.toObjectUrl(result.board) : null;
+      setPhoto(prev => { if (prev) URL.revokeObjectURL(prev); return url; });
+      setTool({ kind: 'move' });
+      setEditing(result.fen);
+    } catch (err) {
+      readerRef.current = null; // a failed load is tried again on the next photo
+      setReadError(`The photo could not be read (${err instanceof Error ? err.message : String(err)}).`);
+    } finally {
+      setReading(null);
+    }
   };
 
   const moved = fen !== asFen(start);
@@ -132,6 +186,23 @@ export function AnalysisApp() {
               onSubmit={e => { e.preventDefault(); setPosition(field); }}
             >
               <div className="flex gap-2">
+                <label
+                  className={`nb-btn px-3 py-2 text-sm cursor-pointer ${reading ? 'opacity-40 pointer-events-none' : ''}`}
+                  title="Read the position off a photo of a diagram"
+                >
+                  Photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={!!reading}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      e.target.value = ''; // the same photo again is a new choice
+                      if (file) readPhoto(file);
+                    }}
+                  />
+                </label>
                 <input
                   value={field}
                   onChange={e => setField(e.target.value)}
@@ -145,9 +216,24 @@ export function AnalysisApp() {
                 <button type="submit" className="nb-btn px-4 py-2 text-sm">Set</button>
               </div>
               {fieldError && <p className="mt-1 text-sm text-red-700">{fieldError}</p>}
+              {reading && <p className="mt-1 text-sm text-[var(--muted)]">{reading}</p>}
+              {readError && <p className="mt-1 text-sm text-red-700">{readError}</p>}
             </form>
 
-            {editing !== null && (
+            {editing !== null && photo && (
+              <figure className="px-3 flex flex-col items-center gap-1">
+                <img
+                  src={photo}
+                  alt="The diagram as it was cut out of the photo"
+                  style={{ width: Math.round(boardWidth * 0.5) }}
+                  className="border border-[var(--hairline)]"
+                />
+                <figcaption className="text-sm text-[var(--muted)] text-center">
+                  Read off the photo above — check it square by square and put right what is wrong, then Done.
+                </figcaption>
+              </figure>
+            )}
+            {editing !== null && !photo && (
               <p className="px-3 text-sm text-[var(--muted)]">
                 Setting the position up — pick a man and tap squares, or Move to drag them.
               </p>
@@ -224,7 +310,7 @@ export function AnalysisApp() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button onClick={doneEditing} className="nb-btn nb-btn-key px-4 py-2 text-sm">Done</button>
-                  <button onClick={() => setEditing(null)} className="nb-btn px-4 py-2 text-sm">Cancel</button>
+                  <button onClick={cancelEditing} className="nb-btn px-4 py-2 text-sm">Cancel</button>
                   <span className="ml-auto text-sm text-[var(--muted)] tabular-nums">{men.white}+{men.black}</span>
                 </div>
               </div>

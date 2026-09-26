@@ -19,3 +19,6 @@ CLAUDE.md
 scripts/seed/
 scripts/seed-prod/
 scripts/.update/
+
+# 図面読み取りのモデル（chess-board/ocr/publish_models.py で作る。142 MB）
+public/ocr/

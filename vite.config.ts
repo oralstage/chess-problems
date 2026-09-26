@@ -43,5 +43,8 @@ export default defineConfig({
       'Cross-Origin-Opener-Policy': 'same-origin',
     },
   },
+  // onnxruntime-web finds its wasm next to its own module; pre-bundling moves
+  // the module and loses it (the /analysis page's photo reader).
+  optimizeDeps: { exclude: ['onnxruntime-web'] },
   clearScreen: false,
 })
