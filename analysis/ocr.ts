@@ -31,6 +31,7 @@ const PIECES = ['P', 'N', 'B', 'R', 'Q', 'K', 'p', 'n', 'b', 'r', 'q', 'k'];
 const ROTATIONS = [0, 90, 180, 270];
 const QUAD_SIZE = 512;
 const BOARD_SIZE = 256;
+const READ_STEPS = 4;
 const MODELS = { quad: 'quad.int8.onnx', rotation: 'rotation.int8.onnx', position: 'position.int8.onnx' } as const;
 
 /** RGB bytes, as a PIL "RGB" image holds them. */
@@ -457,15 +458,27 @@ export class DiagramReader {
   /** The diagram's position. White is taken to be at the foot, as a problem
    *  diagram always has it (the Python original's guess at which side is
    *  down is left out: when it guessed wrong it turned a right reading round). */
-  async read(photo: Rgb): Promise<Reading> {
+  async read(photo: Rgb, onStage?: (step: number, of: number, label: string) => void): Promise<Reading> {
+    /* Four steps, said as each begins, with a pause long enough for the page
+       to draw the line before the work takes the thread again -- the work
+       runs where the page is drawn, and without the pause the bar would sit
+       at the start and jump to the end. */
+    const stage = async (step: number, label: string) => {
+      onStage?.(step, READ_STEPS, label);
+      await new Promise(res => setTimeout(res, 20));
+    };
     let img = photo;
+    await stage(1, 'Straightening the photo');
     const skew = this.skewAngle(img);
     if (Math.abs(skew) > 1.0) img = rotateExpand(img, -skew, medianColour(img));
+    await stage(2, 'Finding the board');
     const warp = await this.warpToBoard(img);
     if (!warp) return { fen: null };
+    await stage(3, 'Turning it the right way up');
     const rt = minMax(resize(toTensor(warp.image), warp.size, warp.size, BOARD_SIZE, BOARD_SIZE, 'bicubic'), true);
     const rot = argmax(await this.run(this.s.rotation, rt, BOARD_SIZE), 0, 4);
     const board = rotateQuarter(warp.image, ROTATIONS[rot]);
+    await stage(4, 'Reading the squares');
     const pt = minMax(resize(toTensor(board), board.h, board.w, BOARD_SIZE, BOARD_SIZE, 'bicubic'), true);
     const out = await this.run(this.s.position, pt, BOARD_SIZE);
     const clamped = out.map(v => Math.min(Math.max(v, 0), 1));

@@ -12,6 +12,7 @@ import { keyPlays, mainLinePlays } from '../src/utils/duplex';
 import { buildInput, cleanOutput, inputComplaints, outputIsComplete, splitFen } from './popeye';
 import { asFen, kingNotice, rotate180 } from '../analysis/placement';
 import type { DiagramReader } from '../analysis/ocr';
+import { ReadingProgress, type Progress } from '../analysis/ReadingProgress';
 
 /* Putting a problem of your own on a board.
  *
@@ -257,7 +258,7 @@ export function MakeApp() {
      types a FEN should fetch -- and kept for the next. What was read goes on
      the board to be put right, under the diagram as it was cut out. */
   const readerRef = useRef<Promise<DiagramReader> | null>(null);
-  const [reading, setReading] = useState<string | null>(null);
+  const [reading, setReading] = useState<Progress | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const topRef = useRef<HTMLInputElement>(null);
@@ -500,19 +501,22 @@ export function MakeApp() {
   const readPhoto = async (file: File) => {
     setReadError(null);
     try {
-      setReading('Loading the reader…');
+      setReading({ label: 'Loading the reader…', fraction: null });
       const ocr = await import('../analysis/ocr');
       if (!readerRef.current) {
         let shown = -1;
         readerRef.current = ocr.DiagramReader.create('/ocr', (got, total) => {
           const mb = Math.floor(got / 1e6);
-          if (mb !== shown) { shown = mb; setReading(`Loading the reader — ${mb} of ${Math.round(total / 1e6)} MB (first photo only)`); }
+          if (mb !== shown) {
+            shown = mb;
+            setReading({ label: `Loading the reader — ${mb} of ${Math.round(total / 1e6)} MB (first photo only)`, fraction: got / total });
+          }
         });
       }
       const reader = await readerRef.current;
-      setReading('Reading the diagram…');
-      await new Promise(res => setTimeout(res, 30)); // let the line be drawn before the work starts
-      const result = await reader.read(await ocr.decodeImage(file));
+      setReading({ label: 'Reading the diagram…', fraction: 0 });
+      const result = await reader.read(await ocr.decodeImage(file), (step, of, label) =>
+        setReading({ label: `Reading the diagram — ${label} (${step}/${of})`, fraction: (step - 1) / of }));
       if (!result.fen) {
         setReadError('No diagram found in that photo.');
         return;
@@ -554,9 +558,11 @@ export function MakeApp() {
      (analysis/placement.ts, wantsAnalysis). A solution with no stipulation is
      still a problem missing its question, and is said so. */
   const analysisOnly = !solvable || (!stipulation.trim() && !solution.trim());
-  // The preview says so only once there is a position: an empty page is a
-  // problem not yet begun, not an analysis board with nothing on it.
-  const previewAnalysis = analysisOnly && !boardIsEmpty(fen);
+  /* The preview is a problem only once there is one to solve: Solvable on,
+     a stipulation, and a solution to play against. A stipulation alone is a
+     question with no answer yet -- the board keeps the analysis board's
+     words and blue-grey squares until the solve is in. */
+  const previewAnalysis = !(solvable && stipulation.trim() && solution.trim());
 
   const query = useMemo(() => {
     const q = new URLSearchParams();
@@ -728,7 +734,7 @@ export function MakeApp() {
             </label>
             <span className="text-xs text-[var(--faint)]">of a printed diagram — read here, the photo is not sent anywhere</span>
           </div>
-          {reading && <p className="text-sm text-[var(--muted)] mt-1">{reading}</p>}
+          {reading && <ReadingProgress progress={reading} />}
           {readError && <p className="text-sm text-[var(--bad)] mt-1">{readError}</p>}
           <div className="flex gap-2">
             <div className="relative flex-1 min-w-0">
@@ -912,7 +918,9 @@ export function MakeApp() {
                   onPieceDrop={handleDrop}
                   width={editing ? boardWidth : boardWidth - 16}
                   orientation="white"
-                  freeMove={editing}
+                  /* The free board's colours stand for the analysis board in
+                     the preview too; disabled, it still takes no move. */
+                  freeMove={editing || previewAnalysis}
                   disabled={!editing}
                   onSquareTool={editing && tool.kind !== 'move' ? handleSquare : undefined}
                 />

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChessboardDnDProvider } from 'react-chessboard';
 import { useTheme } from '../src/hooks/useTheme';
 import type { DiagramReader } from '../analysis/ocr';
+import { ReadingProgress, type Progress } from '../analysis/ReadingProgress';
 import { asFen } from '../analysis/placement';
 import { PositionEditor } from '../analysis/PositionEditor';
 import { Copyable } from '../analysis/Copyable';
@@ -28,7 +29,7 @@ const fenQuery = (placement: string) => `fen=${encodeURIComponent(placement).rep
 export function ScanApp() {
   useTheme();
   const readerRef = useRef<Promise<DiagramReader> | null>(null);
-  const [reading, setReading] = useState<string | null>(null);
+  const [reading, setReading] = useState<Progress | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [placement, setPlacement] = useState<string | null>(null);
@@ -53,19 +54,22 @@ export function ScanApp() {
   const readPhoto = async (file: File) => {
     setReadError(null);
     try {
-      setReading('Loading the reader…');
+      setReading({ label: 'Loading the reader…', fraction: null });
       const ocr = await import('../analysis/ocr');
       if (!readerRef.current) {
         let shown = -1;
         readerRef.current = ocr.DiagramReader.create('/ocr', (got, total) => {
           const mb = Math.floor(got / 1e6);
-          if (mb !== shown) { shown = mb; setReading(`Loading the reader — ${mb} of ${Math.round(total / 1e6)} MB (first photo only)`); }
+          if (mb !== shown) {
+            shown = mb;
+            setReading({ label: `Loading the reader — ${mb} of ${Math.round(total / 1e6)} MB (first photo only)`, fraction: got / total });
+          }
         });
       }
       const reader = await readerRef.current;
-      setReading('Reading the diagram…');
-      await new Promise(res => setTimeout(res, 30)); // let the line be drawn before the work starts
-      const result = await reader.read(await ocr.decodeImage(file));
+      setReading({ label: 'Reading the diagram…', fraction: 0 });
+      const result = await reader.read(await ocr.decodeImage(file), (step, of, label) =>
+        setReading({ label: `Reading the diagram — ${label} (${step}/${of})`, fraction: (step - 1) / of }));
       if (!result.fen) {
         setReadError('No diagram found in that photo.');
         return;
@@ -108,7 +112,7 @@ export function ScanApp() {
                   }}
                 />
               </label>
-              {reading && <p className="mt-2 text-sm text-[var(--muted)]">{reading}</p>}
+              {reading && <ReadingProgress progress={reading} />}
               {readError && <p className="mt-2 text-sm text-red-700">{readError}</p>}
             </div>
 
