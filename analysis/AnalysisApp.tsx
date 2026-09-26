@@ -55,7 +55,9 @@ export function AnalysisApp() {
     const given = new URLSearchParams(window.location.search).get('fen');
     return given && !readPlacement(given) ? 'That is not a position this board can read.' : null;
   });
-  const [windowWidth, setWindowWidth] = useState(() => window.innerWidth);
+  // The width the board has to fill, measured off the row it sits in.
+  const boardBoxRef = useRef<HTMLDivElement>(null);
+  const [boxWidth, setBoxWidth] = useState(0);
 
   /* Setting up: the placement being edited (null = analysing). It is kept
      apart from the analysis board's own so that Cancel has something to go
@@ -73,16 +75,18 @@ export function AnalysisApp() {
     setPhoto(prev => { if (prev) URL.revokeObjectURL(prev); return null; });
   }, []);
 
+  /* Measured rather than worked out from the window: on a phone the sheet's
+     margin and padding come off the window's width, and a board given the
+     whole of it ran off the right-hand edge (the h-file half hidden). The row
+     is a block, so its width does not depend on the board inside it. */
   useEffect(() => {
-    const onResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    const el = boardBoxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setBoxWidth(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
-
-  // The /solve page's sizing, so the two boards are the same board.
-  const boardWidth = windowWidth < 640
-    ? windowWidth
-    : Math.min(windowWidth, 672) - (16 + 8);
+  const boardWidth = Math.min(boxWidth, 648);
 
   const setPosition = useCallback((text: string) => {
     const placement = readPlacement(text);
@@ -239,8 +243,8 @@ export function AnalysisApp() {
               </p>
             )}
 
-            <div className="flex justify-center -mx-1">
-              {editing !== null ? (
+            <div ref={boardBoxRef} className="flex justify-center -mx-1">
+              {boardWidth === 0 ? null : editing !== null ? (
                 <Board
                   key="edit"
                   fen={asFen(editing)}
