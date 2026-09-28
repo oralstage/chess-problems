@@ -449,6 +449,27 @@ export function pickReplyFor(
   return reaching || movable || order[0];
 }
 
+/**
+ * Is there a reply after which the solver can play one of these moves? Where
+ * none exists pickReplyFor still hands back a move, but only as a last resort,
+ * and the solver is left with no move on record that the board will take.
+ */
+function someReplyLetsLineGoOn(fen: string, continuations: SolutionNode[]): boolean {
+  if (continuations.length === 0) return false;
+  let chess: Chess;
+  try { chess = new Chess(fen); } catch { return false; }
+  for (const reply of chess.moves({ verbose: true })) {
+    let afterFen: string;
+    try {
+      const after = new Chess(fen);
+      after.move({ from: reply.from, to: reply.to, promotion: reply.promotion });
+      afterFen = after.fen();
+    } catch { continue; }
+    if (continuations.some(n => tryExecuteNode(new Chess(afterFen), n) !== null)) return true;
+  }
+  return false;
+}
+
 function computePositions(initialFen: string, mainLine: SolutionNode[]): PlaybackPosition[] {
   const positions: PlaybackPosition[] = [{ fen: initialFen, lastMove: null, san: '' }];
   let curFen = initialFen;
@@ -1236,8 +1257,40 @@ export function useProblem(stockfish?: StockfishApi) {
         return true;
       }
 
-      // Direct/Self/Study: auto-play opponent from solution tree
-      if (realDefenses.length > 0) {
+      /* Nothing on record for the opponent that the board can play, yet the
+         line goes on. Either the continuation is a threat in brackets
+         ("1.Kb3! (2.Rd1#)"), or it is another move by the side that just
+         moved, because the source wrote the reply inside a comment
+         ("1.Sb3-d2! {(~)} 2.Sd2-c4#"), never wrote it at all, or wrote it as
+         a move this board cannot play (below). In every case somebody has to
+         move before the solver can play on, and the move is chosen to keep
+         the continuation working. Where the only replies on record are ones
+         the board cannot play, the continuation is what the source has after
+         them. */
+      let continuations = matchingNode.children.filter(
+        n => n.isThreat || (problem.genre !== 'retro' && n.color === movedColor),
+      );
+      if (continuations.length === 0 && problem.genre !== 'retro') {
+        continuations = realDefenses.flatMap(d => d.children.filter(n => n.color === movedColor));
+      }
+
+      /* Direct/Self/Study: auto-play opponent from solution tree -- a reply
+         the board can play. The source sometimes writes one this position
+         cannot hold: D323916 answers 1.Se3 with "1...Ba1" and "1...Sd6", but
+         Black has no bishop (Ba1 is the rook's move) and the knight on d7
+         cannot reach d6. Handed to the board, that left it on Black's turn
+         with nothing moving and a solver who only holds White; now a reply
+         is supplied as above. Two cases keep the old step past the recorded
+         reply: retro, where the solver moves both colours and so can go on
+         from the position as it stands, and a line that no reply at all lets
+         the solver play on from -- there the text itself is misread, and a
+         made-up reply would only turn the solver's right moves into wrong
+         ones. */
+      const playableDefenses = realDefenses.filter(n => tryExecuteNode(new Chess(newFen), n) !== null);
+      const keepOldStep = playableDefenses.length === 0 && realDefenses.length > 0
+        && (problem.genre === 'retro' || !someReplyLetsLineGoOn(newFen, continuations));
+      const defensesToPlay = keepOldStep ? realDefenses : playableDefenses;
+      if (defensesToPlay.length > 0) {
         setState(prev => ({
           ...prev,
           fen: newFen,
@@ -1252,7 +1305,7 @@ export function useProblem(stockfish?: StockfishApi) {
         }));
 
         autoPlayTimerRef.current = setTimeout(() => {
-          const defenseNode = realDefenses[0];
+          const defenseNode = defensesToPlay[0];
           const defenseChess = new Chess(newFen);
           const defMove = tryExecuteNode(defenseChess, defenseNode);
           if (defMove) {
@@ -1307,15 +1360,7 @@ export function useProblem(stockfish?: StockfishApi) {
         return true;
       }
 
-      /* Nothing on record for the opponent, yet the line goes on. Either the
-         continuation is a threat in brackets ("1.Kb3! (2.Rd1#)"), or it is
-         another move by the side that just moved, because the source wrote the
-         reply inside a comment ("1.Sb3-d2! {(~)} 2.Sd2-c4#") or never wrote it
-         at all. In both cases somebody has to move before the solver can play
-         on, and the move is chosen to keep the continuation working. */
-      const continuations = matchingNode.children.filter(
-        n => n.isThreat || (problem.genre !== 'retro' && n.color === movedColor),
-      );
+      // Supply the reply the source never wrote, or wrote unplayably (above).
       if (continuations.length > 0) {
         setState(prev => ({
           ...prev,
