@@ -23,6 +23,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { parseSolution, filterKeyMoves } from '../src/services/solutionParser';
+import { CYRILLIC_AS_WRITTEN } from '../src/data/cyrillicAsWritten';
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url));
 const CACHE_DIR = join(SCRIPTS_DIR, '.cache');
@@ -149,7 +150,7 @@ if (!existsSync(CACHE_DIR)) {
       // regressions deeper in the tree (defenses, continuations, threat
       // attachment — e.g. the old D142094 move-2 bug) also show up as diffs.
       const color = firstMoveColor(stip);
-      const all = parseSolution(sol, color, parseOptions(stip));
+      const all = parseSolution(sol, color, { ...parseOptions(stip), cyrillic: !CYRILLIC_AS_WRITTEN.has(Number(id)) });
       const accepted = filterKeyMoves(all, color).map(n => n.move).sort().join('|');
       current[id] = `${accepted}::${treeHash(all)}`;
     } catch {

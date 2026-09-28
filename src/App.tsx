@@ -52,6 +52,7 @@ import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulati
 import { hasNoRecordedSolution } from './utils/noSolution';
 import { flipDuplexRoots, mainLinePlays } from './utils/duplex';
 import { DUPLEX_IDS } from './data/duplexIds';
+import { CYRILLIC_AS_WRITTEN } from './data/cyrillicAsWritten';
 import { matchesAwardFilter, type AwardFilter } from './utils/award';
 import { moveFreely, pieceAt } from './utils/freeBoard';
 import { isCookedProblem } from './utils/cookMarker';
@@ -836,7 +837,7 @@ export default function App() {
     if (!p._originalFen) p._originalFen = originalFen;
     // Apply twin FEN modifications regardless of cache state
     if (p.solutionText && !p._twinApplied) {
-      const twinMods = extractTwinFenMods(p.solutionText);
+      const twinMods = extractTwinFenMods(p.solutionText, { cyrillic: !CYRILLIC_AS_WRITTEN.has(p.id) });
       if (twinMods) {
         p.fen = applyTwinMods(p.fen, twinMods);
         p._twinApplied = true;
@@ -869,7 +870,7 @@ export default function App() {
     const parserColor = (isRetroBlack && solutionHasDots) ? 'w' : firstColor;
     // Apply twin FEN modifications if not already done
     if (!p._twinApplied) {
-      const twinMods = extractTwinFenMods(p.solutionText);
+      const twinMods = extractTwinFenMods(p.solutionText, { cyrillic: !CYRILLIC_AS_WRITTEN.has(p.id) });
       if (twinMods) {
         p.fen = applyTwinMods(p.fen, twinMods);
         p._twinApplied = true;
@@ -877,7 +878,7 @@ export default function App() {
     }
     // Black mates in a selfmate, which is what a comma list's closing mate
     // means there (solutionParser's ParseOptions).
-    const parseOpts = { selfmate: /^s#/i.test(p.stipulation ?? '') };
+    const parseOpts = { selfmate: /^s#/i.test(p.stipulation ?? ''), cyrillic: !CYRILLIC_AS_WRITTEN.has(p.id) };
     const allNodes = parseSolution(p.solutionText, parserColor, parseOpts);
     // Retro + {(illegal)}: flip colors
     if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {

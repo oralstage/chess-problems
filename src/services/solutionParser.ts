@@ -36,9 +36,37 @@ function normalizeCyrillicWord(word: string): string {
   return swapped;
 }
 
+/* A bracket inside a word is swapped only when it holds a numbered move, a
+   threat. "Rd3(с2)" (D320646) notes the rook's other square, and read as
+   "(c2)" it became a threat that pulled the next defence under it -- the
+   parser takes any bracket after a move for one. */
+function normalizeCyrillicToken(token: string): string {
+  if (!token.includes('(')) return normalizeCyrillicWord(token);
+  return token.replace(/\([^()]*\)|[^()]+/g, part => {
+    if (!part.startsWith('(')) return normalizeCyrillicWord(part);
+    return /\d\s*\./.test(part) ? '(' + normalizeCyrillicMoves(part.slice(1, -1)) + ')' : part;
+  });
+}
+
+/* Nor is anything swapped from a "1…" on (the one-character ellipsis). The
+   parser does not read that as Black's move number, so the moves after it
+   land under the end of the line before; swapped, they only put more moves
+   in the wrong place -- D337313 lost the one line it could play to its end.
+   Left Cyrillic, they are left out, as they always were. */
 export function normalizeCyrillicMoves(text: string): string {
   if (!CYRILLIC.test(text)) return text;
-  return text.replace(/\{[^}]*\}|[^\s{}]+/g, w => w.startsWith('{') ? w : normalizeCyrillicWord(w));
+  const notes: string[] = [];
+  const bare = text.replace(/\{[^}]*\}/g, m => {
+    notes.push(m);
+    return `${notes.length - 1}`;
+  });
+  return bare.split('\n').map(line => {
+    const at = line.search(/\d\s*…/);
+    const head = at < 0 ? line : line.slice(0, at);
+    const swapped = head.replace(/\d+|[^\s]+/g,
+      w => w.startsWith('') ? w : normalizeCyrillicToken(w));
+    return swapped + (at < 0 ? '' : line.slice(at));
+  }).join('\n').replace(/(\d+)/g, (_, i) => notes[Number(i)]);
 }
 
 // Long algebraic: Piece + from + sep + to + promo (sep includes ':' for captures)
@@ -353,6 +381,9 @@ const WHITE_LIST_AFTER = new RegExp(`^(\\s+\\d+\\s*\\.\\s*)(${LIST_OF_MOVES})(\\
  *  White's to choose from as "2. Qf5, Qe4#" is in a direct mate. */
 export interface ParseOptions {
   selfmate?: boolean;
+  /** false leaves Cyrillic letters in the moves as written -- for the few
+   *  problems the swap reads worse (src/data/cyrillicAsWritten.ts). */
+  cyrillic?: boolean;
 }
 
 /* A list of White's moves is only taken as alternatives when it ends in a
@@ -411,8 +442,16 @@ function pairsWith(moves: string[]): boolean {
  * harmless: at its head, or in a line that opens with a black move, whose
  * copies are sibling defences the display folds together again.
  */
-function expandCommaLists(line: string, flat: boolean, selfmate: boolean, depth = 0): string[] {
-  if (depth >= 6 || !line.includes(',')) return [line];
+/** The line as it now reads, and the lines for the other alternatives, which
+ *  belong at the end of the line of play they branch from (see parseSegments). */
+interface CommaExpansion {
+  now: string[];
+  later: { lines: string[]; num: number }[];
+}
+
+function expandCommaLists(line: string, flat: boolean, selfmate: boolean, depth = 0): CommaExpansion {
+  const unchanged: CommaExpansion = { now: [line], later: [] };
+  if (depth >= 6 || !line.includes(',')) return unchanged;
   const lead = line.slice(0, line.length - line.trimStart().length);
   const stash: string[] = [];
   const clean = line.replace(/\{[^}]*\}|\([^()]*\)|\[[^\][]*\]/g, m => {
@@ -421,7 +460,7 @@ function expandCommaLists(line: string, flat: boolean, selfmate: boolean, depth 
   });
   // "1. Nb3!, Ka4; 2. Ka2:, a5;": here the comma parts White's move from
   // Black's, and the semicolon parts the moves. Nothing in it is a list.
-  if (/;\s*\d+\s*\./.test(clean)) return [line];
+  if (/;\s*\d+\s*\./.test(clean)) return unchanged;
   const restore = (s: string) => s.replace(/\uE001(\d+)\uE001/g, (_, i) => stash[Number(i)]);
   const opensWithBlack = /^\s*\d+\s*\.\s*(?:\.{2,3}|…)/.test(clean);
 
@@ -472,9 +511,14 @@ function expandCommaLists(line: string, flat: boolean, selfmate: boolean, depth 
       const head = own ? lead + number : before;
       return restore(head + (partners ? alt + between + partners[i] : alt) + (own ? bareTail : tail));
     });
-    return out.flatMap(l => expandCommaLists(l, flat, selfmate, depth + 1));
+    const first = expandCommaLists(out[0], flat, selfmate, depth + 1);
+    const later = out.slice(1).map(l => {
+      const e = expandCommaLists(l, flat, selfmate, depth + 1);
+      return { lines: [...e.now, ...e.later.flatMap(g => g.lines)], num };
+    });
+    return { now: first.now, later: [...first.later, ...later] };
   }
-  return [line];
+  return unchanged;
 }
 
 /** The same alternatives inside a threat: "(2.Qf5, Qe4#)" is two threats. */
@@ -668,8 +712,32 @@ function parseSegments(solutionText: string, opts: ParseOptions = {}): Segment[]
   // assignVirtualIndentsForSection applies to the whole text.
   const lineIndents = joinedLines.filter(l => l.trim()).map(l => l.length - l.trimStart().length);
   const flat = lineIndents.length === 0 || Math.max(...lineIndents) - Math.min(...lineIndents) <= 3;
+  /* The other alternatives of a list go where the line of play they branch
+     from ends: before the next line that opens at the list's move number or
+     an earlier one, or a blank line. Put straight after it, they took over
+     the rest of that line -- D342572 runs one line down the page, "2. Rg5
+     d2, Ka7" and then "3. Rg8 Ka7, a5", and "3." hung under Ka7 instead of
+     d2, where the mate was. */
+  const commaLines: string[] = [];
+  let pending: CommaExpansion['later'] = [];
+  // Deepest first: "3...a5" still has its "3. Rg8" on top of the stack, and
+  // "2...Ka7" after it goes back to "2. Rg5" by its number either way.
+  const flush = (from: number | null) => {
+    const due = pending.filter(g => from === null || g.num >= from);
+    pending = pending.filter(g => !due.includes(g));
+    for (const g of [...due].sort((a, b) => b.num - a.num)) commaLines.push(...g.lines);
+  };
+  for (const l of joinedLines) {
+    const opens = /^\s*(\d+)\s*[.…]/.exec(l);
+    if (!l.trim()) flush(null);
+    else if (opens) flush(Number(opens[1]));
+    const e = expandCommaLists(l, flat, !!opts.selfmate);
+    commaLines.push(...e.now);
+    pending.push(...e.later);
+  }
+  flush(null);
   const commaExpanded: string[] = [];
-  for (const line of joinedLines.flatMap(l => expandCommaLists(l, flat, !!opts.selfmate))) {
+  for (const line of commaLines) {
     commaExpanded.push(...expandCommaAlternatives(line));
   }
 
@@ -1091,9 +1159,10 @@ function twinBlockStart(trimmed: string): string | null {
   return trimmed.slice(at).replace(/^\s+/, '');
 }
 
-export function extractTwinFenMods(solutionText: string): FenMod[] | null {
+export function extractTwinFenMods(solutionText: string, opts: ParseOptions = {}): FenMod[] | null {
   if (!solutionText) return null;
-  const trimmed = twinBlockStart(normalizeCyrillicMoves(solutionText.trim()));
+  const text = solutionText.trim();
+  const trimmed = twinBlockStart(opts.cyrillic === false ? text : normalizeCyrillicMoves(text));
   if (!trimmed) return null;
   // Match "a) <modifications>" at the start
   const aMatch = trimmed.match(/^a\)\s*(.*?)(?:\n|$)/i);
@@ -1443,7 +1512,8 @@ const TWIN_STIP_RE = /\{\s*([a-z]*[#=]\d*)\s*\}/i;
 
 export function parseTwins(solutionText: string, originalFen: string, firstMoveColor: 'w' | 'b' = 'w', opts: ParseOptions = {}): TwinData[] | null {
   if (!solutionText) return null;
-  const trimmed = twinBlockStart(normalizeCyrillicMoves(solutionText.trim()));
+  const text = solutionText.trim();
+  const trimmed = twinBlockStart(opts.cyrillic === false ? text : normalizeCyrillicMoves(text));
   if (!trimmed) return null; // Not a twin problem
 
   // Split into twin sections: "a) ...", "b) ...", "+c) ..."
@@ -1565,7 +1635,8 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
   // A true PGN solution is entirely wrapped in {} with optional result.
   // If content continues after the closing }, it's a comment followed by indent-based notation.
   // Normalize "1. ... h5" → "1...h5" (black move with spaces around dots)
-  const trimmedInput = normalizeCyrillicMoves(solutionText.trim()).replace(/(\d+)\.\s+\.\.\./g, '$1...');
+  const text = solutionText.trim();
+  const trimmedInput = (opts.cyrillic === false ? text : normalizeCyrillicMoves(text)).replace(/(\d+)\.\s+\.\.\./g, '$1...');
   if (trimmedInput.startsWith('{')) {
     const closingBrace = trimmedInput.indexOf('}');
     const afterBrace = closingBrace >= 0 ? trimmedInput.slice(closingBrace + 1).trim() : '';

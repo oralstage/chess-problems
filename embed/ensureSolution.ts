@@ -3,6 +3,7 @@ import { parseSolution, filterKeyMoves, extractTwinFenMods, applyTwinMods, parse
 import { fetchProblem, metaToChessProblem, fixCastlingRights } from '../src/services/api';
 import { flipDuplexRoots, mainLinePlays } from '../src/utils/duplex';
 import { DUPLEX_IDS } from '../src/data/duplexIds';
+import { CYRILLIC_AS_WRITTEN } from '../src/data/cyrillicAsWritten';
 import type { ChessProblem } from '../src/types';
 import { opensOffNumber } from './problemParams';
 
@@ -97,7 +98,7 @@ export async function ensureSolution(p: ChessProblem): Promise<ChessProblem> {
   if (!p._originalFen) p._originalFen = originalFen;
   // Apply twin FEN modifications regardless of cache state
   if (p.solutionText && !p._twinApplied) {
-    const twinMods = extractTwinFenMods(p.solutionText);
+    const twinMods = extractTwinFenMods(p.solutionText, { cyrillic: !CYRILLIC_AS_WRITTEN.has(p.id) });
     if (twinMods) {
       p.fen = applyTwinMods(p.fen, twinMods);
       p._twinApplied = true;
@@ -137,14 +138,14 @@ export async function ensureSolution(p: ChessProblem): Promise<ChessProblem> {
   const parserColor = (isRetroBlack && solutionHasDots) ? 'w' : firstColor;
   // Apply twin FEN modifications if not already done
   if (!p._twinApplied) {
-    const twinMods = extractTwinFenMods(p.solutionText);
+    const twinMods = extractTwinFenMods(p.solutionText, { cyrillic: !CYRILLIC_AS_WRITTEN.has(p.id) });
     if (twinMods) {
       p.fen = applyTwinMods(p.fen, twinMods);
       p._twinApplied = true;
     }
   }
   // Same as App.tsx: Black mates in a selfmate (solutionParser's ParseOptions).
-  const parseOpts = { selfmate: /^s#/i.test(p.stipulation ?? '') };
+  const parseOpts = { selfmate: /^s#/i.test(p.stipulation ?? ''), cyrillic: !CYRILLIC_AS_WRITTEN.has(p.id) };
   const allNodes = parseSolution(p.solutionText, parserColor, parseOpts);
   // Retro + {(illegal)}: flip colors
   if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
