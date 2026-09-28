@@ -12,16 +12,18 @@ import { ensureSolution } from './ensureSolution';
 import { BadRequest, INVITE, problemFromParams, problemIdFromUrl, readStipulation } from './problemParams';
 import { asFen, creditFromParams, freeDrop, readPlacement, wantsAnalysis } from '../analysis/placement';
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** "September 11" -- the day the problem belongs to. The month is named
- *  rather than numbered because 9/11 and 11/9 are the same day to different
- *  readers, and spelled out in the site's own language rather than the
- *  reader's, so that the order cannot change under it either. */
+/** "Sep 11" -- the day the problem belongs to. The month is named rather
+ *  than numbered because 9/11 and 11/9 are the same day to different readers,
+ *  and in the site's own language rather than the reader's, so that the order
+ *  cannot change under it either. Three letters of it: the day rides at the
+ *  end of the invitation, where every letter a narrow frame wraps is height
+ *  the board does not get. */
 function dayLabel(date: string): string {
   const [, m, d] = date.split('-').map(Number);
-  return `${MONTHS[m - 1]} ${d}`;
+  // A no-break space: "Sep" and its day are one word to the line breaker.
+  return `${MONTHS[m - 1]}\u00a0${d}`;
 }
 
 /** Today where the reader is. The daily problem turns over by their calendar,
@@ -100,15 +102,15 @@ function textSizeFor(width: number, height: number): number {
    frame's width the number the board is given depends only on the frame and
    on what the lines say, so it settles on the first pass.
 
-   From that size the block is drawn in onto the board -- so the stipulation
-   and the material count sit on the board's own edges, as they do in print --
-   and if the narrower block wraps a line, the walk takes the smaller board
-   that follows and tries again. It only ever goes down, so it stops; and it
-   goes down inside the single measurement, so none of it is drawn. On a frame
-   with no size that holds, it stops at MIN_BOARD instead of walking to
-   nothing, and there the lines keep the frame's width, where they wrap least,
-   and the board is centred in them. A caption reaching wider than the diagram
-   is a blemish; on a frame that small it is the price of the frame. */
+   From that size the block is drawn in towards the board -- so the
+   stipulation and the material count sit on the board's own edges, as they
+   do in print -- as far as it can go without a line wrapping that would take
+   height from the board. The board keeps the size the frame gave it; where
+   the lines will not fit in its width, they reach a little past its edges
+   instead. A caption reaching wider than the diagram is a blemish; a smaller
+   diagram is worse. On a frame with no size that holds, the board stops at
+   MIN_BOARD, the lines keep the frame's width, where they wrap least, and
+   the board is centred in them. */
 function useBoardLayout(
   root: React.RefObject<HTMLDivElement | null>,
   stack: React.RefObject<HTMLDivElement | null>,
@@ -162,7 +164,7 @@ function useBoardLayout(
            of the replay buttons stand down (still a step back and forward),
            so the row is one line and holds one line's height: two, held open
            under Hint and Give up from the start, were space the board did
-           not get. Decided at the width being tried, so the walk below stays
+           not get. Decided at the width being tried, so the search below stays
            a function of the frame. */
         if (barEl && ghost?.classList.contains('emb-bar-ghost')) {
           delete barEl.dataset.compact;
@@ -175,9 +177,9 @@ function useBoardLayout(
         }
         if (barEl) barEl.style.minHeight = ghost ? `${Math.ceil(ghost.getBoundingClientRect().height)}px` : '';
         // The lines above the diagram are held at their fullest in the same
-        // way: the day, which stays, plus whichever of the invitation and the
-        // credit is taller -- those two are never on the page together. So
-        // neither the credit nor its arriving can move the board.
+        // way: whichever of the invitation and the credit is taller -- those
+        // two are never on the page together. So neither the credit nor its
+        // arriving can move the board.
         const headEl = head.current;
         const headGhost = headEl?.firstElementChild as HTMLElement | null;
         if (headEl) {
@@ -196,57 +198,59 @@ function useBoardLayout(
       const fits = (width: number) =>
         Math.floor(Math.min(availableW, availableH - linesAt(width)));
 
-      // The largest the board could be if the lines never wrapped any harder
-      // than they do across the whole frame. Everything below starts here and
-      // only ever goes down, so one pass settles it.
-      let size = fits(availableW);
+      // The largest the board can be: the lines set across the whole frame,
+      // where they wrap least. No narrower block gives it more, and nothing
+      // below takes any of it away.
+      const size0 = fits(availableW);
+      let size = size0;
       let blockWidth = availableW;
 
-      if (size < availableW && size >= MIN_BOARD) {
-        /* Room to spare on the width, so the block can be drawn in to the
-           board's own edges. Narrowing it may cost a wrapped line, and that
-           line costs the board some height, which draws the block in further
-           -- but each step is smaller than the last and the walk stops at the
-           first width that pays for itself. Descending inside the one
-           measurement is what keeps this off the screen: nothing is drawn
-           until it has come to rest, and where it rests depends only on the
-           frame. */
-        for (let i = 0; i < 4; i += 1) {
-          const next = fits(size);
-          if (next >= size) break;
-          if (next < MIN_BOARD) { size = -1; break; }
-          size = next;
+      if (size >= MIN_BOARD && size < availableW) {
+        /* Room to spare on the width, so the block is drawn in towards the
+           board's own edges -- the stipulation and the material count sit on
+           them, as in print -- but only as far as costs the board nothing.
+           At the board's own width the lines can wrap harder than across the
+           frame (the row of replay buttons does, in the narrowest frames), and
+           the walk that used to follow them down gave up board for the
+           alignment: with the day moved onto the invitation's line, 147px of
+           it would have become 120 in a frame 210 wide. The block now stops at
+           the narrowest width whose lines still leave the board every pixel of
+           its size -- the board's own width where the lines fit in it, a
+           little wider where they do not. Found by halving, inside the one
+           measurement, so none of it is drawn. */
+        if (fits(size) >= size) {
+          blockWidth = size;
+        } else {
+          let lo = size, hi = availableW;
+          while (hi - lo > 1) {
+            const mid = Math.floor((lo + hi) / 2);
+            if (fits(mid) >= size) hi = mid; else lo = mid;
+          }
+          blockWidth = hi;
         }
-        if (size > 0) blockWidth = size;
-      }
-
-      if (size < MIN_BOARD) {
-        // Nothing this narrow was ever going to hold both a diagram and its
-        // lines. The lines keep the frame's width, where they wrap least, and
-        // the board takes the smallest size still worth looking at.
-        size = fits(availableW);
-        blockWidth = availableW;
       }
 
       /* A frame that holds the block shows no scrollbar, not even for the
          fraction of a pixel a line may be rounded to. Only a frame too short
          for the smallest board scrolls, and that is decided above from the
-         frame alone, so the scrollbar arriving cannot undo it; the lines are
-         then set in the width the scrollbar leaves them, so that none of them
-         runs under it. */
-      if (size < MIN_BOARD) {
+         frame alone, so the scrollbar arriving cannot undo it. There the
+         board takes the smallest size still worth looking at, and the lines
+         keep the frame's width, where they wrap least -- less the scrollbar's,
+         so that none of them runs under it. */
+      if (size0 < MIN_BOARD) {
         rootEl.dataset.scroll = '';
         availableW = Math.max(0, availableW - (rootEl.offsetWidth - rootEl.clientWidth));
-        size = Math.max(MIN_BOARD, fits(availableW));
+        size = MIN_BOARD;
         blockWidth = availableW;
       } else {
         delete rootEl.dataset.scroll;
       }
 
-      // Leave the block at what was decided rather than handing it back bare:
-      // React writes the same number on its next render, and nothing is
-      // painted at the frame's width in between.
-      stackEl.style.width = `${blockWidth}px`;
+      // Leave every line as it is at the width decided -- the halving may
+      // have tried a narrower one last -- rather than handing the block back
+      // bare: React writes the same width on its next render, and nothing is
+      // painted at another width in between.
+      linesAt(blockWidth);
       setLayout(prev => (prev.size === size && prev.blockWidth === blockWidth
         ? prev
         : { size, blockWidth }));
@@ -482,27 +486,33 @@ function EmbedProblem({ variant }: { variant: EmbedVariant }) {
      height either way so the board does not jump when the name arrives. */
   const credit = p ? [composerLine(p.authors), [p.sourceName, p.sourceYear].filter(Boolean).join(', ')]
     .filter(Boolean).join(' — ') : '';
-  /* The daily problem says which day it is, on a line of its own. It had been
-     sharing the credit's line and standing down when the credit arrived --
-     but which morning this board belongs to is not a thing to take away from
-     someone the moment they have solved it. Both lines are held open from the
-     start, so the diagram does not move when the credit appears. */
+  /* The daily problem says which day it is at the end of the invitation --
+     "Solve by moving pieces on the board (Sep 28)" -- and not on a line of
+     its own over it: in a narrow frame that line was height the diagram did
+     not get (2026-09-28, the user's call). No "Daily" in front of it either:
+     today's date says as much. It stands down with the invitation when the
+     solve is decided.
+
+     Held to the last word by a no-break space, so a line that has to break
+     takes "board (Sep 28)" down together and never leaves the date alone on a
+     line of its own (the user's call). */
+  const invite = dailyDate ? `${INVITE}\u00a0(${dayLabel(dailyDate)})` : INVITE;
 
   return (
     <div className="emb-root" data-board={boardColours} ref={rootRef}>
       <div className="emb-stack" ref={stackRef} style={blockWidth ? { width: blockWidth } : undefined}>
       {/* Above the diagram, and it is held at the height of whichever state
-          wants more. Until the solve is decided: which day this board belongs
-          to, and under it the one thing a reader cannot tell from a picture of
-          a position -- that the pieces on it move. After it: who composed the
-          problem and where it appeared, which is when both of those have done
-          their work.
+          wants more. Until the solve is decided: the one thing a reader cannot
+          tell from a picture of a position -- that the pieces on it move --
+          with the day this board belongs to at the end of it. After it: who
+          composed the problem and where it appeared, which is when both of
+          those have done their work.
 
           The twin below is the same text, drawn out of the flow, so the taller
-          of the two states -- the day with its invitation, or a composer's name
-          that runs to two lines, a pair of names, a Cyrillic patronymic -- has
-          its room taken before the reader ever gets there, and the board does
-          not move when the name arrives. */}
+          of the two states -- the invitation, or a composer's name that runs
+          to two lines, a pair of names, a Cyrillic patronymic -- has its room
+          taken before the reader ever gets there, and the board does not move
+          when the name arrives. */}
       <div className="emb-head" ref={headRef}>
         <div className="emb-head-ghost" aria-hidden="true">
           {/* With the credit held back the block has two states, and it is
@@ -511,23 +521,18 @@ function EmbedProblem({ variant }: { variant: EmbedVariant }) {
               them is taken at once. */}
           {creditsUpFront ? (
             <>
-              {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
               <div className="emb-credit">{credit}</div>
-              <div className="emb-invite">{INVITE}</div>
+              <div className="emb-invite">{invite}</div>
             </>
           ) : (
             <div className="emb-head-swap">
-              <div>
-                {dailyDate && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
-                <div className="emb-invite">{INVITE}</div>
-              </div>
+              <div className="emb-invite">{invite}</div>
               <div className="emb-credit">{credit}</div>
             </div>
           )}
         </div>
-        {dailyDate && (decided ? creditsUpFront : true) && <div className="emb-date">Daily — {dayLabel(dailyDate)}</div>}
         {(decided || creditsUpFront) && <div className="emb-credit">{credit}</div>}
-        {!decided && p && <div className="emb-invite">{INVITE}</div>}
+        {!decided && p && <div className="emb-invite">{invite}</div>}
       </div>
 
       <div className="emb-slot" ref={slotRef} style={{ height: boardSize }}>

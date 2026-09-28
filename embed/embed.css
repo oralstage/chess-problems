@@ -129,20 +129,10 @@ body {
    count below, no chrome around any of it. The stipulation is a statement of
    the task, not a control, so it wears no pill. */
 
-/* Which day this board belongs to, on its own line above the credit's, so
-   that the one arriving never takes the other away. */
-.emb-date {
-  font-size: var(--emb-text);
-  font-weight: 700;
-  line-height: 1.3;
-  color: var(--faint);
-  text-align: center;
-}
-
-/* The day with its invitation, and then the credit that replaces the pair of
-   them: the same piece of the page, so it is measured once for both states and
-   never changes height under the reader. The credit, alone in a box held open
-   for two lines, is centred in it rather than left sitting on top of a gap. */
+/* The invitation, and then the credit that replaces it: the same piece of the
+   page, so it is measured once for both states and never changes height under
+   the reader. The credit, alone in a box held open for two lines, is centred
+   in it rather than left sitting on top of a gap. */
 .emb-head {
   position: relative;
   display: flex;
@@ -162,9 +152,9 @@ body {
   pointer-events: none;
 }
 
-/* The day with the invitation under it, and the credit -- the two states of
-   this block. They are never on the page together, so they are stacked in a
-   single cell and the taller of them is what the block is held at. */
+/* The invitation and the credit -- the two states of this block. They are
+   never on the page together, so they are stacked in a single cell and the
+   taller of them is what the block is held at. */
 .emb-head-swap {
   display: grid;
 }
@@ -174,13 +164,13 @@ body {
 }
 
 /* What to do with the board, for a reader who has met a diagram before but not
-   one that can be played. It stands down when the solve is decided and the
+   one that can be played, and on the daily problem which day it is, at the end
+   of the same sentence. It stands down when the solve is decided and the
    composer's name takes the line, which is the moment it has done its work.
 
-   Set exactly as the day above it is, and as everything else on this panel is:
-   one size, one face, one weight. A line that is typeset differently from its
-   neighbours is a line claiming to be a different kind of thing, and this one
-   is not. */
+   Set as everything else on this panel is: one size, one face, one weight. A
+   line that is typeset differently from its neighbours is a line claiming to
+   be a different kind of thing, and this one is not. */
 .emb-invite {
   font-size: var(--emb-text);
   font-weight: 700;
@@ -336,7 +326,6 @@ body {
   font-weight: 600;
 }
 
-.emb-root .emb-date,
 .emb-root .emb-invite,
 .emb-root .emb-status { font-weight: 600; }
 .emb-root .emb-stip { font-weight: 600; }
