@@ -369,11 +369,23 @@ function endsInMark(moves: string[], standaloneMate: boolean, selfmate: boolean)
   return !selfmate && (standaloneMate || /#[!?]*$/.test(moves[moves.length - 1]));
 }
 
-/** The mark written once at the end of a list belongs to every move in it. */
-function carryMark(moves: string[], standaloneMate: boolean): string[] {
+/** The mark written once at the end of a list belongs to every move in it --
+ *  but only where it is written once: in "2.Kf5,Qh5+,Kf5,Qh5+" (D382808) each
+ *  move carries its own, and Kf5 gives no check. Nor is a selfmate's closing
+ *  mate White's to hand round. */
+function carryMark(moves: string[], standaloneMate: boolean, selfmate: boolean): string[] {
+  if (moves.slice(0, -1).some(m => /[#+]/.test(m))) return moves;
   const mark = standaloneMate ? '#' : (moves[moves.length - 1].match(/([#+])[!?]*$/)?.[1] ?? '');
-  if (!mark) return moves;
+  if (!mark || (selfmate && mark === '#')) return moves;
   return moves.map(m => /[#+]/.test(m) ? m : m.replace(/([!?]*)$/, mark + '$1'));
+}
+
+/* White's moves paired one for one with the defences before them need no mark
+   to be read as a list: nothing else writes as many of each side by side
+   ("1.Qe8! B:d4,Sd7,Be5,Bf8 2.Kf5,Qh5+,Kf5,Qh5+", D382808). A key's or a
+   try's mark inside it would still say otherwise. */
+function pairsWith(moves: string[]): boolean {
+  return !moves.slice(0, -1).some(m => /[!?]$/.test(m));
 }
 
 /**
@@ -433,8 +445,8 @@ function expandCommaLists(line: string, flat: boolean, selfmate: boolean, depth 
       const w = tail.match(WHITE_LIST_AFTER);
       if (w) {
         const whites = w[2].split(/\s*,\s*/);
-        if (whites.length === alts.length && endsInMark(whites, !!w[3], selfmate)) {
-          partners = carryMark(whites, !!w[3]);
+        if (whites.length === alts.length && pairsWith(whites)) {
+          partners = carryMark(whites, !!w[3], selfmate);
           between = w[1];
           tail = tail.slice(w[0].length);
         }
@@ -443,7 +455,7 @@ function expandCommaLists(line: string, flat: boolean, selfmate: boolean, depth 
     } else {
       const standalone = /^\s+#(?=\s|$)/.exec(tail);
       if (!endsInMark(alts, !!standalone, selfmate)) continue;
-      alts = carryMark(alts, !!standalone);
+      alts = carryMark(alts, !!standalone, selfmate);
       if (standalone) tail = tail.slice(standalone[0].length);
     }
 
@@ -471,7 +483,7 @@ function commaThreatsToSlashes(threat: string, selfmate: boolean): string {
     const before = whole.slice(0, offset);
     if (before.trim() && !WHITE_NUMBER_BEFORE.test(before)) return list;
     const moves = list.split(/\s*,\s*/);
-    return endsInMark(moves, false, selfmate) ? carryMark(moves, false).join('/') : list;
+    return endsInMark(moves, false, selfmate) ? carryMark(moves, false, selfmate).join('/') : list;
   });
 }
 
