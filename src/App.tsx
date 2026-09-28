@@ -2540,27 +2540,33 @@ export default function App() {
     problem.showSolution();
   }, [currentGenre, problem, setProgress, setTimestamps, isRatedMode, isRated, getProblemInitialRating, updateAfterSolve, playerRating, isSecondaryTwin]);
 
-  // Fetch a random problem via API (used when genre data hasn't loaded yet)
+  // Fetch a random problem via API (used when genre data hasn't loaded yet).
+  // It draws from the category's first page -- the very request the quick
+  // start makes, so it comes off the edge cache. It used to ask for one
+  // problem at a random offset, an OFFSET scan of up to the whole category
+  // per click; the API no longer serves pages past the first (2026-09-29).
   const fetchRandomFromApi = useCallback(async () => {
     if (!currentGenre) return;
     const catDef = currentCategory ? CATEGORY_DEFS.find(d => d.category === currentCategory) : null;
     const params: Record<string, string> = {};
-    if (catDef?.minMoves != null) params.minMoves = String(catDef.minMoves);
-    if (catDef?.maxMoves != null && catDef.maxMoves > 0) params.maxMoves = String(catDef.maxMoves);
-    const total = problemCounts[currentCategory || currentGenre as Category] || 1000;
-    const randomOffset = Math.floor(Math.random() * total);
+    if (catDef?.minMoves) params.minMoves = String(catDef.minMoves);
+    if (catDef?.maxMoves) params.maxMoves = String(catDef.maxMoves);
     try {
-      const { problems: page } = await fetchProblemsPage(currentGenre, randomOffset, 1, params);
-      if (page.length > 0 && page[0].id !== problem.problem?.id) {
-        const full = await fetchProblem(page[0].id);
-        const p = metaToChessProblem(full, full.solutionText);
-        loadAndStartProblem(p);
-        cacheProblem(p);
-        setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']: p.id }));
-        updateHash(currentCategory || currentGenre, p.id);
-      }
+      const { problems: page } = await fetchProblemsPage(currentGenre, 0, QUICK_START_PAGE_SIZE, params);
+      const genreProgress = progress[currentGenre] || {};
+      const others = page.filter(m => m.id !== problem.problem?.id);
+      const unseen = others.filter(m => !genreProgress[String(m.id)]);
+      const pool = unseen.length > 0 ? unseen : others;
+      if (pool.length === 0) return;
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      const full = await fetchProblem(pick.id);
+      const p = metaToChessProblem(full, full.solutionText);
+      loadAndStartProblem(p);
+      cacheProblem(p);
+      setCurrentProblemId(prev => ({ ...prev, [currentCategory || currentGenre || '']: p.id }));
+      updateHash(currentCategory || currentGenre, p.id);
     } catch { /* API error — ignore */ }
-  }, [currentGenre, currentCategory, problemCounts, problem.problem, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
+  }, [currentGenre, currentCategory, progress, problem.problem, loadAndStartProblem, cacheProblem, setCurrentProblemId, updateHash]);
 
   const handleNextProblem = useCallback(() => {
     if (!currentGenre || !problem.problem) return;

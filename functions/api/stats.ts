@@ -1,4 +1,5 @@
 import { addFairyExclusion } from './fairy-filter';
+import { isMissingTable, unavailable } from './list-guard';
 
 /**
  * GET /api/stats
@@ -34,14 +35,19 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
   // ── 2. stats_cache table ──
   // Tolerate a missing table (e.g. a stats DB that predates it) by falling
-  // through to full calculation instead of failing the request.
+  // through to full calculation instead of failing the request. Any other
+  // failure refuses instead: it used to fall through as well, so a stats DB
+  // that could not be read -- over the daily read limit, say -- turned every
+  // edge miss into a ~1.2M-row computation.
   let payload: string | null = null;
   try {
     const row = await context.env.STATS_DB.prepare(
       'SELECT payload FROM stats_cache WHERE key = ?'
     ).bind(cacheKey).first<{ payload: string }>();
     if (row) payload = row.payload;
-  } catch { /* table missing — compute below */ }
+  } catch (e) {
+    if (!isMissingTable(e)) return unavailable();
+  }
 
   // ── 3. Full calculation ──
   if (!payload) {
