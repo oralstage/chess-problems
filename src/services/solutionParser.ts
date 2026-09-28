@@ -7,6 +7,40 @@ function normalizeGerman(s: string): string {
   return s.replace(/D/g, 'Q').replace(/T/g, 'R').replace(/L/g, 'B').replace(/S/g, 'N');
 }
 
+/* Cyrillic letters inside moves. A solution typed on a Russian or Ukrainian
+   keyboard carries look-alike letters in the squares ("1.Qе7!", "Kс2",
+   "Rа1": а, с, е), the capture and mate signs х and Х ("Sхе5", "2.Sd5Х"),
+   and now and then the Russian piece letters: Кр king, Ф queen, Л rook, С
+   bishop ("1.Фb7? Кр:h5!"). None of that reads as a move, so the line went
+   dead there -- D163246's "1.Qf4! Kс2 2.Qс1#" had nothing after the key.
+   A word is only touched when the swap leaves a move and no Cyrillic behind:
+   prose stays as written, and so does a К on its own, which is the knight in
+   Russian notation and a look-alike of the king everywhere else. Comments in
+   braces are left alone. The twin labels "а)" and "с)" are the same letters. */
+const CYRILLIC = /[\u0400-\u04FF]/;
+const CYRILLIC_FILES: Record<string, string> = { '\u0430': 'a', '\u0441': 'c', '\u0435': 'e' };
+
+function normalizeCyrillicWord(word: string): string {
+  if (!CYRILLIC.test(word)) return word;
+  const label = word.match(/^(\+?)([\u0430\u0441\u0435])\)(.*)$/);
+  if (label) return label[1] + CYRILLIC_FILES[label[2]] + ')' + normalizeCyrillicWord(label[3]);
+  const swapped = word
+    .replace(/[\u041AK][\u0440p](?=[-:x\u0445*a-h\u0430\u0441\u0435])/g, 'K')
+    .replace(/\u0424/g, 'Q')
+    .replace(/\u041B/g, 'R')
+    .replace(/\u0421(?=[-:x\u0445*a-h\u0430\u0441\u0435])/g, 'B')
+    .replace(/[\u0430\u0441\u0435]/g, ch => CYRILLIC_FILES[ch])
+    .replace(/\u0445(?=[a-h])/g, 'x')
+    .replace(/\u0425(?=[+!?]*(?:[;,.)]|$))/g, '#');
+  if (CYRILLIC.test(swapped) || !/[a-h][1-8]|0-0|O-O/.test(swapped)) return word;
+  return swapped;
+}
+
+export function normalizeCyrillicMoves(text: string): string {
+  if (!CYRILLIC.test(text)) return text;
+  return text.replace(/\{[^}]*\}|[^\s{}]+/g, w => w.startsWith('{') ? w : normalizeCyrillicWord(w));
+}
+
 // Long algebraic: Piece + from + sep + to + promo (sep includes ':' for captures)
 // The promotion group also takes the joke forms: =K and =P (pieces FIDE does
 // not allow) and =bS / =wQ (promoting to the opponent's colour). They are only
@@ -904,7 +938,7 @@ function twinBlockStart(trimmed: string): string | null {
 
 export function extractTwinFenMods(solutionText: string): FenMod[] | null {
   if (!solutionText) return null;
-  const trimmed = twinBlockStart(solutionText.trim());
+  const trimmed = twinBlockStart(normalizeCyrillicMoves(solutionText.trim()));
   if (!trimmed) return null;
   // Match "a) <modifications>" at the start
   const aMatch = trimmed.match(/^a\)\s*(.*?)(?:\n|$)/i);
@@ -1254,7 +1288,7 @@ const TWIN_STIP_RE = /\{\s*([a-z]*[#=]\d*)\s*\}/i;
 
 export function parseTwins(solutionText: string, originalFen: string, firstMoveColor: 'w' | 'b' = 'w'): TwinData[] | null {
   if (!solutionText) return null;
-  const trimmed = twinBlockStart(solutionText.trim());
+  const trimmed = twinBlockStart(normalizeCyrillicMoves(solutionText.trim()));
   if (!trimmed) return null; // Not a twin problem
 
   // Split into twin sections: "a) ...", "b) ...", "+c) ..."
@@ -1376,7 +1410,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
   // A true PGN solution is entirely wrapped in {} with optional result.
   // If content continues after the closing }, it's a comment followed by indent-based notation.
   // Normalize "1. ... h5" → "1...h5" (black move with spaces around dots)
-  const trimmedInput = solutionText.trim().replace(/(\d+)\.\s+\.\.\./g, '$1...');
+  const trimmedInput = normalizeCyrillicMoves(solutionText.trim()).replace(/(\d+)\.\s+\.\.\./g, '$1...');
   if (trimmedInput.startsWith('{')) {
     const closingBrace = trimmedInput.indexOf('}');
     const afterBrace = closingBrace >= 0 ? trimmedInput.slice(closingBrace + 1).trim() : '';
@@ -1395,7 +1429,19 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
   if (twinMatch) {
     processedText = processedText.slice(twinMatch[0].length);
     // Remove everything from the next twin marker onwards (b), +c), etc.)
-    processedText = processedText.replace(/\n\s*\+?[b-z]\)\s.*/is, '');
+    // The label may also run straight into what follows it -- "b)1.Bс5!"
+    // (D366935), "b)bPb6 ->e3" -- as parseTwins already allows; left in, twin
+    // b)'s key sat in twin a)'s tree, where the board took it as a second key.
+    // Such a label only ends twin a) if a) has moves of its own before it:
+    // D325633 lists "a)diagram / b)- bPb4 / c)Ba1-->h8" first and gives the
+    // solutions after all three.
+    const spaced = processedText.search(/\n\s*\+?[b-z]\)\s/i);
+    const glued = processedText.search(/\n\s*\+?[b-z]\)\S/i);
+    let twinCut = spaced;
+    if (glued >= 0 && (spaced < 0 || glued < spaced) && /\d\s*\./.test(processedText.slice(0, glued))) {
+      twinCut = glued;
+    }
+    if (twinCut >= 0) processedText = processedText.slice(0, twinCut);
   }
 
   const segments = parseSegments(processedText);
