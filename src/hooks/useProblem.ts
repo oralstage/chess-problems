@@ -1154,16 +1154,49 @@ export function useProblem(stockfish?: StockfishApi) {
       const opponentColor = movedColor === 'w' ? 'b' : 'w';
       const realDefenses = matchingNode.children.filter(n => !n.isThreat && n.color === opponentColor);
 
+      /* What the solver plays next, if the opponent's reply is missing or
+         cannot be played: a threat in brackets ("1.Kb3! (2.Rd1#)"), or
+         another move by the side that just moved, because the source wrote
+         the reply inside a comment ("1.Sb3-d2! {(~)} 2.Sd2-c4#"), never
+         wrote it at all, or wrote it as a move this board cannot play (see
+         playableDefenses). Where the only replies on record are ones the
+         board cannot play, it is what the source has after them. */
+      let continuations = matchingNode.children.filter(
+        n => n.isThreat || (problem.genre !== 'retro' && n.color === movedColor),
+      );
+      if (continuations.length === 0 && problem.genre !== 'retro') {
+        continuations = realDefenses.flatMap(d => d.children.filter(n => n.color === movedColor));
+      }
+      /* The replies on record that the board can play. The source sometimes
+         writes one this position cannot hold: D323916 answers 1.Se3 with
+         "1...Ba1" and "1...Sd6", but Black has no bishop (Ba1 is the rook's
+         move) and the knight on d7 cannot reach d6. Handed to the board, that
+         left it on Black's turn with nothing moving and a solver who only
+         holds White. */
+      const playableDefenses = realDefenses.filter(n => tryExecuteNode(new Chess(newFen), n) !== null);
+      /* Replies are on record, none can be played, and no reply at all lets
+         the solver play on: the text itself is misread past this point (a
+         Cyrillic letter inside a move, a fairy board without the flag). The
+         solver has played as far as the record can be followed, so that
+         counts as solved (user decision, 2026-09-28) -- rather than a board
+         waiting on a reply that never comes, with Give Up the only way out.
+         Not in retro, where the solver moves both colours and can go on from
+         the position as it stands, nor in a helpmate, which plays no reply. */
+      const lineBroken = problem.genre !== 'retro' && problem.genre !== 'help'
+        && realDefenses.length > 0 && playableDefenses.length === 0
+        && !someReplyLetsLineGoOn(newFen, continuations);
+
       const isMateProblem = problem.genre === 'self';
       const isTerminal = isActualCheckmate || afterChess.isStalemate() || afterChess.isDraw();
       let isSolved: boolean;
       if (isMateProblem) {
-        isSolved = isActualCheckmate;
+        isSolved = isActualCheckmate || lineBroken;
       } else if (isTerminal) {
         isSolved = true;
       } else {
-        // Solved if no children (tree ends here — either complete solution or truncated)
-        isSolved = matchingNode.children.length === 0;
+        // Solved if no children (tree ends here — either complete solution or
+        // truncated), or if what follows cannot be played (lineBroken).
+        isSolved = matchingNode.children.length === 0 || lineBroken;
       }
 
       if (isSolved && state.totalSolutions > 1) {
@@ -1257,39 +1290,13 @@ export function useProblem(stockfish?: StockfishApi) {
         return true;
       }
 
-      /* Nothing on record for the opponent that the board can play, yet the
-         line goes on. Either the continuation is a threat in brackets
-         ("1.Kb3! (2.Rd1#)"), or it is another move by the side that just
-         moved, because the source wrote the reply inside a comment
-         ("1.Sb3-d2! {(~)} 2.Sd2-c4#"), never wrote it at all, or wrote it as
-         a move this board cannot play (below). In every case somebody has to
-         move before the solver can play on, and the move is chosen to keep
-         the continuation working. Where the only replies on record are ones
-         the board cannot play, the continuation is what the source has after
-         them. */
-      let continuations = matchingNode.children.filter(
-        n => n.isThreat || (problem.genre !== 'retro' && n.color === movedColor),
-      );
-      if (continuations.length === 0 && problem.genre !== 'retro') {
-        continuations = realDefenses.flatMap(d => d.children.filter(n => n.color === movedColor));
-      }
-
       /* Direct/Self/Study: auto-play opponent from solution tree -- a reply
-         the board can play. The source sometimes writes one this position
-         cannot hold: D323916 answers 1.Se3 with "1...Ba1" and "1...Sd6", but
-         Black has no bishop (Ba1 is the rook's move) and the knight on d7
-         cannot reach d6. Handed to the board, that left it on Black's turn
-         with nothing moving and a solver who only holds White; now a reply
-         is supplied as above. Two cases keep the old step past the recorded
-         reply: retro, where the solver moves both colours and so can go on
-         from the position as it stands, and a line that no reply at all lets
-         the solver play on from -- there the text itself is misread, and a
-         made-up reply would only turn the solver's right moves into wrong
-         ones. */
-      const playableDefenses = realDefenses.filter(n => tryExecuteNode(new Chess(newFen), n) !== null);
-      const keepOldStep = playableDefenses.length === 0 && realDefenses.length > 0
-        && (problem.genre === 'retro' || !someReplyLetsLineGoOn(newFen, continuations));
-      const defensesToPlay = keepOldStep ? realDefenses : playableDefenses;
+         the board can play (playableDefenses). Where none can, a reply is
+         supplied below, as for one the source never wrote. Retro keeps the
+         old step past the recorded reply: the solver moves both colours
+         there and can go on from the position as it stands. */
+      const defensesToPlay = playableDefenses.length > 0 ? playableDefenses
+        : problem.genre === 'retro' ? realDefenses : [];
       if (defensesToPlay.length > 0) {
         setState(prev => ({
           ...prev,
