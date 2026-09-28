@@ -48,13 +48,24 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  /* A frame too short for the smallest usable board can be scrolled rather
-     than having its buttons cut off at the bottom. The block is centred by
-     its own auto margins instead of by justify-content, because auto margins
-     go to nothing when the content overflows -- centring it would push the
-     top of the diagram above the scrollable area, where nothing can reach
-     it. */
-  overflow-y: auto;
+  /* No scrollbar in a frame that holds the block. The layout sizes the board
+     so that nothing reaches past the room it was given, bar the fraction of a
+     pixel a frame's size is rounded by -- and a scrollbar called up by that
+     took 15px of width and height, which the layout gave back, which sent the
+     scrollbar away again: the panel shook. */
+  overflow: hidden;
+}
+
+/* A frame too short for the smallest usable board (the layout says so) can be
+   scrolled rather than having its buttons cut off at the bottom. Always a
+   scrollbar there, not one as needed, so the width it takes is known while
+   the lines are being set; never a sideways one. The block is centred by its
+   own auto margins instead of by justify-content, because auto margins go to
+   nothing when the content overflows -- centring it would push the top of the
+   diagram above the scrollable area, where nothing can reach it. */
+.emb-root[data-scroll] {
+  overflow-x: hidden;
+  overflow-y: scroll;
 }
 
 /* The diagram and its lines are one block, as wide as the board itself, so

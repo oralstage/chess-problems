@@ -126,12 +126,26 @@ function useBoardLayout(
       const rootStyle = getComputedStyle(rootEl);
       const padX = parseFloat(rootStyle.paddingLeft) + parseFloat(rootStyle.paddingRight);
       const padY = parseFloat(rootStyle.paddingTop) + parseFloat(rootStyle.paddingBottom);
-      const availableW = Math.max(0, rootEl.clientWidth - padX);
-      const availableH = Math.max(0, rootEl.clientHeight - padY);
+      /* The frame is read off its outer box, which a scrollbar does not
+         change. clientWidth and clientHeight lose 15px to one once it shows,
+         and one did show: the sizes are whole pixels, so in an iframe sized by
+         aspect-ratio (287.7 high reads as 288) the block could reach a
+         fraction of a pixel into the padding under it, which a scrolling box
+         answers with a scrollbar. The lines over the board, set at the frame's
+         width, then ran under that one and brought a second; 15px came off
+         both ways, the board shrank, the overhang went, the scrollbars went,
+         and the board grew back, frame after frame. offsetWidth and
+         offsetHeight are the same whole pixels clientWidth and clientHeight
+         give with no scrollbar showing -- so every board keeps the size it
+         had -- and they do not move when one shows. The fraction of a pixel
+         still reaches into the padding, where nothing is drawn, and the frame
+         now has no scrollbar to show for it (embed.css). */
+      let availableW = Math.max(0, rootEl.offsetWidth - padX);
+      const availableH = Math.max(0, rootEl.offsetHeight - padY);
 
       // Before anything is measured, because every line's height is downstream
       // of it. The frame is what it reads, so this does not feed back.
-      rootEl.style.setProperty('--emb-text', `${textSizeFor(rootEl.clientWidth, rootEl.clientHeight)}px`);
+      rootEl.style.setProperty('--emb-text', `${textSizeFor(rootEl.offsetWidth, rootEl.offsetHeight)}px`);
 
       /* Everything in the block that is not the board, gaps and all, taken as
          one figure at the given width. The board's own box drops out of it,
@@ -210,8 +224,23 @@ function useBoardLayout(
         // Nothing this narrow was ever going to hold both a diagram and its
         // lines. The lines keep the frame's width, where they wrap least, and
         // the board takes the smallest size still worth looking at.
+        size = fits(availableW);
+        blockWidth = availableW;
+      }
+
+      /* A frame that holds the block shows no scrollbar, not even for the
+         fraction of a pixel a line may be rounded to. Only a frame too short
+         for the smallest board scrolls, and that is decided above from the
+         frame alone, so the scrollbar arriving cannot undo it; the lines are
+         then set in the width the scrollbar leaves them, so that none of them
+         runs under it. */
+      if (size < MIN_BOARD) {
+        rootEl.dataset.scroll = '';
+        availableW = Math.max(0, availableW - (rootEl.offsetWidth - rootEl.clientWidth));
         size = Math.max(MIN_BOARD, fits(availableW));
         blockWidth = availableW;
+      } else {
+        delete rootEl.dataset.scroll;
       }
 
       // Leave the block at what was decided rather than handing it back bare:
