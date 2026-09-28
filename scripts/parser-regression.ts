@@ -51,9 +51,14 @@ function firstMoveColor(stipulation: string): 'w' | 'b' {
 
 type ParsedNode = ReturnType<typeof parseSolution>[number];
 
+/** Read as the app reads it: a selfmate's closing mate is Black's. */
+function parseOptions(stipulation: string) {
+  return { selfmate: stipulation.startsWith('s#') };
+}
+
 function solvingRoots(solution: string, stipulation: string): ParsedNode[] {
   const color = firstMoveColor(stipulation);
-  return filterKeyMoves(parseSolution(solution, color), color);
+  return filterKeyMoves(parseSolution(solution, color, parseOptions(stipulation)), color);
 }
 
 function acceptedMoves(solution: string, stipulation: string): string[] {
@@ -144,7 +149,7 @@ if (!existsSync(CACHE_DIR)) {
       // regressions deeper in the tree (defenses, continuations, threat
       // attachment — e.g. the old D142094 move-2 bug) also show up as diffs.
       const color = firstMoveColor(stip);
-      const all = parseSolution(sol, color);
+      const all = parseSolution(sol, color, parseOptions(stip));
       const accepted = filterKeyMoves(all, color).map(n => n.move).sort().join('|');
       current[id] = `${accepted}::${treeHash(all)}`;
     } catch {

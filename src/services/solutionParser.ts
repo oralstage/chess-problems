@@ -337,6 +337,144 @@ function expandAllSlashAlternatives(line: string, depth = 0): string[] {
   return parts.flatMap(p => expandAllSlashAlternatives(p, depth + 1));
 }
 
+/* One move in a comma list: short or long algebraic in YACPDB's letters (S
+   for the knight, German D/T/L), captures written x, : or *, a promotion with
+   or without "=", castling, an e.p. note, and the marks after it. */
+const LIST_MOVE = '(?:[KQRBSNDTL]?[a-h]?[1-8]?[-x:*]?[a-h][1-8](?:=?[QRBSNDTL])?|0-0-0|O-O-O|0-0|O-O)(?:\\s?e\\.\\s?p\\.)?[+#!?]*';
+const LIST_OF_MOVES = `${LIST_MOVE}(?:\\s*,\\s*${LIST_MOVE})+`;
+const COMMA_LIST = new RegExp(`(?<=^|[\\s.…])${LIST_OF_MOVES}(?=[\\s;]|$)`, 'g');
+const BLACK_NUMBER_BEFORE = /(\d+)\s*\.\s*(?:\.{2,3}|…)\s*$/;
+const WHITE_NUMBER_BEFORE = /(\d+)\s*\.\s*$/;
+const WHITE_MOVE_BEFORE = new RegExp(`(\\d+)\\s*\\.\\s*${LIST_MOVE}(?:\\s*[!?]+)?\\s+$`);
+const WHITE_LIST_AFTER = new RegExp(`^(\\s+\\d+\\s*\\.\\s*)(${LIST_OF_MOVES})(\\s+#(?=\\s|$))?`);
+
+/** What the text alone cannot say. In a selfmate it is Black who mates, so
+ *  "2.e:f3, Sc2#" is White's move and Black's mate (D47248), not two mates of
+ *  White's to choose from as "2. Qf5, Qe4#" is in a direct mate. */
+export interface ParseOptions {
+  selfmate?: boolean;
+}
+
+/* A list of White's moves is only taken as alternatives when it ends in a
+   mate ("2. Qf5, Qe4#") or every move of it checks ("2.Sce2+,Sge2+"). Some
+   sources use the comma to part White's move from Black's reply instead --
+   "1. Ba6!!, Bf3+; 2. Kh3, Bg4+;" (D368962) -- where the reply may check or,
+   in a selfmate, mate; the key's "!" in front of the comma tells those apart,
+   and such texts part the moves with ";" as well (see expandCommaLists). */
+function endsInMark(moves: string[], standaloneMate: boolean, selfmate: boolean): boolean {
+  if (moves.slice(0, -1).some(m => /[!?]$/.test(m))) return false;
+  if (moves.every(m => /\+[!?]*$/.test(m))) return true;
+  // A check and then a mate ("2.Qe6+, K:e6#") is a move and its answer.
+  if (moves.slice(0, -1).some(m => /\+[!?]*$/.test(m))) return false;
+  return !selfmate && (standaloneMate || /#[!?]*$/.test(moves[moves.length - 1]));
+}
+
+/** The mark written once at the end of a list belongs to every move in it. */
+function carryMark(moves: string[], standaloneMate: boolean): string[] {
+  const mark = standaloneMate ? '#' : (moves[moves.length - 1].match(/([#+])[!?]*$/)?.[1] ?? '');
+  if (!mark) return moves;
+  return moves.map(m => /[#+]/.test(m) ? m : m.replace(/([!?]*)$/, mark + '$1'));
+}
+
+/**
+ * Comma lists the other expansions do not reach. YACPDB writes three kinds:
+ *
+ *   "2. Qf5, Qe4#"             White's alternatives: either mates
+ *   "2.Qf6+ Se5,Kc5 3.Qb6#"    Black's alternatives after a move of White's
+ *   "1...Ba1,Sd6 2.Sef2,Sc5#"  as many defences as mates, paired in order:
+ *                              1...Ba1 2.Sef2#, 1...Sd6 2.Sc5#
+ *
+ * Read as they stood, the second move of each list became the next move of
+ * the line and was handed to the other side, so a #2 answered 2.Sef2 with a
+ * Black "Sc5#" and the board waited on a reply it could not make. A list of
+ * defences at the head of the line with one mate after it ("1... Sd5, Kf4
+ * 2. Q:f5#") is left to expandCommaAlternatives, which has always done that.
+ *
+ * The first alternative stays where it is. The others become lines of their
+ * own that open at the list's move number ("2...Kc5 3.Qb6#"), which the tree
+ * builder hangs beside the first by that number -- but only in a text whose
+ * indentation says nothing (see assignVirtualIndentsForSection); where the
+ * indentation carries the tree, such a line would land wherever its indent
+ * put it. There a list is expanded only where copying the whole line is
+ * harmless: at its head, or in a line that opens with a black move, whose
+ * copies are sibling defences the display folds together again.
+ */
+function expandCommaLists(line: string, flat: boolean, selfmate: boolean, depth = 0): string[] {
+  if (depth >= 6 || !line.includes(',')) return [line];
+  const lead = line.slice(0, line.length - line.trimStart().length);
+  const stash: string[] = [];
+  const clean = line.replace(/\{[^}]*\}|\([^()]*\)|\[[^\][]*\]/g, m => {
+    stash.push(m);
+    return `\uE001${stash.length - 1}\uE001`;
+  });
+  // "1. Nb3!, Ka4; 2. Ka2:, a5;": here the comma parts White's move from
+  // Black's, and the semicolon parts the moves. Nothing in it is a list.
+  if (/;\s*\d+\s*\./.test(clean)) return [line];
+  const restore = (s: string) => s.replace(/\uE001(\d+)\uE001/g, (_, i) => stash[Number(i)]);
+  const opensWithBlack = /^\s*\d+\s*\.\s*(?:\.{2,3}|…)/.test(clean);
+
+  for (const m of clean.matchAll(COMMA_LIST)) {
+    const start = m.index ?? 0;
+    const before = clean.slice(0, start);
+    let alts = m[0].split(/\s*,\s*/);
+    let tail = clean.slice(start + m[0].length);
+    let side: 'w' | 'b';
+    let found: RegExpMatchArray | null;
+    if ((found = before.match(BLACK_NUMBER_BEFORE))) side = 'b';
+    else if ((found = before.match(WHITE_NUMBER_BEFORE))) side = 'w';
+    else if ((found = before.match(WHITE_MOVE_BEFORE))) side = 'b';
+    else continue;
+    const num = Number(found[1]);
+    const atHead = /^\s*\d+\s*\.\s*(?:\.{2,3}|…)?\s*$/.test(before);
+
+    let partners: string[] | null = null;
+    let between = '';
+    if (side === 'b') {
+      const w = tail.match(WHITE_LIST_AFTER);
+      if (w) {
+        const whites = w[2].split(/\s*,\s*/);
+        if (whites.length === alts.length && endsInMark(whites, !!w[3], selfmate)) {
+          partners = carryMark(whites, !!w[3]);
+          between = w[1];
+          tail = tail.slice(w[0].length);
+        }
+      }
+      if (!partners && atHead) continue;
+    } else {
+      const standalone = /^\s+#(?=\s|$)/.exec(tail);
+      if (!endsInMark(alts, !!standalone, selfmate)) continue;
+      alts = carryMark(alts, !!standalone);
+      if (standalone) tail = tail.slice(standalone[0].length);
+    }
+
+    const copyWholeLine = atHead || (!flat && opensWithBlack);
+    if (!copyWholeLine && !flat) continue;
+    const number = side === 'b' ? `${num}...` : `${num}.`;
+    /* A line of its own gets the moves after the list but not the brackets
+       and comments: "2. Qf3, Qh4# (2. Qg5?)" noted a threat that fails, and
+       copied onto "2.Qh4#" it read as that move's threat, which drew the next
+       defence under it (D228460). */
+    const bareTail = tail.replace(/\s*\uE001\d+\uE001/g, '');
+    const out = alts.map((alt, i) => {
+      const own = i > 0 && !copyWholeLine;
+      const head = own ? lead + number : before;
+      return restore(head + (partners ? alt + between + partners[i] : alt) + (own ? bareTail : tail));
+    });
+    return out.flatMap(l => expandCommaLists(l, flat, selfmate, depth + 1));
+  }
+  return [line];
+}
+
+/** The same alternatives inside a threat: "(2.Qf5, Qe4#)" is two threats. */
+function commaThreatsToSlashes(threat: string, selfmate: boolean): string {
+  return threat.replace(COMMA_LIST, (list, offset: number, whole: string) => {
+    const before = whole.slice(0, offset);
+    if (before.trim() && !WHITE_NUMBER_BEFORE.test(before)) return list;
+    const moves = list.split(/\s*,\s*/);
+    return endsInMark(moves, false, selfmate) ? carryMark(moves, false).join('/') : list;
+  });
+}
+
 /**
  * Expand comma-separated alternative defenses into multiple lines.
  * e.g., "1... Sd5, Kf4 2. Q:f5#" → ["1... Sd5 2. Q:f5#", "1... Kf4 2. Q:f5#"]
@@ -441,7 +579,7 @@ function blankComplexParens(text: string): string {
   return chars.join('');
 }
 
-function parseSegments(solutionText: string): Segment[] {
+function parseSegments(solutionText: string, opts: ParseOptions = {}): Segment[] {
   const segments: Segment[] = [];
   // Collapse newlines inside {...} annotations so multi-line annotations don't
   // leak their content as separate lines (e.g. "{\n1.Kf8? Bb2!}" in D523450).
@@ -512,9 +650,14 @@ function parseSegments(solutionText: string): Segment[] {
   }
 
   // Expand comma-separated defenses before slash expansion.
-  // Pattern: "1... Sd5, Kf4 2. Q:f5#" → two lines with same continuation
+  // Pattern: "1... Sd5, Kf4 2. Q:f5#" → two lines with same continuation.
+  // The other comma lists first (expandCommaLists), which need to know
+  // whether the indentation carries the tree -- the same small-spread test
+  // assignVirtualIndentsForSection applies to the whole text.
+  const lineIndents = joinedLines.filter(l => l.trim()).map(l => l.length - l.trimStart().length);
+  const flat = lineIndents.length === 0 || Math.max(...lineIndents) - Math.min(...lineIndents) <= 3;
   const commaExpanded: string[] = [];
-  for (const line of joinedLines) {
+  for (const line of joinedLines.flatMap(l => expandCommaLists(l, flat, !!opts.selfmate))) {
     commaExpanded.push(...expandCommaAlternatives(line));
   }
 
@@ -653,7 +796,7 @@ function parseSegments(solutionText: string): Segment[] {
         .replace(/\uE000\d+\uE000/g, ' ')
         .replace(/\[[^\][]*\]/g, ' ')
         .trim();
-      for (const alt of expandAllSlashAlternatives(cleanThreat)) {
+      for (const alt of expandAllSlashAlternatives(commaThreatsToSlashes(cleanThreat, !!opts.selfmate))) {
         const threatMoves = extractMoveStrings(alt.replace(/^\s*\d+\./, '').trim());
         if (threatMoves.length === 0) continue;
         segments.push({
@@ -688,7 +831,7 @@ function parseSegments(solutionText: string): Segment[] {
   // would then leave nothing to parse. Fall back to treating braces as transparent
   // (strip only the brace characters, keep the content).
   if (segments.length === 0 && solutionText.includes('{')) {
-    return parseSegments(solutionText.replace(/[{}]/g, ' '));
+    return parseSegments(solutionText.replace(/[{}]/g, ' '), opts);
   }
 
   return segments;
@@ -1286,7 +1429,7 @@ function mirrorKindFrom(modLine: string): 'mirrorH' | 'mirrorV' | 'diagA1H8' | '
 /** "{h#2}" — a twin that also changes the stipulation. */
 const TWIN_STIP_RE = /\{\s*([a-z]*[#=]\d*)\s*\}/i;
 
-export function parseTwins(solutionText: string, originalFen: string, firstMoveColor: 'w' | 'b' = 'w'): TwinData[] | null {
+export function parseTwins(solutionText: string, originalFen: string, firstMoveColor: 'w' | 'b' = 'w', opts: ParseOptions = {}): TwinData[] | null {
   if (!solutionText) return null;
   const trimmed = twinBlockStart(normalizeCyrillicMoves(solutionText.trim()));
   if (!trimmed) return null; // Not a twin problem
@@ -1373,7 +1516,7 @@ export function parseTwins(solutionText: string, originalFen: string, firstMoveC
     if (twinColor === 'w' && fen.includes(' b ')) fen = fen.replace(' b ', ' w ');
 
     // Parse solution for this twin
-    const solNodes = parseSolution(twin.solutionText, twinColor);
+    const solNodes = parseSolution(twin.solutionText, twinColor, opts);
     const label = twin.modLine
       ? `${twin.id}) ${twin.modLine}`
       : `${twin.id}) diagram`;
@@ -1403,7 +1546,7 @@ export function debugSegments(solutionText: string, firstMoveColor: 'w' | 'b' = 
   return segments;
 }
 
-export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 'w'): SolutionNode[] {
+export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 'w', opts: ParseOptions = {}): SolutionNode[] {
   if (!solutionText || !solutionText.trim()) return [];
 
   // Detect PGN-style solutions (wrapped in {})
@@ -1419,7 +1562,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
       return parsePgnSolution(trimmedInput, firstMoveColor);
     }
     // Otherwise, strip the leading {comment} and parse the rest as indent-based
-    return parseSolution(afterBrace, firstMoveColor);
+    return parseSolution(afterBrace, firstMoveColor, opts);
   }
 
   let processedText = trimmedInput;
@@ -1444,7 +1587,7 @@ export function parseSolution(solutionText: string, firstMoveColor: 'w' | 'b' = 
     if (twinCut >= 0) processedText = processedText.slice(0, twinCut);
   }
 
-  const segments = parseSegments(processedText);
+  const segments = parseSegments(processedText, opts);
   if (segments.length === 0) return [];
 
   assignVirtualIndents(segments, firstMoveColor);

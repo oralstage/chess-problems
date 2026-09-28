@@ -140,7 +140,7 @@ function solutionFits(fen: string, stipulation: string, solution: string): boole
   const opens = read.half ? 'w' : numbered;
   let keys;
   try {
-    keys = filterKeyMoves(parseSolution(solution, numbered), opens);
+    keys = filterKeyMoves(parseSolution(solution, numbered, { selfmate: read.genre === 'self' }), opens);
   } catch {
     return false;
   }

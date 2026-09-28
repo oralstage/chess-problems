@@ -143,7 +143,9 @@ export async function ensureSolution(p: ChessProblem): Promise<ChessProblem> {
       p._twinApplied = true;
     }
   }
-  const allNodes = parseSolution(p.solutionText, parserColor);
+  // Same as App.tsx: Black mates in a selfmate (solutionParser's ParseOptions).
+  const parseOpts = { selfmate: /^s#/i.test(p.stipulation ?? '') };
+  const allNodes = parseSolution(p.solutionText, parserColor, parseOpts);
   // Retro + {(illegal)}: flip colors
   if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
     const flipColors = (nodes: typeof allNodes): void => {
@@ -175,7 +177,7 @@ export async function ensureSolution(p: ChessProblem): Promise<ChessProblem> {
   }
   // Generate twin data for twin problems
   if (!p.twins) {
-    p.twins = parseTwins(p.solutionText, p._originalFen || originalFen, parserColor) ?? undefined;
+    p.twins = parseTwins(p.solutionText, p._originalFen || originalFen, parserColor, parseOpts) ?? undefined;
   }
   // Fix castling rights if solution contains O-O but FEN has none
   p.fen = fixCastlingRights(p.fen, p.solutionText);

@@ -875,7 +875,10 @@ export default function App() {
         p._twinApplied = true;
       }
     }
-    const allNodes = parseSolution(p.solutionText, parserColor);
+    // Black mates in a selfmate, which is what a comma list's closing mate
+    // means there (solutionParser's ParseOptions).
+    const parseOpts = { selfmate: /^s#/i.test(p.stipulation ?? '') };
+    const allNodes = parseSolution(p.solutionText, parserColor, parseOpts);
     // Retro + {(illegal)}: flip colors
     if (p.genre === 'retro' && p.solutionText.includes('{(illegal')) {
       const flipColors = (nodes: typeof allNodes): void => {
@@ -907,7 +910,7 @@ export default function App() {
     }
     // Generate twin data for twin problems
     if (!p.twins) {
-      p.twins = parseTwins(p.solutionText, p._originalFen || originalFen, parserColor) ?? undefined;
+      p.twins = parseTwins(p.solutionText, p._originalFen || originalFen, parserColor, parseOpts) ?? undefined;
     }
     // Fix castling rights if solution contains O-O but FEN has none
     p.fen = fixCastlingRights(p.fen, p.solutionText);
