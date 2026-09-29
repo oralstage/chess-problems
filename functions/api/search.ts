@@ -1,6 +1,7 @@
 import { addFairyExclusion } from './fairy-filter';
 import { nameWords, searchKey } from './name-normalize';
 import { dataCacheKey, DATA_CACHE_CONTROL } from './data-cache';
+import { isMissingTable, unavailable } from './list-guard';
 
 /**
  * GET /api/search
@@ -67,6 +68,39 @@ function isRateLimited(ip: string): boolean {
   return entry.count > 10;
 }
 
+// The limiter alone does not protect the day: a bot that keeps to ten novel
+// searches a minute reads ~210k rows a minute and spends the whole account's
+// 5M in about 24 minutes. So novel searches also draw on one budget per UTC
+// day, counted in stats_cache (one row read and written per search). People
+// made three in the whole fortnight before 2026-09-29 (insights), so fifty
+// never stops a reader; at ~21k rows for the index plus up to 5,000 matched
+// problems, the most it lets through is ~1.3M rows. Past it, search answers
+// 503 until the quota resets and the rest of the site is untouched.
+const NOVEL_SEARCHES_PER_DAY = 50;
+
+/** Take one novel search from today's budget. False when it is spent, and
+ *  when it cannot be counted: a search that cannot be counted is not run. */
+async function takeSearchBudget(env: Env): Promise<boolean> {
+  const now = new Date().toISOString();
+  try {
+    const row = await env.STATS_DB.prepare(
+      `INSERT INTO stats_cache (key, payload, updated_at) VALUES (?, '1', ?)
+       ON CONFLICT(key) DO UPDATE SET payload = CAST(payload AS INTEGER) + 1, updated_at = excluded.updated_at
+       RETURNING payload`
+    ).bind(`search-day:${now.slice(0, 10)}`, now).first<{ payload: string | number }>();
+    return row != null && Number(row.payload) <= NOVEL_SEARCHES_PER_DAY;
+  } catch {
+    return false;
+  }
+}
+
+/** Seconds until 00:00 UTC, when the day's budget (and D1's quota) resets. */
+function secondsToUtcMidnight(): number {
+  const now = new Date();
+  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  return Math.max(1, Math.ceil((next - now.getTime()) / 1000));
+}
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = new URL(context.request.url);
   const author = url.searchParams.get('author')?.trim();
@@ -82,7 +116,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     if (ids.length === 0) {
       return Response.json({ error: 'ids must be a comma-separated list of problem ids' }, { status: 400 });
     }
-    const cacheKeyIds = dataCacheKey(url);
+    // Keyed on the ids alone, written as the app writes them, so nothing
+    // added to the URL can move it off its entry.
+    const keyUrlIds = new URL('/api/search', url.origin);
+    keyUrlIds.searchParams.set('ids', ids.join(','));
+    const cacheKeyIds = dataCacheKey(keyUrlIds);
     const hit = await caches.default.match(cacheKeyIds);
     if (hit) return hit;
     const rows = await context.env.DB.prepare(
@@ -103,19 +141,6 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: 'author param required (min 2 chars)' }, { status: 400 });
   }
 
-  // Edge-cache per URL: the LIKE scan reads the whole table (~580k rows) and
-  // cannot use an index, so at least repeats of the same search are free.
-  const cache = caches.default;
-  const cacheKey = dataCacheKey(url);
-  const cached = await cache.match(cacheKey);
-  if (cached) return cached;
-
-  // Only cache misses are limited: repeat searches cost nothing and stay free.
-  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown';
-  if (isRateLimited(ip)) {
-    return Response.json({ error: 'Rate limited' }, { status: 429 });
-  }
-
   // Break the query into bare words exactly the way the index breaks a name
   // (see functions/api/name-normalize.ts): a reader pastes the name as it is
   // printed — "Visocka, Jūlija", "Winter-Wood" — and splitting on spaces
@@ -125,6 +150,29 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const terms = nameWords(author).slice(0, 12);
   if (terms.length === 0) {
     return Response.json({ error: 'author param required (min 2 chars)' }, { status: 400 });
+  }
+
+  // Edge-cache per search: the author_search scan (a LIKE on every row)
+  // cannot use an index, so at least repeats are free. Keyed on the words,
+  // which are all the result depends on, rather than on the URL: "Loyd," and
+  // "loyd" share an entry, and nothing added to the URL can force a scan.
+  const cache = caches.default;
+  const keyUrl = new URL('/api/search', url.origin);
+  keyUrl.searchParams.set('author', terms.join(' '));
+  const cacheKey = dataCacheKey(keyUrl);
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
+  // Only cache misses are limited: repeat searches cost nothing and stay free.
+  const ip = context.request.headers.get('CF-Connecting-IP') || 'unknown';
+  if (isRateLimited(ip)) {
+    return Response.json({ error: 'Rate limited' }, { status: 429 });
+  }
+  if (!(await takeSearchBudget(context.env))) {
+    return Response.json(
+      { error: 'Author search is closed until 00:00 UTC' },
+      { status: 503, headers: { 'Retry-After': String(secondsToUtcMidnight()) } },
+    );
   }
   // What to look for in the alias columns: the ASCII-folded word, which is
   // the form the index always holds. Spelling a name properly used to find
@@ -223,8 +271,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         if (!took) break;
       }
     }
-  } catch {
-    indexedIds = null; // table missing — take the legacy path
+  } catch (e) {
+    // Only a missing author_search table takes the legacy path, a LIKE over
+    // every problem (~580k rows); any other failure would make one search
+    // cost as much as twenty-five, past the budget above.
+    if (!isMissingTable(e)) return unavailable();
+    indexedIds = null;
   }
 
   let rowsForQuery: Record<string, unknown>[];

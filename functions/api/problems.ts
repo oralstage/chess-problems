@@ -12,6 +12,7 @@ import { LIST_GENRES, bad, unavailable, refuseUnsupported, readCategoryMoves, is
  *   pageSize    - 1, 20 (the default), 50 or 5000
  *   page        - 0 only; later pages go by the keyset cursor below
  *   afterScore + afterId - the page after this problem, in difficulty order
+ *                          (not together with minMoves=4)
  *   minMoves / maxMoves  - a category's range, direct and help only:
  *                          2-2, 3-3, or minMoves=4 alone
  *   sortBy=difficulty, sortOrder=asc - accepted; it is the only order
@@ -64,6 +65,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       return bad('afterScore and afterId go together, as numbers');
     }
     cursor = { score, id };
+  }
+  // A cursor over a range of move counts cannot seek. D1's plan for it walks
+  // idx_genre_difficulty from the cursor and drops every #2 and #3 on the way
+  // to the page (EXPLAIN QUERY PLAN, 2026-09-29), however many lie between.
+  // The app walks cursors over whole genres only.
+  if (cursor && moves.min != null && moves.min !== moves.max) {
+    return bad('afterScore and afterId cannot be combined with minMoves=4');
   }
 
   // Edge-cache per request, keyed on what was accepted, written the way
