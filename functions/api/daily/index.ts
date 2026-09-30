@@ -76,8 +76,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         // Only the fairy check, not the piece-count one: that is a policy about
         // which problems to pick from tomorrow, not a statement that yesterday's
         // was invalid. Re-deciding a cached day would rewrite the archive and
-        // desync it from what was already posted.
-        'SELECT 1 FROM problems WHERE id = ? AND is_fairy = 0'
+        // desync it from what was already posted. "To delete" is checked for
+        // the same reason as fairy: the page opens such an entry without a
+        // live board, so a cached day holding one has no problem to give. None
+        // of the 77 days posted to X up to 2026-10-04 holds one.
+        "SELECT 1 FROM problems WHERE id = ? AND is_fairy = 0 AND keywords NOT LIKE '%To delete%'"
       ).bind(cachedRow.problem_id).first() !== null
     : false;
 

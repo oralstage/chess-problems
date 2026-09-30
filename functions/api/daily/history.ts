@@ -72,11 +72,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         return Math.floor(hash * total);
       };
 
-      const idResults = await Promise.all(missing.map(dateStr =>
-        context.env.DB.prepare(
-          `SELECT id FROM problems WHERE ${where} ORDER BY difficulty_score ASC LIMIT 1 OFFSET ?`
-        ).bind(...bindings, offsetFor(dateStr)).first<{ id: number }>()
-      ));
+      // Step over entries YACPDB marks "To delete", as /api/daily does.
+      const pick = async (offset: number) => {
+        for (let step = 0; step < 5; step++) {
+          const row = await context.env.DB.prepare(
+            `SELECT id, keywords FROM problems WHERE ${where} ORDER BY difficulty_score ASC LIMIT 1 OFFSET ?`
+          ).bind(...bindings, offset + step).first<{ id: number; keywords: string }>();
+          if (!row || !String(row.keywords).includes('To delete')) return row;
+        }
+        return null;
+      };
+      const idResults = await Promise.all(missing.map(dateStr => pick(offsetFor(dateStr))));
 
       const inserts: D1PreparedStatement[] = [];
       missing.forEach((dateStr, i) => {

@@ -36,10 +36,22 @@ async function main() {
     date.setDate(date.getDate() + offset);
     return localDateKey(date);
   });
+  // One bad day (the generator refuses a "To delete" pick, or the API fails)
+  // must not cost the other six, so each day is run and reported on its own.
+  const failed = [];
   for (const date of dates) {
-    const { stdout, stderr } = await execFileAsync(process.execPath, [generatorPath, date], { cwd: projectRoot });
-    process.stdout.write(stdout);
-    process.stderr.write(stderr);
+    try {
+      const { stdout, stderr } = await execFileAsync(process.execPath, [generatorPath, date], { cwd: projectRoot });
+      process.stdout.write(stdout);
+      process.stderr.write(stderr);
+    } catch (error) {
+      process.stdout.write(error.stdout ?? '');
+      process.stderr.write(error.stderr ?? `${error.message}\n`);
+      failed.push(date);
+    }
+  }
+  if (failed.length > 0) {
+    throw new Error(`Daily posts not generated for: ${failed.join(', ')}`);
   }
   console.log(`Weekly Daily posts generated: ${dates[0]} through ${dates.at(-1)}`);
 }

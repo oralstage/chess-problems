@@ -186,6 +186,12 @@ async function main() {
   const response = await fetchWithRetry(apiUrl);
   if (!response.ok) throw new Error(`Daily API returned ${response.status}: ${apiUrl}`);
   const problem = await response.json();
+  // The site opens an entry YACPDB marks "To delete" without a live board, so
+  // a post would send people to a problem they cannot solve. /api/daily steps
+  // over them; this only fires if a deployment without that is still serving.
+  if ((problem.keywords ?? []).includes('To delete')) {
+    throw new Error(`Daily for ${date} is D${problem.id}, which YACPDB marks "To delete" — not posting it. Check that the current /api/daily is deployed.`);
+  }
   const problemRating = await getProblemRating(problem);
   const link = `${SITE_URL}/#/daily/${date}`;
   const outputDir = weeklyOutputDir(date);
