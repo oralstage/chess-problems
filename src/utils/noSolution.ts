@@ -39,18 +39,54 @@ export function hasNoRecordedSolution(p: ChessProblem): boolean {
   return p.solutionTree.every(n => n.color !== 'w');
 }
 
-/** YACPDB's own bookkeeping tag, not a theme: the entry is to be removed. */
-export const DELETION_KEYWORD = 'To delete';
-
 /**
- * True when YACPDB has marked the entry for deletion. The reasons vary (a
- * wrong diagram, a duplicate, a twin or phase entered on its own) and the
- * pointer to the right entry lives in YACPDB's comments, which the import
- * does not keep -- but nobody sets out to solve a problem the source says is
- * going away, so it gets the same page as one with no solution at all.
- * D267111 (#3) is a wrong diagram with "1.Ka2-a1" for a solution; Popeye
- * finds no mate in it.
+ * YACPDB's own marks that the entry is not a sound diagram to solve -- its
+ * bookkeeping, not themes, so they are kept out of the theme list too.
+ *  - "To delete": the entry is being removed (a wrong diagram, a duplicate, a
+ *    twin or phase entered on its own). D267111 (#3) is a wrong diagram with
+ *    "1.Ka2-a1" for a solution; Popeye finds no mate in it.
+ *  - "Position?": the diagram is in doubt. Of the 155 in the site's genres,
+ *    102 are not even legal positions (a king missing, or the side to move can
+ *    take the enemy king) and 19 more have no solution by Popeye (2026-09-30).
+ *  - "Wrong position (see References)": the diagram is known to be wrong.
+ * The pointer to the right entry lives in YACPDB's comments, which the import
+ * does not keep. Nobody sets out to solve a problem the source itself doubts,
+ * so these get the same page as one with no solution at all.
  */
-export function isMarkedForDeletion(p: ChessProblem): boolean {
-  return (p.keywords ?? []).includes(DELETION_KEYWORD);
+export type YacpdbFlag = 'delete' | 'doubtful' | 'wrong';
+
+const FLAG_KEYWORDS: Record<string, YacpdbFlag> = {
+  'To delete': 'delete',
+  'Position?': 'doubtful',
+  'Wrong position (see References)': 'wrong',
+};
+
+export function isFlagKeyword(keyword: string): boolean {
+  return keyword in FLAG_KEYWORDS;
 }
+
+export function yacpdbFlag(p: ChessProblem): YacpdbFlag | null {
+  for (const k of p.keywords ?? []) {
+    const flag = FLAG_KEYWORDS[k];
+    if (flag) return flag;
+  }
+  return null;
+}
+
+export const FLAG_TEXT: Record<YacpdbFlag, { label: string; sub: string; notice: string }> = {
+  delete: {
+    label: 'Marked for deletion',
+    sub: 'YACPDB marks this entry for deletion — see below.',
+    notice: 'YACPDB marks this entry for deletion (a wrong diagram, or a duplicate of another entry), so it is not offered for solving here. What the source does have is below.',
+  },
+  doubtful: {
+    label: 'Doubtful diagram',
+    sub: 'YACPDB marks this diagram as doubtful — see below.',
+    notice: 'YACPDB marks this diagram as doubtful — it may not be the position the composer published — so it is not offered for solving here. What the source does have is below.',
+  },
+  wrong: {
+    label: 'Wrong diagram',
+    sub: 'YACPDB marks this diagram as wrong — see below.',
+    notice: 'YACPDB marks this diagram as wrong, so it is not offered for solving here. What the source does have is below.',
+  },
+};

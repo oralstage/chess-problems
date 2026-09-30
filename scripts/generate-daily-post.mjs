@@ -186,11 +186,13 @@ async function main() {
   const response = await fetchWithRetry(apiUrl);
   if (!response.ok) throw new Error(`Daily API returned ${response.status}: ${apiUrl}`);
   const problem = await response.json();
-  // The site opens an entry YACPDB marks "To delete" without a live board, so
-  // a post would send people to a problem they cannot solve. /api/daily steps
-  // over them; this only fires if a deployment without that is still serving.
-  if ((problem.keywords ?? []).includes('To delete')) {
-    throw new Error(`Daily for ${date} is D${problem.id}, which YACPDB marks "To delete" — not posting it. Check that the current /api/daily is deployed.`);
+  // The site opens an entry YACPDB marks (To delete, a doubtful or wrong
+  // diagram -- functions/api/yacpdb-flags.ts) without a live board, so a post
+  // would send people to a problem they cannot solve. /api/daily steps over
+  // them; this only fires if a deployment without that is still serving.
+  const flag = (problem.keywords ?? []).find(k => ['To delete', 'Position?', 'Wrong position (see References)'].includes(k));
+  if (flag) {
+    throw new Error(`Daily for ${date} is D${problem.id}, which YACPDB marks "${flag}" — not posting it. Check that the current /api/daily is deployed.`);
   }
   const problemRating = await getProblemRating(problem);
   const link = `${SITE_URL}/#/daily/${date}`;

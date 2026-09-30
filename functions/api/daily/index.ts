@@ -1,4 +1,5 @@
 import { addFairyExclusion } from '../fairy-filter';
+import { FLAG_EXCLUSIONS, hasFlagKeyword } from '../yacpdb-flags';
 
 /**
  * GET /api/daily
@@ -76,11 +77,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         // Only the fairy check, not the piece-count one: that is a policy about
         // which problems to pick from tomorrow, not a statement that yesterday's
         // was invalid. Re-deciding a cached day would rewrite the archive and
-        // desync it from what was already posted. "To delete" is checked for
+        // desync it from what was already posted. YACPDB's marks (To delete,
+        // a doubtful or wrong diagram -- see yacpdb-flags.ts) are checked for
         // the same reason as fairy: the page opens such an entry without a
-        // live board, so a cached day holding one has no problem to give. None
-        // of the 77 days posted to X up to 2026-10-04 holds one.
-        "SELECT 1 FROM problems WHERE id = ? AND is_fairy = 0 AND keywords NOT LIKE '%To delete%'"
+        // live board, so a cached day holding one has no problem to give.
+        `SELECT 1 FROM problems WHERE id = ? AND is_fairy = 0 AND ${FLAG_EXCLUSIONS.join(' AND ')}`
       ).bind(cachedRow.problem_id).first() !== null
     : false;
 
@@ -149,7 +150,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const hash = ((dayNum * GOLDEN) >>> 0) / 4294967296;
     const offsetFor = (poolSize: number) => Math.floor(hash * poolSize);
 
-    // An entry YACPDB marks "To delete" opens without a live board, so it
+    // An entry YACPDB marks (see yacpdb-flags.ts) opens without a live board, so it
     // cannot be the daily. It is stepped over rather than added to the WHERE:
     // a narrower pool would move every future day's OFFSET and change problems
     // already announced for the week, and would need the cached count redone.
@@ -161,7 +162,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const pickAt = async (offset: number) => {
       for (let step = 0; step < 5; step++) {
         const row = await pickOnce(offset + step);
-        if (!row || !String(row.keywords).includes('To delete')) return row;
+        if (!row || !hasFlagKeyword(row.keywords)) return row;
       }
       return null;
     };

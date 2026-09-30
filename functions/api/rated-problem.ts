@@ -14,6 +14,7 @@
 const RATED_GENRES = ['direct', 'self', 'help'];
 
 import { addFairyExclusion } from './fairy-filter';
+import { FLAG_EXCLUSIONS } from './yacpdb-flags';
 import { UNPLAYABLE_IDS } from './unplayable-filter';
 import { UNPLAYABLE_HELP_IDS } from './unplayable-help';
 import { UNPLAYABLE_KEY_IDS } from './unplayable-keys';
@@ -141,10 +142,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         // direct mates and 177 selfmates carried Unsound, 372 No solution).
         "keywords NOT LIKE '%Unsound%'",
         "keywords NOT LIKE '%No solution%'",
-        // YACPDB's mark for an entry it is removing (wrong diagram, duplicate,
-        // twin entered on its own). The page opens these without a live board,
-        // so a rated game on one could not be played at all.
-        "keywords NOT LIKE '%To delete%'",
+        // YACPDB's marks for an entry it is removing or whose diagram it
+        // doubts (see yacpdb-flags.ts). The page opens these without a live
+        // board, so a rated game on one could not be played at all.
+        ...FLAG_EXCLUSIONS,
         `id NOT IN (${UNPLAYABLE_IDS.join(',')})`,
         // Direct mates and selfmates whose key cannot be entered on the board
         // and that no keyword catches — see scripts/find-unplayable-keys.ts.

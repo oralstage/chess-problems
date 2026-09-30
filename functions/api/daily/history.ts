@@ -1,4 +1,5 @@
 import { addFairyExclusion } from '../fairy-filter';
+import { hasFlagKeyword } from '../yacpdb-flags';
 
 /**
  * GET /api/daily/history?days=30
@@ -72,13 +73,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         return Math.floor(hash * total);
       };
 
-      // Step over entries YACPDB marks "To delete", as /api/daily does.
+      // Step over entries YACPDB marks (see yacpdb-flags.ts), as /api/daily does.
       const pick = async (offset: number) => {
         for (let step = 0; step < 5; step++) {
           const row = await context.env.DB.prepare(
             `SELECT id, keywords FROM problems WHERE ${where} ORDER BY difficulty_score ASC LIMIT 1 OFFSET ?`
           ).bind(...bindings, offset + step).first<{ id: number; keywords: string }>();
-          if (!row || !String(row.keywords).includes('To delete')) return row;
+          if (!row || !hasFlagKeyword(row.keywords)) return row;
         }
         return null;
       };
