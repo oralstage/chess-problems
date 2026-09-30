@@ -38,3 +38,19 @@ export function hasNoRecordedSolution(p: ChessProblem): boolean {
   // Everything left is White to play.
   return p.solutionTree.every(n => n.color !== 'w');
 }
+
+/** YACPDB's own bookkeeping tag, not a theme: the entry is to be removed. */
+export const DELETION_KEYWORD = 'To delete';
+
+/**
+ * True when YACPDB has marked the entry for deletion. The reasons vary (a
+ * wrong diagram, a duplicate, a twin or phase entered on its own) and the
+ * pointer to the right entry lives in YACPDB's comments, which the import
+ * does not keep -- but nobody sets out to solve a problem the source says is
+ * going away, so it gets the same page as one with no solution at all.
+ * D267111 (#3) is a wrong diagram with "1.Ka2-a1" for a solution; Popeye
+ * finds no mate in it.
+ */
+export function isMarkedForDeletion(p: ChessProblem): boolean {
+  return (p.keywords ?? []).includes(DELETION_KEYWORD);
+}

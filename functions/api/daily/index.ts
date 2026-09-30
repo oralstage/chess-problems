@@ -146,9 +146,22 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const hash = ((dayNum * GOLDEN) >>> 0) / 4294967296;
     const offsetFor = (poolSize: number) => Math.floor(hash * poolSize);
 
-    const pickAt = (offset: number) => context.env.DB.prepare(
-      `SELECT id FROM problems WHERE ${where} ORDER BY difficulty_score ASC LIMIT 1 OFFSET ?`
-    ).bind(...bindings, offset).first<{ id: number }>();
+    // An entry YACPDB marks "To delete" opens without a live board, so it
+    // cannot be the daily. It is stepped over rather than added to the WHERE:
+    // a narrower pool would move every future day's OFFSET and change problems
+    // already announced for the week, and would need the cached count redone.
+    // Seven of the ~37k in the pool carry the mark, so a step is rare and the
+    // extra row reads are a handful.
+    const pickOnce = (offset: number) => context.env.DB.prepare(
+      `SELECT id, keywords FROM problems WHERE ${where} ORDER BY difficulty_score ASC LIMIT 1 OFFSET ?`
+    ).bind(...bindings, offset).first<{ id: number; keywords: string }>();
+    const pickAt = async (offset: number) => {
+      for (let step = 0; step < 5; step++) {
+        const row = await pickOnce(offset + step);
+        if (!row || !String(row.keywords).includes('To delete')) return row;
+      }
+      return null;
+    };
 
     let idRow = await pickAt(offsetFor(total));
 

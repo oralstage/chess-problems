@@ -49,7 +49,7 @@ import { buildHandoffUrl, buildRequestUrl, consumeHandoff, hasLocalAccountData, 
   markHandoffReturned, markHandoffTried, shouldAutoHandoff } from './utils/domainHandoff';
 import { useReviewQueue } from './hooks/useReviewQueue';
 import { getStipulationToastClasses, stipulationPhrase } from './utils/stipulationColor';
-import { hasNoRecordedSolution } from './utils/noSolution';
+import { hasNoRecordedSolution, isMarkedForDeletion, DELETION_KEYWORD } from './utils/noSolution';
 import { flipDuplexRoots, mainLinePlays } from './utils/duplex';
 import { DUPLEX_IDS } from './data/duplexIds';
 import { CYRILLIC_AS_WRITTEN } from './data/cyrillicAsWritten';
@@ -844,7 +844,7 @@ export default function App() {
       }
     }
     if (p.solutionTree.length > 0) {
-      p._noSolution = hasNoRecordedSolution(p);
+      p._noSolution = hasNoRecordedSolution(p) || isMarkedForDeletion(p);
       return p; // already has solution
     }
     if (!p.solutionText) {
@@ -941,7 +941,7 @@ export default function App() {
     // Last, so it reads the board the solver will actually get: the study
     // flip just above is what tells a black-to-move study from a problem with
     // nothing for White to play.
-    p._noSolution = hasNoRecordedSolution(p);
+    p._noSolution = hasNoRecordedSolution(p) || isMarkedForDeletion(p);
     return p;
   }, []);
 
@@ -975,9 +975,10 @@ export default function App() {
     // for whoever misses it or comes back to the page later.
     if (ready._noSolution) {
       problem.showNoSolution();
+      const toDelete = isMarkedForDeletion(ready);
       setStipulationToast({
-        label: 'No solution',
-        sub: 'This one cannot be solved — see below.',
+        label: toDelete ? 'Marked for deletion' : 'No solution',
+        sub: toDelete ? 'YACPDB marks this entry for deletion — see below.' : 'This one cannot be solved — see below.',
         subSmall: true,
         stipulation: ready.stipulation, genre: ready.genre, tone: 'bad',
       });
@@ -1942,7 +1943,7 @@ export default function App() {
       // Nobody gave up on a problem that had nothing to find: say what the
       // page actually did, so a report from one of these is not read as a
       // solver who quit.
-      outcome: problem.status === 'correct' ? 'solved' : p?._noSolution ? 'no solution recorded' : 'gave up',
+      outcome: problem.status === 'correct' ? 'solved' : p && isMarkedForDeletion(p) ? 'marked for deletion' : p?._noSolution ? 'no solution recorded' : 'gave up',
       wrongMoves: problem.wrongMoveCount,
       hintUsed: hintUsedRef.current,
       mode: isRatedMode ? 'rated' : isReviewMode ? 'review'
@@ -3415,7 +3416,9 @@ export default function App() {
               {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && problem.problem._noSolution && (
                 <div className="nb-plate nb-shadow-room p-3">
                   <p className="text-xs font-semibold text-[var(--ink)]">
-                    YACPDB records no solution for this problem{(problem.problem.keywords ?? []).some(k => k === 'Unsound' || k === 'No solution') ? ', and marks it unsound' : ''} — there is nothing here to solve. What the source does have is below.
+                    {isMarkedForDeletion(problem.problem)
+                      ? 'YACPDB marks this entry for deletion (a wrong diagram, or a duplicate of another entry), so it is not offered for solving here. What the source does have is below.'
+                      : <>YACPDB records no solution for this problem{(problem.problem.keywords ?? []).some(k => k === 'Unsound' || k === 'No solution') ? ', and marks it unsound' : ''} — there is nothing here to solve. What the source does have is below.</>}
                   </p>
                 </div>
               )}
@@ -3445,6 +3448,7 @@ export default function App() {
                   reader straight to the engine for the rest. */}
               {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (() => {
                 const p = problem.problem;
+                if (p._noSolution) return null; // the notice above already says what this page is
                 if (p.moveCount <= 0) return null; // studies have no fixed length
                 const expected = p.genre === 'direct' ? p.moveCount * 2 - 1
                   : (p.genre === 'help' || p.genre === 'self') ? p.moveCount * 2
@@ -3476,7 +3480,7 @@ export default function App() {
               })()}
 
               {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (
-                <ThemeTags keywords={problem.problem.keywords} />
+                <ThemeTags keywords={problem.problem.keywords.filter(k => k !== DELETION_KEYWORD)} />
               )}
 
               {!enginePlay && (problem.status === 'correct' || problem.status === 'viewing') && (
@@ -3780,11 +3784,11 @@ export default function App() {
                 {/* Theme names ("Zugzwang", "Grimshaw"…) all but name the key
                     idea, so like ProblemCard they stay hidden until the solve
                     is decided — in every mode, rated or not. */}
-                {p.keywords.length > 0 && problem.status !== 'solving' && (
+                {p.keywords.some(k => k !== DELETION_KEYWORD) && problem.status !== 'solving' && (
                   <div>
                     <span className="text-[var(--faint)] font-semibold block mb-1">Themes:</span>
                     <div className="flex flex-wrap gap-1">
-                      {p.keywords.map(kw => (
+                      {p.keywords.filter(k => k !== DELETION_KEYWORD).map(kw => (
                         <span key={kw} className="nb-chip px-2 py-0.5 text-xs">
                           {kw}
                         </span>

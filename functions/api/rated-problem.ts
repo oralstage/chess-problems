@@ -141,6 +141,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         // direct mates and 177 selfmates carried Unsound, 372 No solution).
         "keywords NOT LIKE '%Unsound%'",
         "keywords NOT LIKE '%No solution%'",
+        // YACPDB's mark for an entry it is removing (wrong diagram, duplicate,
+        // twin entered on its own). The page opens these without a live board,
+        // so a rated game on one could not be played at all.
+        "keywords NOT LIKE '%To delete%'",
         `id NOT IN (${UNPLAYABLE_IDS.join(',')})`,
         // Direct mates and selfmates whose key cannot be entered on the board
         // and that no keyword catches — see scripts/find-unplayable-keys.ts.
