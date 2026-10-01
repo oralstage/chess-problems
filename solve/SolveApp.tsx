@@ -16,6 +16,7 @@ import { ensureSolution } from '../embed/ensureSolution';
 import { BadRequest, problemFromParams, problemIdFromUrl } from '../embed/problemParams';
 import { AnalysisApp } from '../analysis/AnalysisApp';
 import { wantsAnalysis } from '../analysis/placement';
+import { MadeWith } from './MadeWith';
 
 /* One problem, full size, on a page of its own.
 
@@ -415,6 +416,7 @@ function SolveProblem() {
           )}
         </main>
       </div>
+      <MadeWith />
     </div>
   );
 }

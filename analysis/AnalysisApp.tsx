@@ -4,6 +4,7 @@ import { useTheme } from '../src/hooks/useTheme';
 import { pieceCounts } from '../src/utils/pieceCount';
 import { composerLine } from '../src/utils/composerName';
 import { EMPTY, asFen, creditFromParams, freeDrop, readPlacement } from './placement';
+import { MadeWith } from '../solve/MadeWith';
 
 /* The analysis board on a page of its own -- what /solve?fen=… opens when it
    is given a position and nothing to solve. The pocket set the solving view
@@ -107,6 +108,7 @@ export function AnalysisApp() {
           </div>
         </main>
       </div>
+      <MadeWith />
     </div>
   );
 }
