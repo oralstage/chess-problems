@@ -780,7 +780,7 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
             About
           </a>
           <a
-            href="https://ushiyutvj.pages.dev"
+            href="https://ushiyutvj.chessproblem.org"
             target="_blank"
             rel="noopener noreferrer"
             className="nb-btn inline-flex items-center gap-2 pl-1.5 pr-4 py-1.5 text-sm"
