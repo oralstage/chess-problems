@@ -747,9 +747,10 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         </div>
       </div>
 
-      {/* Same card as everywhere else, and it leaves — the sister site's tile
-          set the form for that. One card in the three-column grid, so it is
-          the width of every other tile instead of a banner. */}
+      {/* Same card as everywhere else. The two sister sites leave in a new
+          tab — the sister site's tile set the form for that — and /make, which
+          is part of this site, does not. Cards in the three-column grid, so
+          each is the width of every other tile instead of a banner. */}
       <div className="grid grid-cols-3 gap-2.5 px-4">
         <a
           href="https://similar.chessproblem.org"
@@ -770,6 +771,16 @@ export function ModeSelector({ onSelectMode, dailyProblem, onSolveDaily, dailySo
         >
           <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Popeye" /></span>
           <span className={CARD_TITLE}>Popeye online</span>
+        </a>
+        {/* Our own page, so no new tab. The trailing slash is the address
+            Pages serves without a redirect, and the one the dev server finds. */}
+        <a
+          href="/make/"
+          className={CARD}
+          style={{ backgroundColor: 'var(--card-self)' }}
+        >
+          <span className="block w-14 h-14 mx-auto" aria-hidden="true"><CategoryMark name="Make a diagram" /></span>
+          <span className={CARD_TITLE}>Make a diagram</span>
         </a>
       </div>
 

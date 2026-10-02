@@ -356,6 +356,33 @@ function markBody(name: string) {
         </svg>
       );
 
+    /* /make, which turns a composer's position into a diagram they can paste
+       anywhere. Drawn as a rubber stamp with its print underneath, because
+       what the page hands back is a copy to put somewhere else, and the print
+       being a chequered board is what says chess. The verb on the button is
+       Generate; a picture of generating (sparkles, a gear) says nothing about
+       what comes out. Chosen from four sketches — a framed board read as a
+       gallery icon, a pawn being placed said nothing about taking it away,
+       and a board with a </> tag said "code". */
+    case 'Make a diagram':
+      return (
+        <svg {...box}>
+          <circle cx="22" cy="6.5" r="4" fill={CREAM} />
+          <path d="M19.5 10.5h5V17h-5z" fill={CREAM} strokeWidth={2.2} />
+          <rect x="9" y="17" width="26" height="8" rx="2" fill={GREEN} />
+          <rect x="7.5" y="25" width="29" height="3.4" rx="1" fill="var(--ink)" stroke="none" />
+          {/* The print: squares first, outline last so it sits on top. */}
+          <rect x="10" y="32" width="24" height="10" fill={CREAM} stroke="none" />
+          <g fill={GREEN} stroke="none">
+            <rect x="10" y="32" width="6" height="5" />
+            <rect x="22" y="32" width="6" height="5" />
+            <rect x="16" y="37" width="6" height="5" />
+            <rect x="28" y="37" width="6" height="5" />
+          </g>
+          <rect x="10" y="32" width="24" height="10" strokeWidth={2} />
+        </svg>
+      );
+
     /* The rules guide. A fingerpost, not a book: the two cards beside it on the
        home page ARE books, and at 44px a third book is a third book whatever the
        spine is doing. It also says the right thing — this is the card that points
