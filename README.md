@@ -1,4 +1,4 @@
-# Chess Problems
+# Chess Problem Arcade
 
 Interactive solver for [YACPDB](https://www.yacpdb.org) chess problems with move validation, Stockfish hints, and full solution display including tries and variations.
 
