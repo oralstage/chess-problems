@@ -4,7 +4,7 @@ Interactive solver for [YACPDB](https://www.yacpdb.org) chess problems with move
 
 Over 575,000 problems: direct mates (~406,000), helpmates (~85,000), selfmates (~53,000), studies (~32,000), and retros (~1,500).
 
-**Live site: [chess-problems.pages.dev](https://chess-problems.pages.dev)**
+**Live site: [arcade.chessproblem.org](https://arcade.chessproblem.org)**
 
 © 2026 ushiyutvj. All rights reserved. The source is published here for reading and reference only; copying, redistribution, or use of this code in another site or product is not permitted without the author's written permission.
 
